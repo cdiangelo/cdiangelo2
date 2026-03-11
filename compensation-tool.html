@@ -6,902 +6,1852 @@
 <title>Compensation Planning Tool</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
-    --bg: #0f1117; --panel: #1a1d27; --panel2: #21253a;
-    --border: #2a2d3e; --text: #e2e8f0; --muted: #94a3b8;
-    --accent: #6366f1; --accent2: #22d3ee; --green: #10b981;
-    --yellow: #f59e0b; --red: #f43f5e; --purple: #8b5cf6;
+    --bg: #0f1117;
+    --panel: #1a1d27;
+    --border: #2a2d3e;
+    --accent: #6366f1;
+    --cyan: #22d3ee;
+    --text: #e2e8f0;
+    --text-muted: #8892a4;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #f43f5e;
+    --font: 'Inter', system-ui, -apple-system, sans-serif;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: system-ui,-apple-system,sans-serif; font-size: 14px; min-height: 100vh; }
-  .app-header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 24px; height: 56px; position: sticky; top: 0; z-index: 100; }
-  .app-header h1 { font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; white-space: nowrap; }
-  .app-header h1 span { color: var(--accent2); }
-  .tabs { display: flex; gap: 2px; }
-  .tab { padding: 8px 16px; border-radius: 6px; cursor: pointer; color: var(--muted); font-weight: 500; transition: all .15s; border: none; background: none; font-size: 13px; }
-  .tab:hover { color: var(--text); background: var(--panel2); }
-  .tab.active { color: var(--accent); background: rgba(99,102,241,.15); }
-  .main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
-  .card-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 16px; }
-  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-  .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
-  .stat-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px; }
-  .stat-value { font-size: 22px; font-weight: 700; color: var(--text); }
-  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
-  .chart-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
-  .btn-group { display: flex; gap: 2px; background: var(--panel2); border-radius: 8px; padding: 3px; }
-  .btn-group button { padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; background: none; color: var(--muted); font-size: 12px; font-weight: 500; transition: all .15s; }
-  .btn-group button.active { background: var(--accent); color: #fff; }
-  .filter-selects { display: flex; gap: 8px; flex-wrap: wrap; }
-  .filter-selects select { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
-  .chart-wrap { position: relative; height: 300px; }
-  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all .15s; }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #4f46e5; }
-  .btn-secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Header */
+  .header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    padding: 16px 0;
+    white-space: nowrap;
+    letter-spacing: -0.3px;
+  }
+
+  .logo span { color: var(--cyan); }
+
+  .nav {
+    display: flex;
+    gap: 2px;
+    height: 100%;
+  }
+
+  .nav-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 18px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.2s, border-bottom 0.2s;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    font-family: var(--font);
+  }
+
+  .nav-btn:hover { color: var(--text); }
+  .nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Main */
+  .main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+  /* Tabs */
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .card-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .card-value.accent { color: var(--accent); }
+  .card-value.cyan { color: var(--cyan); }
+  .card-value.success { color: var(--success); }
+  .card-value.warning { color: var(--warning); }
+
+  /* Stat grid */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 900px) {
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Chart section */
+  .chart-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .chart-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .chart-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .chart-canvas-wrap {
+    position: relative;
+    height: 340px;
+  }
+
+  /* Toggle groups */
+  .toggle-group {
+    display: flex;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+
+  .toggle-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 7px 14px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+    font-family: var(--font);
+  }
+
+  .toggle-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+
+  .toggle-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* Select */
+  select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  select:focus { border-color: var(--accent); }
+
+  /* Buttons */
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 9px 18px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: opacity 0.2s, transform 0.1s;
+    font-family: var(--font);
+    white-space: nowrap;
+    display: inline-block;
+  }
+
+  .btn:hover { opacity: 0.88; }
+  .btn:active { transform: scale(0.98); }
+
+  .btn-secondary {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
   .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-  .btn-danger { background: rgba(244,63,94,.15); color: var(--red); border: 1px solid rgba(244,63,94,.3); }
-  .btn-danger:hover { background: rgba(244,63,94,.25); }
-  .btn-sm { padding: 4px 10px; font-size: 12px; }
-  .btn-green { background: rgba(16,185,129,.15); color: var(--green); border: 1px solid rgba(16,185,129,.3); }
-  .btn-green:hover { background: rgba(16,185,129,.25); }
-  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .form-group { display: flex; flex-direction: column; gap: 5px; }
-  .form-group label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
-  .form-group input, .form-group select, .form-group textarea {
-    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
-    padding: 8px 10px; border-radius: 6px; font-size: 13px; transition: border-color .15s;
+
+  .btn-success { background: var(--success); }
+  .btn-danger { background: var(--danger); }
+  .btn-sm { padding: 5px 11px; font-size: 12px; }
+  .btn-cyan { background: var(--cyan); color: #0f1117; }
+
+  /* Forms */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
   }
-  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-    outline: none; border-color: var(--accent);
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
   }
-  .benchmark-badge { background: rgba(34,211,238,.1); border: 1px solid rgba(34,211,238,.3); color: var(--accent2); padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; cursor: pointer; }
-  .benchmark-badge:hover { background: rgba(34,211,238,.2); }
+
+  .form-group.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-family: var(--font);
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+
+  input[type="text"]:focus,
+  input[type="number"]:focus,
+  textarea:focus { border-color: var(--accent); }
+
+  textarea { resize: vertical; min-height: 60px; }
+
+  /* Benchmark box */
+  .benchmark-box {
+    background: rgba(99,102,241,0.1);
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .benchmark-info { font-size: 13px; color: var(--text-muted); }
+  .benchmark-value { font-size: 18px; font-weight: 700; color: var(--cyan); }
+
+  /* Tables */
   .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  td { padding: 10px 12px; border-bottom: 1px solid rgba(42,45,62,.6); vertical-align: middle; }
-  tr:hover td { background: rgba(99,102,241,.04); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(42,45,62,0.6);
+    vertical-align: middle;
+  }
+
   tr:last-child td { border-bottom: none; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-  .badge-country { background: rgba(139,92,246,.15); color: var(--purple); }
-  .badge-seniority { background: rgba(99,102,241,.15); color: var(--accent); }
-  .badge-function { background: rgba(34,211,238,.1); color: var(--accent2); }
-  .inline-edit { background: var(--panel2); border: 1px solid var(--accent); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 13px; width: 100px; }
-  .bonus-matrix { overflow-x: auto; }
-  .bonus-matrix table { min-width: 900px; }
-  .bonus-matrix th { font-size: 10px; padding: 8px 6px; }
-  .bonus-matrix td { padding: 4px; }
-  .bonus-input { width: 56px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 5px 6px; border-radius: 4px; text-align: center; font-size: 12px; }
-  .bonus-input:focus { border-color: var(--accent); outline: none; }
-  .monthly-table th, .monthly-table td { font-size: 12px; padding: 8px 10px; white-space: nowrap; }
-  .monthly-table .total-row td { font-weight: 700; background: rgba(99,102,241,.08); border-top: 2px solid var(--accent); }
-  .export-section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .export-card { border: 1px solid var(--border); border-radius: 10px; padding: 20px; background: var(--panel2); }
-  .export-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-  .export-card p { color: var(--muted); font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
-  .divider { height: 1px; background: var(--border); margin: 16px 0; }
-  .row-actions { display: flex; gap: 6px; }
-  .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); }
-  .empty-state .icon { font-size: 32px; margin-bottom: 12px; }
-  .search-bar { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; width: 220px; }
-  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
-  .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-  .section-head h2 { font-size: 16px; font-weight: 700; }
-  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: rgba(99,102,241,.15); color: var(--accent); }
-  .green-text { color: var(--green); }
-  .yellow-text { color: var(--yellow); }
-  .spread-toggle { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
-  .spread-toggle label { font-size: 12px; color: var(--muted); }
-  .spread-toggle select { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 5px; font-size: 12px; }
-  .notification { position: fixed; bottom: 20px; right: 20px; background: var(--green); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 9999; opacity: 0; transform: translateY(10px); transition: all .25s; pointer-events: none; }
-  .notification.show { opacity: 1; transform: translateY(0); }
-  @media (max-width: 768px) {
-    .stats-row { grid-template-columns: 1fr 1fr; }
-    .export-section { grid-template-columns: 1fr; }
-    .app-header { flex-wrap: wrap; height: auto; padding: 10px; }
+
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+  .td-actions { display: flex; gap: 6px; white-space: nowrap; }
+
+  /* Bonus matrix */
+  .matrix-table th:first-child { width: 140px; }
+
+  .matrix-table td:first-child {
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .matrix-input {
+    width: 68px;
+    text-align: center;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  /* Monthly spread */
+  .spread-table th { white-space: nowrap; min-width: 90px; }
+  .spread-table td { white-space: nowrap; }
+  .spread-table tfoot td {
+    font-weight: 700;
+    background: rgba(99,102,241,0.08);
+    border-top: 1px solid var(--border);
+  }
+
+  /* Section header row */
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .section-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  /* Export section */
+  .export-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .export-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+  }
+
+  .export-card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .export-card p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+
+  /* Edit row */
+  .edit-row td { background: rgba(99,102,241,0.06); }
+
+  .edit-input {
+    width: 100%;
+    min-width: 90px;
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-muted);
+  }
+
+  .empty-state h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .empty-state p { font-size: 13px; }
+
+  /* Toggle spread view */
+  .spread-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-country { background: rgba(34,211,238,0.15); color: var(--cyan); }
+  .badge-seniority { background: rgba(99,102,241,0.15); color: var(--accent); }
+  .badge-function { background: rgba(16,185,129,0.15); color: var(--success); }
+
+  /* Notification */
+  .notif {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 999;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+    max-width: 300px;
+    pointer-events: none;
+  }
+
+  .notif.show { transform: translateY(0); opacity: 1; }
+
+  /* Add employee form section */
+  .add-form-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .add-form-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  /* Print styles */
+  @media print {
+    .header, .nav, .chart-controls, .td-actions, .btn { display: none !important; }
+    body { background: #fff; color: #000; }
+    .card, .chart-section, .add-form-section { break-inside: avoid; }
   }
 </style>
 </head>
 <body>
 
-<div class="app-header">
-  <h1>Comp<span>Plan</span></h1>
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('dashboard')">Dashboard</button>
-    <button class="tab" onclick="switchTab('employees')">Employees</button>
-    <button class="tab" onclick="switchTab('bonuses')">Bonuses</button>
-    <button class="tab" onclick="switchTab('monthly')">Monthly Spread</button>
-    <button class="tab" onclick="switchTab('export')">Export</button>
-  </div>
-</div>
+<header class="header">
+  <div class="logo">Comp<span>Plan</span></div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showTab('dashboard')">Dashboard</button>
+    <button class="nav-btn" onclick="showTab('employees')">Employees</button>
+    <button class="nav-btn" onclick="showTab('bonuses')">Bonuses</button>
+    <button class="nav-btn" onclick="showTab('spread')">Monthly Spread</button>
+    <button class="nav-btn" onclick="showTab('export')">Export</button>
+  </nav>
+</header>
 
-<div class="main">
+<main class="main">
 
   <!-- DASHBOARD TAB -->
-  <div id="tab-dashboard" class="tab-content active">
-    <div class="stats-row" id="stats-row"></div>
-    <div class="card">
-      <div class="card-title">Compensation Overview</div>
-      <div class="chart-controls">
+  <div id="tab-dashboard" class="tab active">
+    <div class="stat-grid" id="stat-grid"></div>
+
+    <div class="chart-section">
+      <div class="chart-header">
         <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">GROUP BY</div>
-          <div class="btn-group">
-            <button id="grp-function" class="active" onclick="setGroupBy('function')">Function</button>
-            <button id="grp-seniority" onclick="setGroupBy('seniority')">Seniority</button>
-            <button id="grp-country" onclick="setGroupBy('country')">Country</button>
-          </div>
+          <div class="chart-title">Compensation Breakdown</div>
+          <div class="chart-subtitle" id="chart-subtitle">Grouped by Country</div>
         </div>
-        <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">STACK BY</div>
-          <div class="btn-group">
-            <button id="stk-component" class="active" onclick="setStackBy('component')">Base vs Bonus</button>
-            <button id="stk-seniority" onclick="setStackBy('seniority')">Seniority</button>
+        <div class="chart-controls">
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;">Group By</div>
+            <div class="toggle-group">
+              <button class="toggle-btn active" id="grp-country" onclick="setGroupBy('country')">Country</button>
+              <button class="toggle-btn" id="grp-seniority" onclick="setGroupBy('seniority')">Seniority</button>
+              <button class="toggle-btn" id="grp-function" onclick="setGroupBy('function')">Function</button>
+            </div>
           </div>
-        </div>
-        <div class="filter-selects">
-          <select id="f-country" onchange="updateChart()">
-            <option value="">All Countries</option>
-          </select>
-          <select id="f-seniority" onchange="updateChart()">
-            <option value="">All Seniorities</option>
-          </select>
-          <select id="f-function" onchange="updateChart()">
-            <option value="">All Functions</option>
-          </select>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;">Country</div>
+            <select id="filter-country" onchange="applyFilters()">
+              <option value="">All Countries</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;">Seniority</div>
+            <select id="filter-seniority" onchange="applyFilters()">
+              <option value="">All Seniorities</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;">Function</div>
+            <select id="filter-function" onchange="applyFilters()">
+              <option value="">All Functions</option>
+            </select>
+          </div>
         </div>
       </div>
-      <div class="chart-wrap">
-        <canvas id="main-chart"></canvas>
+      <div class="chart-canvas-wrap">
+        <canvas id="comp-chart"></canvas>
       </div>
     </div>
   </div>
 
   <!-- EMPLOYEES TAB -->
-  <div id="tab-employees" class="tab-content">
-    <div class="card" id="add-emp-card">
-      <div class="section-head">
-        <h2>Add Employee</h2>
-        <button class="btn btn-secondary btn-sm" onclick="toggleAddForm()">Toggle Form</button>
+  <div id="tab-employees" class="tab">
+    <div class="add-form-section">
+      <div class="add-form-title">Add Employee</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Name *</label>
+          <input type="text" id="emp-name" placeholder="Full name">
+        </div>
+        <div class="form-group">
+          <label>Country *</label>
+          <select id="emp-country" onchange="updateBenchmark()">
+            <option value="">Select country&hellip;</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Seniority *</label>
+          <select id="emp-seniority" onchange="updateBenchmark()">
+            <option value="">Select seniority&hellip;</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Job Function *</label>
+          <select id="emp-function" onchange="updateBenchmark()">
+            <option value="">Select function&hellip;</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Base Salary (USD/yr)</label>
+          <input type="number" id="emp-salary" placeholder="Auto from benchmark">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <input type="text" id="emp-notes" placeholder="Optional notes">
+        </div>
       </div>
-      <div id="add-emp-form">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Full Name</label>
-            <input id="e-name" placeholder="e.g. Jane Smith" />
-          </div>
-          <div class="form-group">
-            <label>Country</label>
-            <select id="e-country" onchange="lookupBenchmark()"></select>
-          </div>
-          <div class="form-group">
-            <label>Seniority</label>
-            <select id="e-seniority" onchange="lookupBenchmark()"></select>
-          </div>
-          <div class="form-group">
-            <label>Job Function</label>
-            <select id="e-function" onchange="lookupBenchmark()"></select>
-          </div>
-          <div class="form-group">
-            <label>Base Salary (USD/yr)</label>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <input id="e-salary" placeholder="Annual USD" type="number" />
-              <span id="benchmark-badge" class="benchmark-badge" onclick="useBenchmark()" title="Click to use market benchmark">Market: —</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Notes</label>
-            <input id="e-notes" placeholder="Optional notes" />
-          </div>
+
+      <div id="benchmark-display" class="benchmark-box" style="display:none;">
+        <div>
+          <div class="benchmark-info">Benchmark rate for selected combination</div>
+          <div class="benchmark-value" id="benchmark-value-display">&mdash;</div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button class="btn btn-primary" onclick="addEmployee()">Add Employee</button>
-          <button class="btn btn-secondary" onclick="clearEmpForm()">Clear</button>
-          <span id="edit-mode-label" style="font-size:12px;color:var(--accent);display:none;">Editing existing employee</span>
-        </div>
+        <button class="btn btn-secondary btn-sm" onclick="useBenchmarkRate()">Use Benchmark Rate</button>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button class="btn" onclick="addEmployee()">Add Employee</button>
+        <button class="btn btn-secondary" onclick="clearEmpForm()">Clear Form</button>
       </div>
     </div>
 
     <div class="card">
-      <div class="toolbar">
-        <div class="section-head" style="margin-bottom:0">
-          <h2>Employee Roster</h2>
-          <span class="pill" id="emp-count">0 employees</span>
-        </div>
-        <input class="search-bar" id="emp-search" placeholder="Search employees..." oninput="renderEmployeeTable()" />
+      <div class="section-header">
+        <div class="section-title">Employee Roster</div>
+        <div id="roster-count" style="font-size:13px;color:var(--text-muted);"></div>
       </div>
       <div class="table-wrap">
-        <table id="emp-table">
+        <table id="roster-table">
           <thead>
             <tr>
-              <th>Name</th><th>Country</th><th>Seniority</th><th>Function</th>
-              <th>Base Salary</th><th>Bonus %</th><th>Bonus</th><th>Total Comp</th><th>Actions</th>
+              <th>#</th>
+              <th>Name</th>
+              <th>Country</th>
+              <th>Seniority</th>
+              <th>Function</th>
+              <th>Base Salary</th>
+              <th>Bonus %</th>
+              <th>Bonus Amt</th>
+              <th>Total Comp</th>
+              <th>Notes</th>
+              <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="emp-tbody"></tbody>
+          <tbody id="roster-body"></tbody>
         </table>
       </div>
     </div>
   </div>
 
   <!-- BONUSES TAB -->
-  <div id="tab-bonuses" class="tab-content">
-    <div class="card">
-      <div class="toolbar">
-        <div class="section-head" style="margin-bottom:0">
-          <h2>Bonus Assumptions</h2>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" onclick="applyBonuses()">Apply to All Employees</button>
-          <button class="btn btn-secondary" onclick="resetBonuses()">Reset Defaults</button>
-        </div>
+  <div id="tab-bonuses" class="tab">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Bonus % Matrix</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Set bonus percentage by seniority level and job function. Edit any cell to adjust the assumption.</div>
       </div>
-      <p style="color:var(--muted);font-size:12px;margin-bottom:16px;">
-        Set bonus % by seniority level (rows) and job function (columns). Click "Apply to All Employees" to recalculate bonuses across your roster.
-      </p>
-      <div class="bonus-matrix">
-        <table id="bonus-table"></table>
+      <button class="btn btn-success" onclick="applyBonusMatrix()">Apply to All Employees</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table id="bonus-matrix" class="matrix-table"></table>
       </div>
     </div>
   </div>
 
   <!-- MONTHLY SPREAD TAB -->
-  <div id="tab-monthly" class="tab-content">
-    <div class="card">
-      <div class="toolbar">
-        <div class="section-head" style="margin-bottom:0"><h2>Monthly Spread</h2></div>
-        <div class="spread-toggle">
-          <label>View:</label>
-          <select id="spread-view" onchange="renderMonthlySpread()">
-            <option value="summary">Summary (All Employees)</option>
-            <option value="detail">Detail (Per Employee)</option>
-          </select>
-          <label>Filter:</label>
-          <select id="spread-filter" onchange="renderMonthlySpread()">
-            <option value="">All Employees</option>
-          </select>
-        </div>
+  <div id="tab-spread" class="tab">
+    <div class="spread-controls">
+      <div>
+        <div class="section-title">Monthly Spread</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Monthly cost breakdown across 12 months</div>
       </div>
-      <div class="table-wrap" id="monthly-table-wrap"></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="spread-individual" onclick="setSpreadView('individual')">Individual</button>
+          <button class="toggle-btn" id="spread-aggregate" onclick="setSpreadView('aggregate')">Aggregate</button>
+        </div>
+        <select id="spread-employee-filter" onchange="renderSpread()" style="min-width:180px;">
+          <option value="">All Employees</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <div class="table-wrap" id="spread-wrap"></div>
     </div>
   </div>
 
   <!-- EXPORT TAB -->
-  <div id="tab-export" class="tab-content">
-    <div class="card">
-      <div class="section-head"><h2>Export &amp; Templates</h2></div>
-      <div class="export-section">
-        <div class="export-card">
-          <h3>📊 Compensation Sheet (CSV)</h3>
-          <p>Export a full compensation plan spreadsheet including employee roster, bonus assumptions, monthly spread, and benchmark reference data. Compatible with Excel and Google Sheets.</p>
-          <button class="btn btn-primary" onclick="exportCSV()">Download Comp Sheet</button>
-        </div>
-        <div class="export-card">
-          <h3>🖨️ Print Summary</h3>
-          <p>Generate a print-optimized view of your compensation plan including all key metrics, the employee roster, and monthly cost breakdown.</p>
-          <button class="btn btn-secondary" onclick="printView()">Open Print View</button>
-        </div>
-        <div class="export-card">
-          <h3>📋 Standard Template</h3>
-          <p>Download a blank compensation planning template pre-populated with benchmark data, standard seniority levels, and job functions — ready to fill in from scratch.</p>
-          <button class="btn btn-green" onclick="exportTemplate()">Download Blank Template</button>
-        </div>
-        <div class="export-card">
-          <h3>💾 Save / Load State</h3>
-          <p>Export your current plan as a JSON file for backup, or import a previously saved plan to restore your data.</p>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-secondary" onclick="exportJSON()">Export JSON</button>
-            <label class="btn btn-secondary" style="cursor:pointer;">Import JSON <input type="file" accept=".json" style="display:none" onchange="importJSON(event)"></label>
-          </div>
-        </div>
+  <div id="tab-export" class="tab">
+    <div class="section-title" style="margin-bottom:8px;">Export &amp; Reports</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Generate CSV reports and print-ready summaries of your compensation data.</div>
+
+    <div class="export-grid">
+      <div class="export-card">
+        <h3>Full Compensation Sheet</h3>
+        <p>Download a comprehensive CSV containing employee roster, bonus assumptions, monthly spread data, and benchmark reference data &mdash; all in one file with clearly labeled sections.</p>
+        <button class="btn" onclick="downloadCSV()">Create Compensation Sheet</button>
+      </div>
+      <div class="export-card">
+        <h3>Employee Roster CSV</h3>
+        <p>Export just the employee roster with all compensation details including base salary, bonus percentage, bonus amount, and total compensation.</p>
+        <button class="btn btn-secondary" onclick="downloadRosterCSV()">Download Roster CSV</button>
+      </div>
+      <div class="export-card">
+        <h3>Monthly Spread CSV</h3>
+        <p>Export the 12-month cost spread showing monthly base, bonus accrual, and total for each employee, plus aggregate totals.</p>
+        <button class="btn btn-secondary" onclick="downloadSpreadCSV()">Download Spread CSV</button>
+      </div>
+      <div class="export-card">
+        <h3>Print View</h3>
+        <p>Open a print-optimized view of the full compensation summary, suitable for management reviews or board presentations.</p>
+        <button class="btn btn-cyan" onclick="openPrintView()">Open Print View</button>
       </div>
     </div>
   </div>
 
-</div>
+</main>
 
-<div class="notification" id="notif"></div>
+<div id="notif" class="notif"></div>
 
 <script>
 // ============================================================
-// DATA
+// CONSTANTS
 // ============================================================
-const COUNTRIES = ['United States','United Kingdom','Canada','Germany','India','Australia','Singapore','Netherlands','Brazil','Poland'];
-const SENIORITIES = ['Junior','Mid-Level','Senior','Staff','Principal','Manager','Director','VP/Head'];
-const FUNCTIONS = ['Software Engineering','Data Engineering','DevOps/SRE','Product Management','QA Engineering','Data Science','IT Operations','Security Engineering','Cloud Architecture','Technical Program Management'];
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const SENIORITY_BASE = { Junior:88000, 'Mid-Level':118000, Senior:155000, Staff:190000, Principal:225000, Manager:178000, Director:238000, 'VP/Head':310000 };
-const FUNCTION_MULT = { 'Software Engineering':1.00,'Data Engineering':0.97,'DevOps/SRE':0.95,'Product Management':0.93,'QA Engineering':0.75,'Data Science':1.02,'IT Operations':0.68,'Security Engineering':1.06,'Cloud Architecture':1.04,'Technical Program Management':0.88 };
-const COUNTRY_MULT = { 'United States':1.00,'United Kingdom':0.72,'Canada':0.80,'Germany':0.70,'India':0.22,'Australia':0.82,'Singapore':0.85,'Netherlands':0.72,'Brazil':0.28,'Poland':0.38 };
-const DEFAULT_BONUS = { Junior:5,'Mid-Level':8,Senior:12,Staff:15,Principal:18,Manager:20,Director:25,'VP/Head':30 };
+var COUNTRIES = [
+  'United States','United Kingdom','Canada','Germany',
+  'India','Australia','Singapore','Netherlands','Brazil','Poland'
+];
 
-const CHART_COLORS = ['#6366f1','#22d3ee','#f59e0b','#10b981','#f43f5e','#8b5cf6','#06b6d4','#84cc16','#fb923c','#ec4899'];
+var SENIORITIES = [
+  'Junior','Mid-Level','Senior','Staff','Principal','Manager','Director','VP/Head'
+];
 
-function getBenchmark(country, seniority, fn) {
-  const base = SENIORITY_BASE[seniority] || 100000;
-  const fm = FUNCTION_MULT[fn] || 1.0;
-  const cm = COUNTRY_MULT[country] || 1.0;
-  return Math.round(base * fm * cm);
-}
+var FUNCTIONS = [
+  'Software Engineering','Data Engineering','DevOps/SRE','Product Management',
+  'QA Engineering','Data Science','IT Operations','Security Engineering',
+  'Cloud Architecture','Technical Program Management'
+];
+
+var SENIORITY_BASE = {
+  'Junior': 88000,
+  'Mid-Level': 118000,
+  'Senior': 155000,
+  'Staff': 190000,
+  'Principal': 225000,
+  'Manager': 178000,
+  'Director': 238000,
+  'VP/Head': 310000
+};
+
+var FUNCTION_MULT = {
+  'Software Engineering': 1.00,
+  'Data Engineering': 0.97,
+  'DevOps/SRE': 0.95,
+  'Product Management': 0.93,
+  'QA Engineering': 0.75,
+  'Data Science': 1.02,
+  'IT Operations': 0.68,
+  'Security Engineering': 1.06,
+  'Cloud Architecture': 1.04,
+  'Technical Program Management': 0.88
+};
+
+var COUNTRY_MULT = {
+  'United States': 1.00,
+  'United Kingdom': 0.72,
+  'Canada': 0.80,
+  'Germany': 0.70,
+  'India': 0.22,
+  'Australia': 0.82,
+  'Singapore': 0.85,
+  'Netherlands': 0.72,
+  'Brazil': 0.28,
+  'Poland': 0.38
+};
+
+var DEFAULT_BONUS = {
+  'Junior': 5,
+  'Mid-Level': 8,
+  'Senior': 12,
+  'Staff': 15,
+  'Principal': 18,
+  'Manager': 20,
+  'Director': 25,
+  'VP/Head': 30
+};
+
+var CHART_COLORS = [
+  '#6366f1','#22d3ee','#f59e0b','#10b981','#f43f5e',
+  '#8b5cf6','#06b6d4','#84cc16','#fb923c','#ec4899'
+];
+
+var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Short labels for job functions
+var FN_SHORT = {
+  'Software Engineering': 'SWE',
+  'Data Engineering': 'Data Eng',
+  'DevOps/SRE': 'DevOps/SRE',
+  'Product Management': 'Product',
+  'QA Engineering': 'QA',
+  'Data Science': 'Data Sci',
+  'IT Operations': 'IT Ops',
+  'Security Engineering': 'Security',
+  'Cloud Architecture': 'Cloud Arch',
+  'Technical Program Management': 'TPM'
+};
 
 // ============================================================
 // STATE
 // ============================================================
-let state = {
-  employees: [],
-  bonusMatrix: {},
-  chartGroupBy: 'function',
-  chartStackBy: 'component',
-  editingId: null
-};
 
-let chartInstance = null;
-
-function initBonusMatrix() {
-  const m = {};
-  SENIORITIES.forEach(s => {
+function buildDefaultBonusMatrix() {
+  var m = {};
+  SENIORITIES.forEach(function(s) {
     m[s] = {};
-    FUNCTIONS.forEach(f => {
-      m[s][f] = state.bonusMatrix[s] && state.bonusMatrix[s][f] !== undefined ? state.bonusMatrix[s][f] : DEFAULT_BONUS[s];
+    FUNCTIONS.forEach(function(f) {
+      m[s][f] = DEFAULT_BONUS[s];
     });
   });
-  state.bonusMatrix = m;
+  return m;
 }
 
-// ============================================================
-// PERSISTENCE
-// ============================================================
-function save() {
-  localStorage.setItem('compplan_v2', JSON.stringify(state));
-}
+var state = {
+  employees: [],
+  bonusMatrix: buildDefaultBonusMatrix(),
+  groupBy: 'country',
+  filters: { country: '', seniority: '', function: '' },
+  spreadView: 'individual',
+  nextId: 1
+};
 
-function load() {
+function loadState() {
   try {
-    const raw = localStorage.getItem('compplan_v2');
-    if (raw) {
-      const saved = JSON.parse(raw);
-      state.employees = saved.employees || [];
-      state.bonusMatrix = saved.bonusMatrix || {};
-      state.chartGroupBy = saved.chartGroupBy || 'function';
-      state.chartStackBy = saved.chartStackBy || 'component';
+    var saved = localStorage.getItem('compplan_state_v2');
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      state.employees = parsed.employees || [];
+      state.groupBy = parsed.groupBy || 'country';
+      state.filters = parsed.filters || { country: '', seniority: '', function: '' };
+      state.spreadView = parsed.spreadView || 'individual';
+      state.nextId = parsed.nextId || 1;
+      if (parsed.bonusMatrix) {
+        state.bonusMatrix = parsed.bonusMatrix;
+      }
     }
-  } catch(e) {}
-  initBonusMatrix();
-  if (!state.employees.length) loadSampleData();
-}
-
-function loadSampleData() {
-  const samples = [
-    { name:'Alice Chen', country:'United States', seniority:'Senior', fn:'Software Engineering', notes:'Lead engineer' },
-    { name:'Bob Kumar', country:'India', seniority:'Mid-Level', fn:'Data Engineering', notes:'' },
-    { name:'Sarah Mills', country:'United Kingdom', seniority:'Director', fn:'Product Management', notes:'PM Lead' },
-    { name:'James Park', country:'Canada', seniority:'Staff', fn:'DevOps/SRE', notes:'' },
-    { name:'Maria Rodriguez', country:'Germany', seniority:'Senior', fn:'Data Science', notes:'' }
-  ];
-  samples.forEach(s => {
-    const bench = getBenchmark(s.country, s.seniority, s.fn);
-    const bonusPct = getBonusForEmployee(s.seniority, s.fn);
-    state.employees.push({ id: uid(), name:s.name, country:s.country, seniority:s.seniority, fn:s.fn, salary:bench, bonusPct, notes:s.notes });
-  });
-}
-
-function uid() { return Math.random().toString(36).slice(2,10); }
-
-// ============================================================
-// BONUS HELPER
-// ============================================================
-function getBonusForEmployee(seniority, fn) {
-  if (state.bonusMatrix[seniority] && state.bonusMatrix[seniority][fn] !== undefined) {
-    return state.bonusMatrix[seniority][fn];
+  } catch(e) {
+    console.warn('Could not load state', e);
   }
-  return DEFAULT_BONUS[seniority] || 10;
 }
 
-// ============================================================
-// INIT DROPDOWNS
-// ============================================================
-function initDropdowns() {
-  ['e-country','f-country'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    COUNTRIES.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; el.appendChild(o); });
-  });
-  ['e-seniority','f-seniority'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    SENIORITIES.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; el.appendChild(o); });
-  });
-  ['e-function','f-function'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    FUNCTIONS.forEach(f => { const o = document.createElement('option'); o.value = f; o.textContent = f; el.appendChild(o); });
-  });
-  // spread filter
-  const sf = document.getElementById('spread-filter');
-  if (sf) {
-    state.employees.forEach(e => { const o = document.createElement('option'); o.value = e.id; o.textContent = e.name; sf.appendChild(o); });
+function saveState() {
+  try {
+    localStorage.setItem('compplan_state_v2', JSON.stringify(state));
+  } catch(e) {
+    console.warn('Could not save state', e);
   }
 }
 
 // ============================================================
-// TABS
+// BENCHMARK CALCULATIONS
 // ============================================================
-function switchTab(name) {
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  event.target.classList.add('active');
-  if (name==='dashboard') { updateStats(); updateChart(); }
-  if (name==='employees') renderEmployeeTable();
-  if (name==='bonuses') renderBonusMatrix();
-  if (name==='monthly') renderMonthlySpread();
+
+function getBenchmark(country, seniority, fn) {
+  if (!country || !seniority || !fn) return null;
+  var base = SENIORITY_BASE[seniority] || 0;
+  var fm = FUNCTION_MULT[fn] || 1;
+  var cm = COUNTRY_MULT[country] || 1;
+  return Math.round(base * fm * cm);
+}
+
+function getEmpBonusPct(emp) {
+  var row = state.bonusMatrix[emp.seniority];
+  if (row && typeof row[emp.function] !== 'undefined') return row[emp.function];
+  return DEFAULT_BONUS[emp.seniority] || 0;
+}
+
+function getEmpData(emp) {
+  var base = emp.salary || 0;
+  var bonusPct = (typeof emp.bonusOverride !== 'undefined') ? emp.bonusOverride : getEmpBonusPct(emp);
+  var bonusAmt = Math.round(base * bonusPct / 100);
+  var total = base + bonusAmt;
+  return { base: base, bonusPct: bonusPct, bonusAmt: bonusAmt, total: total };
 }
 
 // ============================================================
-// STATS
+// UTILITY
 // ============================================================
-function updateStats() {
-  const emps = state.employees;
-  const total = emps.reduce((a,e)=>a+e.salary,0);
-  const bonuses = emps.reduce((a,e)=>a+(e.salary*(e.bonusPct/100)),0);
-  const avg = emps.length ? Math.round(total/emps.length) : 0;
-  document.getElementById('stats-row').innerHTML = \`
-    <div class="stat-card"><div class="stat-label">Total Headcount</div><div class="stat-value">\${emps.length}</div><div class="stat-sub">employees</div></div>
-    <div class="stat-card"><div class="stat-label">Annual Base Cost</div><div class="stat-value">\${fmt(total)}</div><div class="stat-sub">USD / year</div></div>
-    <div class="stat-card"><div class="stat-label">Avg Base Salary</div><div class="stat-value">\${fmt(avg)}</div><div class="stat-sub">per employee</div></div>
-    <div class="stat-card"><div class="stat-label">Total Bonus Cost</div><div class="stat-value">\${fmt(bonuses)}</div><div class="stat-sub">annual bonus accrual</div></div>
-  \`;
+
+function fmt(n) {
+  if (n === null || n === undefined || isNaN(n)) return '$0';
+  return '$' + Math.round(n).toLocaleString('en-US');
+}
+
+function fmtK(n) {
+  if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return '$' + (n / 1000).toFixed(0) + 'k';
+  return '$' + n;
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function shortFn(fn) {
+  return FN_SHORT[fn] || fn;
+}
+
+var notifTimer = null;
+function notify(msg) {
+  var el = document.getElementById('notif');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (notifTimer) clearTimeout(notifTimer);
+  notifTimer = setTimeout(function() { el.classList.remove('show'); }, 2800);
+}
+
+function escCSV(v) {
+  if (v === null || v === undefined) return '';
+  var s = String(v);
+  if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function triggerDownload(content, filename, type) {
+  var blob = new Blob([content], { type: type });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ============================================================
 // CHART
 // ============================================================
-function setGroupBy(g) {
-  state.chartGroupBy = g;
-  document.querySelectorAll('[id^="grp-"]').forEach(b=>b.classList.remove('active'));
-  document.getElementById('grp-'+g).classList.add('active');
-  updateChart(); save();
-}
 
-function setStackBy(s) {
-  state.chartStackBy = s;
-  document.querySelectorAll('[id^="stk-"]').forEach(b=>b.classList.remove('active'));
-  document.getElementById('stk-'+s).classList.add('active');
-  updateChart(); save();
-}
+var chartInstance = null;
 
-function getFilteredEmps() {
-  let emps = [...state.employees];
-  const fc = document.getElementById('f-country').value;
-  const fs = document.getElementById('f-seniority').value;
-  const ff = document.getElementById('f-function').value;
-  if (fc) emps = emps.filter(e=>e.country===fc);
-  if (fs) emps = emps.filter(e=>e.seniority===fs);
-  if (ff) emps = emps.filter(e=>e.fn===ff);
-  return emps;
-}
+function buildChartData() {
+  var groupBy = state.groupBy;
+  var filters = state.filters;
 
-function updateChart() {
-  const emps = getFilteredEmps();
-  updateStats();
-  if (!emps.length) { if(chartInstance){chartInstance.destroy();chartInstance=null;} return; }
+  var emps = state.employees.filter(function(e) {
+    if (filters.country && e.country !== filters.country) return false;
+    if (filters.seniority && e.seniority !== filters.seniority) return false;
+    if (filters.function && e.function !== filters.function) return false;
+    return true;
+  });
 
-  const groupBy = state.chartGroupBy;
-  const stackBy = state.chartStackBy;
+  if (emps.length === 0) return null;
 
-  let labels = [];
-  if (groupBy==='function') labels = FUNCTIONS.filter(f=>emps.some(e=>e.fn===f));
-  else if (groupBy==='seniority') labels = SENIORITIES.filter(s=>emps.some(e=>e.seniority===s));
-  else labels = COUNTRIES.filter(c=>emps.some(e=>e.country===c));
-
-  let datasets = [];
-
-  if (stackBy==='component') {
-    const baseData = labels.map(l => {
-      const group = emps.filter(e => groupBy==='function'?e.fn===l:groupBy==='seniority'?e.seniority===l:e.country===l);
-      return group.reduce((a,e)=>a+e.salary,0);
-    });
-    const bonusData = labels.map(l => {
-      const group = emps.filter(e => groupBy==='function'?e.fn===l:groupBy==='seniority'?e.seniority===l:e.country===l);
-      return group.reduce((a,e)=>a+(e.salary*(e.bonusPct/100)),0);
-    });
-    datasets = [
-      { label:'Base Salary', data:baseData, backgroundColor:'#6366f1', stack:'s' },
-      { label:'Bonus', data:bonusData, backgroundColor:'#22d3ee', stack:'s' }
-    ];
+  var groupKeys;
+  if (groupBy === 'country') {
+    groupKeys = COUNTRIES.filter(function(c) { return emps.some(function(e) { return e.country === c; }); });
+  } else if (groupBy === 'seniority') {
+    groupKeys = SENIORITIES.filter(function(s) { return emps.some(function(e) { return e.seniority === s; }); });
   } else {
-    // stack by seniority
-    SENIORITIES.forEach((s,i) => {
-      const data = labels.map(l => {
-        const group = emps.filter(e => (groupBy==='function'?e.fn===l:groupBy==='seniority'?e.seniority===l:e.country===l) && e.seniority===s);
-        return group.reduce((a,e)=>a+e.salary+(e.salary*(e.bonusPct/100)),0);
-      });
-      if (data.some(d=>d>0)) datasets.push({ label:s, data, backgroundColor:CHART_COLORS[i%CHART_COLORS.length], stack:'s' });
-    });
+    groupKeys = FUNCTIONS.filter(function(f) { return emps.some(function(e) { return e.function === f; }); });
   }
 
-  const ctx = document.getElementById('main-chart').getContext('2d');
-  if (chartInstance) { chartInstance.destroy(); }
+  function getKey(e) {
+    if (groupBy === 'country') return e.country;
+    if (groupBy === 'seniority') return e.seniority;
+    return e.function;
+  }
+
+  var baseData = groupKeys.map(function(key) {
+    return emps.filter(function(e) { return getKey(e) === key; })
+      .reduce(function(sum, e) { return sum + getEmpData(e).base; }, 0);
+  });
+
+  var bonusData = groupKeys.map(function(key) {
+    return emps.filter(function(e) { return getKey(e) === key; })
+      .reduce(function(sum, e) { return sum + getEmpData(e).bonusAmt; }, 0);
+  });
+
+  var displayKeys = groupBy === 'function'
+    ? groupKeys.map(function(k) { return shortFn(k); })
+    : groupKeys;
+
+  return { groupKeys: displayKeys, baseData: baseData, bonusData: bonusData };
+}
+
+function renderChart() {
+  var canvas = document.getElementById('comp-chart');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+
+  if (chartInstance) {
+    chartInstance.destroy();
+    chartInstance = null;
+  }
+
+  var data = buildChartData();
+
+  if (!data || data.groupKeys.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#8892a4';
+    ctx.font = '14px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data to display. Add employees to see the chart.', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
   chartInstance = new Chart(ctx, {
     type: 'bar',
-    data: { labels, datasets },
+    data: {
+      labels: data.groupKeys,
+      datasets: [
+        {
+          label: 'Base Salary',
+          data: data.baseData,
+          backgroundColor: '#6366f1',
+          borderRadius: 4,
+          borderSkipped: false
+        },
+        {
+          label: 'Bonus',
+          data: data.bonusData,
+          backgroundColor: '#22d3ee',
+          borderRadius: 4,
+          borderSkipped: false
+        }
+      ]
+    },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true,
+      maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color:'#94a3b8', font:{size:11} } },
-        tooltip: { callbacks: { label: ctx => \` \${ctx.dataset.label}: \${fmt(ctx.raw)}\` } }
+        legend: {
+          labels: { color: '#8892a4', font: { size: 12 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + fmt(ctx.raw); }
+          }
+        }
       },
       scales: {
-        x: { stacked:true, ticks:{color:'#94a3b8',font:{size:10}}, grid:{color:'rgba(255,255,255,.05)'} },
-        y: { stacked:true, ticks:{color:'#94a3b8',font:{size:10},callback:v=>fmtShort(v)}, grid:{color:'rgba(255,255,255,.05)'} }
+        x: {
+          stacked: true,
+          ticks: { color: '#8892a4', font: { size: 11 } },
+          grid: { color: 'rgba(42,45,62,0.6)' }
+        },
+        y: {
+          stacked: true,
+          ticks: {
+            color: '#8892a4',
+            font: { size: 11 },
+            callback: function(v) { return fmtK(v); }
+          },
+          grid: { color: 'rgba(42,45,62,0.6)' }
+        }
       }
     }
   });
 }
 
-// ============================================================
-// EMPLOYEES
-// ============================================================
-function toggleAddForm() {
-  const f = document.getElementById('add-emp-form');
-  f.style.display = f.style.display==='none' ? 'block' : 'none';
+function setGroupBy(mode) {
+  state.groupBy = mode;
+  document.querySelectorAll('[id^="grp-"]').forEach(function(b) { b.classList.remove('active'); });
+  var btn = document.getElementById('grp-' + mode);
+  if (btn) btn.classList.add('active');
+  var labels = { country: 'Country', seniority: 'Seniority', function: 'Job Function' };
+  document.getElementById('chart-subtitle').textContent = 'Grouped by ' + (labels[mode] || mode);
+  renderChart();
+  saveState();
 }
 
-function lookupBenchmark() {
-  const c = document.getElementById('e-country').value;
-  const s = document.getElementById('e-seniority').value;
-  const f = document.getElementById('e-function').value;
-  if (c && s && f) {
-    const b = getBenchmark(c, s, f);
-    document.getElementById('benchmark-badge').textContent = 'Market: '+fmt(b);
-    document.getElementById('benchmark-badge').dataset.val = b;
+function applyFilters() {
+  state.filters.country = document.getElementById('filter-country').value;
+  state.filters.seniority = document.getElementById('filter-seniority').value;
+  state.filters.function = document.getElementById('filter-function').value;
+  renderChart();
+  saveState();
+}
+
+// ============================================================
+// STATS
+// ============================================================
+
+function renderStats() {
+  var emps = state.employees;
+  var totalBase = emps.reduce(function(s, e) { return s + getEmpData(e).base; }, 0);
+  var totalBonus = emps.reduce(function(s, e) { return s + getEmpData(e).bonusAmt; }, 0);
+  var avgBase = emps.length ? Math.round(totalBase / emps.length) : 0;
+
+  document.getElementById('stat-grid').innerHTML =
+    '<div class="card">' +
+      '<div class="card-title">Total Headcount</div>' +
+      '<div class="card-value accent">' + emps.length + '</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-title">Total Annual Cost</div>' +
+      '<div class="card-value">' + fmt(totalBase + totalBonus) + '</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-title">Avg Base Salary</div>' +
+      '<div class="card-value cyan">' + fmt(avgBase) + '</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-title">Total Bonus Cost</div>' +
+      '<div class="card-value warning">' + fmt(totalBonus) + '</div>' +
+    '</div>';
+}
+
+// ============================================================
+// EMPLOYEES TAB
+// ============================================================
+
+function renderRoster() {
+  var tbody = document.getElementById('roster-body');
+  var emps = state.employees;
+
+  document.getElementById('roster-count').textContent =
+    emps.length + ' employee' + (emps.length !== 1 ? 's' : '');
+
+  if (emps.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state">' +
+      '<h3>No employees yet</h3>' +
+      '<p>Add your first employee using the form above.</p>' +
+      '</div></td></tr>';
+    return;
+  }
+
+  var html = '';
+  emps.forEach(function(emp, i) {
+    var d = getEmpData(emp);
+    html += '<tr id="row-' + emp.id + '">' +
+      '<td style="color:var(--text-muted);">' + (i + 1) + '</td>' +
+      '<td style="font-weight:600;">' + esc(emp.name) + '</td>' +
+      '<td><span class="badge badge-country">' + esc(emp.country) + '</span></td>' +
+      '<td><span class="badge badge-seniority">' + esc(emp.seniority) + '</span></td>' +
+      '<td><span class="badge badge-function">' + esc(shortFn(emp.function)) + '</span></td>' +
+      '<td>' + fmt(d.base) + '</td>' +
+      '<td>' + d.bonusPct + '%</td>' +
+      '<td style="color:var(--warning);">' + fmt(d.bonusAmt) + '</td>' +
+      '<td style="font-weight:600;color:var(--success);">' + fmt(d.total) + '</td>' +
+      '<td style="color:var(--text-muted);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(emp.notes || '') + '">' + esc(emp.notes || '\u2014') + '</td>' +
+      '<td><div class="td-actions">' +
+        '<button class="btn btn-secondary btn-sm" onclick="startEditEmp(' + emp.id + ')">Edit</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteEmp(' + emp.id + ')">Del</button>' +
+      '</div></td>' +
+    '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function startEditEmp(id) {
+  // Cancel any existing edit first
+  var existingEdit = document.querySelector('.edit-row');
+  if (existingEdit) {
+    var editId = parseInt(existingEdit.getAttribute('data-edit-id'), 10);
+    if (editId === id) {
+      renderRoster();
+      return;
+    }
+    renderRoster();
+  }
+
+  var emp = null;
+  for (var i = 0; i < state.employees.length; i++) {
+    if (state.employees[i].id === id) { emp = state.employees[i]; break; }
+  }
+  if (!emp) return;
+
+  var row = document.getElementById('row-' + id);
+  if (!row) return;
+
+  var d = getEmpData(emp);
+  var benchmark = getBenchmark(emp.country, emp.seniority, emp.function);
+  var rowIndex = state.employees.findIndex(function(e) { return e.id === id; });
+
+  row.classList.add('edit-row');
+  row.setAttribute('data-edit-id', id);
+
+  var countryOpts = COUNTRIES.map(function(c) {
+    return '<option value="' + esc(c) + '"' + (c === emp.country ? ' selected' : '') + '>' + esc(c) + '</option>';
+  }).join('');
+
+  var senOpts = SENIORITIES.map(function(s) {
+    return '<option value="' + esc(s) + '"' + (s === emp.seniority ? ' selected' : '') + '>' + esc(s) + '</option>';
+  }).join('');
+
+  var fnOpts = FUNCTIONS.map(function(f) {
+    return '<option value="' + esc(f) + '"' + (f === emp.function ? ' selected' : '') + '>' + esc(f) + '</option>';
+  }).join('');
+
+  row.innerHTML =
+    '<td style="color:var(--text-muted);">' + (rowIndex + 1) + '</td>' +
+    '<td><input type="text" class="edit-input" id="edit-name-' + id + '" value="' + esc(emp.name) + '"></td>' +
+    '<td><select id="edit-country-' + id + '" class="edit-input" style="min-width:120px;" onchange="updateEditBenchmark(' + id + ')">' + countryOpts + '</select></td>' +
+    '<td><select id="edit-sen-' + id + '" class="edit-input" style="min-width:100px;" onchange="updateEditBenchmark(' + id + ')">' + senOpts + '</select></td>' +
+    '<td><select id="edit-fn-' + id + '" class="edit-input" style="min-width:130px;" onchange="updateEditBenchmark(' + id + ')">' + fnOpts + '</select></td>' +
+    '<td>' +
+      '<input type="number" class="edit-input" id="edit-salary-' + id + '" value="' + d.base + '" style="width:100px;">' +
+      '<div style="font-size:10px;color:var(--cyan);margin-top:3px;">' +
+        'Bench: <span id="edit-bench-' + id + '">' + (benchmark ? fmt(benchmark) : '\u2014') + '</span>' +
+        ' <button class="btn btn-secondary" style="padding:2px 6px;font-size:10px;margin-left:4px;" onclick="useEditBenchmark(' + id + ')">Use</button>' +
+      '</div>' +
+    '</td>' +
+    '<td><input type="number" class="edit-input" id="edit-bonus-' + id + '" value="' + d.bonusPct + '" style="width:60px;"> %</td>' +
+    '<td style="color:var(--text-muted);">\u2014</td>' +
+    '<td style="color:var(--text-muted);">\u2014</td>' +
+    '<td><input type="text" class="edit-input" id="edit-notes-' + id + '" value="' + esc(emp.notes || '') + '" style="min-width:100px;"></td>' +
+    '<td><div class="td-actions">' +
+      '<button class="btn btn-success btn-sm" onclick="saveEditEmp(' + id + ')">Save</button>' +
+      '<button class="btn btn-secondary btn-sm" onclick="renderRoster()">Cancel</button>' +
+    '</div></td>';
+}
+
+function updateEditBenchmark(id) {
+  var country = document.getElementById('edit-country-' + id);
+  var sen = document.getElementById('edit-sen-' + id);
+  var fn = document.getElementById('edit-fn-' + id);
+  if (!country || !sen || !fn) return;
+  var b = getBenchmark(country.value, sen.value, fn.value);
+  var el = document.getElementById('edit-bench-' + id);
+  if (el) el.textContent = b ? fmt(b) : '\u2014';
+}
+
+function useEditBenchmark(id) {
+  var country = document.getElementById('edit-country-' + id);
+  var sen = document.getElementById('edit-sen-' + id);
+  var fn = document.getElementById('edit-fn-' + id);
+  if (!country || !sen || !fn) return;
+  var b = getBenchmark(country.value, sen.value, fn.value);
+  if (b) {
+    document.getElementById('edit-salary-' + id).value = b;
   }
 }
 
-function useBenchmark() {
-  const v = document.getElementById('benchmark-badge').dataset.val;
-  if (v) document.getElementById('e-salary').value = v;
-}
-
-function addEmployee() {
-  const name = document.getElementById('e-name').value.trim();
-  const country = document.getElementById('e-country').value;
-  const seniority = document.getElementById('e-seniority').value;
-  const fn = document.getElementById('e-function').value;
-  const salaryRaw = document.getElementById('e-salary').value;
-  const notes = document.getElementById('e-notes').value.trim();
-
-  if (!name) { notify('Please enter a name','error'); return; }
-  if (!country||!seniority||!fn) { notify('Please select country, seniority, and function','error'); return; }
-
-  const salary = salaryRaw ? parseInt(salaryRaw) : getBenchmark(country, seniority, fn);
-  const bonusPct = getBonusForEmployee(seniority, fn);
-
-  if (state.editingId) {
-    const idx = state.employees.findIndex(e=>e.id===state.editingId);
-    if (idx>=0) state.employees[idx] = { ...state.employees[idx], name, country, seniority, fn, salary, bonusPct, notes };
-    state.editingId = null;
-    document.getElementById('edit-mode-label').style.display='none';
-    notify('Employee updated');
-  } else {
-    state.employees.push({ id:uid(), name, country, seniority, fn, salary, bonusPct, notes });
-    notify('Employee added');
+function saveEditEmp(id) {
+  var idx = -1;
+  for (var i = 0; i < state.employees.length; i++) {
+    if (state.employees[i].id === id) { idx = i; break; }
   }
+  if (idx === -1) return;
 
-  clearEmpForm(); save(); renderEmployeeTable(); updateChart(); updateStats();
-  refreshSpreadFilter();
+  var nameEl = document.getElementById('edit-name-' + id);
+  var countryEl = document.getElementById('edit-country-' + id);
+  var senEl = document.getElementById('edit-sen-' + id);
+  var fnEl = document.getElementById('edit-fn-' + id);
+  var salaryEl = document.getElementById('edit-salary-' + id);
+  var bonusEl = document.getElementById('edit-bonus-' + id);
+  var notesEl = document.getElementById('edit-notes-' + id);
+
+  if (!nameEl || !countryEl || !senEl || !fnEl || !salaryEl || !bonusEl) return;
+
+  var name = nameEl.value.trim();
+  if (!name) { notify('Name is required'); return; }
+
+  var country = countryEl.value;
+  var seniority = senEl.value;
+  var fn = fnEl.value;
+  var salary = parseInt(salaryEl.value, 10) || getBenchmark(country, seniority, fn) || 0;
+  var bonusPct = parseFloat(bonusEl.value) || 0;
+  var notes = notesEl ? notesEl.value.trim() : '';
+
+  state.employees[idx] = {
+    id: id,
+    name: name,
+    country: country,
+    seniority: seniority,
+    function: fn,
+    salary: salary,
+    customSalary: true,
+    bonusOverride: bonusPct,
+    notes: notes
+  };
+
+  saveState();
+  renderAll();
+  notify('Employee updated: ' + name);
 }
 
-function clearEmpForm() {
-  ['e-name','e-salary','e-notes'].forEach(id=>document.getElementById(id).value='');
-  state.editingId = null;
-  document.getElementById('edit-mode-label').style.display='none';
-  document.getElementById('benchmark-badge').textContent='Market: —';
-}
-
-function editEmployee(id) {
-  const e = state.employees.find(x=>x.id===id);
-  if (!e) return;
-  document.getElementById('e-name').value = e.name;
-  document.getElementById('e-country').value = e.country;
-  document.getElementById('e-seniority').value = e.seniority;
-  document.getElementById('e-function').value = e.fn;
-  document.getElementById('e-salary').value = e.salary;
-  document.getElementById('e-notes').value = e.notes||'';
-  state.editingId = id;
-  document.getElementById('edit-mode-label').style.display='inline';
-  lookupBenchmark();
-  document.getElementById('add-emp-card').scrollIntoView({behavior:'smooth'});
-  document.getElementById('add-emp-form').style.display='block';
-}
-
-function deleteEmployee(id) {
+function deleteEmp(id) {
   if (!confirm('Delete this employee?')) return;
-  state.employees = state.employees.filter(e=>e.id!==id);
-  save(); renderEmployeeTable(); updateChart(); updateStats(); refreshSpreadFilter();
+  state.employees = state.employees.filter(function(e) { return e.id !== id; });
+  saveState();
+  renderAll();
   notify('Employee removed');
 }
 
-function renderEmployeeTable() {
-  const search = (document.getElementById('emp-search').value||'').toLowerCase();
-  const emps = state.employees.filter(e => !search || e.name.toLowerCase().includes(search) || e.fn.toLowerCase().includes(search) || e.country.toLowerCase().includes(search));
-  document.getElementById('emp-count').textContent = state.employees.length+' employee'+(state.employees.length!==1?'s':'');
-  const tbody = document.getElementById('emp-tbody');
-  if (!emps.length) {
-    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="icon">👤</div><div>No employees found. Add one above.</div></div></td></tr>';
-    return;
+function addEmployee() {
+  var name = document.getElementById('emp-name').value.trim();
+  var country = document.getElementById('emp-country').value;
+  var seniority = document.getElementById('emp-seniority').value;
+  var fn = document.getElementById('emp-function').value;
+  var salaryInput = document.getElementById('emp-salary').value;
+  var notes = document.getElementById('emp-notes').value.trim();
+
+  if (!name) { notify('Please enter a name'); return; }
+  if (!country) { notify('Please select a country'); return; }
+  if (!seniority) { notify('Please select a seniority level'); return; }
+  if (!fn) { notify('Please select a job function'); return; }
+
+  var benchmark = getBenchmark(country, seniority, fn);
+  var salary = salaryInput ? parseInt(salaryInput, 10) : (benchmark || 0);
+
+  state.employees.push({
+    id: state.nextId++,
+    name: name,
+    country: country,
+    seniority: seniority,
+    function: fn,
+    salary: salary,
+    customSalary: !!salaryInput,
+    notes: notes
+  });
+
+  saveState();
+  clearEmpForm();
+  refreshSpreadEmployeeFilter();
+  renderAll();
+  notify('Employee added: ' + name);
+}
+
+function clearEmpForm() {
+  document.getElementById('emp-name').value = '';
+  document.getElementById('emp-country').value = '';
+  document.getElementById('emp-seniority').value = '';
+  document.getElementById('emp-function').value = '';
+  document.getElementById('emp-salary').value = '';
+  document.getElementById('emp-notes').value = '';
+  document.getElementById('benchmark-display').style.display = 'none';
+}
+
+function updateBenchmark() {
+  var country = document.getElementById('emp-country').value;
+  var seniority = document.getElementById('emp-seniority').value;
+  var fn = document.getElementById('emp-function').value;
+
+  if (country && seniority && fn) {
+    var b = getBenchmark(country, seniority, fn);
+    document.getElementById('benchmark-value-display').textContent = fmt(b);
+    document.getElementById('benchmark-display').style.display = 'flex';
+  } else {
+    document.getElementById('benchmark-display').style.display = 'none';
   }
-  tbody.innerHTML = emps.map(e => {
-    const bonus = Math.round(e.salary*(e.bonusPct/100));
-    const total = e.salary+bonus;
-    return \`<tr>
-      <td><strong>\${esc(e.name)}</strong>\${e.notes?'<br><span style="font-size:11px;color:var(--muted)">'+esc(e.notes)+'</span>':''}</td>
-      <td><span class="badge badge-country">\${esc(e.country)}</span></td>
-      <td><span class="badge badge-seniority">\${esc(e.seniority)}</span></td>
-      <td><span class="badge badge-function">\${esc(e.fn)}</span></td>
-      <td>\${fmt(e.salary)}</td>
-      <td>\${e.bonusPct}%</td>
-      <td class="yellow-text">\${fmt(bonus)}</td>
-      <td class="green-text"><strong>\${fmt(total)}</strong></td>
-      <td><div class="row-actions">
-        <button class="btn btn-secondary btn-sm" onclick="editEmployee('\${e.id}')">Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteEmployee('\${e.id}')">Del</button>
-      </div></td>
-    </tr>\`;
-  }).join('');
+}
+
+function useBenchmarkRate() {
+  var country = document.getElementById('emp-country').value;
+  var seniority = document.getElementById('emp-seniority').value;
+  var fn = document.getElementById('emp-function').value;
+  var b = getBenchmark(country, seniority, fn);
+  if (b) {
+    document.getElementById('emp-salary').value = b;
+    notify('Benchmark rate applied: ' + fmt(b));
+  }
 }
 
 // ============================================================
 // BONUS MATRIX
 // ============================================================
+
 function renderBonusMatrix() {
-  const funcsShort = FUNCTIONS.map(f => f.replace('Engineering','Eng').replace('Management','Mgmt').replace('Architecture','Arch').replace('Technical Program','TP').replace('Operations','Ops'));
-  let html = '<thead><tr><th>Seniority</th>';
-  FUNCTIONS.forEach((f,i) => { html += \`<th title="\${f}">\${funcsShort[i]}</th>\`; });
+  var table = document.getElementById('bonus-matrix');
+
+  var html = '<thead><tr><th>Seniority \\ Function</th>';
+  FUNCTIONS.forEach(function(f) {
+    html += '<th title="' + esc(f) + '">' + esc(shortFn(f)) + '</th>';
+  });
   html += '</tr></thead><tbody>';
-  SENIORITIES.forEach(s => {
-    html += \`<tr><td style="font-weight:600;color:var(--text)">\${s}</td>\`;
-    FUNCTIONS.forEach(f => {
-      const v = state.bonusMatrix[s] && state.bonusMatrix[s][f] !== undefined ? state.bonusMatrix[s][f] : DEFAULT_BONUS[s];
-      html += \`<td><input class="bonus-input" type="number" min="0" max="200" value="\${v}" onchange="setBonusMatrix('\${s}','\${f}',this.value)"> %</td>\`;
+
+  SENIORITIES.forEach(function(sen) {
+    html += '<tr><td>' + esc(sen) + '</td>';
+    FUNCTIONS.forEach(function(fn) {
+      var val = (state.bonusMatrix[sen] && typeof state.bonusMatrix[sen][fn] !== 'undefined')
+        ? state.bonusMatrix[sen][fn]
+        : (DEFAULT_BONUS[sen] || 0);
+      html += '<td>' +
+        '<input type="number" class="matrix-input"' +
+        ' data-sen="' + esc(sen) + '"' +
+        ' data-fn="' + esc(fn) + '"' +
+        ' value="' + val + '"' +
+        ' min="0" max="200" step="0.5"' +
+        ' onchange="updateBonusCell(this)"' +
+        '>&thinsp;%</td>';
     });
     html += '</tr>';
   });
+
   html += '</tbody>';
-  document.getElementById('bonus-table').innerHTML = html;
+  table.innerHTML = html;
 }
 
-function setBonusMatrix(s, f, val) {
-  if (!state.bonusMatrix[s]) state.bonusMatrix[s] = {};
-  state.bonusMatrix[s][f] = parseFloat(val)||0;
-  save();
+function updateBonusCell(input) {
+  var sen = input.getAttribute('data-sen');
+  var fn = input.getAttribute('data-fn');
+  var val = parseFloat(input.value) || 0;
+  if (!state.bonusMatrix[sen]) state.bonusMatrix[sen] = {};
+  state.bonusMatrix[sen][fn] = val;
+  saveState();
 }
 
-function applyBonuses() {
-  state.employees.forEach(e => {
-    e.bonusPct = getBonusForEmployee(e.seniority, e.fn);
+function applyBonusMatrix() {
+  // Remove per-employee bonus overrides so matrix values are used
+  state.employees.forEach(function(emp) {
+    delete emp.bonusOverride;
   });
-  save(); notify('Bonus assumptions applied to all employees');
-  renderEmployeeTable(); updateChart(); updateStats();
-}
-
-function resetBonuses() {
-  SENIORITIES.forEach(s => { FUNCTIONS.forEach(f => { state.bonusMatrix[s][f] = DEFAULT_BONUS[s]; }); });
-  save(); renderBonusMatrix(); notify('Bonus matrix reset to defaults');
+  saveState();
+  renderAll();
+  notify('Bonus matrix applied to all employees');
 }
 
 // ============================================================
 // MONTHLY SPREAD
 // ============================================================
-function renderMonthlySpread() {
-  const view = document.getElementById('spread-view').value;
-  const filter = document.getElementById('spread-filter').value;
-  let emps = filter ? state.employees.filter(e=>e.id===filter) : state.employees;
 
-  if (!emps.length) {
-    document.getElementById('monthly-table-wrap').innerHTML = '<div class="empty-state"><div class="icon">📅</div><div>No employees to display.</div></div>';
+function setSpreadView(mode) {
+  state.spreadView = mode;
+  document.getElementById('spread-individual').classList.toggle('active', mode === 'individual');
+  document.getElementById('spread-aggregate').classList.toggle('active', mode === 'aggregate');
+  renderSpread();
+  saveState();
+}
+
+function renderSpread() {
+  var wrap = document.getElementById('spread-wrap');
+  var emps = state.employees;
+  var filterVal = document.getElementById('spread-employee-filter').value;
+
+  if (emps.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><h3>No employees</h3><p>Add employees to see the monthly spread.</p></div>';
     return;
   }
 
-  let html = '';
-  if (view==='summary') {
-    html = '<table class="monthly-table"><thead><tr><th>Month</th><th>Total Base</th><th>Total Bonus Accrual</th><th>Total Cost</th><th>Headcount</th></tr></thead><tbody>';
-    let grandBase=0, grandBonus=0;
-    MONTHS.forEach((m,i) => {
-      const base = emps.reduce((a,e)=>a+Math.round(e.salary/12),0);
-      const bonus = emps.reduce((a,e)=>a+Math.round((e.salary*(e.bonusPct/100))/12),0);
-      grandBase+=base; grandBonus+=bonus;
-      html += \`<tr><td><strong>\${m}</strong></td><td>\${fmt(base)}</td><td class="yellow-text">\${fmt(bonus)}</td><td class="green-text"><strong>\${fmt(base+bonus)}</strong></td><td>\${emps.length}</td></tr>\`;
-    });
-    html += \`<tr class="total-row"><td><strong>ANNUAL TOTAL</strong></td><td><strong>\${fmt(grandBase)}</strong></td><td class="yellow-text"><strong>\${fmt(grandBonus)}</strong></td><td class="green-text"><strong>\${fmt(grandBase+grandBonus)}</strong></td><td></td></tr>\`;
-    html += '</tbody></table>';
-  } else {
-    // Detail view
-    html = '<table class="monthly-table"><thead><tr><th>Month</th>';
-    emps.forEach(e => { html += \`<th colspan="2" style="text-align:center">\${esc(e.name)}</th>\`; });
-    html += '<th>Total</th></tr>';
-    html += '<tr><th></th>';
-    emps.forEach(() => { html += '<th>Base</th><th>Bonus</th>'; });
-    html += '<th></th></tr></thead><tbody>';
-    let grandTotals = emps.map(()=>0);
-    let grandTotal = 0;
-    MONTHS.forEach((m,i) => {
-      let rowTotal = 0;
-      html += \`<tr><td><strong>\${m}</strong></td>\`;
-      emps.forEach((e,ei) => {
-        const base = Math.round(e.salary/12);
-        const bonus = Math.round((e.salary*(e.bonusPct/100))/12);
-        const t = base+bonus;
-        grandTotals[ei]+=t; rowTotal+=t; grandTotal+=t;
-        html += \`<td>\${fmt(base)}</td><td class="yellow-text">\${fmt(bonus)}</td>\`;
-      });
-      html += \`<td class="green-text"><strong>\${fmt(rowTotal)}</strong></td></tr>\`;
-    });
-    html += '<tr class="total-row"><td><strong>ANNUAL</strong></td>';
-    emps.forEach((e,ei) => {
-      const totalBase = e.salary;
-      const totalBonus = Math.round(e.salary*(e.bonusPct/100));
-      html += \`<td><strong>\${fmt(totalBase)}</strong></td><td class="yellow-text"><strong>\${fmt(totalBonus)}</strong></td>\`;
-    });
-    html += \`<td class="green-text"><strong>\${fmt(grandTotal/12*12)}</strong></td></tr>\`;
-    html += '</tbody></table>';
+  var displayEmps = emps;
+  if (filterVal) {
+    var filterId = parseInt(filterVal, 10);
+    displayEmps = emps.filter(function(e) { return e.id === filterId; });
   }
-  document.getElementById('monthly-table-wrap').innerHTML = html;
+
+  if (displayEmps.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><h3>No matching employees</h3></div>';
+    return;
+  }
+
+  if (state.spreadView === 'aggregate') {
+    renderAggregateSpread(wrap, displayEmps);
+  } else {
+    renderIndividualSpread(wrap, displayEmps);
+  }
 }
 
-function refreshSpreadFilter() {
-  const sf = document.getElementById('spread-filter');
-  const cur = sf.value;
-  sf.innerHTML = '<option value="">All Employees</option>';
-  state.employees.forEach(e => { const o = document.createElement('option'); o.value=e.id; o.textContent=e.name; sf.appendChild(o); });
-  sf.value = cur;
+function renderIndividualSpread(wrap, emps) {
+  var html = '<table class="spread-table"><thead><tr><th>Month</th>';
+
+  emps.forEach(function(emp) {
+    html += '<th colspan="3" style="text-align:center;border-left:1px solid var(--border);">' + esc(emp.name) + '</th>';
+  });
+  html += '</tr><tr><th></th>';
+  emps.forEach(function() {
+    html += '<th style="color:#6366f1;border-left:1px solid var(--border);">Base/mo</th>' +
+            '<th style="color:var(--warning);">Bonus/mo</th>' +
+            '<th style="color:var(--success);">Total/mo</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  var annTotals = emps.map(function(emp) {
+    var d = getEmpData(emp);
+    return { base: d.base, bonusAmt: d.bonusAmt };
+  });
+
+  MONTHS.forEach(function(month) {
+    html += '<tr><td style="font-weight:600;">' + month + '</td>';
+    annTotals.forEach(function(t) {
+      var moBase = Math.round(t.base / 12);
+      var moBonus = Math.round(t.bonusAmt / 12);
+      var moTotal = moBase + moBonus;
+      html += '<td style="border-left:1px solid var(--border);">' + fmt(moBase) + '</td>' +
+              '<td style="color:var(--warning);">' + fmt(moBonus) + '</td>' +
+              '<td style="font-weight:600;color:var(--success);">' + fmt(moTotal) + '</td>';
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody><tfoot><tr><td style="font-weight:700;">Annual Total</td>';
+  annTotals.forEach(function(t) {
+    html += '<td style="border-left:1px solid var(--border);">' + fmt(t.base) + '</td>' +
+            '<td style="color:var(--warning);">' + fmt(t.bonusAmt) + '</td>' +
+            '<td style="color:var(--success);font-weight:700;">' + fmt(t.base + t.bonusAmt) + '</td>';
+  });
+  html += '</tr></tfoot></table>';
+
+  wrap.innerHTML = html;
+}
+
+function renderAggregateSpread(wrap, emps) {
+  var html = '<table class="spread-table"><thead><tr>' +
+    '<th>Month</th><th>Total Base/mo</th><th>Total Bonus/mo</th><th>Total Cost/mo</th><th>Cumulative</th>' +
+    '</tr></thead><tbody>';
+
+  var cumulative = 0;
+  MONTHS.forEach(function(month) {
+    var moBase = 0, moBonus = 0;
+    emps.forEach(function(emp) {
+      var d = getEmpData(emp);
+      moBase += Math.round(d.base / 12);
+      moBonus += Math.round(d.bonusAmt / 12);
+    });
+    var moTotal = moBase + moBonus;
+    cumulative += moTotal;
+    html += '<tr>' +
+      '<td style="font-weight:600;">' + month + '</td>' +
+      '<td style="color:#6366f1;">' + fmt(moBase) + '</td>' +
+      '<td style="color:var(--warning);">' + fmt(moBonus) + '</td>' +
+      '<td style="font-weight:600;color:var(--success);">' + fmt(moTotal) + '</td>' +
+      '<td style="color:var(--text-muted);">' + fmt(cumulative) + '</td>' +
+    '</tr>';
+  });
+
+  var annBase = emps.reduce(function(s, e) { return s + getEmpData(e).base; }, 0);
+  var annBonus = emps.reduce(function(s, e) { return s + getEmpData(e).bonusAmt; }, 0);
+  var annTotal = annBase + annBonus;
+
+  html += '</tbody><tfoot><tr>' +
+    '<td>Annual Total</td>' +
+    '<td style="color:#6366f1;">' + fmt(annBase) + '</td>' +
+    '<td style="color:var(--warning);">' + fmt(annBonus) + '</td>' +
+    '<td style="font-weight:700;color:var(--success);">' + fmt(annTotal) + '</td>' +
+    '<td style="color:var(--text-muted);">' + fmt(annTotal) + '</td>' +
+  '</tr></tfoot></table>';
+
+  wrap.innerHTML = html;
 }
 
 // ============================================================
 // EXPORT
 // ============================================================
-function exportCSV() {
-  let lines = [];
-  lines.push('COMPENSATION PLAN EXPORT');
-  lines.push('Generated: '+new Date().toLocaleDateString());
-  lines.push('');
-  lines.push('=== EMPLOYEE ROSTER ===');
-  lines.push(['Name','Country','Seniority','Function','Base Salary','Bonus %','Bonus Amount','Total Comp','Notes'].join(','));
-  state.employees.forEach(e => {
-    const bonus = Math.round(e.salary*(e.bonusPct/100));
-    lines.push([esc_csv(e.name),esc_csv(e.country),esc_csv(e.seniority),esc_csv(e.fn),e.salary,e.bonusPct+'%',bonus,e.salary+bonus,esc_csv(e.notes||'')].join(','));
+
+function buildFullCSV() {
+  var rows = [];
+
+  rows.push(['COMPENSATION PLANNING TOOL - FULL EXPORT']);
+  rows.push(['Generated:', new Date().toLocaleString()]);
+  rows.push([]);
+
+  rows.push(['=== EMPLOYEE ROSTER ===']);
+  rows.push(['#','Name','Country','Seniority','Function','Base Salary (USD)','Bonus %','Bonus Amount (USD)','Total Comp (USD)','Notes']);
+  state.employees.forEach(function(emp, i) {
+    var d = getEmpData(emp);
+    rows.push([i+1, emp.name, emp.country, emp.seniority, emp.function,
+      d.base, d.bonusPct + '%', d.bonusAmt, d.total, emp.notes || '']);
   });
-  lines.push('');
-  lines.push('=== MONTHLY SPREAD ===');
-  lines.push(['Month',...state.employees.map(e=>esc_csv(e.name)+' (Base)'), ...state.employees.map(e=>esc_csv(e.name)+' (Bonus)'),'Total Base','Total Bonus','Grand Total'].join(','));
-  MONTHS.forEach(m => {
-    const bases = state.employees.map(e=>Math.round(e.salary/12));
-    const bonuses = state.employees.map(e=>Math.round((e.salary*(e.bonusPct/100))/12));
-    const tb = bases.reduce((a,b)=>a+b,0);
-    const tbon = bonuses.reduce((a,b)=>a+b,0);
-    lines.push([m,...bases,...bonuses,tb,tbon,tb+tbon].join(','));
+  rows.push([]);
+
+  rows.push(['=== BONUS % MATRIX ===']);
+  rows.push(['Seniority \\ Function'].concat(FUNCTIONS));
+  SENIORITIES.forEach(function(sen) {
+    var r = [sen];
+    FUNCTIONS.forEach(function(fn) {
+      var v = (state.bonusMatrix[sen] && typeof state.bonusMatrix[sen][fn] !== 'undefined')
+        ? state.bonusMatrix[sen][fn] : DEFAULT_BONUS[sen];
+      r.push(v + '%');
+    });
+    rows.push(r);
   });
-  lines.push('');
-  lines.push('=== BONUS ASSUMPTIONS MATRIX ===');
-  lines.push(['Seniority',...FUNCTIONS.map(esc_csv)].join(','));
-  SENIORITIES.forEach(s => {
-    lines.push([esc_csv(s),...FUNCTIONS.map(f=>(state.bonusMatrix[s][f]||0)+'%')].join(','));
+  rows.push([]);
+
+  rows.push(['=== MONTHLY SPREAD ===']);
+  var empHeaders = [];
+  state.employees.forEach(function(emp) {
+    empHeaders.push(emp.name + ' - Base/mo', emp.name + ' - Bonus/mo', emp.name + ' - Total/mo');
   });
-  lines.push('');
-  lines.push('=== BENCHMARK REFERENCE ===');
-  lines.push(['Country','Seniority','Function','Benchmark (USD/yr)'].join(','));
-  COUNTRIES.forEach(c => SENIORITIES.forEach(s => FUNCTIONS.forEach(f => {
-    lines.push([esc_csv(c),esc_csv(s),esc_csv(f),getBenchmark(c,s,f)].join(','));
-  })));
-  download(lines.join('\n'), 'compensation-plan.csv', 'text/csv');
-  notify('Compensation sheet downloaded');
+  rows.push(['Month'].concat(empHeaders).concat(['Grand Total/mo']));
+  MONTHS.forEach(function(month) {
+    var r = [month];
+    var moGrand = 0;
+    state.employees.forEach(function(emp) {
+      var d = getEmpData(emp);
+      var moBase = Math.round(d.base / 12);
+      var moBonus = Math.round(d.bonusAmt / 12);
+      r.push(moBase, moBonus, moBase + moBonus);
+      moGrand += moBase + moBonus;
+    });
+    r.push(moGrand);
+    rows.push(r);
+  });
+  rows.push([]);
+
+  rows.push(['=== BENCHMARK REFERENCE - Software Engineering (USD Annual) ===']);
+  rows.push(['Seniority'].concat(COUNTRIES));
+  SENIORITIES.forEach(function(sen) {
+    var r = [sen];
+    COUNTRIES.forEach(function(c) {
+      r.push(getBenchmark(c, sen, 'Software Engineering'));
+    });
+    rows.push(r);
+  });
+  rows.push([]);
+
+  rows.push(['=== FUNCTION MULTIPLIERS ===']);
+  rows.push(['Function', 'Multiplier vs SWE']);
+  FUNCTIONS.forEach(function(f) {
+    rows.push([f, FUNCTION_MULT[f]]);
+  });
+  rows.push([]);
+
+  rows.push(['=== COUNTRY MULTIPLIERS ===']);
+  rows.push(['Country', 'Multiplier vs US']);
+  COUNTRIES.forEach(function(c) {
+    rows.push([c, COUNTRY_MULT[c]]);
+  });
+
+  return rows.map(function(r) {
+    return r.map(escCSV).join(',');
+  }).join('\n');
 }
 
-function exportTemplate() {
-  let lines = [];
-  lines.push('COMPENSATION PLANNING TEMPLATE');
-  lines.push('');
-  lines.push('=== EMPLOYEE ROSTER (fill in below) ===');
-  lines.push(['Name','Country','Seniority','Function','Base Salary (USD/yr)','Bonus %','Notes'].join(','));
-  for(let i=0;i<10;i++) lines.push(',,,,,, ');
-  lines.push('');
-  lines.push('=== BONUS ASSUMPTION DEFAULTS ===');
-  lines.push(['Seniority','Default Bonus %'].join(','));
-  SENIORITIES.forEach(s=>lines.push([s,DEFAULT_BONUS[s]+'%'].join(',')));
-  lines.push('');
-  lines.push('=== BENCHMARK REFERENCE (US Market) ===');
-  lines.push(['Seniority','Software Eng','Data Eng','DevOps/SRE','Product Mgmt','QA Eng','Data Science','IT Ops','Security Eng','Cloud Arch','TPM'].join(','));
-  SENIORITIES.forEach(s=>lines.push([s,...FUNCTIONS.map(f=>getBenchmark('United States',s,f))].join(',')));
-  lines.push('');
-  lines.push('=== COUNTRY COST MULTIPLIERS ===');
-  lines.push(['Country','Multiplier vs US'].join(','));
-  COUNTRIES.forEach(c=>lines.push([c,COUNTRY_MULT[c]].join(',')));
-  download(lines.join('\n'), 'comp-plan-template.csv', 'text/csv');
-  notify('Blank template downloaded');
+function downloadCSV() {
+  var csv = buildFullCSV();
+  triggerDownload(csv, 'compensation-plan-full.csv', 'text/csv');
+  notify('Full compensation sheet downloaded');
 }
 
-function exportJSON() {
-  download(JSON.stringify(state, null, 2), 'comp-plan-backup.json', 'application/json');
-  notify('JSON backup downloaded');
+function downloadRosterCSV() {
+  var rows = [['#','Name','Country','Seniority','Function','Base Salary','Bonus %','Bonus Amount','Total Comp','Notes']];
+  state.employees.forEach(function(emp, i) {
+    var d = getEmpData(emp);
+    rows.push([i+1, emp.name, emp.country, emp.seniority, emp.function,
+      d.base, d.bonusPct + '%', d.bonusAmt, d.total, emp.notes || '']);
+  });
+  var csv = rows.map(function(r) { return r.map(escCSV).join(','); }).join('\n');
+  triggerDownload(csv, 'employee-roster.csv', 'text/csv');
+  notify('Roster CSV downloaded');
 }
 
-function importJSON(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const data = JSON.parse(e.target.result);
-      state.employees = data.employees || [];
-      state.bonusMatrix = data.bonusMatrix || {};
-      initBonusMatrix();
-      save(); renderEmployeeTable(); updateChart(); updateStats(); refreshSpreadFilter();
-      notify('Plan imported successfully');
-    } catch(err) { notify('Invalid JSON file','error'); }
-  };
-  reader.readAsText(file);
+function downloadSpreadCSV() {
+  var empHeaders = [];
+  state.employees.forEach(function(emp) {
+    empHeaders.push(emp.name + ' Base/mo', emp.name + ' Bonus/mo', emp.name + ' Total/mo');
+  });
+  var rows = [['Month'].concat(empHeaders).concat(['Grand Total/mo', 'Cumulative'])];
+  var cum = 0;
+  MONTHS.forEach(function(month) {
+    var r = [month];
+    var moGrand = 0;
+    state.employees.forEach(function(emp) {
+      var d = getEmpData(emp);
+      var moBase = Math.round(d.base / 12);
+      var moBonus = Math.round(d.bonusAmt / 12);
+      r.push(moBase, moBonus, moBase + moBonus);
+      moGrand += moBase + moBonus;
+    });
+    cum += moGrand;
+    r.push(moGrand, cum);
+    rows.push(r);
+  });
+  var csv = rows.map(function(r) { return r.map(escCSV).join(','); }).join('\n');
+  triggerDownload(csv, 'monthly-spread.csv', 'text/csv');
+  notify('Monthly spread CSV downloaded');
 }
 
-function printView() {
-  const win = window.open('', '_blank');
-  const total = state.employees.reduce((a,e)=>a+e.salary,0);
-  const bonuses = state.employees.reduce((a,e)=>a+(e.salary*(e.bonusPct/100)),0);
-  let rows = state.employees.map(e=>{
-    const b=Math.round(e.salary*(e.bonusPct/100));
-    return \`<tr><td>\${esc(e.name)}</td><td>\${esc(e.country)}</td><td>\${esc(e.seniority)}</td><td>\${esc(e.fn)}</td><td>\${fmt(e.salary)}</td><td>\${e.bonusPct}%</td><td>\${fmt(b)}</td><td>\${fmt(e.salary+b)}</td></tr>\`;
+function openPrintView() {
+  var emps = state.employees;
+  var totalBase = emps.reduce(function(s, e) { return s + getEmpData(e).base; }, 0);
+  var totalBonus = emps.reduce(function(s, e) { return s + getEmpData(e).bonusAmt; }, 0);
+
+  var empRows = emps.map(function(emp, i) {
+    var d = getEmpData(emp);
+    return '<tr><td>' + (i+1) + '</td><td>' + emp.name + '</td><td>' + emp.country + '</td>' +
+      '<td>' + emp.seniority + '</td><td>' + emp.function + '</td>' +
+      '<td>$' + d.base.toLocaleString() + '</td><td>' + d.bonusPct + '%</td>' +
+      '<td>$' + d.bonusAmt.toLocaleString() + '</td>' +
+      '<td><strong>$' + d.total.toLocaleString() + '</strong></td></tr>';
   }).join('');
-  win.document.write(\`<!DOCTYPE html><html><head><title>Comp Plan</title>
-  <style>body{font-family:sans-serif;padding:32px;color:#1e293b}h1{margin-bottom:4px}p{color:#64748b;margin-bottom:24px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #e2e8f0}th{background:#f8fafc;font-size:11px;text-transform:uppercase}tfoot td{font-weight:700;background:#f1f5f9}.stats{display:flex;gap:24px;margin-bottom:24px}.stat{background:#f8fafc;padding:12px 20px;border-radius:8px;border-left:4px solid #6366f1}.sl{font-size:11px;color:#64748b;text-transform:uppercase}.sv{font-size:20px;font-weight:700}</style>
-  </head><body>
-  <h1>Compensation Plan Summary</h1><p>Generated: \${new Date().toLocaleDateString()} &nbsp;&bull;&nbsp; \${state.employees.length} employees</p>
-  <div class="stats">
-    <div class="stat"><div class="sl">Total Base Cost</div><div class="sv">\${fmt(total)}</div></div>
-    <div class="stat"><div class="sl">Total Bonus</div><div class="sv">\${fmt(bonuses)}</div></div>
-    <div class="stat"><div class="sl">Total Comp</div><div class="sv">\${fmt(total+bonuses)}</div></div>
-    <div class="stat"><div class="sl">Avg Salary</div><div class="sv">\${fmt(state.employees.length?Math.round(total/state.employees.length):0)}</div></div>
-  </div>
-  <table><thead><tr><th>Name</th><th>Country</th><th>Seniority</th><th>Function</th><th>Base</th><th>Bonus%</th><th>Bonus</th><th>Total</th></tr></thead>
-  <tbody>\${rows}</tbody>
-  <tfoot><tr><td colspan="4"><strong>TOTAL</strong></td><td>\${fmt(total)}</td><td></td><td>\${fmt(bonuses)}</td><td>\${fmt(total+bonuses)}</td></tr></tfoot></table>
-  </body></html>\`);
-  win.document.close(); win.print();
+
+  var matrixRows = SENIORITIES.map(function(sen) {
+    var cells = FUNCTIONS.map(function(fn) {
+      var v = (state.bonusMatrix[sen] && typeof state.bonusMatrix[sen][fn] !== 'undefined')
+        ? state.bonusMatrix[sen][fn] : DEFAULT_BONUS[sen];
+      return '<td>' + v + '%</td>';
+    }).join('');
+    return '<tr><td><strong>' + sen + '</strong></td>' + cells + '</tr>';
+  }).join('');
+
+  var fnHeaders = FUNCTIONS.map(function(f) { return '<th>' + shortFn(f) + '</th>'; }).join('');
+
+  var html = '<!DOCTYPE html><html><head><title>Compensation Plan - Print View</title>' +
+  '<style>' +
+  'body{font-family:system-ui,sans-serif;font-size:12px;color:#111;margin:24px;}' +
+  'h1{font-size:20px;margin-bottom:4px;}' +
+  'h2{font-size:14px;margin:20px 0 8px;border-bottom:2px solid #333;padding-bottom:4px;}' +
+  'table{width:100%;border-collapse:collapse;margin-bottom:16px;}' +
+  'th{text-align:left;padding:6px 10px;background:#f0f0f0;font-size:11px;text-transform:uppercase;}' +
+  'td{padding:6px 10px;border-bottom:1px solid #e0e0e0;}' +
+  '.summary{display:flex;gap:24px;margin:16px 0;flex-wrap:wrap;}' +
+  '.stat{border:1px solid #ddd;border-radius:6px;padding:12px 16px;}' +
+  '.stat-label{font-size:10px;text-transform:uppercase;color:#666;}' +
+  '.stat-value{font-size:20px;font-weight:700;}' +
+  '@media print{.no-print{display:none;}}' +
+  '</style></head><body>' +
+  '<button class="no-print" onclick="window.print()" style="margin-bottom:16px;padding:8px 16px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>' +
+  '<h1>Compensation Plan Summary</h1>' +
+  '<div style="color:#666;font-size:11px;">Generated: ' + new Date().toLocaleString() + '</div>' +
+  '<div class="summary">' +
+    '<div class="stat"><div class="stat-label">Headcount</div><div class="stat-value">' + emps.length + '</div></div>' +
+    '<div class="stat"><div class="stat-label">Total Annual Cost</div><div class="stat-value">$' + ((totalBase+totalBonus)/1000).toFixed(0) + 'k</div></div>' +
+    '<div class="stat"><div class="stat-label">Total Base</div><div class="stat-value">$' + (totalBase/1000).toFixed(0) + 'k</div></div>' +
+    '<div class="stat"><div class="stat-label">Total Bonus</div><div class="stat-value">$' + (totalBonus/1000).toFixed(0) + 'k</div></div>' +
+  '</div>' +
+  '<h2>Employee Roster</h2>' +
+  '<table><thead><tr><th>#</th><th>Name</th><th>Country</th><th>Seniority</th><th>Function</th>' +
+  '<th>Base Salary</th><th>Bonus %</th><th>Bonus Amt</th><th>Total Comp</th></tr></thead>' +
+  '<tbody>' + empRows + '</tbody></table>' +
+  '<h2>Bonus % Matrix</h2>' +
+  '<table><thead><tr><th>Seniority</th>' + fnHeaders + '</tr></thead>' +
+  '<tbody>' + matrixRows + '</tbody></table>' +
+  '</body></html>';
+
+  var w = window.open('', '_blank');
+  if (w) {
+    w.document.write(html);
+    w.document.close();
+  }
 }
 
 // ============================================================
-// UTILS
+// NAVIGATION
 // ============================================================
-function fmt(n) { return '$'+(Math.round(n)||0).toLocaleString(); }
-function fmtShort(n) { if(n>=1000000) return '$'+(n/1000000).toFixed(1)+'M'; if(n>=1000) return '$'+(n/1000).toFixed(0)+'K'; return '$'+n; }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function esc_csv(s) { s=String(s||''); if(s.includes(',')) s='"'+s.replace(/"/g,'""')+'"'; return s; }
-function download(content, filename, type) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content], {type}));
-  a.download = filename; a.click();
-}
-function notify(msg, type) {
-  const n = document.getElementById('notif');
-  n.textContent = msg;
-  n.style.background = type==='error'?'var(--red)':'var(--green)';
-  n.classList.add('show');
-  setTimeout(()=>n.classList.remove('show'), 2800);
+
+var TAB_NAMES = ['dashboard','employees','bonuses','spread','export'];
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.nav-btn').forEach(function(b, i) {
+    b.classList.toggle('active', TAB_NAMES[i] === name);
+  });
+  var tabEl = document.getElementById('tab-' + name);
+  if (tabEl) tabEl.classList.add('active');
+
+  if (name === 'dashboard') {
+    setTimeout(renderChart, 50);
+  } else if (name === 'spread') {
+    renderSpread();
+  }
 }
 
 // ============================================================
-// BOOT
+// POPULATE SELECTS
 // ============================================================
-document.addEventListener('DOMContentLoaded', () => {
-  load();
-  initDropdowns();
-  updateStats();
-  updateChart();
-  renderEmployeeTable();
+
+function populateSelects() {
+  var countryEl = document.getElementById('emp-country');
+  var senEl = document.getElementById('emp-seniority');
+  var fnEl = document.getElementById('emp-function');
+  var filterCountry = document.getElementById('filter-country');
+  var filterSen = document.getElementById('filter-seniority');
+  var filterFn = document.getElementById('filter-function');
+
+  COUNTRIES.forEach(function(c) {
+    countryEl.add(new Option(c, c));
+    filterCountry.add(new Option(c, c));
+  });
+
+  SENIORITIES.forEach(function(s) {
+    senEl.add(new Option(s, s));
+    filterSen.add(new Option(s, s));
+  });
+
+  FUNCTIONS.forEach(function(f) {
+    fnEl.add(new Option(f, f));
+    filterFn.add(new Option(f, f));
+  });
+}
+
+function refreshSpreadEmployeeFilter() {
+  var el = document.getElementById('spread-employee-filter');
+  var prev = el.value;
+  while (el.options.length > 1) el.remove(1);
+  state.employees.forEach(function(emp) {
+    el.add(new Option(emp.name, emp.id));
+  });
+  el.value = prev;
+}
+
+// ============================================================
+// RENDER ALL
+// ============================================================
+
+function renderAll() {
+  renderStats();
+  renderChart();
+  renderRoster();
   renderBonusMatrix();
-});
+  renderSpread();
+  refreshSpreadEmployeeFilter();
+}
+
+// ============================================================
+// SEED DATA
+// ============================================================
+
+function seedData() {
+  if (state.employees.length > 0) return;
+
+  var samples = [
+    { name: 'Alice Chen', country: 'United States', seniority: 'Senior', function: 'Software Engineering' },
+    { name: 'Bob Kumar', country: 'India', seniority: 'Mid-Level', function: 'Data Engineering' },
+    { name: 'Sarah Mills', country: 'United Kingdom', seniority: 'Director', function: 'Product Management' },
+    { name: 'James Park', country: 'Canada', seniority: 'Staff', function: 'DevOps/SRE' },
+    { name: 'Maria Rodriguez', country: 'Germany', seniority: 'Senior', function: 'Data Science' }
+  ];
+
+  samples.forEach(function(s) {
+    var salary = getBenchmark(s.country, s.seniority, s.function);
+    state.employees.push({
+      id: state.nextId++,
+      name: s.name,
+      country: s.country,
+      seniority: s.seniority,
+      function: s.function,
+      salary: salary,
+      customSalary: false,
+      notes: ''
+    });
+  });
+
+  saveState();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+
+function init() {
+  loadState();
+  seedData();
+  populateSelects();
+
+  // Restore filter UI state
+  if (state.filters.country) document.getElementById('filter-country').value = state.filters.country;
+  if (state.filters.seniority) document.getElementById('filter-seniority').value = state.filters.seniority;
+  if (state.filters.function) document.getElementById('filter-function').value = state.filters.function;
+
+  // Restore groupBy button state
+  document.querySelectorAll('[id^="grp-"]').forEach(function(b) { b.classList.remove('active'); });
+  var grpBtn = document.getElementById('grp-' + state.groupBy);
+  if (grpBtn) grpBtn.classList.add('active');
+  var grpLabels = { country: 'Country', seniority: 'Seniority', function: 'Job Function' };
+  document.getElementById('chart-subtitle').textContent = 'Grouped by ' + (grpLabels[state.groupBy] || 'Country');
+
+  // Restore spreadView
+  document.getElementById('spread-individual').classList.toggle('active', state.spreadView === 'individual');
+  document.getElementById('spread-aggregate').classList.toggle('active', state.spreadView === 'aggregate');
+
+  renderAll();
+}
+
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
