@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Color Slope Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      margin-bottom: 4px;
+      color: #fff;
+      letter-spacing: 0.02em;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #9090b0;
+      font-size: 0.9rem;
+      margin-bottom: 28px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .endpoint-card {
+      background: #16213e;
+      border: 1px solid #2a2a5a;
+      border-radius: 12px;
+      padding: 20px;
+      width: 260px;
+    }
+
+    .endpoint-card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: #c0c0e0;
+    }
+
+    .color-preview-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .color-swatch {
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      border: 2px solid #3a3a6a;
+      flex-shrink: 0;
+    }
+
+    .hex-display {
+      font-family: monospace;
+      font-size: 1.1rem;
+      color: #fff;
+      background: #0f0f2a;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #3a3a6a;
+      cursor: pointer;
+      user-select: all;
+      flex: 1;
+      text-align: center;
+    }
+
+    .hex-display:hover { border-color: #6060cc; }
+
+    .channel {
+      margin-bottom: 12px;
+    }
+
+    .channel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .channel-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .channel-label.r { color: #ff6666; }
+    .channel-label.g { color: #66cc66; }
+    .channel-label.b { color: #6699ff; }
+
+    .channel-value {
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #fff;
+      background: #0f0f2a;
+      border: 1px solid #3a3a6a;
+      border-radius: 4px;
+      padding: 2px 6px;
+      width: 44px;
+      text-align: center;
+    }
+
+    .channel-value:focus {
+      outline: none;
+      border-color: #6060cc;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      -webkit-appearance: none;
+      height: 6px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #6060cc;
+      cursor: pointer;
+    }
+
+    .slider-r { background: linear-gradient(to right, #000, #ff0000); }
+    .slider-g { background: linear-gradient(to right, #000, #00ff00); }
+    .slider-b { background: linear-gradient(to right, #000, #0000ff); }
+
+    /* Steps control */
+    .steps-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .steps-row label {
+      font-size: 0.9rem;
+      color: #c0c0e0;
+    }
+
+    #steps-input {
+      width: 70px;
+      padding: 6px 10px;
+      background: #0f0f2a;
+      border: 1px solid #3a3a6a;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-family: monospace;
+      text-align: center;
+    }
+
+    #steps-input:focus { outline: none; border-color: #6060cc; }
+
+    /* Copy all button */
+    #copy-all-btn {
+      padding: 8px 22px;
+      background: #3a3a9a;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #copy-all-btn:hover { background: #5050cc; }
+    #copy-all-btn:active { background: #2a2a7a; }
+
+    /* Gradient bar */
+    #gradient-bar {
+      height: 60px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #2a2a5a;
+    }
+
+    /* Results grid */
+    #results-section h3 {
+      font-size: 0.9rem;
+      color: #9090b0;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    #results-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .color-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+
+    .chip-swatch {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+
+    .color-chip:hover .chip-swatch {
+      border-color: #fff;
+      transform: scale(1.08);
+    }
+
+    .chip-hex {
+      font-family: monospace;
+      font-size: 0.7rem;
+      color: #b0b0d0;
+      background: #0f0f2a;
+      padding: 2px 5px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .chip-index {
+      font-size: 0.65rem;
+      color: #606080;
+    }
+
+    /* Toast notification */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: #3a3a9a;
+      color: #fff;
+      padding: 10px 22px;
+      border-radius: 24px;
+      font-size: 0.85rem;
+      pointer-events: none;
+      transition: transform 0.25s ease;
+      z-index: 999;
+    }
+
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .endpoint-card { width: 100%; }
+      .controls { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>Color Slope Generator</h1>
+<p class="subtitle">Define two RGB endpoint colors and generate the full sloped spectrum between them.</p>
+
+<div class="controls">
+  <!-- START ENDPOINT -->
+  <div class="endpoint-card">
+    <h2>Start Color</h2>
+    <div class="color-preview-row">
+      <div class="color-swatch" id="swatch-start"></div>
+      <div class="hex-display" id="hex-start" title="Click to copy">#000000</div>
+    </div>
+    <div class="channel">
+      <div class="channel-header">
+        <span class="channel-label r">R</span>
+        <input type="number" class="channel-value" id="r-start-num" min="0" max="255" value="255" />
+      </div>
+      <input type="range" class="slider-r" id="r-start" min="0" max="255" value="255" />
+    </div>
+    <div class="channel">
+      <div class="channel-header">
+        <span class="channel-label g">G</span>
+        <input type="number" class="channel-value" id="g-start-num" min="0" max="255" value="0" />
+      </div>
+      <input type="range" class="slider-g" id="g-start" min="0" max="255" value="0" />
+    </div>
+    <div class="channel">
+      <div class="channel-header">
+        <span class="channel-label b">B</span>
+        <input type="number" class="channel-value" id="b-start-num" min="0" max="255" value="0" />
+      </div>
+      <input type="range" class="slider-b" id="b-start" min="0" max="255" value="0" />
+    </div>
+  </div>
+
+  <!-- END ENDPOINT -->
+  <div class="endpoint-card">
+    <h2>End Color</h2>
+    <div class="color-preview-row">
+      <div class="color-swatch" id="swatch-end"></div>
+      <div class="hex-display" id="hex-end" title="Click to copy">#000000</div>
+    </div>
+    <div class="channel">
+      <div class="channel-header">
+        <span class="channel-label r">R</span>
+        <input type="number" class="channel-value" id="r-end-num" min="0" max="255" value="0" />
+      </div>
+      <input type="range" class="slider-r" id="r-end" min="0" max="255" value="0" />
+    </div>
+    <div class="channel">
+      <div class="channel-header">
+        <span class="channel-label g">G</span>
+        <input type="number" class="channel-value" id="g-end-num" min="0" max="255" value="0" />
+      </div>
+      <input type="range" class="slider-g" id="g-end" min="0" max="255" value="0" />
+    </div>
+    <div class="channel">
+      <div class="channel-header">
+        <span class="channel-label b">B</span>
+        <input type="number" class="channel-value" id="b-end-num" min="0" max="255" value="255" />
+      </div>
+      <input type="range" class="slider-b" id="b-end" min="0" max="255" value="255" />
+    </div>
+  </div>
+</div>
+
+<!-- Steps + copy all -->
+<div class="steps-row">
+  <label for="steps-input">Steps (including endpoints):</label>
+  <input type="number" id="steps-input" min="2" max="500" value="10" />
+  <button id="copy-all-btn">Copy All Hex</button>
+</div>
+
+<!-- Gradient bar -->
+<div id="gradient-bar"></div>
+
+<!-- Results -->
+<div id="results-section">
+  <h3>Click any swatch to copy its hex value</h3>
+  <div id="results-grid"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+  const channels = ['r', 'g', 'b'];
+  const sides = ['start', 'end'];
+
+  function clamp(v) { return Math.min(255, Math.max(0, Math.round(v))); }
+
+  function toHex(r, g, b) {
+    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+
+  function getValues(side) {
+    return {
+      r: parseInt(document.getElementById(`r-${side}`).value),
+      g: parseInt(document.getElementById(`g-${side}`).value),
+      b: parseInt(document.getElementById(`b-${side}`).value),
+    };
+  }
+
+  function updateSwatch(side) {
+    const { r, g, b } = getValues(side);
+    const hex = toHex(r, g, b);
+    document.getElementById(`swatch-${side}`).style.background = hex;
+    document.getElementById(`hex-${side}`).textContent = hex;
+  }
+
+  function syncSliderToNum(channel, side) {
+    const slider = document.getElementById(`${channel}-${side}`);
+    const num = document.getElementById(`${channel}-${side}-num`);
+    num.addEventListener('input', () => {
+      let v = parseInt(num.value);
+      if (isNaN(v)) return;
+      v = clamp(v);
+      num.value = v;
+      slider.value = v;
+      updateSwatch(side);
+      render();
+    });
+    slider.addEventListener('input', () => {
+      num.value = slider.value;
+      updateSwatch(side);
+      render();
+    });
+  }
+
+  // Wire up all sliders/number inputs
+  sides.forEach(side => {
+    channels.forEach(ch => syncSliderToNum(ch, side));
+    // Click hex to copy
+    document.getElementById(`hex-${side}`).addEventListener('click', function() {
+      copyText(this.textContent);
+    });
+  });
+
+  document.getElementById('steps-input').addEventListener('input', render);
+
+  document.getElementById('copy-all-btn').addEventListener('click', () => {
+    const chips = document.querySelectorAll('.chip-hex');
+    const text = Array.from(chips).map(c => c.textContent).join('\n');
+    copyText(text, 'All hex values copied!');
+  });
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function copyText(text, msg) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(msg || `Copied ${text}`);
+    }).catch(() => {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast(msg || `Copied ${text}`);
+    });
+  }
+
+  function render() {
+    const start = getValues('start');
+    const end = getValues('end');
+    const steps = Math.max(2, Math.min(500, parseInt(document.getElementById('steps-input').value) || 10));
+
+    const colors = [];
+    for (let i = 0; i < steps; i++) {
+      const t = i / (steps - 1);
+      const r = clamp(start.r + (end.r - start.r) * t);
+      const g = clamp(start.g + (end.g - start.g) * t);
+      const b = clamp(start.b + (end.b - start.b) * t);
+      colors.push({ r, g, b, hex: toHex(r, g, b) });
+    }
+
+    // Gradient bar
+    const gradBar = document.getElementById('gradient-bar');
+    const stopList = colors.map((c, i) => `${c.hex} ${(i / (colors.length - 1) * 100).toFixed(1)}%`).join(', ');
+    gradBar.style.background = `linear-gradient(to right, ${stopList})`;
+
+    // Results grid
+    const grid = document.getElementById('results-grid');
+    grid.innerHTML = '';
+    colors.forEach((c, i) => {
+      const chip = document.createElement('div');
+      chip.className = 'color-chip';
+      chip.title = `Step ${i + 1}: ${c.hex} — R:${c.r} G:${c.g} B:${c.b}`;
+      chip.innerHTML = `
+        <div class="chip-swatch" style="background:${c.hex}"></div>
+        <div class="chip-hex">${c.hex}</div>
+        <div class="chip-index">${i + 1}</div>
+      `;
+      chip.addEventListener('click', () => copyText(c.hex));
+      grid.appendChild(chip);
+    });
+  }
+
+  // Initialize
+  sides.forEach(updateSwatch);
+  render();
+</script>
+</body>
+</html>
