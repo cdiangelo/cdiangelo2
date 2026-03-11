@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P&L Commentary Generator</title>
+
+  <!-- Office.js -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js" type="text/javascript"></script>
+
+  <!-- Fluent UI (Microsoft design system) -->
+  <link rel="stylesheet"
+    href="https://static2.sharepointonline.com/files/fabric/office-ui-fabric-core/11.0.0/css/fabric.min.css" />
+
+  <link rel="stylesheet" href="taskpane.css" />
+</head>
+<body class="ms-Fabric ms-font-m">
+
+  <div id="app">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-icon">&#x1F4CA;</div>
+      <div>
+        <div class="header-title">P&amp;L Commentary</div>
+        <div class="header-subtitle">AI-powered financial narrative</div>
+      </div>
+    </div>
+
+    <!-- Step 1: Configuration -->
+    <div class="section" id="section-config">
+      <div class="section-title">1. Configure Analysis</div>
+
+      <div class="field-group">
+        <label class="ms-Label">Company / Entity Name <span class="optional">(optional)</span></label>
+        <input type="text" id="companyName" class="ms-TextField-field" placeholder="e.g. Acme Corp" />
+      </div>
+
+      <div class="field-group">
+        <label class="ms-Label">Reporting Period</label>
+        <input type="text" id="reportingPeriod" class="ms-TextField-field" placeholder="e.g. Q1 2025, FY2024" />
+      </div>
+
+      <div class="field-group">
+        <label class="ms-Label">Currency</label>
+        <select id="currency" class="ms-Dropdown-select">
+          <option value="USD">USD ($)</option>
+          <option value="EUR">EUR (€)</option>
+          <option value="GBP">GBP (£)</option>
+          <option value="CAD">CAD ($)</option>
+          <option value="AUD">AUD ($)</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label class="ms-Label">Comparison Columns Present</label>
+        <div class="checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="hasBudget" checked /> vs Budget
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="hasPriorYear" checked /> vs Prior Year
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="hasPriorPeriod" /> vs Prior Period
+          </label>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="ms-Label">Commentary Style</label>
+        <select id="commentaryStyle" class="ms-Dropdown-select">
+          <option value="formal">Formal (Board / Management Report)</option>
+          <option value="concise">Concise (Bullet-point Summary)</option>
+          <option value="detailed">Detailed (Full Analysis)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Step 2: Select Data -->
+    <div class="section" id="section-select">
+      <div class="section-title">2. Select P&amp;L Data</div>
+      <p class="hint">Select the range in your spreadsheet that contains your P&amp;L statement (including headers), then click the button below.</p>
+
+      <button id="btn-capture" class="ms-Button ms-Button--primary btn-full" onclick="captureSelection()">
+        <span class="ms-Button-label">&#x2706; Capture Selected Range</span>
+      </button>
+
+      <div id="range-preview" class="range-preview hidden">
+        <div class="range-preview-title">Captured Range</div>
+        <div id="range-address" class="range-address"></div>
+        <div id="range-summary" class="range-summary"></div>
+      </div>
+    </div>
+
+    <!-- Step 3: Generate -->
+    <div class="section" id="section-generate">
+      <div class="section-title">3. Generate Commentary</div>
+
+      <button id="btn-generate" class="ms-Button ms-Button--primary btn-full" onclick="generateCommentary()" disabled>
+        <span class="ms-Button-label">&#x2728; Generate AI Commentary</span>
+      </button>
+
+      <!-- Loading spinner -->
+      <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <div class="loading-text">Analyzing your P&amp;L with Claude AI...</div>
+      </div>
+
+      <!-- Error message -->
+      <div id="error-msg" class="error-msg hidden"></div>
+    </div>
+
+    <!-- Results -->
+    <div id="section-results" class="hidden">
+      <div class="results-header">
+        <div class="section-title" style="margin:0">Commentary Results</div>
+        <button class="btn-icon" onclick="clearResults()" title="Clear results">&#x2715;</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" id="tab-exec" onclick="switchTab('exec')">Executive Summary</button>
+        <button class="tab" id="tab-variance" onclick="switchTab('variance')">Variance Analysis</button>
+        <button class="tab" id="tab-lineitems" onclick="switchTab('lineitems')">Line Items</button>
+      </div>
+
+      <div id="panel-exec" class="tab-panel">
+        <div id="content-exec" class="commentary-text"></div>
+      </div>
+      <div id="panel-variance" class="tab-panel hidden">
+        <div id="content-variance" class="commentary-text"></div>
+      </div>
+      <div id="panel-lineitems" class="tab-panel hidden">
+        <div id="content-lineitems" class="commentary-text"></div>
+      </div>
+
+      <!-- Insert to Sheet buttons -->
+      <div class="insert-actions">
+        <div class="insert-label">Insert into workbook:</div>
+        <div class="insert-buttons">
+          <button class="ms-Button btn-insert" onclick="insertToSheet('all')">
+            <span class="ms-Button-label">Insert All to New Sheet</span>
+          </button>
+          <button class="ms-Button btn-insert-secondary" onclick="insertToSheet('active')">
+            <span class="ms-Button-label">Insert Active Tab Only</span>
+          </button>
+          <button class="ms-Button btn-insert-secondary" onclick="copyToClipboard()">
+            <span class="ms-Button-label">&#x2398; Copy to Clipboard</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#app -->
+
+  <script src="taskpane.js"></script>
+</body>
+</html>

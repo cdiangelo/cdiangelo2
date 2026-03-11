@@ -1,0 +1,373 @@
+/* ============================================================
+   P&L Commentary Add-in — Task Pane Styles
+   ============================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 13px;
+  background: #f8f9fa;
+  color: #323130;
+}
+
+#app {
+  padding: 0 0 80px 0;
+}
+
+/* ---- Header ---- */
+.header {
+  background: linear-gradient(135deg, #0078d4, #106ebe);
+  color: white;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.header-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.header-subtitle {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+/* ---- Sections ---- */
+.section {
+  background: white;
+  margin: 10px 10px 0 10px;
+  border-radius: 6px;
+  padding: 14px;
+  border: 1px solid #edebe9;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0078d4;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ---- Form Fields ---- */
+.field-group {
+  margin-bottom: 12px;
+}
+
+.ms-Label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #605e5c;
+  margin-bottom: 4px;
+}
+
+.optional {
+  font-weight: 400;
+  color: #a19f9d;
+  font-size: 11px;
+}
+
+.ms-TextField-field,
+.ms-Dropdown-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #8a8886;
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #323130;
+  background: white;
+  transition: border-color 0.15s;
+}
+
+.ms-TextField-field:focus,
+.ms-Dropdown-select:focus {
+  outline: none;
+  border-color: #0078d4;
+  box-shadow: 0 0 0 1px #0078d4;
+}
+
+/* ---- Checkboxes ---- */
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #0078d4;
+}
+
+/* ---- Buttons ---- */
+.ms-Button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.ms-Button--primary {
+  background: #0078d4;
+  color: white;
+  border-color: #0078d4;
+}
+
+.ms-Button--primary:hover:not(:disabled) {
+  background: #106ebe;
+}
+
+.ms-Button--primary:disabled {
+  background: #c8c6c4;
+  border-color: #c8c6c4;
+  cursor: not-allowed;
+}
+
+.btn-full {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #605e5c;
+  padding: 4px;
+  border-radius: 3px;
+}
+
+.btn-icon:hover {
+  background: #f3f2f1;
+}
+
+/* ---- Hint text ---- */
+.hint {
+  font-size: 12px;
+  color: #605e5c;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+/* ---- Range Preview ---- */
+.range-preview {
+  margin-top: 12px;
+  background: #f3f9ff;
+  border: 1px solid #c7e0f4;
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.range-preview-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0078d4;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.range-address {
+  font-size: 13px;
+  font-weight: 600;
+  color: #323130;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+.range-summary {
+  font-size: 12px;
+  color: #605e5c;
+  margin-top: 4px;
+}
+
+/* ---- Loading ---- */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  gap: 12px;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #e1dfdd;
+  border-top-color: #0078d4;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 12px;
+  color: #605e5c;
+  text-align: center;
+}
+
+/* ---- Error ---- */
+.error-msg {
+  background: #fde7e9;
+  border: 1px solid #f1707b;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #a4262c;
+  margin-top: 10px;
+  line-height: 1.5;
+}
+
+/* ---- Results Section ---- */
+#section-results {
+  background: white;
+  margin: 10px 10px 0 10px;
+  border-radius: 6px;
+  border: 1px solid #edebe9;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 0 14px;
+}
+
+/* ---- Tabs ---- */
+.tabs {
+  display: flex;
+  border-bottom: 2px solid #edebe9;
+  margin-top: 10px;
+  padding: 0 14px;
+}
+
+.tab {
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #605e5c;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: #0078d4;
+}
+
+.tab.active {
+  color: #0078d4;
+  border-bottom-color: #0078d4;
+}
+
+/* ---- Tab Panels ---- */
+.tab-panel {
+  padding: 14px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.commentary-text {
+  font-size: 13px;
+  color: #323130;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* ---- Insert Actions ---- */
+.insert-actions {
+  border-top: 1px solid #edebe9;
+  padding: 12px 14px;
+  background: #faf9f8;
+}
+
+.insert-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #605e5c;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.insert-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.btn-insert {
+  background: #0078d4;
+  color: white;
+  border-color: #0078d4;
+  font-size: 12px;
+  padding: 7px 12px;
+  width: 100%;
+}
+
+.btn-insert:hover {
+  background: #106ebe;
+}
+
+.btn-insert-secondary {
+  background: white;
+  color: #0078d4;
+  border: 1px solid #0078d4;
+  font-size: 12px;
+  padding: 7px 12px;
+  width: 100%;
+}
+
+.btn-insert-secondary:hover {
+  background: #f3f9ff;
+}
+
+/* ---- Utilities ---- */
+.hidden {
+  display: none !important;
+}
