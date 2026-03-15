@@ -1323,6 +1323,15 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   #q-claude .p-head .p-btn, #q-claude .p-head select, #q-claude .p-head label { font-size: .5rem !important; }
   /* Hide less important Claude header buttons on mobile */
   #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn, #aiOrchToggleLabel { display: none !important; }
+  /* Make exit/logout buttons visible and tappable on mobile */
+  #userExitBtn, #logoutBtn { font-size: .6rem !important; padding: 4px 10px !important; min-height: 28px; }
+  #userNameDisplay { font-size: .6rem !important; }
+  /* Hide less-used header buttons on mobile to make room */
+  .header-right .fs-btn:not(#userExitBtn):not(#logoutBtn) { display: none !important; }
+  .header-right #themeToggle { display: inline-block !important; }
+  /* API key section on mobile — make inputs big enough to tap */
+  #aiApiKeySection input, #aiApiKeyLocked input { font-size: 16px !important; padding: 10px !important; }
+  #aiApiKeySection button, #aiApiKeyLocked button { min-height: 36px; font-size: .72rem !important; }
 }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -2339,9 +2348,16 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
     const pricingPanel = document.getElementById('aiPricingPanel');
     if (pricingPanel) pricingPanel.style.display = 'none';
     const apiSection = document.getElementById('aiApiKeySection');
-    if (apiSection) apiSection.style.display = 'none';
     const lockedSection = document.getElementById('aiApiKeyLocked');
-    if (lockedSection) lockedSection.style.display = 'block';
+    // If no API key is set yet, show the key input for first-time setup
+    const existingKey = localStorage.getItem('ws_aiApiKey');
+    if (!existingKey) {
+      if (apiSection) apiSection.style.display = 'block';
+      if (lockedSection) lockedSection.style.display = 'none';
+    } else {
+      if (apiSection) apiSection.style.display = 'none';
+      if (lockedSection) lockedSection.style.display = 'block';
+    }
     const usageDashBtn = document.getElementById('aiUsageDashBtn');
     if (usageDashBtn) usageDashBtn.style.display = 'none';
     const accessReqBtn = document.getElementById('aiAccessReqBtn');
