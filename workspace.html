@@ -349,23 +349,43 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.validation-error { border-color: var(--danger); }
 
 /* ═══ ROBOT ASSISTANT ═══ */
-.robot-scene { position: relative; width: 100px; height: 72px; margin: 4px auto 2px; flex-shrink: 0; }
-.robot-desk { position: absolute; bottom: 0; width: 80px; left: 50%; transform: translateX(-50%); height: 14px; background: linear-gradient(180deg, #8B6914, #6B4F12); border-radius: 3px 3px 0 0; }
-.robot-body { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); text-align: center; }
-.robot-head { width: 22px; height: 18px; background: #C0A030; border-radius: 5px 5px 3px 3px; margin: 0 auto; position: relative; transition: transform 0.6s ease; }
-.robot-eyes { display: flex; justify-content: center; gap: 5px; padding-top: 5px; }
-.robot-eyes .eye { width: 4px; height: 4px; background: #222; border-radius: 50%; }
-.robot-torso { width: 26px; height: 16px; background: #E8E0D0; border-radius: 3px; margin: 1px auto 0; position: relative; }
-.robot-tie { width: 5px; height: 10px; background: #D32F2F; margin: 0 auto; clip-path: polygon(50% 0, 100% 20%, 65% 100%, 50% 80%, 35% 100%, 0 20%); }
-.robot-arms { display: flex; justify-content: center; gap: 20px; margin-top: -10px; }
-.robot-arms .arm { width: 6px; height: 12px; background: #C0A030; border-radius: 2px; transition: transform 0.15s; transform-origin: top center; }
+.robot-scene { position: relative; width: 160px; height: 100px; margin: 4px auto 2px; flex-shrink: 0; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,.08); background: #1a1a2a; }
+.robot-bg { position: absolute; inset: 0; z-index: 0; opacity: 0; transition: opacity 0.6s ease, background 0.6s ease; }
+.robot-glass { position: absolute; inset: 0; z-index: 1; border: 1px solid rgba(255,255,255,.08); background: linear-gradient(135deg, rgba(255,255,255,.04) 0%, transparent 40%, rgba(255,255,255,.02) 100%); pointer-events: none; }
+.robot-glass::before, .robot-glass::after { content:''; position: absolute; background: rgba(255,255,255,.05); }
+.robot-glass::before { top: 0; bottom: 0; left: 33%; width: 1px; }
+.robot-glass::after { top: 0; bottom: 0; right: 33%; width: 1px; }
+/* CSS-only potted plants */
+.robot-plant { position: absolute; bottom: 0; z-index: 2; width: 16px; height: 28px; }
+.robot-plant-l { left: 6px; }
+.robot-plant-r { right: 6px; }
+.plant-pot { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 10px; height: 7px; background: linear-gradient(180deg, #8D6E63, #6D4C41); border-radius: 1px 1px 3px 3px; clip-path: polygon(5% 0, 95% 0, 80% 100%, 20% 100%); }
+.plant-stem { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 1.5px; height: 12px; background: #4CAF50; border-radius: 1px; }
+.plant-leaf { position: absolute; width: 7px; height: 4px; border-radius: 50%; background: #66BB6A; }
+.plant-leaf-l { bottom: 14px; left: 0; transform: rotate(-30deg); }
+.plant-leaf-r { bottom: 16px; right: 0; transform: rotate(30deg); }
+.plant-leaf-t { bottom: 20px; left: 50%; transform: translateX(-50%); width: 5px; height: 6px; border-radius: 50% 50% 30% 30%; background: #81C784; }
+/* Desk + monitors */
+.robot-desk { position: absolute; bottom: 0; width: 70px; left: 50%; transform: translateX(-50%); height: 14px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 3px rgba(0,0,0,.2); }
+.robot-monitors { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; z-index: 3; }
+.robot-monitor { width: 14px; height: 10px; background: #0a0a0a; border: 1.5px solid #333; border-radius: 1px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s; }
+.robot-monitor.on { border-color: #555; box-shadow: inset 0 0 4px rgba(76,175,80,.35), 0 0 3px rgba(76,175,80,.15); }
+/* Robot body */
+.robot-body { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 4; }
+.robot-head { width: 20px; height: 16px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 5px 5px 3px 3px; margin: 0 auto; position: relative; transition: transform 0.6s ease; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.robot-eyes { display: flex; justify-content: center; gap: 4px; padding-top: 4px; }
+.robot-eyes .eye { width: 3px; height: 3px; background: #1a1a1a; border-radius: 50%; box-shadow: inset 0 0 1px rgba(255,255,255,.2); }
+.robot-torso { width: 22px; height: 14px; background: linear-gradient(180deg, #222, #111); border-radius: 3px; margin: 1px auto 0; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.robot-tie { width: 4px; height: 9px; margin: 0 auto; clip-path: polygon(50% 0, 100% 20%, 65% 100%, 50% 80%, 35% 100%, 0 20%); background: #D32F2F; transition: background 0.3s, clip-path 0.3s; }
+.robot-arms { display: flex; justify-content: center; gap: 16px; margin-top: -8px; }
+.robot-arms .arm { width: 5px; height: 10px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 2px; transition: transform 0.15s; transform-origin: top center; }
 .robot-arms .arm.typing-l { transform: rotate(-8deg) translateY(2px); }
 .robot-arms .arm.typing-r { transform: rotate(8deg) translateY(2px); }
-.desk-light { position: absolute; right: 6px; top: -6px; width: 8px; height: 8px; border-radius: 50%; background: #555; border: 1px solid #444; transition: all 0.3s; }
-.desk-light.on { background: #4CAF50; box-shadow: 0 0 6px #4CAF50, 0 0 12px rgba(76,175,80,.3); }
-.desk-monitor { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); width: 20px; height: 14px; background: #333; border: 1px solid #555; border-radius: 2px; }
-.desk-monitor .screen { width: 16px; height: 10px; margin: 1px auto; background: #1a3a2a; border-radius: 1px; overflow: hidden; }
-.desk-monitor .screen.on { background: #0f2a1a; box-shadow: inset 0 0 4px rgba(76,175,80,.3); }
+/* Desk lamp */
+.desk-light { position: absolute; right: 6px; top: -6px; width: 7px; height: 7px; border-radius: 50%; background: #444; border: 1px solid #333; transition: all 0.4s ease; z-index: 5; }
+.desk-light.on { background: #4CAF50; box-shadow: 0 0 6px #4CAF50, 0 0 14px rgba(76,175,80,.25); }
+/* Tie/scene controls */
+.robot-controls { display: flex; gap: 3px; justify-content: center; margin-top: 2px; flex-shrink: 0; }
 
 /* Context menu */
 .ctx-menu {
@@ -623,6 +643,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button data-pane="q-map">Analytics</button>
         <button data-pane="q-news">News</button>
       </div>
+      <button id="resetGridBtn" class="fs-btn" title="Reset grid layout to show all panes" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">&#8634; Grid</button>
     </div>
   </div>
   <div class="header-spacer"></div>
@@ -746,8 +767,13 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
+      <label id="aiDeepToggleLabel" style="display:flex;align-items:center;gap:2px;font-size:.55rem;color:var(--text-dim);cursor:pointer;" title="Auto-include deep research with every query (adds ~$0.05-0.15 per query)">
+        <input type="checkbox" id="aiDeepToggle" style="width:12px;height:12px;cursor:pointer;">
+        <span>Deep</span>
+      </label>
       <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
       <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
+      <button id="aiLogBtn" class="p-btn" title="Save chat log to notepad tabs">&#128218;</button>
       <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-claude" title="Expand">&#x2922;</button>
@@ -806,19 +832,51 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="aiSend">Send</button>
       </div>
       <div class="robot-scene" id="robotScene">
+        <div class="robot-bg" id="robotBg"></div>
+        <div class="robot-glass"></div>
+        <div class="robot-plant robot-plant-l"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div><div class="plant-leaf plant-leaf-t"></div></div>
+        <div class="robot-plant robot-plant-r"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div></div>
         <div class="robot-body">
           <div class="robot-head" id="robotHead">
             <div class="robot-eyes"><span class="eye"></span><span class="eye"></span></div>
           </div>
-          <div class="robot-torso"><div class="robot-tie"></div></div>
+          <div class="robot-torso"><div class="robot-tie" id="robotTie"></div></div>
           <div class="robot-arms">
             <span class="arm" id="robotArmL"></span>
             <span class="arm" id="robotArmR"></span>
           </div>
         </div>
+        <div class="robot-monitors"><div class="robot-monitor" id="robotMon1"></div><div class="robot-monitor" id="robotMon2"></div></div>
         <div class="robot-desk">
           <div class="desk-light" id="deskLight"></div>
         </div>
+      </div>
+      <div class="robot-controls">
+        <select id="robotTieSelect" style="font-size:.5rem;padding:1px 2px;border-radius:3px;background:var(--panel);color:var(--text);border:1px solid var(--border);max-width:60px;" title="Tie style">
+          <option value="#D32F2F">Red</option>
+          <option value="#1565C0">Blue</option>
+          <option value="#2E7D32">Green</option>
+          <option value="#6A1B9A">Purple</option>
+          <option value="#E65100">Orange</option>
+          <option value="#FF8F00">Gold</option>
+          <option value="#00838F">Teal</option>
+          <option value="#AD1457">Pink</option>
+          <option value="stripe-red">Stripe Red</option>
+          <option value="stripe-blue">Stripe Blue</option>
+          <option value="stripe-gold">Stripe Gold</option>
+          <option value="dots-navy">Dots Navy</option>
+          <option value="dots-wine">Dots Wine</option>
+          <option value="plaid-green">Plaid Green</option>
+          <option value="plaid-red">Plaid Red</option>
+          <option value="bow-black">Bow Tie</option>
+        </select>
+        <select id="robotSceneSelect" style="font-size:.5rem;padding:1px 2px;border-radius:3px;background:var(--panel);color:var(--text);border:1px solid var(--border);max-width:70px;" title="Background scene">
+          <option value="office">Office</option>
+          <option value="tropical">Tropical</option>
+          <option value="volcano">Volcano</option>
+          <option value="forest">Forest</option>
+          <option value="city">City</option>
+        </select>
       </div>
       <div style="padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
         <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
@@ -1375,6 +1433,25 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
 });
+
+// Reset grid — show all panes in default layout
+$('#resetGridBtn').onclick = () => {
+  // Remove expanded state
+  $$('.pane').forEach(el => {
+    el.classList.remove('expanded');
+    el.style.display = '';
+    const body = el.querySelector('.p-body');
+    const label = el.querySelector('.zoom-level');
+    if (body) { body.style.fontSize = ''; body.dataset.zoom = '100'; }
+    if (label) label.textContent = '100%';
+  });
+  // Reset nav buttons to "All"
+  $$('.nav-group-btns button[data-pane]').forEach(b => b.classList.remove('active'));
+  const allBtn = document.querySelector('.nav-group-btns button[data-pane="all"]');
+  if (allBtn) allBtn.classList.add('active');
+  setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
+  toast('Grid reset');
+};
 
 let urls = LS('urls') || [];
 
@@ -3473,7 +3550,7 @@ $$('#q4Tabs button').forEach(btn => {
 let stockTickers = LS('stockTickers') || [];
 
 function genStockData(ticker, range) {
-  // Deterministic seed from ticker name
+  // Deterministic seed from ticker name (simulated fallback)
   let seed = 0;
   for (let i = 0; i < ticker.length; i++) seed = (seed * 31 + ticker.charCodeAt(i)) & 0x7fffffff;
   function rand() { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; }
@@ -3489,13 +3566,49 @@ function genStockData(ticker, range) {
   return data;
 }
 
+// ── Real stock data via Yahoo Finance ──
+const stockDataCache = {}; // { 'AAPL_1M': { data: [...], ts: Date.now() } }
+
+async function fetchRealStockData(ticker, range) {
+  const cacheKey = ticker + '_' + range;
+  const cached = stockDataCache[cacheKey];
+  if (cached && Date.now() - cached.ts < 300000) return cached.data; // 5 min cache
+
+  const rangeMap = { '1D': '1d', '5D': '5d', '1M': '1mo', '6M': '6mo', '1Y': '1y', '3Y': '3y', '5Y': '5y' };
+  const intervalMap = { '1D': '5m', '5D': '15m', '1M': '1d', '6M': '1d', '1Y': '1d', '3Y': '1wk', '5Y': '1wk' };
+  const yRange = rangeMap[range] || '1mo';
+  const yInterval = intervalMap[range] || '1d';
+
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ticker) +
+      '?range=' + yRange + '&interval=' + yInterval + '&includePrePost=false';
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+    const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const json = await resp.json();
+    const result = json.chart?.result?.[0];
+    if (!result) throw new Error('No data');
+    const closes = result.indicators?.quote?.[0]?.close || [];
+    const data = closes.filter(v => v != null);
+    if (data.length < 2) throw new Error('Insufficient data');
+    stockDataCache[cacheKey] = { data, ts: Date.now() };
+    return data;
+  } catch (e) {
+    // Fallback to simulated
+    return null;
+  }
+}
+
+// Track which tickers have real data available
+const stockRealDataStatus = {}; // { 'AAPL': true/false }
+
 let compareTickers = LS('compareTickers') || [];
 const COMPARE_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'];
 
-function renderStockDash() {
+async function renderStockDash() {
   const dash = $('#stockDash');
   if (!stockTickers.length) {
-    dash.innerHTML = '<div style="width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px;">Add a ticker symbol above to start tracking stocks.<br>Data is simulated for demonstration.</div>';
+    dash.innerHTML = '<div style="width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px;">Add a ticker symbol above to start tracking stocks.<br>Live data via Yahoo Finance (falls back to simulated if unavailable).</div>';
     renderCompareChart();
     return;
   }
@@ -3504,8 +3617,18 @@ function renderStockDash() {
   // Check if we're in "All" pane mode (not expanded)
   const isAllView = !document.getElementById('q-map').classList.contains('expanded');
   dash.innerHTML = '';
-  stockTickers.forEach(ticker => {
-    const data = genStockData(ticker, range);
+  stockTickers.forEach(async ticker => {
+    // Try real data first, fall back to simulated
+    let data = genStockData(ticker, range);
+    let isReal = false;
+    const realData = await fetchRealStockData(ticker, range);
+    if (realData && realData.length >= 2) {
+      data = realData;
+      isReal = true;
+      stockRealDataStatus[ticker] = true;
+    } else {
+      stockRealDataStatus[ticker] = false;
+    }
     const current = data[data.length - 1];
     const prev = data[0];
     const change = ((current - prev) / prev * 100);
@@ -3521,7 +3644,8 @@ function renderStockDash() {
       '<span class="sc-compare-btn' + (inCompare ? ' active' : '') + '" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart">&#x27A4;</span>' +
       '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">&#128240;</span></div>' +
       '<div class="sc-value">$' + current.toFixed(2) + '</div>' +
-      '<div class="sc-change ' + (isUp ? 'sc-up' : 'sc-down') + '">' + (isUp ? '&#9650; +' : '&#9660; ') + change.toFixed(2) + '% (' + range + ')</div>' +
+      '<div class="sc-change ' + (isUp ? 'sc-up' : 'sc-down') + '">' + (isUp ? '&#9650; +' : '&#9660; ') + change.toFixed(2) + '% (' + range + ')' +
+      (isReal ? ' <span style="font-size:.45rem;color:var(--accent2);">LIVE</span>' : ' <span style="font-size:.45rem;color:var(--text-dim);">SIM</span>') + '</div>' +
       '<canvas></canvas>';
     dash.appendChild(card);
 
@@ -3612,10 +3736,11 @@ function renderStockDash() {
     });
     cvs.addEventListener('mouseleave', () => drawSparkline(-1));
   });
-  renderCompareChart();
+  // Render comparison chart after all cards
+  await renderCompareChart();
 }
 
-function renderCompareChart() {
+async function renderCompareChart() {
   const wrap = $('#stockCompareWrap');
   const chipsEl = $('#compareChips');
   if (!compareTickers.length) {
@@ -3658,11 +3783,14 @@ function renderCompareChart() {
   const pad = { top: 24, right: Math.max(50, w * 0.06), bottom: 28, left: Math.max(50, w * 0.06) };
   const plotW = w - pad.left - pad.right;
   const plotH = h - pad.top - pad.bottom;
-  // Normalize all to % change
-  const allSeries = compareTickers.map(t => {
-    const data = genStockData(t, range);
-    return data.map(v => ((v - data[0]) / data[0]) * 100);
-  });
+  // Normalize all to % change — try real data first
+  const allSeries = [];
+  for (const t of compareTickers) {
+    let data = genStockData(t, range);
+    const realData = await fetchRealStockData(t, range);
+    if (realData && realData.length >= 2) data = realData;
+    allSeries.push(data.map(v => ((v - data[0]) / data[0]) * 100));
+  }
   let gMin = Infinity, gMax = -Infinity;
   allSeries.forEach(s => { s.forEach(v => { if (v < gMin) gMin = v; if (v > gMax) gMax = v; }); });
   const gRange = gMax - gMin || 1;
@@ -5614,9 +5742,9 @@ function updatePricingCalc() {
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Annual estimate:</span><span>' + fmtCost(totalMonthlyCost * 12) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
     '<div style="font-size:.55rem;color:var(--text-dim);">Fixed pricing suggestions:</div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>Break-even /user/mo:</span><span>' + fmtCost(costPerUser) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>2x margin /user/mo:</span><span>' + fmtCost(costPerUser * 2) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin /user/mo:</span><span>' + fmtCost(costPerUser * 3) + '</span></div>';
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>Break-even /user/mo:</span><span>$' + costPerUser.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>2x margin /user/mo:</span><span>$' + (costPerUser * 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin /user/mo:</span><span>$' + (costPerUser * 3).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>';
 }
 
 $('#aiPricingBtn').onclick = () => {
@@ -5642,8 +5770,15 @@ if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice
 // API key show/hide toggle
 $('#aiKeyToggle').onclick = () => {
   const inp = $('#aiApiKey');
-  if (inp.type === 'password') { inp.type = 'text'; }
-  else { inp.type = 'password'; }
+  if (inp.type === 'password') {
+    // Show the full stored key
+    if (aiKey && inp.value.startsWith('••')) inp.value = aiKey;
+    inp.type = 'text';
+  } else {
+    inp.type = 'password';
+    if (aiKey && !inp.value.startsWith('sk-')) inp.value = '••••••••••' + aiKey.slice(-4);
+    else if (aiKey) inp.value = '••••••••••' + aiKey.slice(-4);
+  }
 };
 
 $('#aiKeySave').onclick = () => {
@@ -5657,6 +5792,78 @@ $('#aiKeySave').onclick = () => {
 };
 
 $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
+
+// ── Claude analytics log ──
+// Save chat sessions to localStorage and export to notepad tabs
+let aiChatLog = LS('aiChatLog') || []; // Array of { timestamp, messages, model, tokenUsage }
+
+function saveCurrentChatToLog() {
+  if (!aiMessages.length) { toast('No messages to save'); return; }
+  const entry = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    model: $('#aiModel').value,
+    tokensIn: aiSessionTokensIn,
+    tokensOut: aiSessionTokensOut,
+    requests: aiSessionRequests,
+    messages: aiMessages.slice()
+  };
+  aiChatLog.push(entry);
+  LS('aiChatLog', aiChatLog);
+  toast('Chat saved to log (' + aiChatLog.length + ' sessions)');
+}
+
+function exportLogToNotepad() {
+  if (!aiChatLog.length) { toast('No log entries'); return; }
+  aiChatLog.forEach((entry, idx) => {
+    npAddPage();
+    const page = npPages.find(p => p.id === npActivePageId);
+    if (page) {
+      const d = new Date(entry.timestamp);
+      page.title = 'Log ' + (idx + 1) + ': ' + d.toLocaleDateString();
+    }
+    let html = '<h3>Claude Session Log</h3>';
+    html += '<p><b>Date:</b> ' + new Date(entry.timestamp).toLocaleString() + '<br>';
+    html += '<b>Model:</b> ' + entry.model + '<br>';
+    html += '<b>Tokens:</b> ' + (entry.tokensIn || 0).toLocaleString() + ' in / ' + (entry.tokensOut || 0).toLocaleString() + ' out<br>';
+    html += '<b>API calls:</b> ' + (entry.requests || 0) + '</p><hr>';
+    (entry.messages || []).forEach(m => {
+      html += '<p><b>' + m.role.toUpperCase() + ':</b> ' + String(m.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</p>';
+    });
+    np.innerHTML = html;
+    npSaveCurrentPage();
+    saveNpPages(); renderNpTabs();
+  });
+  toast('Exported ' + aiChatLog.length + ' sessions to notepad tabs');
+}
+
+$('#aiLogBtn').onclick = () => {
+  const choice = confirm('Save current chat to log?\n\nOK = Save to log\nCancel = Export all logs to notepad tabs');
+  if (choice) {
+    saveCurrentChatToLog();
+  } else {
+    exportLogToNotepad();
+  }
+};
+
+// Auto-save chat to log at end of each conversation
+function autoSaveChatLog() {
+  if (aiMessages.length > 1) {
+    const entry = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      model: $('#aiModel').value,
+      tokensIn: aiSessionTokensIn,
+      tokensOut: aiSessionTokensOut,
+      requests: aiSessionRequests,
+      messages: aiMessages.slice()
+    };
+    aiChatLog.push(entry);
+    // Keep only last 50 sessions
+    if (aiChatLog.length > 50) aiChatLog = aiChatLog.slice(-50);
+    LS('aiChatLog', aiChatLog);
+  }
+}
 
 function addAiMsg(role, text) {
   const div = document.createElement('div');
@@ -5767,10 +5974,10 @@ const AGENT_TOOLS = [
   { name: 'get_concept_map', description: 'Get concept map nodes and edges.', input_schema: { type: 'object', properties: {} } },
 
   // WRITE TOOLS
-  { name: 'write_cells', description: 'Write values or formulas to specific spreadsheet cells. Use cell references like A1, B2, etc.', input_schema: { type: 'object', properties: { cells: { type: 'array', items: { type: 'object', properties: { ref: { type: 'string', description: 'Cell reference (e.g. A1, B2)' }, value: { type: 'string', description: 'Value or formula (e.g. "Hello", "42", "=SUM(A1:A5)")' } }, required: ['ref', 'value'] } } }, required: ['cells'] } },
+  { name: 'write_cells', description: 'Write values or formulas to specific spreadsheet cells. Auto-creates a new sheet tab for your output.', input_schema: { type: 'object', properties: { cells: { type: 'array', items: { type: 'object', properties: { ref: { type: 'string', description: 'Cell reference (e.g. A1, B2)' }, value: { type: 'string', description: 'Value or formula (e.g. "Hello", "42", "=SUM(A1:A5)")' } }, required: ['ref', 'value'] } }, label: { type: 'string', description: 'Label for the new sheet tab (e.g. "Stock Analysis")' }, use_current_tab: { type: 'boolean', description: 'Set true to write to the current tab instead of creating a new one' } }, required: ['cells'] } },
   { name: 'clear_range', description: 'Clear all cells in a range.', input_schema: { type: 'object', properties: { range: { type: 'string', description: 'Range to clear (e.g. A1:C10)' } }, required: ['range'] } },
-  { name: 'create_table', description: 'Create a formatted table in the sheet starting at anchor cell with headers and rows of data.', input_schema: { type: 'object', properties: { anchor: { type: 'string', description: 'Top-left cell (e.g. A1)' }, headers: { type: 'array', items: { type: 'string' } }, rows: { type: 'array', items: { type: 'array', items: { type: 'string' } } } }, required: ['anchor', 'headers', 'rows'] } },
-  { name: 'write_note', description: 'Write content to the notepad. Can append or replace.', input_schema: { type: 'object', properties: { content: { type: 'string', description: 'Text content to write (supports HTML)' }, append: { type: 'boolean', description: 'If true, append to existing content instead of replacing' } }, required: ['content'] } },
+  { name: 'create_table', description: 'Create a formatted table in the sheet starting at anchor cell with headers and rows. Auto-creates a new sheet tab.', input_schema: { type: 'object', properties: { anchor: { type: 'string', description: 'Top-left cell (e.g. A1)' }, headers: { type: 'array', items: { type: 'string' } }, rows: { type: 'array', items: { type: 'array', items: { type: 'string' } } }, title: { type: 'string', description: 'Title for the new sheet tab' }, use_current_tab: { type: 'boolean', description: 'Set true to write to current tab instead of creating new one' } }, required: ['anchor', 'headers', 'rows'] } },
+  { name: 'write_note', description: 'Write content to the notepad. Auto-creates a new tab for your output. Use append=true to add to current tab.', input_schema: { type: 'object', properties: { content: { type: 'string', description: 'Text content to write (supports HTML)' }, append: { type: 'boolean', description: 'If true, append to current tab instead of creating a new one' }, label: { type: 'string', description: 'Label for the new notepad tab (e.g. "Pricing Strategy")' }, use_current_tab: { type: 'boolean', description: 'Set true to write to current tab without creating a new one' } }, required: ['content'] } },
   { name: 'update_graph', description: 'Set graph calculator expressions. Replaces all current expressions.', input_schema: { type: 'object', properties: { expressions: { type: 'array', items: { type: 'string' }, description: 'Math expressions like "sin(x)", "x^2", "2*cos(x)+1"' } }, required: ['expressions'] } },
   { name: 'add_stock', description: 'Add a stock ticker to the watchlist/dashboard.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
   { name: 'remove_stock', description: 'Remove a stock ticker from the watchlist.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
@@ -5822,12 +6029,26 @@ async function executeAgentTool(name, input) {
       case 'get_graph_state': return JSON.stringify({ expressions: gcExpressions.map(e => ({ expr: e.expr, color: e.color })) });
       case 'get_watchlist': return JSON.stringify({ stocks: stockTickers, comparison: compareTickers, news: newsTickerWatchlist });
       case 'get_stock_data': {
-        const data = genStockData(input.ticker.toUpperCase(), input.range || '1M');
-        // Summarize: return last 20 data points + stats
-        const recent = data.slice(-20).map(d => ({ date: d.date, open: d.open.toFixed(2), high: d.high.toFixed(2), low: d.low.toFixed(2), close: d.close.toFixed(2), vol: d.vol }));
-        const closes = data.map(d => d.close);
-        const stats = { current: closes[closes.length - 1].toFixed(2), high: Math.max(...closes).toFixed(2), low: Math.min(...closes).toFixed(2), change_pct: (((closes[closes.length - 1] - closes[0]) / closes[0]) * 100).toFixed(2) + '%', data_points: data.length };
-        return JSON.stringify({ ticker: input.ticker.toUpperCase(), range: input.range || '1M', stats, recent });
+        const ticker = input.ticker.toUpperCase();
+        const range = input.range || '1M';
+        // Try real data first
+        let closes = null;
+        let isReal = false;
+        try {
+          const realData = await fetchRealStockData(ticker, range);
+          if (realData && realData.length >= 2) { closes = realData; isReal = true; }
+        } catch(e) {}
+        if (!closes) closes = genStockData(ticker, range);
+        const stats = {
+          current: closes[closes.length - 1].toFixed(2),
+          high: Math.max(...closes).toFixed(2),
+          low: Math.min(...closes).toFixed(2),
+          change_pct: (((closes[closes.length - 1] - closes[0]) / closes[0]) * 100).toFixed(2) + '%',
+          data_points: closes.length,
+          data_source: isReal ? 'Yahoo Finance (live)' : 'Simulated'
+        };
+        const recent = closes.slice(-20).map((v, i) => ({ price: +v.toFixed(2) }));
+        return JSON.stringify({ ticker, range, stats, recent });
       }
       case 'get_stock_fundamentals': {
         const t = input.ticker.toUpperCase();
@@ -5843,6 +6064,13 @@ async function executeAgentTool(name, input) {
 
       // WRITE TOOLS
       case 'write_cells': {
+        // Auto-create new sheet tab for Claude output (unless use_current_tab specified)
+        if (!input.use_current_tab) {
+          ssAddPage();
+          const page = ssPages.find(p => p.id === ssActivePageId);
+          if (page) page.title = 'Claude: ' + (input.label || 'Data');
+          saveSsPages(); renderSsTabs();
+        }
         let count = 0;
         (input.cells || []).forEach(c => {
           const ref = parseRef(c.ref);
@@ -5853,7 +6081,7 @@ async function executeAgentTool(name, input) {
             count++;
           }
         });
-        LS('sheet', ssD); ssRender();
+        LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
         toast('Wrote ' + count + ' cells');
         return JSON.stringify({ success: true, count });
       }
@@ -5869,32 +6097,43 @@ async function executeAgentTool(name, input) {
         return JSON.stringify({ success: true, cleared: count });
       }
       case 'create_table': {
+        // Auto-create new sheet tab for Claude tables
+        if (!input.use_current_tab) {
+          ssAddPage();
+          const page = ssPages.find(p => p.id === ssActivePageId);
+          if (page) page.title = 'Claude: ' + (input.title || 'Table');
+          saveSsPages(); renderSsTabs();
+        }
         const anchor = parseRef(input.anchor || 'A1');
         if (!anchor) return JSON.stringify({ error: 'Invalid anchor' });
         const headers = input.headers || [];
         const rows = input.rows || [];
-        // Ensure sheet is big enough
         const needR = anchor.row + 1 + rows.length;
         const needC = anchor.col + headers.length;
         while (ssR < needR) { ssD.push(new Array(ssC).fill('')); ssR++; }
         while (ssC < needC) { ssD.forEach(r => r.push('')); ssC++; }
-        // Write headers
         headers.forEach((h, i) => { ssD[anchor.row][anchor.col + i] = h; });
-        // Write rows
         rows.forEach((row, ri) => {
           row.forEach((val, ci) => { ssD[anchor.row + 1 + ri][anchor.col + ci] = String(val); });
         });
-        LS('sheet', ssD); ssRender();
+        LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
         toast('Created table: ' + headers.length + ' cols, ' + rows.length + ' rows');
         return JSON.stringify({ success: true, headers: headers.length, rows: rows.length });
       }
       case 'write_note': {
+        // Auto-create new notepad tab for Claude output (unless use_current_tab specified)
+        if (!input.use_current_tab && !input.append) {
+          npAddPage();
+          const page = npPages.find(p => p.id === npActivePageId);
+          if (page) page.title = 'Claude: ' + (input.label || 'Note');
+          saveNpPages(); renderNpTabs();
+        }
         if (input.append) {
           np.innerHTML += (np.innerHTML ? '<br>' : '') + input.content;
         } else {
           np.innerHTML = input.content;
         }
-        LS('notepad', np.innerHTML);
+        npSaveCurrentPage();
         toast(input.append ? 'Appended to notepad' : 'Updated notepad');
         return JSON.stringify({ success: true });
       }
@@ -6189,6 +6428,98 @@ function startRobotIdleLook() {
 // Start idle on load
 setTimeout(startRobotIdleLook, 1000);
 
+// ── Robot customization: tie + scene ──
+const ROBOT_SCENES = {
+  office: {
+    bg: 'linear-gradient(180deg, #2a2a3a 0%, #1e1e2e 60%, #1a1a28 100%)',
+    overlay: ''
+  },
+  tropical: {
+    bg: 'linear-gradient(180deg, #1e90cc 0%, #20a8a0 25%, #2db88a 45%, #9dd66b 65%, #e8d44d 80%, #c2956a 95%)',
+    overlay: 'radial-gradient(circle at 85% 15%, #fff5 6px, transparent 6px), radial-gradient(circle at 75% 22%, rgba(255,255,255,.15) 3px, transparent 3px)'
+  },
+  volcano: {
+    bg: 'linear-gradient(180deg, #0d0400 0%, #2d1810 20%, #5D2E0C 40%, #BF360C 60%, #E65100 75%, #FF8F00 88%, #FFD600 100%)',
+    overlay: 'radial-gradient(ellipse at 50% 55%, rgba(255,100,0,.2) 0%, transparent 60%)'
+  },
+  forest: {
+    bg: 'linear-gradient(180deg, #7ec8a0 0%, #4da66a 20%, #338a50 40%, #266e3c 60%, #1a5430 80%, #0f3a20 100%)',
+    overlay: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,.08) 0%, transparent 40%), radial-gradient(circle at 70% 20%, rgba(255,255,255,.06) 0%, transparent 30%)'
+  },
+  city: {
+    bg: 'linear-gradient(180deg, #0a0a1a 0%, #0f1529 25%, #141e3e 45%, #1a2850 60%, #2a3a6a 75%, #3a3030 90%, #2a2020 100%)',
+    overlay: 'repeating-linear-gradient(90deg, rgba(255,200,50,.04) 0px, rgba(255,200,50,.04) 1px, transparent 1px, transparent 8px)'
+  }
+};
+
+function setRobotScene(scene) {
+  const bg = document.getElementById('robotBg');
+  if (!bg) return;
+  const s = ROBOT_SCENES[scene] || ROBOT_SCENES.office;
+  bg.style.background = s.bg;
+  bg.style.backgroundImage = s.overlay || 'none';
+  bg.style.opacity = scene === 'office' ? '0' : '0.45';
+  localStorage.setItem('ws_robotScene', scene);
+}
+
+function setRobotTie(val) {
+  const tie = document.getElementById('robotTie');
+  if (!tie) return;
+  // Solid colors
+  if (val.startsWith('#')) {
+    tie.style.background = val;
+    tie.style.backgroundImage = 'none';
+  } else if (val.startsWith('stripe-')) {
+    const c = val === 'stripe-red' ? '#D32F2F' : val === 'stripe-blue' ? '#1565C0' : '#FF8F00';
+    tie.style.background = 'repeating-linear-gradient(45deg, ' + c + ', ' + c + ' 2px, rgba(255,255,255,.3) 2px, rgba(255,255,255,.3) 4px)';
+  } else if (val.startsWith('dots-')) {
+    const c = val === 'dots-navy' ? '#0D47A1' : '#880E4F';
+    tie.style.background = c;
+    tie.style.backgroundImage = 'radial-gradient(circle, rgba(255,255,255,.35) 1px, transparent 1px)';
+    tie.style.backgroundSize = '3px 3px';
+  } else if (val.startsWith('plaid-')) {
+    const c = val === 'plaid-green' ? '#2E7D32' : '#B71C1C';
+    tie.style.background = 'repeating-linear-gradient(0deg, ' + c + ', ' + c + ' 2px, rgba(255,255,255,.15) 2px, rgba(255,255,255,.15) 4px), repeating-linear-gradient(90deg, ' + c + ', ' + c + ' 2px, rgba(255,255,255,.15) 2px, rgba(255,255,255,.15) 4px)';
+  } else if (val === 'bow-black') {
+    tie.style.background = '#111';
+    tie.style.clipPath = 'polygon(0 30%, 40% 45%, 40% 55%, 0 70%, 50% 55%, 100% 70%, 60% 55%, 60% 45%, 100% 30%, 50% 45%)';
+  }
+  if (val !== 'bow-black') {
+    tie.style.clipPath = 'polygon(50% 0, 100% 20%, 65% 100%, 50% 80%, 35% 100%, 0 20%)';
+  }
+  localStorage.setItem('ws_robotTie', val);
+}
+
+// Monitor glow when working
+function setMonitorState(on) {
+  const m1 = document.getElementById('robotMon1'), m2 = document.getElementById('robotMon2');
+  if (m1) m1.classList.toggle('on', on);
+  if (m2) m2.classList.toggle('on', on);
+}
+
+// Patch setRobotWorking to also toggle monitors
+const _origSetRobotWorking = setRobotWorking;
+setRobotWorking = function(active) {
+  _origSetRobotWorking(active);
+  setMonitorState(active);
+};
+
+// Init selectors
+const robotTieSel = document.getElementById('robotTieSelect');
+const robotSceneSel = document.getElementById('robotSceneSelect');
+if (robotTieSel) {
+  const savedTie = localStorage.getItem('ws_robotTie') || '#D32F2F';
+  robotTieSel.value = savedTie;
+  setRobotTie(savedTie);
+  robotTieSel.addEventListener('change', () => setRobotTie(robotTieSel.value));
+}
+if (robotSceneSel) {
+  const savedScene = localStorage.getItem('ws_robotScene') || 'office';
+  robotSceneSel.value = savedScene;
+  setRobotScene(savedScene);
+  robotSceneSel.addEventListener('change', () => setRobotScene(robotSceneSel.value));
+}
+
 // ── Agentic loop with tool_use ──
 async function sendAgentMessage() {
   if (!aiKey) { addAiMsg('system', 'Set your API key below to start.'); return; }
@@ -6200,7 +6531,9 @@ async function sendAgentMessage() {
 
   // Add workspace context to the latest user message
   const ctx = getWorkspaceContext();
-  const contextMsg = { role: 'user', content: '[Current Workspace State]\n' + ctx + '\n\n[User Request]\n' + input };
+  const deepOn = $('#aiDeepToggle') && $('#aiDeepToggle').checked;
+  const deepPrefix = deepOn ? '[DEEP RESEARCH MODE ON] Before answering, use the deep_research tool to fetch real articles about the topic, then synthesize findings into your response. Also write a structured analysis to the notepad.\n\n' : '';
+  const contextMsg = { role: 'user', content: '[Current Workspace State]\n' + ctx + '\n\n' + deepPrefix + '[User Request]\n' + input };
 
   // Manage history
   aiMessages.push({ role: 'user', content: input });
@@ -6304,6 +6637,7 @@ async function sendAgentMessage() {
   }
   aiStreaming = false;
   setRobotWorking(false);
+  autoSaveChatLog();
 }
 
 // Welcome message
