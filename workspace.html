@@ -771,6 +771,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button data-pane="q-news">News</button>
       </div>
       <button id="resetGridBtn" class="fs-btn" title="Reset grid layout to show all panes" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">&#8634; Grid</button>
+      <button id="gridSettingsBtn" class="fs-btn" title="Rearrange pane positions" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">&#9881; Layout</button>
     </div>
   </div>
   <div class="header-spacer"></div>
@@ -831,6 +832,29 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 </div>
 
+<!-- Grid Layout Settings Modal -->
+<div id="gridSettingsModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.5);justify-content:center;align-items:center;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px 20px;min-width:320px;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.4);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span style="font-weight:700;font-size:.85rem;color:var(--text);">Rearrange Panes</span>
+      <button onclick="$('#gridSettingsModal').style.display='none'" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">&times;</button>
+    </div>
+    <div style="font-size:.6rem;color:var(--text-dim);margin-bottom:10px;">Select which pane goes in each grid slot:</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;" id="gridSlotPicker">
+      <div class="grid-slot" data-slot="0"><label style="font-size:.55rem;color:var(--text-dim);">Top Left</label><select data-slot="0" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="1"><label style="font-size:.55rem;color:var(--text-dim);">Top Center</label><select data-slot="1" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="2"><label style="font-size:.55rem;color:var(--text-dim);">Top Right</label><select data-slot="2" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="3"><label style="font-size:.55rem;color:var(--text-dim);">Bottom Left</label><select data-slot="3" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="4"><label style="font-size:.55rem;color:var(--text-dim);">Bottom Center</label><select data-slot="4" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="5"><label style="font-size:.55rem;color:var(--text-dim);">Bottom Right</label><select data-slot="5" class="grid-slot-sel"></select></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button onclick="$('#gridSettingsModal').style.display='none'" style="padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text);cursor:pointer;font-size:.65rem;">Cancel</button>
+      <button id="gridApplyBtn" style="padding:4px 12px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Apply</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ WORKSPACE ═══ -->
 <div class="workspace" id="workspace">
 
@@ -882,7 +906,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 
   <!-- DIVIDER H (between Notes and Claude in top row) -->
-  <div class="divider-h" style="grid-column:2;grid-row:1;"></div>
+  <div class="divider-h" style="grid-column:2;"></div>
 
   <!-- PANE 2: CLAUDE AGENT (top center) -->
   <div class="pane" id="q-claude" style="grid-column:3;grid-row:1;">
@@ -1025,7 +1049,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 
   <!-- DIVIDER H (between Claude and Sheet in top row) -->
-  <div class="divider-h" id="divH" style="grid-column:4;grid-row:1;"></div>
+  <div class="divider-h" id="divH" style="grid-column:4;"></div>
 
   <!-- PANE 3: WHITEBOARD (bottom left) -->
   <div class="pane" id="q-whiteboard" style="grid-column:1;grid-row:3;">
@@ -1124,7 +1148,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 
   <!-- DIVIDER H-BOTTOM (between Sheet and Analytics) -->
-  <div class="divider-h" style="grid-column:2;grid-row:3;"></div>
+  <!-- divider-h col 2 handled by full-span divider above -->
 
   <!-- PANE 4: ANALYTICS / STOCKS -->
   <div class="pane" id="q-map" style="grid-column:3;grid-row:3;">
@@ -1314,7 +1338,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 
   <!-- DIVIDER H2 (between Analytics and News in bottom row) -->
-  <div class="divider-h" style="grid-column:4;grid-row:3;"></div>
+  <!-- divider-h col 4 handled by full-span divider above -->
 
   <!-- PANE 5: NEWS & MARKET COVERAGE -->
   <div class="pane" id="q-news" style="grid-column:5;grid-row:3;">
@@ -1592,6 +1616,8 @@ $('#resetGridBtn').onclick = () => {
   const ws = $('#workspace');
   ws.style.gridTemplateColumns = '';
   ws.style.gridTemplateRows = '';
+  // Restore pane positions (saved layout or default)
+  applyGridOrder(getGridOrder());
   // Show dividers
   $$('.divider-h, .divider-v').forEach(d => d.style.display = '');
   // Reset nav buttons to "All"
@@ -1601,6 +1627,77 @@ $('#resetGridBtn').onclick = () => {
   setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   toast('Grid reset');
 };
+
+// ── Grid Layout Settings ──
+const GRID_PANES = [
+  { id: 'q-notepad', label: 'Notepad' },
+  { id: 'q-claude', label: 'Claude' },
+  { id: 'q-sheet', label: 'Sheet' },
+  { id: 'q-whiteboard', label: 'Whiteboard' },
+  { id: 'q-map', label: 'Analytics' },
+  { id: 'q-news', label: 'News' }
+];
+const GRID_POSITIONS = [
+  { col: 1, row: 1 }, { col: 3, row: 1 }, { col: 5, row: 1 },
+  { col: 1, row: 3 }, { col: 3, row: 3 }, { col: 5, row: 3 }
+];
+const DEFAULT_GRID_ORDER = ['q-notepad', 'q-claude', 'q-sheet', 'q-whiteboard', 'q-map', 'q-news'];
+
+function getGridOrder() {
+  const saved = LS('gridOrder');
+  if (saved && saved.length === 6) return saved;
+  return DEFAULT_GRID_ORDER.slice();
+}
+
+function applyGridOrder(order) {
+  order.forEach((paneId, i) => {
+    const el = document.getElementById(paneId);
+    if (!el) return;
+    el.style.gridColumn = GRID_POSITIONS[i].col;
+    el.style.gridRow = GRID_POSITIONS[i].row;
+  });
+}
+
+function openGridSettings() {
+  const modal = $('#gridSettingsModal');
+  const order = getGridOrder();
+  $$('.grid-slot-sel').forEach((sel, i) => {
+    sel.innerHTML = '';
+    GRID_PANES.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id; opt.textContent = p.label;
+      sel.appendChild(opt);
+    });
+    sel.value = order[i];
+    sel.style.cssText = 'width:100%;font-size:.6rem;padding:2px;border-radius:3px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:2px;';
+  });
+  modal.style.display = 'flex';
+}
+
+$('#gridSettingsBtn').onclick = openGridSettings;
+$('#gridApplyBtn').onclick = () => {
+  const sels = $$('.grid-slot-sel');
+  const order = Array.from(sels).map(s => s.value);
+  // Check for duplicates
+  const unique = new Set(order);
+  if (unique.size < 6) {
+    toast('Each pane must be in a unique slot');
+    return;
+  }
+  LS('gridOrder', order);
+  applyGridOrder(order);
+  $('#gridSettingsModal').style.display = 'none';
+  setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
+  toast('Layout applied');
+};
+
+// Apply saved grid order on load
+(function() {
+  const order = getGridOrder();
+  if (JSON.stringify(order) !== JSON.stringify(DEFAULT_GRID_ORDER)) {
+    applyGridOrder(order);
+  }
+})();
 
 let urls = LS('urls') || [];
 
@@ -3659,29 +3756,72 @@ setTimeout(cmRender, 150);
    ═══════════════════════════════════════════ */
 (function() {
   const ws = $('#workspace');
-  let dragging = null, startPos;
+  let dragging = null; // { type: 'h1'|'h2'|'v', startX/Y }
 
-  function onDown(e, type) {
-    dragging = type;
-    startPos = type === 'h' ? e.clientX : e.clientY;
-    document.body.style.cursor = type === 'h' ? 'col-resize' : 'row-resize';
-    document.body.style.userSelect = 'none';
+  // Column fractions (3 columns that must sum to ~100)
+  let colFr = [33.33, 33.33, 33.34];
+  let rowFr = [50, 50];
+
+  function applyColumns() {
+    ws.style.gridTemplateColumns = colFr[0] + 'fr 4px ' + colFr[1] + 'fr 4px ' + colFr[2] + 'fr';
+  }
+  function applyRows() {
+    ws.style.gridTemplateRows = rowFr[0] + 'fr 4px ' + rowFr[1] + 'fr';
   }
 
-  $('#divH').addEventListener('mousedown', e => onDown(e, 'h'));
-  $('#divV').addEventListener('mousedown', e => onDown(e, 'v'));
+  // All horizontal dividers (col 2 and col 4) are draggable
+  $$('.divider-h').forEach(div => {
+    div.addEventListener('mousedown', e => {
+      const col = div.style.gridColumn;
+      const type = col.startsWith('2') ? 'h1' : 'h2';
+      dragging = { type, startX: e.clientX };
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+  });
+
+  // Vertical divider
+  $('#divV').addEventListener('mousedown', e => {
+    dragging = { type: 'v', startY: e.clientY };
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
 
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
-    if (dragging === 'h') {
-      const pct = (e.clientX / ws.clientWidth * 100);
-      const clamped = Math.max(15, Math.min(85, pct));
-      ws.style.gridTemplateColumns = clamped + '% 4px ' + (100 - clamped) + '%';
-    } else {
+    const w = ws.clientWidth;
+    const h = ws.clientHeight;
+
+    if (dragging.type === 'h1') {
+      // Divider between col 1 and col 2 (left edge of center pane)
+      const pct = (e.clientX / w) * 100;
+      const c1 = Math.max(10, Math.min(60, pct));
+      const remaining = 100 - c1;
+      // Keep col2/col3 ratio the same
+      const oldRatio = colFr[2] / (colFr[1] + colFr[2]) || 0.5;
+      colFr[0] = c1;
+      colFr[2] = remaining * oldRatio;
+      colFr[1] = remaining - colFr[2];
+      applyColumns();
+    } else if (dragging.type === 'h2') {
+      // Divider between col 2 and col 3 (right edge of center pane)
+      const pct = (e.clientX / w) * 100;
+      const c3 = Math.max(10, Math.min(60, 100 - pct));
+      const remaining = 100 - c3;
+      // Keep col1/col2 ratio the same
+      const oldRatio = colFr[0] / (colFr[0] + colFr[1]) || 0.5;
+      colFr[2] = c3;
+      colFr[0] = remaining * oldRatio;
+      colFr[1] = remaining - colFr[0];
+      applyColumns();
+    } else if (dragging.type === 'v') {
       const headerH = 44;
-      const pct = ((e.clientY - headerH) / (ws.clientHeight) * 100);
-      const clamped = Math.max(15, Math.min(85, pct));
-      ws.style.gridTemplateRows = clamped + '% 4px ' + (100 - clamped) + '%';
+      const pct = ((e.clientY - headerH) / h) * 100;
+      rowFr[0] = Math.max(10, Math.min(90, pct));
+      rowFr[1] = 100 - rowFr[0];
+      applyRows();
     }
     resizeWB(); resizeCM();
   });
@@ -3691,7 +3831,7 @@ setTimeout(cmRender, 150);
       dragging = null;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      setTimeout(() => { resizeWB(); resizeCM(); }, 50);
+      setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
     }
   });
 })();
