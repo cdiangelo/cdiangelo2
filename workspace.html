@@ -1379,6 +1379,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button data-pane="q-whiteboard">Draw</button>
         <button data-pane="q-map">Analytics</button>
         <button data-pane="q-news">News</button>
+        <button data-pane="q-media">Media</button>
       </div>
     </div>
       <div style="display:flex;gap:4px;margin-left:8px;align-items:center;">
@@ -1447,24 +1448,24 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 </div>
 
 <!-- Grid Layout Settings Modal -->
-<div id="gridSettingsModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.5);justify-content:center;align-items:center;">
-  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px 20px;min-width:320px;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.4);">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span style="font-weight:700;font-size:.85rem;color:var(--text);">Rearrange Panes</span>
-      <button onclick="$('#gridSettingsModal').style.display='none'" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">&times;</button>
+<div id="gridSettingsModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.6);justify-content:center;align-items:center;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px 32px;width:55%;min-width:480px;max-width:700px;box-shadow:0 12px 48px rgba(0,0,0,.5);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="font-weight:700;font-size:1rem;color:var(--text);">Rearrange Panes</span>
+      <button onclick="$('#gridSettingsModal').style.display='none'" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.2rem;">&times;</button>
     </div>
-    <div style="font-size:.6rem;color:var(--text-dim);margin-bottom:10px;">Select which pane goes in each grid slot:</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;" id="gridSlotPicker">
-      <div class="grid-slot" data-slot="0"><label style="font-size:.55rem;color:var(--text-dim);">Top Left</label><select data-slot="0" class="grid-slot-sel"></select></div>
-      <div class="grid-slot" data-slot="1"><label style="font-size:.55rem;color:var(--text-dim);">Top Center</label><select data-slot="1" class="grid-slot-sel"></select></div>
-      <div class="grid-slot" data-slot="2"><label style="font-size:.55rem;color:var(--text-dim);">Top Right</label><select data-slot="2" class="grid-slot-sel"></select></div>
-      <div class="grid-slot" data-slot="3"><label style="font-size:.55rem;color:var(--text-dim);">Bottom Left</label><select data-slot="3" class="grid-slot-sel"></select></div>
-      <div class="grid-slot" data-slot="4"><label style="font-size:.55rem;color:var(--text-dim);">Bottom Center</label><select data-slot="4" class="grid-slot-sel"></select></div>
-      <div class="grid-slot" data-slot="5"><label style="font-size:.55rem;color:var(--text-dim);">Bottom Right</label><select data-slot="5" class="grid-slot-sel"></select></div>
+    <div style="font-size:.7rem;color:var(--text-dim);margin-bottom:14px;">Select which pane goes in each grid slot (7 panes, 6 slots — one will be hidden):</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;" id="gridSlotPicker">
+      <div class="grid-slot" data-slot="0"><label style="font-size:.65rem;color:var(--text-dim);font-weight:600;">Top Left</label><select data-slot="0" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="1"><label style="font-size:.65rem;color:var(--text-dim);font-weight:600;">Top Center</label><select data-slot="1" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="2"><label style="font-size:.65rem;color:var(--text-dim);font-weight:600;">Top Right</label><select data-slot="2" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="3"><label style="font-size:.65rem;color:var(--text-dim);font-weight:600;">Bottom Left</label><select data-slot="3" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="4"><label style="font-size:.65rem;color:var(--text-dim);font-weight:600;">Bottom Center</label><select data-slot="4" class="grid-slot-sel"></select></div>
+      <div class="grid-slot" data-slot="5"><label style="font-size:.65rem;color:var(--text-dim);font-weight:600;">Bottom Right</label><select data-slot="5" class="grid-slot-sel"></select></div>
     </div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
-      <button onclick="$('#gridSettingsModal').style.display='none'" style="padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text);cursor:pointer;font-size:.65rem;">Cancel</button>
-      <button id="gridApplyBtn" style="padding:4px 12px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Apply</button>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button onclick="$('#gridSettingsModal').style.display='none'" style="padding:6px 16px;border:1px solid var(--border);border-radius:5px;background:none;color:var(--text);cursor:pointer;font-size:.72rem;">Cancel</button>
+      <button id="gridApplyBtn" style="padding:6px 16px;border:none;border-radius:5px;background:var(--accent);color:#fff;cursor:pointer;font-size:.72rem;font-weight:600;">Apply</button>
     </div>
   </div>
 </div>
@@ -2050,6 +2051,26 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <a id="newsViewerExternal" href="#" target="_blank" style="font-size:.65rem;color:var(--accent2);text-decoration:none;padding:2px 6px;border:1px solid var(--border);border-radius:3px;" title="Open in new tab">&#8599; New Tab</a>
         </div>
         <iframe id="newsViewerFrame" style="flex:1;border:none;width:100%;background:#fff;" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- ADDED — Phase 11: Media pane (YouTube/video player grid pane) -->
+  <div class="pane" id="q-media" style="grid-column:5;grid-row:3;display:none;">
+    <div class="p-head">
+      <span class="p-title"><span class="p-icon" style="font-size:.7rem;">&#9654;</span> Media</span>
+      <div class="p-spacer"></div>
+      <button id="mediaAddBtn" class="p-btn" title="Add video" style="font-size:.55rem;">+ Add</button>
+      <button id="mediaListBtn" class="p-btn" title="Video playlist" style="font-size:.55rem;">List</button>
+      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
+      <button class="p-btn" data-expand="q-media" title="Expand">&#x2922;</button>
+    </div>
+    <div class="p-body" style="position:relative;background:#0a0a0a;display:flex;align-items:center;justify-content:center;">
+      <div id="mediaPanePlayer" style="width:100%;height:100%;position:relative;"></div>
+      <div id="mediaPaneEmpty" style="text-align:center;color:var(--text-dim);font-size:.7rem;">
+        <div style="font-size:2rem;margin-bottom:8px;">&#9654;</div>
+        No video playing.<br>Click <b>Media</b> in the header or add a video above.
       </div>
     </div>
   </div>
@@ -2661,7 +2682,8 @@ const GRID_PANES = [
   { id: 'q-sheet', label: 'Sheet' },
   { id: 'q-whiteboard', label: 'Whiteboard' },
   { id: 'q-map', label: 'Analytics' },
-  { id: 'q-news', label: 'News' }
+  { id: 'q-news', label: 'News' },
+  { id: 'q-media', label: 'Media' }
 ];
 const GRID_POSITIONS = [
   { col: 1, row: 1 }, { col: 3, row: 1 }, { col: 5, row: 1 },
@@ -2676,26 +2698,45 @@ function getGridOrder() {
 }
 
 function applyGridOrder(order) {
+  // Hide all panes first, then show the 6 in the grid
+  GRID_PANES.forEach(p => {
+    const el = document.getElementById(p.id);
+    if (!el) return;
+    if (order.includes(p.id)) {
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  });
   order.forEach((paneId, i) => {
     const el = document.getElementById(paneId);
     if (!el) return;
     el.style.gridColumn = GRID_POSITIONS[i].col;
     el.style.gridRow = GRID_POSITIONS[i].row;
   });
+  // If media pane is in grid, snap video player into it
+  if (order.includes('q-media')) snapVideoToMediaPane();
+  else releaseVideoFromMediaPane();
 }
 
 function openGridSettings() {
   const modal = $('#gridSettingsModal');
   const order = getGridOrder();
+  // Determine which panes are currently active/visible in the grid
+  const activePanes = new Set(order);
   $$('.grid-slot-sel').forEach((sel, i) => {
     sel.innerHTML = '';
     GRID_PANES.forEach(p => {
       const opt = document.createElement('option');
-      opt.value = p.id; opt.textContent = p.label;
+      opt.value = p.id;
+      // Add green dot indicator if pane is currently in the active grid
+      const isActive = activePanes.has(p.id);
+      opt.textContent = (isActive ? '\u25CF ' : '\u25CB ') + p.label;
+      opt.style.color = isActive ? '#4CAF50' : '';
       sel.appendChild(opt);
     });
     sel.value = order[i];
-    sel.style.cssText = 'width:100%;font-size:.6rem;padding:2px;border-radius:3px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:2px;';
+    sel.style.cssText = 'width:100%;font-size:.72rem;padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px;cursor:pointer;';
   });
   modal.style.display = 'flex';
 }
@@ -2704,10 +2745,10 @@ $('#gridSettingsBtn').onclick = openGridSettings;
 $('#gridApplyBtn').onclick = () => {
   const sels = $$('.grid-slot-sel');
   const order = Array.from(sels).map(s => s.value);
-  // Check for duplicates
+  // Check for duplicates — each slot must have a unique pane
   const unique = new Set(order);
   if (unique.size < 6) {
-    toast('Each pane must be in a unique slot');
+    toast('Each pane must be in a unique slot — no duplicates');
     return;
   }
   LS('gridOrder', order);
@@ -3088,7 +3129,18 @@ function showVideo(idx) {
   overlay.addEventListener('click', dismissOverlay);
   adTimer = setTimeout(dismissOverlay, AD_WAIT_MS);
 
-  document.body.appendChild(funWrap);
+  // ADDED — Phase 11: If media pane is in grid, snap into it instead of body
+  const mediaOrder = typeof getGridOrder === 'function' ? getGridOrder() : [];
+  const mediaPanePlayer = document.getElementById('mediaPanePlayer');
+  if (mediaOrder.includes('q-media') && mediaPanePlayer) {
+    funWrap.style.cssText = 'position:relative;width:100%;height:100%;border-radius:0;box-shadow:none;pointer-events:auto;';
+    iframe.style.cssText = 'width:100%;height:100%;border:none;opacity:' + savedOpacity + ';pointer-events:auto;';
+    mediaPanePlayer.appendChild(funWrap);
+    const emptyMsg = document.getElementById('mediaPaneEmpty');
+    if (emptyMsg) emptyMsg.style.display = 'none';
+  } else {
+    document.body.appendChild(funWrap);
+  }
 }
 
 function toggleFullscreen() {
@@ -3135,6 +3187,57 @@ document.addEventListener('keydown', e => {
   }
 });
 } catch (e) { console.warn('Media player error:', e); }
+
+// ADDED — Phase 11: Snap video player into/out of media grid pane
+function snapVideoToMediaPane() {
+  const mediaPanePlayer = document.getElementById('mediaPanePlayer');
+  const mediaPaneEmpty = document.getElementById('mediaPaneEmpty');
+  if (!mediaPanePlayer) return;
+
+  if (funWrap && funState >= 0) {
+    // Move the existing video wrap into the media pane
+    funWrap.style.cssText = 'position:relative;width:100%;height:100%;border-radius:0;box-shadow:none;pointer-events:auto;';
+    const iframe = funWrap.querySelector('iframe');
+    if (iframe) iframe.style.cssText = 'width:100%;height:100%;border:none;opacity:' + savedOpacity + ';pointer-events:auto;';
+    mediaPanePlayer.appendChild(funWrap);
+    if (mediaPaneEmpty) mediaPaneEmpty.style.display = 'none';
+    isFullscreen = false;
+  } else {
+    if (mediaPaneEmpty) mediaPaneEmpty.style.display = '';
+  }
+}
+
+function releaseVideoFromMediaPane() {
+  if (funWrap && funWrap.parentElement && funWrap.parentElement.id === 'mediaPanePlayer') {
+    // Move back to body as PIP
+    document.body.appendChild(funWrap);
+    applyPipStyle(funWrap);
+    const iframe = funWrap.querySelector('iframe');
+    if (iframe) iframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:auto;opacity:' + savedOpacity;
+  }
+}
+
+// Media pane buttons
+try {
+  const mediaAddBtn = document.getElementById('mediaAddBtn');
+  const mediaListBtn = document.getElementById('mediaListBtn');
+  if (mediaAddBtn) mediaAddBtn.onclick = () => {
+    const url = prompt('Enter YouTube URL:');
+    if (!url) return;
+    const vid = parseYoutubeId(url);
+    if (!vid) { toast('Invalid YouTube URL'); return; }
+    const label = prompt('Label for this video:', 'Video ' + (FUN_VIDEOS.length + 1)) || 'Video';
+    FUN_VIDEOS.push({ id: vid, label: label });
+    localStorage.setItem('funVideos', JSON.stringify(FUN_VIDEOS));
+    funState = FUN_VIDEOS.length - 1;
+    showVideo(funState);
+    // If media pane is visible, snap into it
+    const order = getGridOrder();
+    if (order.includes('q-media')) setTimeout(snapVideoToMediaPane, 100);
+    toast('Added: ' + label);
+  };
+  if (mediaListBtn) mediaListBtn.onclick = () => renderEditor();
+} catch (e) {}
 
 /* ═══════════════════════════════════════════
    NOTEPAD
