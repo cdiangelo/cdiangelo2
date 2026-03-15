@@ -1301,6 +1301,17 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   .pane .toolbar button, .pane .toolbar select { font-size: .55rem; padding: 1px 3px; }
   .ai-input-row { padding: 4px; }
   .ai-input-row textarea { font-size: .75rem; }
+  /* Auth gate mobile fixes */
+  #authGate { padding: 8px; align-items: flex-start; padding-top: 40px; }
+  #authBox { padding: 24px 16px !important; border-radius: 12px !important; }
+  #authBox h2 { font-size: 1rem !important; }
+  #authBox p { font-size: .72rem !important; }
+  #authBox input[type="text"], #authBox input[type="email"], #authBox input[type="password"] {
+    font-size: 16px !important; padding: 12px 14px !important;
+  }
+  #authBox button { font-size: .82rem !important; padding: 12px !important; min-height: 44px; }
+  #authBox .auth-user-item { min-height: 52px; }
+  #authVerifyCode { font-size: 1.4rem !important; padding: 14px !important; width: 160px !important; }
 }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1315,8 +1326,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <body class="neon">
 
 <!-- ═══ AUTH GATE ═══ -->
-<div id="authGate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:system-ui,-apple-system,sans-serif;">
-  <div id="authBox" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:40px;min-width:340px;max-width:460px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+<div id="authGate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:system-ui,-apple-system,sans-serif;padding:12px;">
+  <div id="authBox" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:460px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);box-sizing:border-box;max-height:100%;overflow-y:auto;">
     <div style="font-size:2rem;margin-bottom:8px;">&#129302;</div>
     <h2 id="authTitle" style="color:var(--text);margin:0 0 6px;font-size:1.2rem;">Interactive Workspace</h2>
     <p id="authSubtitle" style="color:var(--text-dim);font-size:.78rem;margin:0 0 24px;">Select your account to continue</p>
@@ -1344,7 +1355,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div id="authVerifyForm" style="display:none;margin-top:12px;">
       <p id="authVerifyMsg" style="color:var(--text-dim);font-size:.72rem;margin:0 0 12px;"></p>
       <div style="display:flex;gap:6px;justify-content:center;margin-bottom:12px;">
-        <input type="text" id="authVerifyCode" maxlength="6" placeholder="000000" style="width:140px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:1.2rem;text-align:center;letter-spacing:6px;font-weight:700;box-sizing:border-box;" />
+        <input type="text" id="authVerifyCode" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6" placeholder="000000" style="width:160px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:1.4rem;text-align:center;letter-spacing:6px;font-weight:700;box-sizing:border-box;" />
       </div>
       <div id="authVerifyError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;">Invalid verification code</div>
       <button id="authVerifyBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Verify &amp; Enter</button>
@@ -2797,6 +2808,11 @@ $('#gridApplyBtn').onclick = () => {
       title.textContent = 'Interactive Workspace';
       mobTocEl.appendChild(title);
 
+      const swipeHint = document.createElement('div');
+      swipeHint.style.cssText = 'text-align:center;font-size:.65rem;color:var(--text-dim);margin-bottom:14px;opacity:.7;';
+      swipeHint.innerHTML = '\u2190 Swipe left/right to switch panes \u2192';
+      mobTocEl.appendChild(swipeHint);
+
       MOBILE_PANES.forEach((p, i) => {
         const card = document.createElement('button');
         card.style.cssText = 'display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:var(--text);cursor:pointer;text-align:left;transition:all .15s;';
@@ -2849,6 +2865,7 @@ $('#gridApplyBtn').onclick = () => {
     });
   }
 
+  let _swipeHintShown = localStorage.getItem('ws_swipeHintShown');
   function showMobPane() {
     if (!isMobile()) return;
     hideMobToc();
@@ -2857,6 +2874,17 @@ $('#gridApplyBtn').onclick = () => {
     const el = document.getElementById(MOBILE_PANES[mobIdx].id);
     if (el) el.classList.add('mobile-active');
     renderMobPages();
+    // Show swipe hint once on first pane visit
+    if (!_swipeHintShown) {
+      _swipeHintShown = true;
+      localStorage.setItem('ws_swipeHintShown', '1');
+      const hint = document.createElement('div');
+      hint.style.cssText = 'position:fixed;bottom:44px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:8px 18px;border-radius:20px;font-size:.72rem;z-index:9999;pointer-events:none;transition:opacity .5s;white-space:nowrap;';
+      hint.textContent = '\u2190 Swipe to switch panes \u2192';
+      document.body.appendChild(hint);
+      setTimeout(() => { hint.style.opacity = '0'; }, 3000);
+      setTimeout(() => { hint.remove(); }, 3500);
+    }
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   }
 
