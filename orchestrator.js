@@ -105,7 +105,7 @@ Available tool categories:
 - WHITEBOARD: draw_shape, draw_chart_on_whiteboard, annotate_whiteboard, draw_summary_card, draw_table, apply_whiteboard_template
 - WHITEBOARD_LAYOUT: get_draw_pane_state, align_layers, group_layers, ungroup_layers (use for organizing/reviewing whiteboard content)
 - CONCEPT MAP: add_concept_edge, remove_concept_node, clear_concept_map, set_concept_map_layout
-- RESEARCH: deep_research
+- RESEARCH: deep_research, build_thesis, sentiment_summary (for multi-source research, plan a CONSOLIDATION task at the end that reads all prior results and synthesizes them into a unified notepad page and summary table)
 - IMAGE/MEME: search_image, create_meme
 
 Return ONLY valid JSON (no markdown, no code fences):
@@ -126,7 +126,8 @@ Rules:
 - Mark dependencies: if task B needs data from task A, add "task_1" to B's dependencies
 - Keep tasks focused — one concern per task
 - Include read tools where the agent needs to check state before writing
-- Priority 1 = highest priority`;
+- Priority 1 = highest priority
+- CONSOLIDATION: For multi-step research (thesis + sentiment + scenarios + deep research), ALWAYS add a final consolidation task that depends on all research tasks. This task should: 1) read all notepad pages with get_note, 2) synthesize findings into a single structured report using write_note with target_page, 3) build a summary table in the sheet. Without this step, research fragments across separate pages.`;
 
 async function decompose(session, workspaceContext, apiKey, model) {
   const prompt = '[Workspace State]\n' + workspaceContext + '\n\n[User Request]\n' + session.originalRequest;

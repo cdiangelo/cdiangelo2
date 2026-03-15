@@ -8895,6 +8895,7 @@ function getWorkspaceContext() {
   if (stockTickers.length) parts.push('Tracked stocks: ' + stockTickers.join(', '));
   if (compareTickers.length) parts.push('Comparison chart: ' + compareTickers.join(', '));
   const noteText = np.innerText.trim();
+  if (npPages.length > 1) parts.push('Notepad pages: ' + npPages.map(p => p.title + (p.id === npActivePageId ? ' (active)' : '')).join(', '));
   if (noteText) parts.push('Notepad excerpt: ' + noteText.substring(0, 500) + (noteText.length > 500 ? '...' : ''));
   if (gcExpressions.length) parts.push('Graph expressions: ' + gcExpressions.map(e => e.expr).join(', '));
   if (cmNodes.length) parts.push('Concept map nodes: ' + cmNodes.map(n => n.title).join(', '));
@@ -8944,6 +8945,16 @@ WHITEBOARD RULES:
 6. For data tables: ALWAYS use draw_table instead of manual draw_shape grids.
 7. For executive/polished visuals: apply a template first, use consistent colors (#3b82f6 accent default), align when done.
 
+RESEARCH & CONSOLIDATION RULES:
+When conducting research, building theses, or synthesizing multiple data sources:
+1. ALWAYS READ EXISTING NOTES FIRST — Before writing research output, call get_note() to see what pages already exist and what content is there. Avoid duplicating or overwriting prior research.
+2. CONSOLIDATE, DON'T FRAGMENT — When multiple research steps produce results (thesis, sentiment, scenarios, deep research), combine them into a single cohesive document. Use target_page in write_note to append findings to an existing research page rather than creating many separate pages.
+3. STRUCTURE YOUR OUTPUT — Use clear HTML formatting with headers (<h3>), bullet points (<ul>), bold for key metrics (<b>), and horizontal rules (<hr>) to separate sections. A well-structured note is: Overview → Key Data → Analysis → Sources → Conclusion.
+4. CITE DATA SOURCES — Always indicate whether data came from live sources (Yahoo Finance, Google News) or simulated fallbacks. Include dates and price points when referencing market data.
+5. CROSS-REFERENCE — When building a thesis, check if sentiment_summary or deep_research data already exists in the notepad. Reference and integrate it rather than running redundant analysis.
+6. TABLES + NOTES = COMPLETE — For research output, always produce BOTH: a summary table in the sheet (create_table) for quick reference AND a narrative write-up in the notepad (write_note) for depth. They should complement each other.
+7. FOLLOW INSTRUCTION FIELDS — Many analysis tools return an "instruction" field with specific guidance on what to do with the results. Always follow these instructions to produce complete workspace output.
+
 PRICING ANALYSIS RULES:
 When asked about pricing, costs, or business modeling:
 1. Use pricing_analysis tool to get current cost data and scenarios at different user scales.
@@ -8961,7 +8972,7 @@ When asked about pricing, costs, or business modeling:
 const AGENT_TOOLS_INLINE = [
   // READ TOOLS
   { name: 'get_sheet_range', description: 'Read current cell values from the spreadsheet. Returns cell refs and their values.', input_schema: { type: 'object', properties: { range: { type: 'string', description: 'Cell range like "A1:C10" or "A1:Z50" for full sheet' } }, required: ['range'] } },
-  { name: 'get_note', description: 'Read the current notepad content.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_note', description: 'Read notepad content. Returns HTML-formatted content. Can target a specific page by title or id. Returns list of all pages.', input_schema: { type: 'object', properties: { page_title: { type: 'string', description: 'Read a specific page by its title' }, page_id: { type: 'string', description: 'Read a specific page by its ID' } } } },
   { name: 'get_graph_state', description: 'Get currently active graph expressions and their colors.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_watchlist', description: 'Get tracked stocks, comparison chart tickers, and news watchlist.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_stock_data', description: 'Get OHLCV price data for a stock ticker over a time range.', input_schema: { type: 'object', properties: { ticker: { type: 'string', description: 'Stock ticker symbol (e.g. AAPL)' }, range: { type: 'string', enum: ['1D', '5D', '1M', '6M', '1Y', '3Y', '5Y'], description: 'Time range' } }, required: ['ticker'] } },
@@ -9030,7 +9041,16 @@ async function executeAgentTool(name, input) {
           }
         return JSON.stringify({ cells, total: cells.length });
       }
-      case 'get_note': return JSON.stringify({ content: np.innerText.trim() });
+      case 'get_note': {
+        if (input && input.page_title) {
+          const page = npPages.find(p => p.title.toLowerCase() === input.page_title.toLowerCase());
+          if (!page) return JSON.stringify({ error: 'Page not found: ' + input.page_title, available_pages: npPages.map(p => p.title) });
+          return JSON.stringify({ content: page.body || '', page_title: page.title, format: 'html' });
+        }
+        const currentPage = npPages.find(p => p.id === npActivePageId);
+        const allPages = npPages.map(p => ({ id: p.id, title: p.title }));
+        return JSON.stringify({ content: np.innerHTML.trim(), page_title: currentPage ? currentPage.title : 'Unknown', format: 'html', pages: allPages });
+      }
       case 'get_graph_state': return JSON.stringify({ expressions: gcExpressions.map(e => ({ expr: e.expr, color: e.color })) });
       case 'get_watchlist': return JSON.stringify({ stocks: stockTickers, comparison: compareTickers, news: newsTickerWatchlist });
       case 'get_stock_data': {
@@ -9230,8 +9250,11 @@ async function executeAgentTool(name, input) {
 
       // ANALYSIS TOOLS
       case 'run_scenario': {
-        const data = genStockData(input.ticker.toUpperCase(), '1Y');
-        const basePrice = data[data.length - 1];
+        const t_rs = input.ticker.toUpperCase();
+        let data_rs = null, isReal_rs = false;
+        try { const rd = await fetchRealStockData(t_rs, '1Y'); if (rd && rd.length >= 2) { data_rs = rd; isReal_rs = true; } } catch(e) {}
+        if (!data_rs) { const known = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === t_rs); if (!known) return JSON.stringify({ error: true, ticker: t_rs, message: 'No data available for ' + t_rs }); data_rs = genStockData(t_rs, '1Y'); }
+        const basePrice = data_rs[data_rs.length - 1];
         const results = (input.scenarios || []).map(s => {
           const projected = [];
           for (let m = 0; m <= 12; m++) {
@@ -9239,42 +9262,52 @@ async function executeAgentTool(name, input) {
           }
           return { name: s.name, growth_rate: s.growth_rate, projected };
         });
-        return JSON.stringify({ ticker: input.ticker.toUpperCase(), base_price: basePrice.toFixed(2), scenarios: results });
+        return JSON.stringify({ ticker: t_rs, base_price: basePrice.toFixed(2), scenarios: results, data_source: isReal_rs ? 'Yahoo Finance (live)' : 'Simulated', instruction: 'Build a scenario comparison table in the sheet using create_table. Graph the projected price curves. Write a brief scenario analysis to the notepad.' });
       }
       case 'build_thesis': {
         const t = input.ticker.toUpperCase();
-        const data = genStockData(t, '6M');
+        let closes_bt = null, isReal_bt = false;
+        try { const rd = await fetchRealStockData(t, '6M'); if (rd && rd.length >= 2) { closes_bt = rd; isReal_bt = true; } } catch(e) {}
+        if (!closes_bt) { const known = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === t); if (!known) return JSON.stringify({ error: true, ticker: t, message: 'No data available for ' + t }); closes_bt = genStockData(t, '6M'); }
         const company = COMPANY_DB.find(c => c.ticker === t);
-        // ADDED — Phase 3: Use async real data
         const metrics = await getCompanyMetricsReal(t);
-        const articles = genNews(t).slice(0, 5);
-        const closes = data;
+        let articles_bt = [], newsSource_bt = 'simulated';
+        try {
+          const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(t + ' stock') + '&hl=en-US&gl=US&ceid=US:en';
+          let resp; try { resp = await fetch('http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) { resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl)); }
+          const doc = new DOMParser().parseFromString(await resp.text(), 'text/xml');
+          doc.querySelectorAll('item').forEach((item, idx) => { if (idx < 5) articles_bt.push({ title: item.querySelector('title')?.textContent || '', source: item.querySelector('source')?.textContent || '' }); });
+          if (articles_bt.length > 0) newsSource_bt = 'Google News (live)';
+        } catch(e) {}
+        if (!articles_bt.length) articles_bt = genNews(t).slice(0, 5);
         const thesis = {
-          ticker: t,
-          company: company ? company.name : t,
-          sector: company ? company.sector : 'Unknown',
-          current_price: metrics.price.toFixed(2),
-          market_cap: formatCap(metrics.mktCap),
-          six_month_range: Math.min(...closes).toFixed(2) + ' - ' + Math.max(...closes).toFixed(2),
-          six_month_return: (((closes[closes.length - 1] - closes[0]) / closes[0]) * 100).toFixed(1) + '%',
-          recent_news: articles.map(a => a.title),
-          fundamentals: metrics
+          ticker: t, company: company ? company.name : t, sector: company ? company.sector : 'Unknown',
+          current_price: metrics.price.toFixed(2), market_cap: formatCap(metrics.mktCap),
+          six_month_range: Math.min(...closes_bt).toFixed(2) + ' - ' + Math.max(...closes_bt).toFixed(2),
+          six_month_return: (((closes_bt[closes_bt.length - 1] - closes_bt[0]) / closes_bt[0]) * 100).toFixed(1) + '%',
+          recent_news: articles_bt.map(a => a.title || a), fundamentals: metrics,
+          data_sources: { price: isReal_bt ? 'Yahoo Finance (live)' : 'Simulated', news: newsSource_bt },
+          instruction: 'Synthesize this into a structured investment thesis. Write to notepad using write_note with label "Thesis: ' + t + '". Include: overview, price action, fundamentals, news sentiment, bull/bear case, conclusion. Also build a summary table in the sheet.'
         };
         return JSON.stringify(thesis);
       }
       case 'sentiment_summary': {
-        const articles = genNews(input.keyword);
-        const positive = ['strong', 'growth', 'beat', 'surge', 'rally', 'record', 'expands', 'innovation'];
-        const negative = ['fall', 'decline', 'risk', 'cut', 'warning', 'probe', 'layoff', 'miss'];
+        let articles_ss = [], newsSource_ss = 'simulated';
+        try {
+          const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(input.keyword) + '&hl=en-US&gl=US&ceid=US:en';
+          let resp; try { resp = await fetch('http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) { resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl)); }
+          const doc = new DOMParser().parseFromString(await resp.text(), 'text/xml');
+          doc.querySelectorAll('item').forEach((item, idx) => { if (idx < 15) articles_ss.push({ title: item.querySelector('title')?.textContent || '', snippet: item.querySelector('title')?.textContent || '', source: item.querySelector('source')?.textContent || '' }); });
+          if (articles_ss.length > 0) newsSource_ss = 'Google News (live)';
+        } catch(e) {}
+        if (!articles_ss.length) articles_ss = genNews(input.keyword);
+        const positive = ['strong', 'growth', 'beat', 'surge', 'rally', 'record', 'expands', 'innovation', 'upgrade', 'bullish', 'outperform', 'gain', 'profit', 'soar', 'boost'];
+        const negative = ['fall', 'decline', 'risk', 'cut', 'warning', 'probe', 'layoff', 'miss', 'downgrade', 'bearish', 'loss', 'crash', 'slump', 'weak', 'concern'];
         let posCount = 0, negCount = 0;
-        articles.forEach(a => {
-          const text = (a.title + ' ' + a.snippet).toLowerCase();
-          positive.forEach(w => { if (text.includes(w)) posCount++; });
-          negative.forEach(w => { if (text.includes(w)) negCount++; });
-        });
+        articles_ss.forEach(a => { const text = (a.title + ' ' + (a.snippet || '')).toLowerCase(); positive.forEach(w => { if (text.includes(w)) posCount++; }); negative.forEach(w => { if (text.includes(w)) negCount++; }); });
         const total = posCount + negCount || 1;
         const score = ((posCount - negCount) / total * 100).toFixed(0);
-        return JSON.stringify({ keyword: input.keyword, articles_analyzed: articles.length, positive_signals: posCount, negative_signals: negCount, sentiment_score: +score, rating: score > 30 ? 'Bullish' : score < -30 ? 'Bearish' : 'Neutral', headlines: articles.slice(0, 5).map(a => a.title) });
+        return JSON.stringify({ keyword: input.keyword, articles_analyzed: articles_ss.length, positive_signals: posCount, negative_signals: negCount, sentiment_score: +score, rating: score > 30 ? 'Bullish' : score < -30 ? 'Bearish' : 'Neutral', headlines: articles_ss.slice(0, 5).map(a => a.title), data_source: newsSource_ss, instruction: 'Write a sentiment report to the notepad. If other research exists, consolidate findings into a unified view.' });
       }
       case 'create_template': {
         const anchor = parseRef(input.anchor_cell || 'A1') || { row: 0, col: 0 };

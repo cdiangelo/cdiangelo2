@@ -15,7 +15,7 @@
 export const toolDefinitions = [
   // READ TOOLS
   { name: 'get_sheet_range', description: 'Read current cell values from the spreadsheet. Returns cell refs and their values.', input_schema: { type: 'object', properties: { range: { type: 'string', description: 'Cell range like "A1:C10" or "A1:Z50" for full sheet' } }, required: ['range'] } },
-  { name: 'get_note', description: 'Read the current notepad content.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_note', description: 'Read notepad content. Returns HTML-formatted content. Can target a specific page by title or id. Returns list of all pages.', input_schema: { type: 'object', properties: { page_title: { type: 'string', description: 'Read a specific page by its title' }, page_id: { type: 'string', description: 'Read a specific page by its ID' } } } },
   { name: 'get_graph_state', description: 'Get currently active graph expressions and their colors.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_watchlist', description: 'Get tracked stocks, comparison chart tickers, and news watchlist.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_stock_data', description: 'Get OHLCV price data for a stock ticker over a time range.', input_schema: { type: 'object', properties: { ticker: { type: 'string', description: 'Stock ticker symbol (e.g. AAPL)' }, range: { type: 'string', enum: ['1D', '5D', '1M', '6M', '1Y', '3Y', '5Y'], description: 'Time range' } }, required: ['ticker'] } },
@@ -27,7 +27,7 @@ export const toolDefinitions = [
   { name: 'write_cells', description: 'Write values or formulas to specific spreadsheet cells. Auto-creates a new sheet tab for your output.', input_schema: { type: 'object', properties: { cells: { type: 'array', items: { type: 'object', properties: { ref: { type: 'string', description: 'Cell reference (e.g. A1, B2)' }, value: { type: 'string', description: 'Value or formula (e.g. "Hello", "42", "=SUM(A1:A5)")' } }, required: ['ref', 'value'] } }, label: { type: 'string', description: 'Label for the new sheet tab (e.g. "Stock Analysis")' }, use_current_tab: { type: 'boolean', description: 'Set true to write to the current tab instead of creating a new one' } }, required: ['cells'] } },
   { name: 'clear_range', description: 'Clear all cells in a range.', input_schema: { type: 'object', properties: { range: { type: 'string', description: 'Range to clear (e.g. A1:C10)' } }, required: ['range'] } },
   { name: 'create_table', description: 'Create a formatted table in the sheet starting at anchor cell with headers and rows. Auto-creates a new sheet tab.', input_schema: { type: 'object', properties: { anchor: { type: 'string', description: 'Top-left cell (e.g. A1)' }, headers: { type: 'array', items: { type: 'string' } }, rows: { type: 'array', items: { type: 'array', items: { type: 'string' } } }, title: { type: 'string', description: 'Title for the new sheet tab' }, use_current_tab: { type: 'boolean', description: 'Set true to write to current tab instead of creating new one' } }, required: ['anchor', 'headers', 'rows'] } },
-  { name: 'write_note', description: 'Write content to the notepad. Auto-creates a new tab for your output. Use append=true to add to current tab.', input_schema: { type: 'object', properties: { content: { type: 'string', description: 'Text content to write (supports HTML)' }, append: { type: 'boolean', description: 'If true, append to current tab instead of creating a new one' }, label: { type: 'string', description: 'Label for the new notepad tab (e.g. "Pricing Strategy")' }, use_current_tab: { type: 'boolean', description: 'Set true to write to current tab without creating a new one' } }, required: ['content'] } },
+  { name: 'write_note', description: 'Write content to the notepad. Auto-creates a new tab for your output. Use target_page to write to a specific existing page by title, or append=true to add to current tab.', input_schema: { type: 'object', properties: { content: { type: 'string', description: 'Text content to write (supports HTML)' }, append: { type: 'boolean', description: 'If true, append to current tab instead of creating a new one' }, label: { type: 'string', description: 'Label for the new notepad tab (e.g. "Pricing Strategy")' }, use_current_tab: { type: 'boolean', description: 'Set true to write to current tab without creating a new one' }, target_page: { type: 'string', description: 'Write to a specific notepad page by title. Creates the page if it does not exist. Use with append=true to add to that page.' } }, required: ['content'] } },
   { name: 'update_graph', description: 'Set graph calculator expressions. Replaces all current expressions.', input_schema: { type: 'object', properties: { expressions: { type: 'array', items: { type: 'string' }, description: 'Math expressions like "sin(x)", "x^2", "2*cos(x)+1"' } }, required: ['expressions'] } },
   { name: 'add_stock', description: 'Add a stock ticker to the watchlist/dashboard.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
   { name: 'remove_stock', description: 'Remove a stock ticker from the watchlist.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
@@ -97,7 +97,23 @@ export const toolHandlers = {
     return JSON.stringify({ cells, total: cells.length });
   },
 
-  get_note: async () => JSON.stringify({ content: np.innerText.trim() }),
+  get_note: async (input) => {
+    // Support reading a specific page by title or ID
+    if (input && input.page_title) {
+      const page = npPages.find(p => p.title.toLowerCase() === input.page_title.toLowerCase());
+      if (!page) return JSON.stringify({ error: 'Page not found: ' + input.page_title, available_pages: npPages.map(p => p.title) });
+      return JSON.stringify({ content: page.body || '', page_title: page.title, format: 'html' });
+    }
+    if (input && input.page_id) {
+      const page = npPages.find(p => p.id === input.page_id);
+      if (!page) return JSON.stringify({ error: 'Page not found with id: ' + input.page_id, available_pages: npPages.map(p => ({ id: p.id, title: p.title })) });
+      return JSON.stringify({ content: page.body || '', page_title: page.title, format: 'html' });
+    }
+    // Default: return current page with HTML preserved, plus list all pages
+    const currentPage = npPages.find(p => p.id === npActivePageId);
+    const allPages = npPages.map(p => ({ id: p.id, title: p.title }));
+    return JSON.stringify({ content: np.innerHTML.trim(), page_title: currentPage ? currentPage.title : 'Unknown', format: 'html', pages: allPages });
+  },
 
   get_graph_state: async () => JSON.stringify({ expressions: gcExpressions.map(e => ({ expr: e.expr, color: e.color })) }),
 
@@ -224,6 +240,34 @@ export const toolHandlers = {
       window.appendAgentMemory(input.content.replace(/<[^>]*>/g, ''));
       return JSON.stringify({ success: true, tab: 'Agent Memory' });
     }
+    // Page targeting: write to a specific existing page by title
+    if (input.target_page) {
+      const targetPage = npPages.find(p => p.title.toLowerCase() === input.target_page.toLowerCase());
+      if (targetPage) {
+        // Switch to the target page
+        npSaveCurrentPage();
+        npActivePageId = targetPage.id;
+        np.innerHTML = targetPage.body || '';
+        renderNpTabs();
+        if (input.append) {
+          np.innerHTML += (np.innerHTML ? '<br>' : '') + input.content;
+        } else {
+          np.innerHTML = input.content;
+        }
+        npSaveCurrentPage();
+        toast((input.append ? 'Appended to ' : 'Updated ') + targetPage.title);
+        return JSON.stringify({ success: true, page: targetPage.title });
+      }
+      // Target page not found — create it with that name
+      npAddPage();
+      const newPage = npPages.find(p => p.id === npActivePageId);
+      if (newPage) newPage.title = input.target_page;
+      saveNpPages(); renderNpTabs();
+      np.innerHTML = input.content;
+      npSaveCurrentPage();
+      toast('Created page: ' + input.target_page);
+      return JSON.stringify({ success: true, page: input.target_page, created: true });
+    }
     if (!input.use_current_tab && !input.append) {
       npAddPage();
       const page = npPages.find(p => p.id === npActivePageId);
@@ -343,7 +387,18 @@ export const toolHandlers = {
 
   // ANALYSIS TOOLS
   run_scenario: async (input) => {
-    const data = genStockData(input.ticker.toUpperCase(), '1Y');
+    const t = input.ticker.toUpperCase();
+    // Try real data first, fall back to simulated only for known companies
+    let data = null, isReal = false;
+    try {
+      const realData = await fetchRealStockData(t, '1Y');
+      if (realData && realData.length >= 2) { data = realData; isReal = true; }
+    } catch(e) {}
+    if (!data) {
+      const known = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === t);
+      if (!known) return JSON.stringify({ error: true, ticker: t, message: 'No data available for ' + t + '. Ticker not recognized and live data unavailable.' });
+      data = genStockData(t, '1Y');
+    }
     const basePrice = data[data.length - 1];
     const results = (input.scenarios || []).map(s => {
       const projected = [];
@@ -352,16 +407,42 @@ export const toolHandlers = {
       }
       return { name: s.name, growth_rate: s.growth_rate, projected };
     });
-    return JSON.stringify({ ticker: input.ticker.toUpperCase(), base_price: basePrice.toFixed(2), scenarios: results });
+    return JSON.stringify({ ticker: t, base_price: basePrice.toFixed(2), scenarios: results, data_source: isReal ? 'Yahoo Finance (live)' : 'Simulated', instruction: 'Build a scenario comparison table in the sheet using create_table. Graph the projected price curves using update_graph. Write a brief scenario analysis to the notepad using write_note with a clear label.' });
   },
 
   build_thesis: async (input) => {
     const t = input.ticker.toUpperCase();
-    const data = genStockData(t, '6M');
+    // Try real price data first
+    let closes = null, isReal = false;
+    try {
+      const realData = await fetchRealStockData(t, '6M');
+      if (realData && realData.length >= 2) { closes = realData; isReal = true; }
+    } catch(e) {}
+    if (!closes) {
+      const known = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === t);
+      if (!known) return JSON.stringify({ error: true, ticker: t, message: 'No data available for ' + t + '. Ticker not recognized and live data unavailable.' });
+      closes = genStockData(t, '6M');
+    }
     const company = COMPANY_DB.find(c => c.ticker === t);
     const metrics = await getCompanyMetricsReal(t);
-    const articles = genNews(t).slice(0, 5);
-    const closes = data;
+    // Try real news via Google News RSS, fall back to simulated
+    let articles = [], newsSource = 'simulated';
+    try {
+      const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(t + ' stock') + '&hl=en-US&gl=US&ceid=US:en';
+      let resp;
+      try { resp = await fetch('http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) {
+        resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl));
+      }
+      const xmlText = await resp.text();
+      const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+      const items = doc.querySelectorAll('item');
+      items.forEach((item, idx) => {
+        if (idx >= 5) return;
+        articles.push({ title: item.querySelector('title')?.textContent || '', source: item.querySelector('source')?.textContent || '' });
+      });
+      if (articles.length > 0) newsSource = 'Google News (live)';
+    } catch(e) {}
+    if (!articles.length) articles = genNews(t).slice(0, 5);
     const thesis = {
       ticker: t,
       company: company ? company.name : t,
@@ -370,25 +451,46 @@ export const toolHandlers = {
       market_cap: formatCap(metrics.mktCap),
       six_month_range: Math.min(...closes).toFixed(2) + ' - ' + Math.max(...closes).toFixed(2),
       six_month_return: (((closes[closes.length - 1] - closes[0]) / closes[0]) * 100).toFixed(1) + '%',
-      recent_news: articles.map(a => a.title),
-      fundamentals: metrics
+      recent_news: articles.map(a => a.title || a),
+      fundamentals: metrics,
+      data_sources: { price: isReal ? 'Yahoo Finance (live)' : 'Simulated', news: newsSource, fundamentals: 'Yahoo Finance' },
+      instruction: 'Synthesize this data into a structured investment thesis. Write it to the notepad using write_note with label "Thesis: ' + t + '". Include: 1) Company overview, 2) Price action analysis citing the 6-month range/return, 3) Fundamental analysis citing PE/market cap/growth, 4) News sentiment from recent headlines, 5) Bull/bear case, 6) Conclusion with rating. Also build a summary table in the sheet.'
     };
     return JSON.stringify(thesis);
   },
 
   sentiment_summary: async (input) => {
-    const articles = genNews(input.keyword);
-    const positive = ['strong', 'growth', 'beat', 'surge', 'rally', 'record', 'expands', 'innovation'];
-    const negative = ['fall', 'decline', 'risk', 'cut', 'warning', 'probe', 'layoff', 'miss'];
+    // Try real news first via Google News RSS
+    let articles = [], newsSource = 'simulated';
+    try {
+      const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(input.keyword) + '&hl=en-US&gl=US&ceid=US:en';
+      let resp;
+      try { resp = await fetch('http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) {
+        resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl));
+      }
+      const xmlText = await resp.text();
+      const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+      const items = doc.querySelectorAll('item');
+      items.forEach((item, idx) => {
+        if (idx >= 15) return;
+        const title = item.querySelector('title')?.textContent || '';
+        const source = item.querySelector('source')?.textContent || '';
+        articles.push({ title, snippet: title, source });
+      });
+      if (articles.length > 0) newsSource = 'Google News (live)';
+    } catch(e) {}
+    if (!articles.length) articles = genNews(input.keyword);
+    const positive = ['strong', 'growth', 'beat', 'surge', 'rally', 'record', 'expands', 'innovation', 'upgrade', 'bullish', 'outperform', 'gain', 'profit', 'soar', 'boost'];
+    const negative = ['fall', 'decline', 'risk', 'cut', 'warning', 'probe', 'layoff', 'miss', 'downgrade', 'bearish', 'loss', 'crash', 'slump', 'weak', 'concern'];
     let posCount = 0, negCount = 0;
     articles.forEach(a => {
-      const text = (a.title + ' ' + a.snippet).toLowerCase();
+      const text = (a.title + ' ' + (a.snippet || '')).toLowerCase();
       positive.forEach(w => { if (text.includes(w)) posCount++; });
       negative.forEach(w => { if (text.includes(w)) negCount++; });
     });
     const total = posCount + negCount || 1;
     const score = ((posCount - negCount) / total * 100).toFixed(0);
-    return JSON.stringify({ keyword: input.keyword, articles_analyzed: articles.length, positive_signals: posCount, negative_signals: negCount, sentiment_score: +score, rating: score > 30 ? 'Bullish' : score < -30 ? 'Bearish' : 'Neutral', headlines: articles.slice(0, 5).map(a => a.title) });
+    return JSON.stringify({ keyword: input.keyword, articles_analyzed: articles.length, positive_signals: posCount, negative_signals: negCount, sentiment_score: +score, rating: score > 30 ? 'Bullish' : score < -30 ? 'Bearish' : 'Neutral', headlines: articles.slice(0, 5).map(a => a.title), data_source: newsSource, instruction: 'Present these sentiment findings clearly. Write a sentiment report to the notepad using write_note. If other research data exists (thesis, price data), consolidate findings into a unified view. Build a sentiment summary row in any existing analysis table in the sheet.' });
   },
 
   create_template: async (input) => {
