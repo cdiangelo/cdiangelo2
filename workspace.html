@@ -678,9 +678,36 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="wbUndo">Undo</button>
         <button id="wbClear">Clear</button>
         <button id="wbSave">PNG</button>
+        <div class="sep"></div>
+        <button id="wbImgSearch" title="Search and import images">&#128247; Image</button>
+        <button id="wbPasteChart" title="Copy chart from Analytics">&#128200; Chart</button>
+        <button id="wbPasteTable" title="Copy table from Sheet">&#128202; Table</button>
+        <button id="wbLayers" title="Toggle layer panel">Layers</button>
       </div>
-      <div class="wb-wrap" id="wbWrap">
-        <canvas id="wbCanvas"></canvas>
+      <div class="wb-wrap" id="wbWrap" style="position:relative;">
+        <canvas id="wbCanvas" style="position:relative;z-index:1;"></canvas>
+        <!-- Layer objects rendered here -->
+      </div>
+      <!-- Layer panel -->
+      <div id="wbLayerPanel" style="display:none;position:absolute;right:4px;top:36px;bottom:4px;width:160px;z-index:60;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);overflow-y:auto;font-size:.68rem;">
+        <div style="padding:6px 8px;font-weight:600;color:var(--accent2);border-bottom:1px solid var(--border);">Layers</div>
+        <div id="wbLayerList" style="padding:4px;"></div>
+      </div>
+      <!-- Image search panel -->
+      <div id="wbImgPanel" style="display:none;position:absolute;left:4px;top:36px;z-index:60;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);width:280px;padding:8px;font-size:.7rem;">
+        <div style="display:flex;gap:4px;margin-bottom:6px;">
+          <input type="text" id="wbImgQuery" placeholder="Search images..." style="flex:1;padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.68rem;" />
+          <button id="wbImgSearchBtn" style="padding:4px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.68rem;">Go</button>
+        </div>
+        <div style="margin-bottom:6px;">
+          <label style="font-size:.62rem;color:var(--text-dim);">Or paste image URL:</label>
+          <div style="display:flex;gap:4px;margin-top:2px;">
+            <input type="text" id="wbImgUrl" placeholder="https://..." style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
+            <button id="wbImgUrlAdd" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Add</button>
+          </div>
+        </div>
+        <div id="wbImgResults" style="display:flex;flex-wrap:wrap;gap:4px;max-height:200px;overflow-y:auto;"></div>
+        <button id="wbImgClose" style="margin-top:6px;width:100%;padding:3px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.62rem;">Close</button>
       </div>
     </div>
   </div>
@@ -1566,6 +1593,196 @@ $('#wbSave').onclick = () => {
   ectx.fillRect(0, 0, expCvs.width, expCvs.height);
   ectx.drawImage(wbC, 0, 0);
   const a = document.createElement('a'); a.download = 'whiteboard.png'; a.href = expCvs.toDataURL(); a.click(); toast('Exported');
+};
+
+/* ═══════════════════════════════════════════
+   WHITEBOARD — LAYERS, IMAGES, CROSS-PANE COPY
+   ═══════════════════════════════════════════ */
+let wbLayers = [];
+let wbLayerIdCounter = 0;
+let wbSelectedLayer = null;
+
+function wbAddLayer(type, content, opts) {
+  const id = ++wbLayerIdCounter;
+  const layer = {
+    id, type,
+    x: opts.x || 50, y: opts.y || 50,
+    w: opts.w || 200, h: opts.h || 150,
+    zIndex: wbLayers.length + 10,
+    label: opts.label || (type + ' ' + id),
+    visible: true, locked: false,
+    content
+  };
+  wbLayers.push(layer);
+  wbRenderLayers();
+  wbRenderLayerList();
+  return layer;
+}
+
+function wbRenderLayers() {
+  document.querySelectorAll('.wb-layer-obj').forEach(el => el.remove());
+  const wrap = $('#wbWrap');
+  wbLayers.forEach(layer => {
+    if (!layer.visible) return;
+    const el = document.createElement('div');
+    el.className = 'wb-layer-obj';
+    el.dataset.layerId = layer.id;
+    el.style.cssText = 'position:absolute;left:' + layer.x + 'px;top:' + layer.y + 'px;width:' + layer.w + 'px;height:' + layer.h + 'px;z-index:' + layer.zIndex + ';cursor:move;border:1px solid transparent;transition:border-color .15s;overflow:hidden;';
+    if (wbSelectedLayer === layer.id) el.style.borderColor = 'var(--accent)';
+
+    if (layer.type === 'image' || layer.type === 'chart') {
+      const img = document.createElement('img');
+      img.src = layer.content;
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;';
+      img.draggable = false;
+      el.appendChild(img);
+    } else if (layer.type === 'table') {
+      const div = document.createElement('div');
+      div.innerHTML = layer.content;
+      div.style.cssText = 'width:100%;height:100%;overflow:auto;font-size:.6rem;pointer-events:none;background:var(--panel);border-radius:4px;';
+      el.appendChild(div);
+    }
+
+    const resH = document.createElement('div');
+    resH.style.cssText = 'position:absolute;bottom:0;right:0;width:12px;height:12px;cursor:nwse-resize;background:var(--accent);opacity:.5;border-radius:2px 0 0 0;z-index:2;';
+    el.appendChild(resH);
+
+    el.addEventListener('mousedown', e => {
+      if (layer.locked) return;
+      e.stopPropagation();
+      wbSelectedLayer = layer.id;
+      wbRenderLayers(); wbRenderLayerList();
+      const isResize = e.target === resH;
+      const startX = e.clientX, startY = e.clientY;
+      const origX = layer.x, origY = layer.y, origW = layer.w, origH = layer.h;
+      function onMove(ev) {
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
+        if (isResize) { layer.w = Math.max(40, origW + dx); layer.h = Math.max(30, origH + dy); }
+        else { layer.x = origX + dx; layer.y = origY + dy; }
+        el.style.left = layer.x + 'px'; el.style.top = layer.y + 'px';
+        el.style.width = layer.w + 'px'; el.style.height = layer.h + 'px';
+      }
+      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    wrap.appendChild(el);
+  });
+}
+
+function wbRenderLayerList() {
+  const el = $('#wbLayerList');
+  el.innerHTML = '';
+  const baseDiv = document.createElement('div');
+  baseDiv.style.cssText = 'padding:3px 6px;color:var(--text-dim);font-style:italic;border-bottom:1px solid var(--border);';
+  baseDiv.textContent = '(Canvas base)';
+  el.appendChild(baseDiv);
+
+  [...wbLayers].reverse().forEach(layer => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:4px;padding:3px 6px;border-bottom:1px solid var(--border);cursor:pointer;' + (wbSelectedLayer === layer.id ? 'background:rgba(59,130,246,.15);' : '');
+    const icon = layer.type === 'image' ? '&#128247;' : layer.type === 'chart' ? '&#128200;' : '&#128202;';
+    div.innerHTML =
+      '<input type="checkbox" ' + (layer.visible ? 'checked' : '') + ' style="margin:0;" title="Visible" />' +
+      '<span style="font-size:.7rem;">' + icon + '</span>' +
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:.62rem;">' + layer.label + '</span>' +
+      '<button class="ly-up" title="Move up" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.65rem;padding:0;">&#8593;</button>' +
+      '<button class="ly-down" title="Move down" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.65rem;padding:0;">&#8595;</button>' +
+      '<button class="ly-del" title="Delete" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:.7rem;padding:0;">&times;</button>';
+    div.querySelector('input').onchange = function(e) { e.stopPropagation(); layer.visible = this.checked; wbRenderLayers(); };
+    div.onclick = e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return; wbSelectedLayer = layer.id; wbRenderLayers(); wbRenderLayerList(); };
+    div.querySelector('.ly-up').onclick = e => { e.stopPropagation(); const i = wbLayers.findIndex(l => l.id === layer.id); if (i < wbLayers.length - 1) [wbLayers[i], wbLayers[i+1]] = [wbLayers[i+1], wbLayers[i]]; wbLayers.forEach((l,j) => l.zIndex = j+10); wbRenderLayers(); wbRenderLayerList(); };
+    div.querySelector('.ly-down').onclick = e => { e.stopPropagation(); const i = wbLayers.findIndex(l => l.id === layer.id); if (i > 0) [wbLayers[i], wbLayers[i-1]] = [wbLayers[i-1], wbLayers[i]]; wbLayers.forEach((l,j) => l.zIndex = j+10); wbRenderLayers(); wbRenderLayerList(); };
+    div.querySelector('.ly-del').onclick = e => { e.stopPropagation(); wbLayers = wbLayers.filter(l => l.id !== layer.id); if (wbSelectedLayer === layer.id) wbSelectedLayer = null; wbRenderLayers(); wbRenderLayerList(); };
+    el.appendChild(div);
+  });
+}
+
+wbC.addEventListener('mousedown', () => { if (wbSelectedLayer !== null) { wbSelectedLayer = null; wbRenderLayers(); wbRenderLayerList(); } }, true);
+
+$('#wbLayers').onclick = function() {
+  const p = $('#wbLayerPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  this.classList.toggle('active', p.style.display === 'block');
+  if (p.style.display === 'block') wbRenderLayerList();
+};
+
+// Image search panel
+$('#wbImgSearch').onclick = () => { const p = $('#wbImgPanel'); p.style.display = p.style.display === 'none' ? 'block' : 'none'; };
+$('#wbImgClose').onclick = () => { $('#wbImgPanel').style.display = 'none'; };
+$('#wbImgUrlAdd').onclick = () => {
+  const url = $('#wbImgUrl').value.trim();
+  if (!url) return;
+  wbAddLayer('image', url, { label: 'Image', w: 200, h: 150 });
+  $('#wbImgUrl').value = '';
+  $('#wbImgPanel').style.display = 'none';
+  toast('Image added');
+};
+
+// Image search via Unsplash
+$('#wbImgSearchBtn').onclick = () => {
+  const q = $('#wbImgQuery').value.trim();
+  if (!q) return;
+  const results = $('#wbImgResults');
+  results.innerHTML = '<div style="color:var(--text-dim);font-size:.62rem;padding:8px;">Loading...</div>';
+  results.innerHTML = '';
+  for (let i = 0; i < 8; i++) {
+    const url = 'https://source.unsplash.com/featured/300x200/?' + encodeURIComponent(q) + '&sig=' + (Date.now() + i);
+    const img = document.createElement('img');
+    img.src = url;
+    img.style.cssText = 'width:60px;height:45px;object-fit:cover;border-radius:3px;cursor:pointer;border:1px solid var(--border);';
+    img.title = 'Click to add';
+    img.onclick = () => {
+      wbAddLayer('image', url, { label: q + ' ' + (i + 1), w: 250, h: 180 });
+      $('#wbImgPanel').style.display = 'none';
+      toast('Image added');
+    };
+    results.appendChild(img);
+  }
+};
+$('#wbImgQuery').addEventListener('keydown', e => { if (e.key === 'Enter') $('#wbImgSearchBtn').click(); });
+
+// Copy chart from Analytics
+$('#wbPasteChart').onclick = () => {
+  let srcCanvas = null, label = 'Chart';
+  const compareWrap = $('#stockCompareWrap');
+  if (compareWrap && compareWrap.style.display !== 'none') { srcCanvas = $('#compareCanvas'); label = 'Comparison Chart'; }
+  if (!srcCanvas) { const gcView = $('#graphCalcView'); if (gcView && gcView.style.display === 'flex') { srcCanvas = $('#gcCanvas'); label = 'Graph'; } }
+  if (!srcCanvas) { const spark = document.querySelector('#stockDash canvas'); if (spark) { srcCanvas = spark; label = 'Stock Chart'; } }
+  if (!srcCanvas) { toast('No chart visible to copy'); return; }
+  const expCvs = document.createElement('canvas');
+  expCvs.width = srcCanvas.width; expCvs.height = srcCanvas.height;
+  const ectx = expCvs.getContext('2d');
+  const isLight = document.body.classList.contains('light');
+  ectx.fillStyle = isLight ? '#ffffff' : '#1a1a2e';
+  ectx.fillRect(0, 0, expCvs.width, expCvs.height);
+  ectx.drawImage(srcCanvas, 0, 0);
+  const dataUrl = expCvs.toDataURL('image/png');
+  const aspect = srcCanvas.width / (srcCanvas.height || 1);
+  wbAddLayer('chart', dataUrl, { label, w: 300, h: Math.round(300 / aspect) });
+  toast(label + ' copied to whiteboard');
+};
+
+// Copy table from Sheet
+$('#wbPasteTable').onclick = () => {
+  let html = '<table style="border-collapse:collapse;font-size:.55rem;color:var(--text);width:100%;">';
+  html += '<tr>';
+  for (let c = 0; c < Math.min(ssC, 15); c++) html += '<th style="padding:2px 4px;border:1px solid var(--border);background:var(--panel-inset);font-weight:600;white-space:nowrap;">' + (ssColNames[c] || colN(c)) + '</th>';
+  html += '</tr>';
+  let lastRow = 0;
+  for (let r = ssR - 1; r >= 0; r--) { if (ssD[r].some(c => c !== '')) { lastRow = r; break; } }
+  for (let r = 0; r <= Math.min(lastRow, 30); r++) {
+    html += '<tr>';
+    for (let c = 0; c < Math.min(ssC, 15); c++) {
+      const raw = ssD[r][c] || '';
+      const val = (typeof raw === 'string' && raw.startsWith('=')) ? evalF(raw) : raw;
+      html += '<td style="padding:2px 4px;border:1px solid var(--border);white-space:nowrap;">' + (val == null ? '' : val) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+  wbAddLayer('table', html, { label: 'Sheet Data', w: 350, h: 200 });
+  toast('Table copied to whiteboard');
 };
 
 /* ═══════════════════════════════════════════
@@ -4054,9 +4271,17 @@ function genNews(keyword) {
     });
     const hoursAgo = Math.floor(rand() * 72);
     const source = NEWS_SOURCES[Math.floor(rand() * NEWS_SOURCES.length)];
+    // Build a Google News search URL scoped to source domain for real, specific articles
+    const SOURCE_DOMAIN_NAMES = { 'Reuters': 'reuters.com', 'Bloomberg': 'bloomberg.com', 'CNBC': 'cnbc.com', 'Financial Times': 'ft.com', 'WSJ': 'wsj.com', 'MarketWatch': 'marketwatch.com', "Barron's": 'barrons.com', 'Seeking Alpha': 'seekingalpha.com' };
+    const siteDomain = SOURCE_DOMAIN_NAMES[source] || 'reuters.com';
+    // Also keep a direct section URL for the "Direct" link
     const sectionMap = SOURCE_SECTION_URLS[source] || SOURCE_SECTION_URLS['Reuters'];
-    const url = sectionMap[company.sector] || sectionMap['_default'];
-    articles.push({ title, snippet, source, hoursAgo, tags: [company.ticker, company.sector], url });
+    const sectionUrl = sectionMap[company.sector] || sectionMap['_default'];
+    // Search URL finds real articles matching the topic on that specific source
+    const searchTerms = company.name + ' ' + (company.sector || '');
+    const url = 'https://news.google.com/search?q=' + encodeURIComponent(searchTerms + ' site:' + siteDomain) + '&hl=en';
+    const directUrl = sectionUrl;
+    articles.push({ title, snippet, source, hoursAgo, tags: [company.ticker, company.sector], url, directUrl });
   }
   return articles.sort((a, b) => a.hoursAgo - b.hoursAgo);
 }
@@ -4084,19 +4309,20 @@ function renderNewsFeed() {
     const div = document.createElement('div');
     div.className = 'news-item';
     const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? a.hoursAgo + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
-    const archiveUrl = 'https://archive.is/newest/' + encodeURIComponent(a.url);
+    const archiveUrl = 'https://archive.is/?url=' + encodeURIComponent(a.directUrl || a.url);
     div.innerHTML =
       '<div class="news-source">' + a.source + '</div>' +
       '<div class="news-title">' + a.title + '</div>' +
       '<div class="news-snippet">' + a.snippet + '</div>' +
       '<div class="news-meta"><span>' + timeStr + '</span>' +
       a.tags.map(t => '<span class="news-tag">' + t + '</span>').join('') +
-      '<a class="news-direct" href="' + a.url + '" target="_blank" title="Open source directly" style="font-size:.6rem;color:var(--text-dim);text-decoration:none;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Direct &#8599;</a>' +
+      '<a class="news-direct" href="' + (a.directUrl || a.url) + '" target="_blank" title="Open source section" style="font-size:.6rem;color:var(--text-dim);text-decoration:none;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Source &#8599;</a>' +
+      '<a class="news-search" href="' + a.url + '" target="_blank" title="Find real articles on Google News" style="font-size:.6rem;color:var(--accent2);text-decoration:none;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Search &#8599;</a>' +
       '<a class="news-open" href="' + archiveUrl + '" target="_blank" title="Open via archive.is">Archive &#8599;</a>' +
       '</div>';
-    // Click article body to open inline viewer
+    // Click article body to open inline viewer with Google News search results
     div.onclick = (e) => {
-      if (e.target.closest('.news-open') || e.target.closest('.news-direct')) return;
+      if (e.target.closest('.news-open') || e.target.closest('.news-direct') || e.target.closest('.news-search')) return;
       openNewsViewer(a.title, a.url, archiveUrl);
     };
     feed.appendChild(div);
