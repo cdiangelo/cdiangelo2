@@ -218,6 +218,7 @@ body.light .fun-btn { background: var(--accent); }
   overflow: hidden; position: relative; min-width: 0; min-height: 0;
 }
 .pane.expanded {
+  display: flex !important;
   position: fixed !important; top: 44px !important; left: 0 !important;
   right: 0 !important; bottom: 0 !important; z-index: 150;
   width: 100vw !important; height: calc(100vh - 44px) !important;
@@ -2666,7 +2667,17 @@ $$('[data-expand]').forEach(btn => {
       if (body) { body.style.fontSize = ''; body.dataset.zoom = '100'; }
       if (label) label.textContent = '100%';
     });
-    if (!was) p.classList.add('expanded');
+    if (!was) {
+      p.style.display = '';
+      p.classList.add('expanded');
+      // Snap media player when expanding media pane
+      if (btn.dataset.expand === 'q-media' && typeof snapVideoToMediaPane === 'function') {
+        setTimeout(snapVideoToMediaPane, 50);
+      }
+    } else {
+      // Collapsing — re-apply grid order to restore correct visibility
+      applyGridOrder(getGridOrder());
+    }
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
 });
@@ -2679,7 +2690,19 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
     const pane = btn.dataset.pane;
     $$('.pane').forEach(el => el.classList.remove('expanded'));
     if (pane !== 'all') {
-      document.getElementById(pane).classList.add('expanded');
+      const el = document.getElementById(pane);
+      if (el) {
+        // Ensure pane is visible even if hidden by grid order
+        el.style.display = '';
+        el.classList.add('expanded');
+        // Snap media player if expanding media pane
+        if (pane === 'q-media' && typeof snapVideoToMediaPane === 'function') {
+          setTimeout(snapVideoToMediaPane, 50);
+        }
+      }
+    } else {
+      // Returning to "All" view — re-apply grid order to restore correct visibility
+      applyGridOrder(getGridOrder());
     }
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
