@@ -2458,7 +2458,15 @@ function getAllUserUsage() {
    ═══════════════════════════════════════════ */
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
-const LS = (k, v) => { try { return v === undefined ? JSON.parse(localStorage.getItem('ws_'+k)||'null') : localStorage.setItem('ws_'+k, JSON.stringify(v)); } catch(e) { return null; } };
+// Per-profile scoped localStorage — user data is isolated from admin
+const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','adminSession','userName','userContact','aiApiKey','accessRequests','blockedUsers','driveClientId']);
+function _lsPrefix(k) {
+  if (LS_GLOBAL_KEYS.has(k) || k.startsWith('usage_') || k.startsWith('geniePrompts_')) return 'ws_';
+  if (wsIsAdmin) return 'ws_admin_';
+  if (wsUserName) return 'ws_u_' + wsUserName.toLowerCase().replace(/[^a-z0-9]/g, '') + '_';
+  return 'ws_';
+}
+const LS = (k, v) => { try { const pfx = _lsPrefix(k); return v === undefined ? JSON.parse(localStorage.getItem(pfx+k)||'null') : localStorage.setItem(pfx+k, JSON.stringify(v)); } catch(e) { return null; } };
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 1800);
@@ -3199,7 +3207,7 @@ renderNpTabs();
 
 // ADDED — Phase 4: Agent Memory tab
 (function initAgentMemory() {
-  const saved = localStorage.getItem('agent_memory_tab');
+  const saved = LS('agent_memory_tab');
   if (saved) {
     let memPage = npPages.find(p => p.title === 'Agent Memory');
     if (!memPage) {
@@ -3227,7 +3235,7 @@ window.appendAgentMemory = function(logLine) {
   lines.unshift(entry);
   if (lines.length > 100) lines.length = 100;
   memPage.content = lines.join('<br>');
-  localStorage.setItem('agent_memory_tab', memPage.content);
+  LS('agent_memory_tab', memPage.content);
   saveNpPages();
   if (npActivePageId === memPage.id) np.innerHTML = memPage.content;
 };
@@ -3756,7 +3764,7 @@ let ssClipboard = null, ssColNames = [];
 let ssSelecting = false, ssEditing = false;
 let ssClipboardRange = null; // { data: 2D array, rows, cols }
 let ssUndoHist = []; // array of { data, rows, cols } snapshots
-let ssColWidths = JSON.parse(localStorage.getItem('ws_ssColWidths') || '[]'); // per-column widths
+let ssColWidths = LS('ssColWidths') || []; // per-column widths
 
 function ssSelRange() {
   if (!ssSel) return null;
@@ -4393,7 +4401,7 @@ function ssRender() {
     resizing = false;
     document.body.style.cursor = '';
     table.querySelectorAll('.col-resize-handle.dragging').forEach(h => h.classList.remove('dragging'));
-    localStorage.setItem('ws_ssColWidths', JSON.stringify(ssColWidths));
+    LS('ssColWidths', ssColWidths);
   });
 })();
 
@@ -7926,7 +7934,7 @@ function renderHistoryPanel() {
   if (clearAllBtn) clearAllBtn.onclick = () => {
     if (!confirm('Delete ALL inquiry history? This cannot be undone.')) return;
     aiInquiryLog = [];
-    localStorage.setItem('ws_aiInquiryLog', '[]');
+    LS('aiInquiryLog', []);
     document.getElementById('aiHistoryPanel')?.remove();
     renderHistoryPanel();
   };
@@ -8019,14 +8027,14 @@ async function restoreSingleArtifact(inquiryIdx, artIdx) {
 function deleteInquiry(idx) {
   if (!confirm('Delete this inquiry?')) return;
   aiInquiryLog.splice(idx, 1);
-  localStorage.setItem('ws_aiInquiryLog', JSON.stringify(aiInquiryLog));
+  LS('aiInquiryLog', aiInquiryLog);
   document.getElementById('aiHistoryPanel')?.remove();
   renderHistoryPanel();
 }
 
 // Auto-save chat to log at end of each conversation
 // ── Auto-saved tool actions (linkage) ──
-let aiSavedActions = JSON.parse(localStorage.getItem('ws_aiSavedActions') || '[]');
+let aiSavedActions = LS('aiSavedActions') || [];
 const REPLAYABLE_TOOLS = ['write_cells', 'create_table', 'write_note', 'update_graph', 'add_stock', 'set_comparison', 'add_concept_node', 'write_to_draw_pane', 'add_text_overlay'];
 
 function saveToolAction(toolName, input) {
@@ -8034,7 +8042,7 @@ function saveToolAction(toolName, input) {
   const action = { id: Date.now(), tool: toolName, input: JSON.parse(JSON.stringify(input)), timestamp: new Date().toISOString() };
   aiSavedActions.push(action);
   if (aiSavedActions.length > 100) aiSavedActions = aiSavedActions.slice(-100);
-  localStorage.setItem('ws_aiSavedActions', JSON.stringify(aiSavedActions));
+  LS('aiSavedActions', aiSavedActions);
 }
 
 async function replayToolAction(actionId) {
@@ -8083,7 +8091,7 @@ function autoSaveChatLog() {
 }
 
 // ── Per-inquiry log with artifacts ──
-let aiInquiryLog = JSON.parse(localStorage.getItem('ws_aiInquiryLog') || '[]');
+let aiInquiryLog = LS('aiInquiryLog') || [];
 
 function saveInquiryLog(userQuery, model, actions) {
   // Collect the assistant's last response from aiMessages
@@ -8117,7 +8125,7 @@ function saveInquiryLog(userQuery, model, actions) {
   };
   aiInquiryLog.push(entry);
   if (aiInquiryLog.length > 200) aiInquiryLog = aiInquiryLog.slice(-200);
-  localStorage.setItem('ws_aiInquiryLog', JSON.stringify(aiInquiryLog));
+  LS('aiInquiryLog', aiInquiryLog);
 }
 
 function addAiMsg(role, text) {
