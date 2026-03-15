@@ -2840,9 +2840,26 @@ function renderStockSearch() {
   results.forEach(c => {
     const item = document.createElement('div');
     item.className = 'stock-search-item';
-    item.innerHTML = '<span class="ssi-ticker">' + c.ticker + '</span>' +
+    const inComp = compareTickers.includes(c.ticker);
+    item.innerHTML =
+      '<span class="ssi-compare" title="' + (inComp ? 'In comparison' : 'Add to comparison chart') + '" style="cursor:pointer;font-size:11px;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid ' + (inComp ? 'var(--accent)' : 'var(--border)') + ';background:' + (inComp ? 'var(--accent)' : 'transparent') + ';color:' + (inComp ? '#fff' : 'var(--text-dim)') + ';flex-shrink:0;margin-right:6px;transition:all .12s;">&#x27A4;</span>' +
+      '<span class="ssi-ticker">' + c.ticker + '</span>' +
       '<span class="ssi-name">' + c.name + '</span>' +
       '<span class="ssi-exchange">' + c.exchange + '</span>';
+    // Compare button (left side) — adds directly to comparison without tracking
+    item.querySelector('.ssi-compare').onclick = (e) => {
+      e.stopPropagation();
+      if (compareTickers.includes(c.ticker)) {
+        compareTickers = compareTickers.filter(t => t !== c.ticker);
+      } else {
+        compareTickers.push(c.ticker);
+      }
+      LS('compareTickers', compareTickers);
+      renderStockDash();
+      renderStockSearch(); // refresh to update active state
+      toast(compareTickers.includes(c.ticker) ? c.ticker + ' → Compare' : c.ticker + ' removed');
+    };
+    // Click the row to add as tracked ticker
     item.onclick = () => {
       $('#stockInput').value = c.ticker;
       el.style.display = 'none';
