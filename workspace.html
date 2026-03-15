@@ -349,15 +349,28 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.validation-error { border-color: var(--danger); }
 
 /* ═══ ROBOT ASSISTANT ═══ */
-.robot-scene { position: relative; width: 100%; height: 110px; margin: 0; flex-shrink: 0; overflow: hidden; border-top: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); background: #0e0e1a; }
+.robot-scene { position: relative; width: 100%; height: 140px; margin: 0; flex-shrink: 0; overflow: hidden; border-top: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); background: #0e0e1a; }
 /* Background layer + animated pseudo-elements */
 .robot-bg { position: absolute; inset: 0; z-index: 0; }
 .robot-bg::before, .robot-bg::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
-/* Glass office overlay */
-.robot-glass { position: absolute; inset: 0; z-index: 1; border: none; background: linear-gradient(135deg, rgba(255,255,255,.03) 0%, transparent 40%, rgba(255,255,255,.015) 100%); pointer-events: none; }
-.robot-glass::before, .robot-glass::after { content:''; position: absolute; background: rgba(255,255,255,.04); }
-.robot-glass::before { top: 0; bottom: 0; left: 30%; width: 1px; }
-.robot-glass::after { top: 0; bottom: 0; right: 30%; width: 1px; }
+/* Glass office overlay — top half clear, bottom half frosted/tempered */
+.robot-glass { position: absolute; inset: 0; z-index: 1; border: none; pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,.02) 0%, rgba(200,220,255,.03) 15%, rgba(255,255,255,.01) 48%,
+    rgba(180,200,220,.12) 52%, rgba(160,180,200,.15) 65%, rgba(140,160,180,.12) 80%, rgba(120,140,160,.08) 100%);
+}
+.robot-glass::before, .robot-glass::after { content:''; position: absolute; }
+.robot-glass::before { top: 0; bottom: 0; left: 30%; width: 1px; background: linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.03) 48%, rgba(255,255,255,.08) 52%, rgba(255,255,255,.08) 100%); }
+.robot-glass::after { top: 0; bottom: 0; right: 30%; width: 1px; background: linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.03) 48%, rgba(255,255,255,.08) 52%, rgba(255,255,255,.08) 100%); }
+/* Office scene: brick wall instead of glass */
+.scene-office ~ .robot-glass {
+  background: repeating-linear-gradient(180deg,
+    rgba(120,60,40,.18) 0px, rgba(120,60,40,.18) 8px, rgba(80,40,25,.12) 8px, rgba(80,40,25,.12) 9px),
+    repeating-linear-gradient(90deg,
+    rgba(90,45,30,.06) 0px, rgba(90,45,30,.06) 18px, rgba(60,30,20,.1) 18px, rgba(60,30,20,.1) 19px);
+}
+.scene-office ~ .robot-glass::before { background: none; }
+.scene-office ~ .robot-glass::after { background: none; }
 /* CSS-only potted plants */
 .robot-plant { position: absolute; bottom: 0; z-index: 5; width: 18px; height: 30px; }
 .robot-plant-l { left: 15%; }
@@ -368,38 +381,54 @@ body.light .fun-btn { background: var(--accent); }
 .plant-leaf-l { bottom: 16px; left: 0; transform: rotate(-30deg); }
 .plant-leaf-r { bottom: 18px; right: 0; transform: rotate(30deg); }
 .plant-leaf-t { bottom: 22px; left: 50%; transform: translateX(-50%); width: 5px; height: 6px; border-radius: 50% 50% 30% 30%; background: #81C784; }
-/* Desk + monitors */
-.robot-desk { position: absolute; bottom: 0; width: 80px; left: 50%; transform: translateX(-50%); height: 16px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 4px rgba(0,0,0,.3); }
-.robot-monitors { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; z-index: 3; }
-.robot-monitor { width: 16px; height: 11px; background: #0a0a0a; border: 1.5px solid #333; border-radius: 1px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s, border-color 0.3s; }
+/* Desk + monitors — monitors on LEFT side */
+.robot-desk { position: absolute; bottom: 0; left: 20%; right: 18%; height: 20px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 4px rgba(0,0,0,.3); }
+.robot-monitors { position: absolute; bottom: 18px; left: 22%; display: flex; gap: 6px; z-index: 3; }
+.robot-monitor { width: 22px; height: 16px; background: #0a0a0a; border: 2px solid #333; border-radius: 2px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s, border-color 0.3s; }
 .robot-monitor.on { border-color: #555; box-shadow: inset 0 0 5px rgba(76,175,80,.4), 0 0 4px rgba(76,175,80,.2); }
-/* Robot body */
-.robot-body { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 4; }
-.robot-head { width: 22px; height: 18px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 5px 5px 3px 3px; margin: 0 auto; position: relative; transition: transform 0.6s ease; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
-.robot-eyes { display: flex; justify-content: center; gap: 5px; padding-top: 5px; }
-.robot-eyes .eye { width: 3px; height: 3px; background: #1a1a1a; border-radius: 50%; box-shadow: inset 0 0 1px rgba(255,255,255,.2); }
-.robot-torso { width: 24px; height: 16px; background: linear-gradient(180deg, #222, #111); border-radius: 3px; margin: 1px auto 0; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
-.robot-tie { width: 4px; height: 10px; margin: 0 auto; clip-path: polygon(50% 0, 100% 20%, 65% 100%, 50% 80%, 35% 100%, 0 20%); background: #D32F2F; transition: background 0.3s, clip-path 0.3s; }
-.robot-arms { display: flex; justify-content: center; gap: 18px; margin-top: -9px; }
-.robot-arms .arm { width: 5px; height: 11px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 2px; transition: transform 0.15s; transform-origin: top center; }
+/* Robot body — on RIGHT side, fills most of vertical area */
+.robot-body { position: absolute; bottom: 16px; right: 22%; text-align: center; z-index: 4; }
+.robot-head { width: 32px; height: 26px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 7px 7px 4px 4px; margin: 0 auto; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.3); animation: robotLook 5s ease-in-out infinite; }
+.robot-glasses { position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 24px; height: 6px; z-index: 1; }
+.robot-glasses::before, .robot-glasses::after { content: ''; position: absolute; top: 0; width: 9px; height: 5px; border: 1px solid rgba(180,180,200,.6); border-radius: 50%; background: rgba(200,220,255,.06); }
+.robot-glasses::before { left: 0; }
+.robot-glasses::after { right: 0; }
+.robot-glasses-bridge { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); width: 4px; height: 1px; background: rgba(180,180,200,.5); }
+.robot-eyes { display: flex; justify-content: center; gap: 8px; padding-top: 8px; position: relative; z-index: 2; }
+.robot-eyes .eye { width: 4px; height: 4px; background: #1a1a1a; border-radius: 50%; box-shadow: inset 0 0 1px rgba(255,255,255,.2); }
+.robot-torso { width: 34px; height: 24px; background: linear-gradient(180deg, #222, #111); border-radius: 4px; margin: 2px auto 0; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.robot-tie { width: 7px; height: 16px; margin: 0 auto; clip-path: polygon(50% 0, 100% 15%, 65% 100%, 50% 80%, 35% 100%, 0 15%); background: #D32F2F; transition: background 0.3s, clip-path 0.3s; }
+.robot-arms { display: flex; justify-content: center; gap: 26px; margin-top: -12px; }
+.robot-arms .arm { width: 7px; height: 16px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 3px; transition: transform 0.15s; transform-origin: top center; }
 .robot-arms .arm.typing-l { transform: rotate(-8deg) translateY(2px); }
 .robot-arms .arm.typing-r { transform: rotate(8deg) translateY(2px); }
+/* Head look animation — looks left at monitors then back at viewer */
+@keyframes robotLook {
+  0%, 65%, 100% { transform: rotate(0deg) translateX(0); }
+  18%, 48% { transform: rotate(-8deg) translateX(-3px); }
+}
 /* Desk lamp */
 .desk-light { position: absolute; right: 8px; top: -7px; width: 8px; height: 8px; border-radius: 50%; background: #444; border: 1px solid #333; transition: all 0.4s ease; z-index: 5; }
 .desk-light.on { background: #4CAF50; box-shadow: 0 0 8px #4CAF50, 0 0 16px rgba(76,175,80,.3); }
 /* Tie/scene controls */
 .robot-controls { display: flex; gap: 4px; justify-content: center; padding: 3px 0; flex-shrink: 0; background: var(--panel-inset); border-bottom: 1px solid var(--border); }
+/* Robot scene resize handle — only visible in expanded pane */
+.robot-scene-resize { display: none; height: 6px; cursor: ns-resize; background: var(--panel-inset); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); flex-shrink: 0; position: relative; }
+.robot-scene-resize::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 30px; height: 2px; background: var(--text-dim); border-radius: 1px; opacity: .3; }
+.robot-scene-resize:hover { background: var(--accent); opacity: .8; }
+.pane.expanded .robot-scene-resize { display: block; }
 
 /* ═══ SCENE ANIMATIONS ═══ */
-@keyframes sceneDrift { 0% { transform: translateX(-10%); } 100% { transform: translateX(10%); } }
+@keyframes sceneDrift { 0% { transform: translateX(-8%); } 100% { transform: translateX(8%); } }
 @keyframes sceneTwinkle { 0%,100% { opacity: .15; } 50% { opacity: .7; } }
-@keyframes sceneTwinkle2 { 0%,100% { opacity: .3; } 50% { opacity: .9; } }
-@keyframes sceneGlow { 0%,100% { opacity: .4; } 50% { opacity: .7; } }
-@keyframes sceneLava { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
-@keyframes sceneWave { 0%,100% { transform: translateX(0) scaleY(1); } 25% { transform: translateX(-3px) scaleY(1.02); } 75% { transform: translateX(3px) scaleY(.98); } }
-@keyframes sceneScroll { from { background-position: 0 bottom; } to { background-position: -400px bottom; } }
+@keyframes sceneTwinkle2 { 0%,100% { opacity: .25; } 50% { opacity: .85; } }
+@keyframes sceneGlow { 0%,100% { opacity: .5; } 50% { opacity: .9; } }
+@keyframes sceneWave { 0%,100% { transform: translateX(0) scaleY(1); } 25% { transform: translateX(-3px) scaleY(1.015); } 75% { transform: translateX(3px) scaleY(.985); } }
+@keyframes sceneScroll { from { background-position: 0 bottom; } to { background-position: -600px bottom; } }
+@keyframes sceneScrollSlow { from { background-position: 0 bottom; } to { background-position: -300px bottom; } }
 @keyframes sceneFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-@keyframes scenePulse { 0%,100% { opacity: .2; } 50% { opacity: .5; } }
+@keyframes sceneErupt { 0%,80% { opacity: .6; transform: translateY(0); } 90% { opacity: 1; transform: translateY(-2px); } 100% { opacity: .6; transform: translateY(0); } }
+@keyframes sceneCars { from { background-position: 0 0; } to { background-position: 200px 0; } }
 
 /* ── Office (default) ── */
 .robot-bg.scene-office {
@@ -411,107 +440,290 @@ body.light .fun-btn { background: var(--accent); }
 }
 
 /* ── Tropical Paradise ── */
+/* Sky → sunset → ocean → sandy beach at bottom with palm trees, shacks, resort feel */
 .robot-bg.scene-tropical {
-  background: linear-gradient(180deg, #1a0533 0%, #4a1942 10%, #c2185b 25%, #ff6f00 40%, #ffab40 52%, #80deea 60%, #26c6da 70%, #00897b 82%, #004d40 100%);
+  background:
+    linear-gradient(180deg,
+      #0d1b3e 0%, #1a2a5c 8%, #c2185b 20%, #ff6f00 32%, #ffab40 42%,
+      #40c4ff 50%, #26c6da 58%, #00bcd4 65%,
+      #e0c88a 72%, #d4b876 76%, #c8a85a 80%,
+      #b8944a 100%);
 }
 .robot-bg.scene-tropical::before {
+  /* Palm trees (tall triangles), beach shacks (small rectangles), clouds */
   background:
-    radial-gradient(ellipse 80px 20px at 25% 18%, rgba(255,255,255,.2) 0%, transparent 100%),
-    radial-gradient(ellipse 60px 15px at 65% 12%, rgba(255,255,255,.15) 0%, transparent 100%),
-    radial-gradient(ellipse 100px 18px at 80% 22%, rgba(255,255,255,.12) 0%, transparent 100%);
+    /* clouds */
+    radial-gradient(ellipse 60px 14px at 20% 10%, rgba(255,255,255,.25) 0%, transparent 100%),
+    radial-gradient(ellipse 45px 10px at 55% 6%, rgba(255,255,255,.2) 0%, transparent 100%),
+    radial-gradient(ellipse 70px 12px at 82% 13%, rgba(255,255,255,.18) 0%, transparent 100%),
+    /* palm tree trunks */
+    linear-gradient(180deg, transparent 40%, #5D4037 40%, #5D4037 42%, transparent 42%) /* trunk1 */,
+    linear-gradient(180deg, transparent 35%, #5D4037 35%, #5D4037 37%, transparent 37%) /* trunk2 */,
+    /* palm fronds (green ovals) */
+    radial-gradient(ellipse 12px 6px at 8% 38%, #2E7D32 0%, transparent 100%),
+    radial-gradient(ellipse 10px 5px at 12% 36%, #388E3C 0%, transparent 100%),
+    radial-gradient(ellipse 14px 6px at 6% 40%, #1B5E20 0%, transparent 100%),
+    radial-gradient(ellipse 11px 5px at 90% 33%, #2E7D32 0%, transparent 100%),
+    radial-gradient(ellipse 13px 6px at 94% 31%, #388E3C 0%, transparent 100%),
+    radial-gradient(ellipse 10px 5px at 87% 35%, #1B5E20 0%, transparent 100%),
+    /* beach shacks / cabanas */
+    linear-gradient(180deg, transparent 68%, #8D6E63 68%, #8D6E63 73%, transparent 73%),
+    linear-gradient(180deg, transparent 66%, #A1887F 66%, #A1887F 68%, transparent 68%),
+    linear-gradient(180deg, transparent 68%, #6D4C41 68%, #6D4C41 73%, transparent 73%),
+    /* resort structure */
+    linear-gradient(180deg, transparent 62%, #ECEFF1 62%, #ECEFF1 72%, transparent 72%);
+  background-size:
+    100% 100%, 100% 100%, 100% 100%,
+    3px 100%, 3px 100%,
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
+    8px 100%, 12px 100%, 6px 100%,
+    18px 100%;
+  background-position:
+    0 0, 0 0, 0 0,
+    10% 0, 92% 0,
+    0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+    25% 0, 30% 0, 70% 0,
+    50% 0;
+  background-repeat: no-repeat;
   animation: sceneDrift 20s ease-in-out infinite alternate;
 }
 .robot-bg.scene-tropical::after {
+  /* Water shimmer + wave line + shore foam */
   background:
-    radial-gradient(ellipse at 50% 95%, rgba(255,255,255,.08) 0%, transparent 40%);
+    linear-gradient(180deg, transparent 48%, rgba(255,255,255,.06) 50%, transparent 52%),
+    linear-gradient(180deg, transparent 70%, rgba(255,255,255,.12) 71%, transparent 72%),
+    radial-gradient(ellipse 30px 3px at 20% 71%, rgba(255,255,255,.2) 0%, transparent 100%),
+    radial-gradient(ellipse 25px 2px at 50% 72%, rgba(255,255,255,.15) 0%, transparent 100%),
+    radial-gradient(ellipse 35px 3px at 78% 70%, rgba(255,255,255,.18) 0%, transparent 100%);
   animation: sceneWave 6s ease-in-out infinite;
 }
 
 /* ── Volcano ── */
+/* Dark sky, distinct volcano mountain shape, lava eruption, ash clouds, flowing material */
 .robot-bg.scene-volcano {
-  background: linear-gradient(180deg, #0a0200 0%, #1a0800 15%, #3e1500 30%, #7f2000 48%, #bf360c 60%, #e65100 72%, #ff6d00 82%, #ff9100 90%, #ffd600 100%);
+  background:
+    linear-gradient(180deg,
+      #050100 0%, #0a0300 10%, #150800 22%,
+      #2a1000 35%, #3e1500 50%,
+      #5a2000 65%, #3a1200 78%, #1a0800 90%, #0a0300 100%);
 }
 .robot-bg.scene-volcano::before {
+  /* Volcano mountain shape + crater glow + lava streams */
   background:
-    radial-gradient(ellipse at 50% 45%, rgba(255,100,0,.35) 0%, transparent 55%),
-    radial-gradient(ellipse at 40% 50%, rgba(255,60,0,.2) 0%, transparent 40%),
-    radial-gradient(ellipse at 60% 40%, rgba(255,150,0,.15) 0%, transparent 45%);
-  animation: sceneGlow 4s ease-in-out infinite;
+    /* Ash/smoke clouds at top */
+    radial-gradient(ellipse 50px 20px at 45% 5%, rgba(80,60,50,.4) 0%, transparent 100%),
+    radial-gradient(ellipse 40px 15px at 55% 8%, rgba(100,70,50,.3) 0%, transparent 100%),
+    radial-gradient(ellipse 60px 18px at 40% 12%, rgba(70,50,40,.25) 0%, transparent 100%),
+    /* Eruption glow at crater */
+    radial-gradient(ellipse 14px 20px at 50% 28%, rgba(255,100,0,.8) 0%, rgba(255,60,0,.3) 50%, transparent 100%),
+    radial-gradient(circle 8px at 50% 25%, rgba(255,200,0,.6) 0%, transparent 100%),
+    /* Lava streams down sides */
+    linear-gradient(160deg, transparent 30%, rgba(255,80,0,.5) 32%, rgba(255,120,0,.3) 34%, transparent 36%),
+    linear-gradient(200deg, transparent 30%, rgba(255,80,0,.4) 32%, rgba(255,100,0,.2) 34%, transparent 36%),
+    linear-gradient(170deg, transparent 33%, rgba(255,60,0,.35) 35%, transparent 37%),
+    /* Mountain silhouette - dark triangular shape */
+    linear-gradient(155deg, transparent 28%, #1a0800 30%, #1a0800 100%),
+    linear-gradient(205deg, transparent 28%, #1a0800 30%, #1a0800 100%),
+    /* Mountain base fills */
+    linear-gradient(180deg, transparent 55%, #120600 55%);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  animation: sceneErupt 6s ease-in-out infinite;
 }
 .robot-bg.scene-volcano::after {
+  /* Flying ember particles + lava bombs */
   background:
-    radial-gradient(1.5px 1.5px at 20% 30%, #FFD600, transparent),
-    radial-gradient(1px 1px at 35% 20%, #FF6D00, transparent),
-    radial-gradient(1.5px 1.5px at 55% 25%, #FFAB00, transparent),
-    radial-gradient(1px 1px at 70% 35%, #FF6D00, transparent),
-    radial-gradient(1px 1px at 85% 15%, #FFD600, transparent),
-    radial-gradient(1.5px 1.5px at 15% 45%, #FF9100, transparent),
-    radial-gradient(1px 1px at 45% 38%, #FFD600, transparent),
-    radial-gradient(1px 1px at 78% 42%, #FF6D00, transparent);
-  animation: sceneTwinkle 2.5s ease-in-out infinite, sceneFloat 5s ease-in-out infinite;
+    radial-gradient(2px 2px at 30% 18%, #FFD600, transparent),
+    radial-gradient(1.5px 1.5px at 42% 12%, #FF6D00, transparent),
+    radial-gradient(2px 2px at 58% 15%, #FFAB00, transparent),
+    radial-gradient(1.5px 1.5px at 48% 22%, #FF6D00, transparent),
+    radial-gradient(1px 1px at 35% 28%, #FFD600, transparent),
+    radial-gradient(2px 2px at 65% 20%, #FF9100, transparent),
+    radial-gradient(1.5px 1.5px at 52% 10%, #FFD600, transparent),
+    radial-gradient(1px 1px at 38% 8%, #FF6D00, transparent),
+    radial-gradient(2px 2px at 55% 30%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 45% 35%, #FFD600, transparent),
+    /* Lava pool glow at base */
+    radial-gradient(ellipse 40px 8px at 50% 90%, rgba(255,100,0,.25) 0%, transparent 100%),
+    radial-gradient(ellipse 25px 5px at 40% 85%, rgba(255,60,0,.2) 0%, transparent 100%),
+    radial-gradient(ellipse 30px 6px at 62% 88%, rgba(255,80,0,.2) 0%, transparent 100%);
+  animation: sceneTwinkle 2s ease-in-out infinite, sceneFloat 4s ease-in-out infinite;
 }
 
 /* ── Forest ── */
+/* Layered tree canopy with distinct round/oval tree crowns, dappled sunlight, depth */
 .robot-bg.scene-forest {
-  background: linear-gradient(180deg, #a8d5ba 0%, #6abf7b 12%, #4caf50 22%, #388e3c 35%, #2e7d32 48%, #1b5e20 62%, #145218 75%, #0d3b12 88%, #071f09 100%);
+  background:
+    linear-gradient(180deg,
+      #b5e8c3 0%, #8dd49e 8%, #6abf7b 16%,
+      #4caf50 28%, #3d9e44 40%, #2e8c35 55%,
+      #1e7a28 70%, #145a1c 82%, #0a3a10 92%, #051f08 100%);
 }
 .robot-bg.scene-forest::before {
+  /* Multiple overlapping tree canopy circles at various depths — back row (lighter) */
   background:
-    radial-gradient(circle 8px at 22% 28%, rgba(255,255,200,.12) 0%, transparent 100%),
-    radial-gradient(circle 6px at 55% 18%, rgba(255,255,200,.1) 0%, transparent 100%),
-    radial-gradient(circle 10px at 78% 32%, rgba(255,255,200,.08) 0%, transparent 100%),
-    radial-gradient(circle 5px at 40% 40%, rgba(255,255,200,.09) 0%, transparent 100%);
-  animation: sceneDrift 12s ease-in-out infinite alternate;
+    /* Sunlight dapples */
+    radial-gradient(circle 5px at 25% 22%, rgba(255,255,180,.15) 0%, transparent 100%),
+    radial-gradient(circle 4px at 60% 15%, rgba(255,255,180,.12) 0%, transparent 100%),
+    radial-gradient(circle 6px at 80% 25%, rgba(255,255,180,.1) 0%, transparent 100%),
+    radial-gradient(circle 3px at 42% 30%, rgba(255,255,180,.08) 0%, transparent 100%),
+    /* Back trees (lighter, smaller — depth) */
+    radial-gradient(ellipse 18px 16px at 10% 30%, #5cb85c 0%, transparent 70%),
+    radial-gradient(ellipse 22px 18px at 28% 25%, #4caf50 0%, transparent 70%),
+    radial-gradient(ellipse 20px 16px at 48% 28%, #57b857 0%, transparent 70%),
+    radial-gradient(ellipse 18px 15px at 68% 22%, #4caf50 0%, transparent 70%),
+    radial-gradient(ellipse 24px 18px at 85% 27%, #5cb85c 0%, transparent 70%),
+    /* Mid trees */
+    radial-gradient(ellipse 24px 22px at 6% 48%, #388e3c 0%, transparent 70%),
+    radial-gradient(ellipse 28px 24px at 22% 45%, #2e7d32 0%, transparent 70%),
+    radial-gradient(ellipse 22px 20px at 38% 50%, #388e3c 0%, transparent 70%),
+    radial-gradient(ellipse 26px 22px at 55% 44%, #2e7d32 0%, transparent 70%),
+    radial-gradient(ellipse 30px 24px at 72% 48%, #388e3c 0%, transparent 70%),
+    radial-gradient(ellipse 24px 20px at 92% 46%, #2e7d32 0%, transparent 70%);
+  animation: sceneDrift 14s ease-in-out infinite alternate;
 }
 .robot-bg.scene-forest::after {
+  /* Front trees (darkest, largest) + trunks + ground */
   background:
-    linear-gradient(180deg, transparent 50%, rgba(13,59,18,.6) 70%, rgba(7,31,9,.8) 100%),
-    radial-gradient(ellipse 30px 60px at 12% 80%, rgba(27,94,32,.7) 0%, transparent 100%),
-    radial-gradient(ellipse 25px 50px at 35% 85%, rgba(27,94,32,.5) 0%, transparent 100%),
-    radial-gradient(ellipse 35px 55px at 65% 82%, rgba(27,94,32,.6) 0%, transparent 100%),
-    radial-gradient(ellipse 28px 50px at 88% 78%, rgba(27,94,32,.5) 0%, transparent 100%);
+    /* Front canopy row */
+    radial-gradient(ellipse 32px 28px at 0% 68%, #1b5e20 0%, transparent 65%),
+    radial-gradient(ellipse 36px 30px at 16% 65%, #145218 0%, transparent 65%),
+    radial-gradient(ellipse 30px 26px at 32% 70%, #1b5e20 0%, transparent 65%),
+    radial-gradient(ellipse 38px 32px at 50% 66%, #145218 0%, transparent 65%),
+    radial-gradient(ellipse 34px 28px at 68% 68%, #1b5e20 0%, transparent 65%),
+    radial-gradient(ellipse 32px 26px at 84% 65%, #145218 0%, transparent 65%),
+    radial-gradient(ellipse 28px 24px at 100% 70%, #1b5e20 0%, transparent 65%),
+    /* Tree trunks (thin brown lines) */
+    linear-gradient(180deg, transparent 62%, #3E2723 62%, #3E2723 64%, transparent 64%),
+    linear-gradient(180deg, transparent 60%, #4E342E 60%, #4E342E 62%, transparent 62%),
+    linear-gradient(180deg, transparent 63%, #3E2723 63%, #3E2723 65%, transparent 65%),
+    linear-gradient(180deg, transparent 61%, #4E342E 61%, #4E342E 63%, transparent 63%),
+    /* Dark forest floor */
+    linear-gradient(180deg, transparent 78%, rgba(5,15,4,.7) 85%, rgba(3,10,2,.9) 100%);
+  background-size:
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
+    3px 100%, 2px 100%, 3px 100%, 2px 100%,
+    100% 100%;
+  background-position:
+    0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+    18% 0, 38% 0, 58% 0, 78% 0,
+    0 0;
+  background-repeat: no-repeat;
 }
 
 /* ── City (Roku-inspired art deco) ── */
+/* Wide buildings, streets at bottom with moving cars, neon glow, layered skyline */
 .robot-bg.scene-city {
-  background: linear-gradient(180deg, #0a0a1e 0%, #1a1040 12%, #2d1560 25%, #4a1a7a 38%, #7b1fa2 50%, #c2185b 65%, #e64a19 78%, #ff8f00 88%, #ffd54f 100%);
+  background:
+    linear-gradient(180deg,
+      #06061a 0%, #0e0e30 10%, #1a1050 20%, #2d1568 32%, #4a1a80 44%,
+      #7b1fa2 54%, #c2185b 66%, #e64a19 76%, #ff8f00 86%, #ffd54f 100%);
 }
 .robot-bg.scene-city::before {
+  /* Wide building silhouettes with varied heights + street at bottom */
   background:
-    repeating-linear-gradient(90deg,
-      transparent 0px, transparent 6px,
-      rgba(0,0,0,.45) 6px, rgba(0,0,0,.45) 8px,
-      transparent 8px, transparent 10px,
-      rgba(0,0,0,.35) 10px, rgba(0,0,0,.35) 14px,
-      transparent 14px, transparent 20px,
-      rgba(0,0,0,.5) 20px, rgba(0,0,0,.5) 22px,
-      transparent 22px, transparent 28px,
-      rgba(0,0,0,.4) 28px, rgba(0,0,0,.4) 32px,
-      transparent 32px, transparent 36px);
-  background-size: 400px 100%;
-  background-position: 0 bottom;
-  mask-image: linear-gradient(180deg, transparent 40%, black 55%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 40%, black 55%);
-  animation: sceneScroll 25s linear infinite;
-  opacity: .6;
+    /* Street level — dark road with lane markings */
+    linear-gradient(180deg, transparent 88%, #1a1a1a 88%, #1a1a1a 100%),
+    /* Lane markings / street line */
+    repeating-linear-gradient(90deg, transparent 0, transparent 10px, rgba(255,200,50,.2) 10px, rgba(255,200,50,.2) 16px, transparent 16px, transparent 30px),
+    /* Wide buildings — back row (shorter, lighter) */
+    linear-gradient(180deg, transparent 42%, rgba(20,15,40,.5) 42%, rgba(20,15,40,.5) 88%, transparent 88%),
+    linear-gradient(180deg, transparent 48%, rgba(25,18,50,.4) 48%, rgba(25,18,50,.4) 88%, transparent 88%),
+    linear-gradient(180deg, transparent 38%, rgba(18,12,38,.5) 38%, rgba(18,12,38,.5) 88%, transparent 88%),
+    linear-gradient(180deg, transparent 50%, rgba(22,16,45,.4) 50%, rgba(22,16,45,.4) 88%, transparent 88%),
+    /* Front buildings (taller, darker, wider) */
+    linear-gradient(180deg, transparent 30%, rgba(10,8,25,.7) 30%, rgba(10,8,25,.7) 88%, transparent 88%),
+    linear-gradient(180deg, transparent 35%, rgba(12,10,30,.65) 35%, rgba(12,10,30,.65) 88%, transparent 88%),
+    linear-gradient(180deg, transparent 25%, rgba(8,6,20,.7) 25%, rgba(8,6,20,.7) 88%, transparent 88%),
+    linear-gradient(180deg, transparent 40%, rgba(14,10,32,.6) 40%, rgba(14,10,32,.6) 88%, transparent 88%),
+    linear-gradient(180deg, transparent 32%, rgba(10,8,25,.7) 32%, rgba(10,8,25,.7) 88%, transparent 88%);
+  background-size:
+    100% 100%,
+    600px 4px,
+    22px 100%, 18px 100%, 26px 100%, 16px 100%,
+    30px 100%, 24px 100%, 34px 100%, 20px 100%, 28px 100%;
+  background-position:
+    0 0,
+    0 92%,
+    5% 0, 16% 0, 28% 0, 40% 0,
+    52% 0, 62% 0, 74% 0, 85% 0, 95% 0;
+  background-repeat:
+    no-repeat,
+    repeat-x,
+    no-repeat, no-repeat, no-repeat, no-repeat,
+    no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  animation: sceneScroll 40s linear infinite;
 }
 .robot-bg.scene-city::after {
+  /* Window lights on buildings + moving car headlights on street */
   background:
-    radial-gradient(1px 1px at 10% 60%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 18% 65%, #FFC107, transparent),
-    radial-gradient(1px 1px at 25% 58%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 33% 70%, #FF8F00, transparent),
-    radial-gradient(1px 1px at 42% 62%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 50% 68%, #FFC107, transparent),
-    radial-gradient(1px 1px at 58% 55%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 65% 72%, #FF8F00, transparent),
-    radial-gradient(1px 1px at 72% 60%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 80% 66%, #FFC107, transparent),
-    radial-gradient(1px 1px at 88% 58%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 95% 64%, #FF8F00, transparent);
+    /* Window lights — scattered yellow dots */
+    radial-gradient(1.5px 1.5px at 8% 45%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 10% 52%, #FFC107, transparent),
+    radial-gradient(1.5px 1.5px at 12% 60%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 20% 40%, #FF8F00, transparent),
+    radial-gradient(1.5px 1.5px at 22% 55%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 35% 35%, #FFC107, transparent),
+    radial-gradient(1.5px 1.5px at 38% 48%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 55% 30%, #FF8F00, transparent),
+    radial-gradient(1.5px 1.5px at 58% 42%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 60% 56%, #FFC107, transparent),
+    radial-gradient(1.5px 1.5px at 75% 33%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 78% 50%, #FF8F00, transparent),
+    radial-gradient(1.5px 1.5px at 80% 62%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 90% 38%, #FFC107, transparent),
+    radial-gradient(1.5px 1.5px at 95% 52%, #FFD54F, transparent),
+    /* Car headlights on street — small bright dots at bottom */
+    radial-gradient(2px 1.5px at 15% 92%, #fff, transparent),
+    radial-gradient(2px 1.5px at 35% 91%, #FF6F00, transparent),
+    radial-gradient(2px 1.5px at 60% 93%, #fff, transparent),
+    radial-gradient(2px 1.5px at 82% 92%, #FF6F00, transparent),
+    /* Neon glow accents */
+    radial-gradient(ellipse 20px 4px at 30% 87%, rgba(194,24,91,.2) 0%, transparent 100%),
+    radial-gradient(ellipse 16px 3px at 70% 87%, rgba(123,31,162,.2) 0%, transparent 100%);
   animation: sceneTwinkle2 3s ease-in-out infinite;
-  mask-image: linear-gradient(180deg, transparent 45%, black 60%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 45%, black 60%);
+}
+
+/* ── Sunset ── */
+/* Warm coral/orange/purple atmospheric sunset sky, drifting clouds, sun glow, water reflection */
+.robot-bg.scene-sunset {
+  background:
+    linear-gradient(180deg,
+      #1a0533 0%, #2d1054 8%, #5c1a6e 18%, #8e2475 28%,
+      #c2185b 38%, #e64a19 48%, #ff6f00 56%, #ff8f00 63%,
+      #ffab40 70%, #ffd54f 78%, #ffe082 85%,
+      #1a237e 90%, #0d1b3e 100%);
+}
+.robot-bg.scene-sunset::before {
+  /* Sun glow + clouds */
+  background:
+    /* Sun disk at horizon */
+    radial-gradient(circle 20px at 50% 72%, rgba(255,200,50,.8) 0%, rgba(255,150,0,.4) 40%, transparent 70%),
+    radial-gradient(circle 35px at 50% 75%, rgba(255,180,50,.25) 0%, transparent 70%),
+    /* Warm clouds */
+    radial-gradient(ellipse 70px 16px at 18% 20%, rgba(255,180,120,.3) 0%, transparent 100%),
+    radial-gradient(ellipse 55px 12px at 45% 14%, rgba(255,160,100,.25) 0%, transparent 100%),
+    radial-gradient(ellipse 80px 14px at 75% 22%, rgba(255,140,80,.2) 0%, transparent 100%),
+    radial-gradient(ellipse 50px 10px at 60% 8%, rgba(255,200,150,.18) 0%, transparent 100%),
+    radial-gradient(ellipse 65px 13px at 30% 28%, rgba(200,100,60,.15) 0%, transparent 100%),
+    /* Horizon shimmer */
+    linear-gradient(180deg, transparent 68%, rgba(255,200,100,.06) 72%, rgba(255,180,80,.04) 76%, transparent 80%);
+  animation: sceneDrift 18s ease-in-out infinite alternate;
+}
+.robot-bg.scene-sunset::after {
+  /* Water reflection below horizon + ripples */
+  background:
+    /* Water surface reflections */
+    radial-gradient(ellipse 40px 3px at 30% 92%, rgba(255,180,80,.15) 0%, transparent 100%),
+    radial-gradient(ellipse 50px 3px at 55% 90%, rgba(255,200,100,.12) 0%, transparent 100%),
+    radial-gradient(ellipse 35px 2px at 75% 94%, rgba(255,160,60,.1) 0%, transparent 100%),
+    radial-gradient(ellipse 45px 3px at 45% 88%, rgba(255,220,120,.08) 0%, transparent 100%),
+    /* Sparkle on water */
+    radial-gradient(1.5px 1.5px at 40% 91%, rgba(255,240,200,.4), transparent),
+    radial-gradient(1px 1px at 55% 93%, rgba(255,220,150,.3), transparent),
+    radial-gradient(1.5px 1.5px at 65% 90%, rgba(255,240,200,.35), transparent),
+    radial-gradient(1px 1px at 30% 94%, rgba(255,220,150,.25), transparent);
+  animation: sceneWave 5s ease-in-out infinite, sceneTwinkle2 4s ease-in-out infinite;
 }
 
 /* Context menu */
@@ -582,8 +794,23 @@ body.light .fun-btn { background: var(--accent); }
 
 /* Expanded pane: bigger charts */
 .pane.expanded .stat-card { min-width: 220px; }
+.pane.expanded .stat-card .sc-label { font-size: .82rem; }
+.pane.expanded .stat-card .sc-value { font-size: 1.3rem; }
+.pane.expanded .stat-card .sc-change { font-size: .82rem; }
 .pane.expanded #stockCompareWrap { min-height: 250px; flex: 0 0 40%; }
 .pane.expanded #stockDash { flex: 1; }
+/* Expanded browse list — bigger text */
+.pane.expanded .browse-row { padding: 10px 16px; font-size: .85rem; }
+.pane.expanded .browse-row .br-ticker { font-size: 1rem; width: 80px; }
+.pane.expanded .browse-row .br-name { font-size: .9rem; }
+.pane.expanded .browse-row .br-price { font-size: .95rem; width: 90px; }
+.pane.expanded .browse-row .br-cap { font-size: .85rem; width: 100px; }
+.pane.expanded .browse-row .br-sector { font-size: .78rem; width: 100px; }
+.pane.expanded .browse-row .br-size { font-size: .75rem; }
+/* Column resize handle for spreadsheet */
+.ss-table th { position: relative; }
+.col-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 5; background: transparent; }
+.col-resize-handle:hover, .col-resize-handle.dragging { background: var(--accent); }
 
 /* Page tabs for multi-page panes */
 .page-tabs {
@@ -704,7 +931,7 @@ body.light .fun-btn { background: var(--accent); }
 .browse-row .br-cap { width: 80px; text-align: right; color: var(--text-dim); }
 .browse-row .br-sector { width: 80px; font-size: .62rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .browse-row .br-size { width: 65px; font-size: .6rem; }
-.browse-row .br-size .sz-mega { color: #6366f1; } .browse-row .br-size .sz-large { color: #10b981; } .browse-row .br-size .sz-mid { color: #f59e0b; }
+.browse-row .br-size .sz-mega { color: #6366f1; } .browse-row .br-size .sz-large { color: #10b981; } .browse-row .br-size .sz-mid { color: #f59e0b; } .browse-row .br-size .sz-small { color: #ef4444; } .browse-row .br-size .sz-etf { color: #8b5cf6; }
 .browse-row .br-add { width: 50px; text-align: center; }
 .browse-row .br-cmp { width: 40px; text-align: center; }
 .browse-row .br-add button, .browse-row .br-cmp button {
@@ -728,6 +955,58 @@ body.light .fun-btn { background: var(--accent); }
 
 /* comp-sensitive hide */
 body.ops-mode .comp-sensitive { color: transparent !important; user-select: none; }
+
+/* ═══ MOBILE ═══ */
+.mobile-nav { display: none; }
+@media (max-width: 768px) {
+  .header { padding: 0 8px; gap: 4px; height: 40px; }
+  .header h1 { font-size: 12px; }
+  .nav-groups { display: none !important; }
+  #resetGridBtn, #gridSettingsBtn { display: none !important; }
+  .header-right { gap: 4px; }
+  .header-right > button, .header-right > span, .header-right > select { font-size: .55rem !important; padding: 2px 4px !important; }
+  .workspace {
+    display: block !important;
+    height: calc(100vh - 40px - 36px) !important;
+    overflow: hidden;
+  }
+  .workspace .divider-h, .workspace .divider-v { display: none !important; }
+  .workspace .pane {
+    position: absolute !important; top: 0; left: 0; right: 0; bottom: 0;
+    display: none !important;
+    grid-column: unset !important; grid-row: unset !important;
+  }
+  .workspace .pane.mobile-active {
+    display: flex !important;
+  }
+  .mobile-nav {
+    display: flex; align-items: center; justify-content: center;
+    height: 36px; background: var(--bg); border-top: 1px solid var(--border);
+    gap: 0; padding: 0 4px; position: relative; z-index: 200;
+  }
+  .mobile-nav button.mob-arrow {
+    width: 32px; height: 28px; background: none; border: 1px solid var(--border);
+    color: var(--text); font-size: 1rem; cursor: pointer; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .mobile-nav button.mob-arrow:hover { background: var(--panel-inset); }
+  .mobile-nav .mob-pages {
+    display: flex; gap: 2px; overflow-x: auto; padding: 0 4px; flex: 1;
+    justify-content: center;
+  }
+  .mobile-nav .mob-page {
+    padding: 4px 8px; font-size: .6rem; border: none; background: none;
+    color: var(--text-dim); cursor: pointer; white-space: nowrap; border-radius: 4px;
+    font-weight: 600;
+  }
+  .mobile-nav .mob-page.active { color: var(--accent); background: rgba(80,80,221,.1); }
+  .pane .p-head { padding: 4px 8px; }
+  .pane .p-title { font-size: .7rem; }
+  .pane .toolbar { flex-wrap: wrap; gap: 2px; padding: 2px 4px; }
+  .pane .toolbar button, .pane .toolbar select { font-size: .55rem; padding: 1px 3px; }
+  .ai-input-row { padding: 4px; }
+  .ai-input-row textarea { font-size: .75rem; }
+}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
@@ -743,6 +1022,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div id="authModeSelect" style="display:flex;gap:12px;justify-content:center;margin-bottom:16px;">
       <button id="authUserBtn" style="padding:12px 28px;border:1px solid var(--border);border-radius:10px;background:var(--panel-inset);color:var(--text);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;">&#128100; User</button>
       <button id="authAdminBtn" style="padding:12px 28px;border:1px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.1);color:var(--accent2);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;">&#128272; Admin</button>
+    </div>
+    <div id="authUserNameForm" style="display:none;margin-top:12px;">
+      <input type="text" id="authUserName" placeholder="Enter your name" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:10px;box-sizing:border-box;" />
+      <button id="authUserEnter" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--success, #10b981);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Enter Workspace</button>
     </div>
     <div id="authAdminForm" style="display:none;margin-top:12px;">
       <div style="position:relative;">
@@ -770,9 +1053,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button data-pane="q-map">Analytics</button>
         <button data-pane="q-news">News</button>
       </div>
-      <button id="resetGridBtn" class="fs-btn" title="Reset grid layout to show all panes" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">&#8634; Grid</button>
-      <button id="gridSettingsBtn" class="fs-btn" title="Rearrange pane positions" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">&#9881; Layout</button>
     </div>
+      <div style="display:flex;gap:4px;margin-left:8px;align-items:center;">
+        <button id="resetGridBtn" class="fs-btn" title="Reset grid layout to show all panes" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">&#8634; Grid</button>
+        <button id="gridSettingsBtn" class="fs-btn" title="Rearrange pane positions" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">&#9881; Layout</button>
+      </div>
   </div>
   <div class="header-spacer"></div>
   <div class="header-toggles">
@@ -826,6 +1111,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
       </div>
     </div>
+    <span id="userNameDisplay" style="display:none;font-size:.65rem;color:var(--text-dim);padding:0 4px;"></span>
+    <button class="fs-btn" id="userExitBtn" title="Exit to login screen" style="font-size:.65rem;color:var(--accent2);display:none;border:1px solid var(--accent2);border-radius:4px;padding:2px 8px;">&#8592; Exit</button>
     <button class="fs-btn" id="logoutBtn" title="Exit admin mode — return to guest/user view" style="font-size:.65rem;color:var(--danger);display:none;border:1px solid var(--danger);border-radius:4px;padding:2px 8px;">&#128274; Logout</button>
     <button class="fs-btn" id="helpBtn" title="Help" style="font-size:1rem;">?</button>
     <button class="fs-btn" id="fsBtn" title="Fullscreen">&#x26F6;</button>
@@ -924,6 +1211,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </label>
       <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
       <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
+      <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
+      <button id="aiSavedActionsBtn" class="p-btn" title="Saved tool actions" style="font-size:.55rem;">Actions</button>
       <button id="aiLogBtn" class="p-btn" title="Save chat log to notepad tabs">&#128218;</button>
       <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
@@ -985,11 +1274,19 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <div style="border-top:1px solid var(--border);padding-top:8px;" id="pricingResults"></div>
         </div>
       </div>
+      <div id="aiUsageDash" style="display:none;position:absolute;top:0;left:4px;right:4px;z-index:80;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:12px 14px;font-size:.65rem;overflow-y:auto;max-height:90%;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-weight:700;color:var(--accent2);">User Usage Dashboard</span>
+          <button onclick="$('#aiUsageDash').style.display='none'" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;">&times;</button>
+        </div>
+        <div id="aiUsageDashContent"></div>
+      </div>
       <div class="ai-msgs" id="aiMsgs"></div>
       <div class="ai-input-row">
         <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="2"></textarea>
         <button id="aiSend">Send</button>
       </div>
+      <div class="robot-scene-resize" id="robotSceneResize" title="Drag to resize robot scene"></div>
       <div class="robot-scene" id="robotScene">
         <div class="robot-bg" id="robotBg"></div>
         <div class="robot-glass"></div>
@@ -997,6 +1294,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div class="robot-plant robot-plant-r"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div></div>
         <div class="robot-body">
           <div class="robot-head" id="robotHead">
+            <div class="robot-glasses"><div class="robot-glasses-bridge"></div></div>
             <div class="robot-eyes"><span class="eye"></span><span class="eye"></span></div>
           </div>
           <div class="robot-torso"><div class="robot-tie" id="robotTie"></div></div>
@@ -1035,15 +1333,24 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <option value="volcano">Volcano</option>
           <option value="forest">Forest</option>
           <option value="city">City</option>
+          <option value="sunset">Sunset</option>
         </select>
       </div>
-      <div style="padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
+      <div id="aiApiKeySection" style="padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
         <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
           <input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
           <button id="aiKeyToggle" style="padding:3px 6px;border:none;border-radius:4px;background:var(--panel-inset);color:var(--text-dim);cursor:pointer;font-size:.6rem;" title="Show/hide key">&#128065;</button>
           <button id="aiKeySave" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Save</button>
         </div>
         <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Key stored locally. Never sent anywhere except api.anthropic.com.</div>
+      </div>
+      <div id="aiApiKeyLocked" style="display:none;padding:6px 10px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
+        <div style="font-size:.6rem;color:var(--text-dim);margin-bottom:4px;">API key access requires authorization:</div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <input type="password" id="aiKeyUnlockPw" placeholder="Enter admin password" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
+          <button id="aiKeyUnlockBtn" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Unlock</button>
+        </div>
+        <div id="aiKeyUnlockError" style="color:var(--danger);font-size:.55rem;margin-top:2px;display:none;">Invalid password</div>
       </div>
     </div>
   </div>
@@ -1075,7 +1382,12 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <span style="font-size:.7rem;color:var(--text-dim)">Opacity</span>
         <input type="range" id="wbOpacity" min="10" max="100" value="100" title="Opacity" />
         <div class="sep"></div>
-        <button id="wbGrid" title="Toggle grid">Grid</button>
+        <select id="wbGridMode" title="Grid overlay" style="font-size:.68rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+          <option value="none">No Grid</option>
+          <option value="simple">Grid</option>
+          <option value="2d">2D Axes</option>
+          <option value="3d">3D Iso</option>
+        </select>
         <button id="wbUndo">Undo</button>
         <button id="wbClear">Clear</button>
         <button id="wbSave">PNG</button>
@@ -1139,6 +1451,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="ssHeat" title="Heat map">Heat</button>
         <button id="ssFormulas" title="Show formulas">fx</button>
         <button id="ssCalcAll" title="Force recalculate all formulas" style="color:var(--accent2);font-weight:600;">&#9889; Calc</button>
+        <button id="ssUndo" title="Undo last change">Undo</button>
+        <button id="ssHelp" title="Formula reference">? Help</button>
         <button id="ssExport">CSV</button>
       </div>
       <div class="ss-wrap" id="ssWrap">
@@ -1219,6 +1533,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="Mega Cap">Mega Cap</option>
               <option value="Large Cap">Large Cap</option>
               <option value="Mid Cap">Mid Cap</option>
+              <option value="Small Cap">Small Cap</option>
+              <option value="ETF">ETF</option>
             </select>
             <input type="text" id="browseSearch" placeholder="Filter..." style="font-size:.68rem;padding:2px 6px;border-radius:3px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:90px;" />
             <button id="stockBrowseClose" style="font-size:.78rem;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text-dim);cursor:pointer;">&times; Close</button>
@@ -1390,6 +1706,13 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 </div>
 
+<!-- Mobile navigation bar -->
+<div class="mobile-nav" id="mobileNav">
+  <button class="mob-arrow" id="mobPrev" title="Previous pane">&#8592;</button>
+  <div class="mob-pages" id="mobPages"></div>
+  <button class="mob-arrow" id="mobNext" title="Next pane">&#8594;</button>
+</div>
+
 <!-- Context menu -->
 <div class="ctx-menu" id="ctxMenu">
   <div class="ctx-item" data-action="cut">&#9986; Cut</div>
@@ -1424,7 +1747,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
    AUTH GATE
    ═══════════════════════════════════════════ */
 let wsIsAdmin = localStorage.getItem('ws_adminSession') === 'true';
-const ADMIN_PASSWORD = 'alphabetsoup'; // In production, validate server-side
+let wsUserName = localStorage.getItem('ws_userName') || '';
+const ADMIN_PASSWORD = 'animalcrackers'; // Full admin workspace access
+const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
 
 (function initAuthGate() {
   const gate = document.getElementById('authGate');
@@ -1433,15 +1758,40 @@ const ADMIN_PASSWORD = 'alphabetsoup'; // In production, validate server-side
   // If already authenticated as admin, skip gate
   if (wsIsAdmin) { gate.style.display = 'none'; return; }
 
-  // User mode: hide Claude pane, enter workspace
+  // User mode: show name form
   document.getElementById('authUserBtn').onclick = () => {
-    gate.style.display = 'none';
-    const claudePane = document.getElementById('q-claude');
-    if (claudePane) claudePane.remove();
-    // Also remove Claude from tab bar
-    const claudeTab = document.querySelector('[data-pane="q-claude"]');
-    if (claudeTab) claudeTab.remove();
+    document.getElementById('authModeSelect').style.display = 'none';
+    document.getElementById('authUserNameForm').style.display = 'block';
+    document.getElementById('authUserName').focus();
   };
+
+  // User name submit
+  function enterUserMode() {
+    const name = document.getElementById('authUserName').value.trim();
+    if (!name) { document.getElementById('authUserName').focus(); return; }
+    wsUserName = name;
+    localStorage.setItem('ws_userName', name);
+    gate.style.display = 'none';
+    // Keep Claude pane but hide admin-only elements
+    const pricingBtn = document.getElementById('aiPricingBtn');
+    if (pricingBtn) pricingBtn.style.display = 'none';
+    const pricingPanel = document.getElementById('aiPricingPanel');
+    if (pricingPanel) pricingPanel.style.display = 'none';
+    // Hide real API key section, show locked version
+    const apiSection = document.getElementById('aiApiKeySection');
+    if (apiSection) apiSection.style.display = 'none';
+    const lockedSection = document.getElementById('aiApiKeyLocked');
+    if (lockedSection) lockedSection.style.display = 'block';
+    // Hide admin-only buttons
+    const usageDashBtn = document.getElementById('aiUsageDashBtn');
+    if (usageDashBtn) usageDashBtn.style.display = 'none';
+    // Show user exit button and name
+    showUserInfo();
+  }
+  document.getElementById('authUserEnter').onclick = enterUserMode;
+  document.getElementById('authUserName').addEventListener('keydown', e => {
+    if (e.key === 'Enter') enterUserMode();
+  });
 
   // Admin mode: show password form
   document.getElementById('authAdminBtn').onclick = () => {
@@ -1476,6 +1826,40 @@ const ADMIN_PASSWORD = 'alphabetsoup'; // In production, validate server-side
   };
 })();
 
+// API key unlock for user mode
+(function() {
+  const btn = document.getElementById('aiKeyUnlockBtn');
+  if (!btn) return;
+  btn.onclick = () => {
+    const pw = document.getElementById('aiKeyUnlockPw').value;
+    if (pw === API_KEY_PASSWORD) {
+      document.getElementById('aiApiKeyLocked').style.display = 'none';
+      document.getElementById('aiApiKeySection').style.display = 'block';
+    } else {
+      document.getElementById('aiKeyUnlockError').style.display = 'block';
+      document.getElementById('aiKeyUnlockPw').value = '';
+      document.getElementById('aiKeyUnlockPw').focus();
+    }
+  };
+  document.getElementById('aiKeyUnlockPw').addEventListener('keydown', e => {
+    if (e.key === 'Enter') btn.click();
+  });
+})();
+
+// Show user info (exit button + name)
+function showUserInfo() {
+  const exitBtn = document.getElementById('userExitBtn');
+  const nameDisp = document.getElementById('userNameDisplay');
+  if (exitBtn) {
+    exitBtn.style.display = 'inline-block';
+    exitBtn.onclick = () => { localStorage.removeItem('ws_userName'); location.reload(); };
+  }
+  if (nameDisp && wsUserName) {
+    nameDisp.style.display = 'inline-block';
+    nameDisp.textContent = wsUserName;
+  }
+}
+
 // Show logout button if admin — always bind the handler and persist visibility
 function showLogoutButton() {
   const lb = document.getElementById('logoutBtn');
@@ -1485,6 +1869,36 @@ function showLogoutButton() {
   }
 }
 if (wsIsAdmin) showLogoutButton();
+
+/* Per-user API usage tracking */
+function trackUserUsage(tokensIn, tokensOut, model) {
+  const name = localStorage.getItem('ws_userName');
+  if (!name) return;
+  const key = 'ws_usage_' + name;
+  const data = JSON.parse(localStorage.getItem(key) || '{"requests":0,"tokensIn":0,"tokensOut":0,"cost":0,"models":{}}');
+  data.requests++;
+  data.tokensIn += tokensIn;
+  data.tokensOut += tokensOut;
+  const rates = typeof MODEL_RATES !== 'undefined' ? (MODEL_RATES[model] || { input: 3, output: 15 }) : { input: 3, output: 15 };
+  data.cost += (tokensIn / 1e6 * rates.input) + (tokensOut / 1e6 * rates.output);
+  data.models[model] = (data.models[model] || 0) + 1;
+  data.lastActive = new Date().toISOString();
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
+/* Admin: get all user usage data */
+function getAllUserUsage() {
+  const users = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith('ws_usage_')) {
+      const name = k.substring(9);
+      const data = JSON.parse(localStorage.getItem(k) || '{}');
+      users.push({ name, ...data });
+    }
+  }
+  return users.sort((a, b) => (b.cost || 0) - (a.cost || 0));
+}
 
 /* ═══════════════════════════════════════════
    CORE UTILS
@@ -1697,6 +2111,69 @@ $('#gridApplyBtn').onclick = () => {
   if (JSON.stringify(order) !== JSON.stringify(DEFAULT_GRID_ORDER)) {
     applyGridOrder(order);
   }
+})();
+
+// ── Mobile navigation ──
+(function initMobileNav() {
+  const MOBILE_PANES = [
+    { id: 'q-notepad', label: 'Notes' },
+    { id: 'q-claude', label: 'Claude' },
+    { id: 'q-sheet', label: 'Sheet' },
+    { id: 'q-whiteboard', label: 'Draw' },
+    { id: 'q-map', label: 'Analytics' },
+    { id: 'q-news', label: 'News' }
+  ];
+  let mobIdx = 0;
+  const isMobile = () => window.innerWidth <= 768;
+  const pagesEl = document.getElementById('mobPages');
+  const prevBtn = document.getElementById('mobPrev');
+  const nextBtn = document.getElementById('mobNext');
+  if (!pagesEl || !prevBtn || !nextBtn) return;
+
+  function renderMobPages() {
+    pagesEl.innerHTML = MOBILE_PANES.map((p, i) =>
+      '<button class="mob-page' + (i === mobIdx ? ' active' : '') + '" data-idx="' + i + '">' + p.label + '</button>'
+    ).join('');
+    pagesEl.querySelectorAll('.mob-page').forEach(btn => {
+      btn.onclick = () => { mobIdx = +btn.dataset.idx; showMobPane(); };
+    });
+  }
+
+  function showMobPane() {
+    if (!isMobile()) return;
+    $$('.pane').forEach(el => el.classList.remove('mobile-active'));
+    const el = document.getElementById(MOBILE_PANES[mobIdx].id);
+    if (el) el.classList.add('mobile-active');
+    renderMobPages();
+    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
+  }
+
+  prevBtn.onclick = () => { mobIdx = (mobIdx - 1 + MOBILE_PANES.length) % MOBILE_PANES.length; showMobPane(); };
+  nextBtn.onclick = () => { mobIdx = (mobIdx + 1) % MOBILE_PANES.length; showMobPane(); };
+
+  // Initialize on load if mobile
+  function checkMobile() {
+    if (isMobile()) {
+      showMobPane();
+    } else {
+      $$('.pane').forEach(el => el.classList.remove('mobile-active'));
+    }
+  }
+  window.addEventListener('resize', checkMobile);
+  checkMobile();
+
+  // Swipe support
+  let touchStartX = 0;
+  document.getElementById('workspace').addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  document.getElementById('workspace').addEventListener('touchend', e => {
+    if (!isMobile()) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) {
+      if (dx > 0) { mobIdx = (mobIdx - 1 + MOBILE_PANES.length) % MOBILE_PANES.length; }
+      else { mobIdx = (mobIdx + 1) % MOBILE_PANES.length; }
+      showMobPane();
+    }
+  }, { passive: true });
 })();
 
 let urls = LS('urls') || [];
@@ -2172,7 +2649,7 @@ renderNpTabs();
    ═══════════════════════════════════════════ */
 const wbC = $('#wbCanvas');
 const wbX = wbC.getContext('2d');
-let wbTool = 'pen', wbDraw = false, wbHist = [], wbSX, wbSY, wbShowGrid = false;
+let wbTool = 'pen', wbDraw = false, wbHist = [], wbSX, wbSY, wbGridMode = 'none';
 
 function resizeWB() {
   const w = $('#wbWrap');
@@ -2185,14 +2662,43 @@ function resizeWB() {
   wbC.width = cw; wbC.height = ch;
   // Canvas is transparent; CSS background on .wb-wrap handles the bg color
   wbX.drawImage(tmp, 0, 0);
-  if (wbShowGrid) wbDrawGrid();
+  if (wbGridMode !== 'none') wbDrawGrid();
 }
 function wbDrawGrid() {
+  if (wbGridMode === 'none') return;
   wbX.save();
-  wbX.strokeStyle = 'rgba(128,128,128,.1)';
-  wbX.lineWidth = 0.5;
-  for (let x = 0; x < wbC.width; x += 20) { wbX.beginPath(); wbX.moveTo(x, 0); wbX.lineTo(x, wbC.height); wbX.stroke(); }
-  for (let y = 0; y < wbC.height; y += 20) { wbX.beginPath(); wbX.moveTo(0, y); wbX.lineTo(wbC.width, y); wbX.stroke(); }
+  if (wbGridMode === 'simple') {
+    wbX.strokeStyle = 'rgba(128,128,128,.1)'; wbX.lineWidth = 0.5;
+    for (let x = 0; x < wbC.width; x += 20) { wbX.beginPath(); wbX.moveTo(x, 0); wbX.lineTo(x, wbC.height); wbX.stroke(); }
+    for (let y = 0; y < wbC.height; y += 20) { wbX.beginPath(); wbX.moveTo(0, y); wbX.lineTo(wbC.width, y); wbX.stroke(); }
+  } else if (wbGridMode === '2d') {
+    const step = 40, originX = 50, originY = wbC.height - 40;
+    wbX.strokeStyle = 'rgba(128,128,128,.3)'; wbX.lineWidth = 1.5;
+    wbX.beginPath(); wbX.moveTo(originX, 10); wbX.lineTo(originX, originY); wbX.lineTo(wbC.width - 10, originY); wbX.stroke();
+    wbX.strokeStyle = 'rgba(128,128,128,.08)'; wbX.lineWidth = 0.5;
+    wbX.fillStyle = 'rgba(128,128,128,.4)'; wbX.font = '9px system-ui'; wbX.textAlign = 'center';
+    for (let x = originX; x < wbC.width - 10; x += step) {
+      wbX.beginPath(); wbX.moveTo(x, 10); wbX.lineTo(x, originY); wbX.stroke();
+      wbX.fillText(Math.round((x - originX) / step).toString(), x, originY + 14);
+    }
+    wbX.textAlign = 'right';
+    for (let y = originY; y > 10; y -= step) {
+      wbX.beginPath(); wbX.moveTo(originX, y); wbX.lineTo(wbC.width - 10, y); wbX.stroke();
+      wbX.fillText(Math.round((originY - y) / step).toString(), originX - 6, y + 3);
+    }
+  } else if (wbGridMode === '3d') {
+    const step = 30;
+    wbX.strokeStyle = 'rgba(128,128,128,.08)'; wbX.lineWidth = 0.5;
+    for (let y = 0; y < wbC.height; y += step) {
+      wbX.beginPath(); wbX.moveTo(0, y); wbX.lineTo(wbC.width, y); wbX.stroke();
+    }
+    const angle = Math.PI / 6;
+    const dx = wbC.height / Math.tan(angle);
+    for (let x = -wbC.height * 2; x < wbC.width + wbC.height * 2; x += step) {
+      wbX.beginPath(); wbX.moveTo(x, wbC.height); wbX.lineTo(x + dx, 0); wbX.stroke();
+      wbX.beginPath(); wbX.moveTo(x, wbC.height); wbX.lineTo(x - dx, 0); wbX.stroke();
+    }
+  }
   wbX.restore();
 }
 function wbSaveState() { wbHist.push(wbC.toDataURL()); if (wbHist.length > 50) wbHist.shift(); }
@@ -2208,15 +2714,13 @@ $$('.wb-tool').forEach(btn => {
   };
 });
 
-$('#wbGrid').onclick = function() {
-  wbShowGrid = !wbShowGrid;
-  this.classList.toggle('active', wbShowGrid);
-  // Redraw
+$('#wbGridMode').onchange = function() {
+  wbGridMode = this.value;
   if (wbHist.length) {
     const img = new Image();
-    img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); if (wbShowGrid) wbDrawGrid(); };
+    img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); wbDrawGrid(); };
     img.src = wbHist[wbHist.length - 1];
-  }
+  } else { wbDrawGrid(); }
 };
 
 wbC.addEventListener('mousedown', e => {
@@ -2591,6 +3095,8 @@ let ssR = 20, ssC = 10, ssD = [], ssSel = null, ssShowFormulas = false, ssHeatMa
 let ssClipboard = null, ssColNames = [];
 let ssSelecting = false, ssEditing = false;
 let ssClipboardRange = null; // { data: 2D array, rows, cols }
+let ssUndoHist = []; // array of { data, rows, cols } snapshots
+let ssColWidths = JSON.parse(localStorage.getItem('ws_ssColWidths') || '[]'); // per-column widths
 
 function ssSelRange() {
   if (!ssSel) return null;
@@ -3121,8 +3627,15 @@ function evalF(formula, visited) {
 
 function ssRender() {
   const t = $('#ssTable');
-  let h = '<thead><tr><th class="corner"></th>';
-  for (let c = 0; c < ssC; c++) h += '<th data-c="'+c+'">' + (ssColNames[c] || colN(c)) + '</th>';
+  // Colgroup for column widths
+  let h = '<colgroup><col style="width:40px;">';
+  for (let c = 0; c < ssC; c++) {
+    const w = ssColWidths[c] || 80;
+    h += '<col style="width:' + w + 'px;">';
+  }
+  h += '</colgroup>';
+  h += '<thead><tr><th class="corner"></th>';
+  for (let c = 0; c < ssC; c++) h += '<th data-c="'+c+'" style="position:relative;">' + (ssColNames[c] || colN(c)) + '<div class="col-resize-handle" data-col="'+c+'"></div></th>';
   h += '</tr></thead><tbody>';
   // Compute all values for heat map
   let allNums = [];
@@ -3189,6 +3702,37 @@ function ssRender() {
   ssRenderSelection();
 }
 
+// ── Column resize drag handler ──
+(function initColResize() {
+  const table = $('#ssTable');
+  if (!table) return;
+  let resizing = false, resizeCol = -1, startX = 0, startW = 0;
+  table.addEventListener('mousedown', e => {
+    const handle = e.target.closest('.col-resize-handle');
+    if (!handle) return;
+    e.preventDefault(); e.stopPropagation();
+    resizing = true; resizeCol = +handle.dataset.col;
+    startX = e.clientX; startW = ssColWidths[resizeCol] || 80;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!resizing) return;
+    const delta = e.clientX - startX;
+    const newW = Math.max(40, startW + delta);
+    ssColWidths[resizeCol] = newW;
+    const cols = table.querySelectorAll('colgroup col');
+    if (cols[resizeCol + 1]) cols[resizeCol + 1].style.width = newW + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!resizing) return;
+    resizing = false;
+    document.body.style.cursor = '';
+    table.querySelectorAll('.col-resize-handle.dragging').forEach(h => h.classList.remove('dragging'));
+    localStorage.setItem('ws_ssColWidths', JSON.stringify(ssColWidths));
+  });
+})();
+
 // ── Sheet mouse/keyboard event delegation ──
 (function initSheetEvents() {
   const t = $('#ssTable');
@@ -3203,7 +3747,8 @@ function ssRender() {
     if (!ssEditing || !ssSel) return;
     ssEditing = false;
     const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
-    if (inp) { ssD[ssSel.r1][ssSel.c1] = inp.value; inp.setAttribute('readonly', ''); }
+    if (inp && inp.value !== (ssD[ssSel.r1][ssSel.c1] || '')) { ssPushUndo(); ssD[ssSel.r1][ssSel.c1] = inp.value; inp.setAttribute('readonly', ''); }
+    else if (inp) { inp.setAttribute('readonly', ''); }
     LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); ssShowHint();
   }
 
@@ -3441,10 +3986,21 @@ $('#ssFormula').addEventListener('keydown', e => {
   }
 });
 
-$('#ssAddRow').onclick = () => { ssD.push(new Array(ssC).fill('')); ssR++; LS('sheet', ssD); ssRender(); };
-$('#ssAddCol').onclick = () => { ssD.forEach(r => r.push('')); ssC++; LS('sheet', ssD); ssRender(); };
-$('#ssSortA').onclick = () => { if (!ssSel) return; const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(a[c]).localeCompare(String(b[c])) : va-vb; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2191'); };
-$('#ssSortD').onclick = () => { if (!ssSel) return; const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); };
+// Insert row/col at selection (or at end if no selection)
+$('#ssAddRow').onclick = () => {
+  ssPushUndo();
+  const idx = ssSel ? ssSel.r1 + 1 : ssR;
+  ssD.splice(idx, 0, new Array(ssC).fill(''));
+  ssR++; LS('sheet', ssD); ssRender();
+};
+$('#ssAddCol').onclick = () => {
+  ssPushUndo();
+  const idx = ssSel ? ssSel.c1 + 1 : ssC;
+  ssD.forEach(r => r.splice(idx, 0, ''));
+  ssC++; LS('sheet', ssD); ssRender();
+};
+$('#ssSortA').onclick = () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(a[c]).localeCompare(String(b[c])) : va-vb; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2191'); };
+$('#ssSortD').onclick = () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); };
 $('#ssHeat').onclick = function() { ssHeatMap = !ssHeatMap; this.classList.toggle('active', ssHeatMap); ssRender(); };
 $('#ssFormulas').onclick = function() { ssShowFormulas = !ssShowFormulas; this.classList.toggle('active', ssShowFormulas); ssRender(); };
 // Force recalculate all formula cells
@@ -3465,6 +4021,67 @@ $('#ssCalcAll').onclick = () => {
   LS('sheet', ssD); ssRender();
   toast(count ? 'Calculated ' + count + ' cell' + (count > 1 ? 's' : '') : 'No formulas to calculate');
 };
+// ── Undo system ──
+function ssPushUndo() {
+  ssUndoHist.push({ data: JSON.parse(JSON.stringify(ssD)), rows: ssR, cols: ssC });
+  if (ssUndoHist.length > 50) ssUndoHist.shift();
+}
+$('#ssUndo').onclick = () => {
+  if (!ssUndoHist.length) { toast('Nothing to undo'); return; }
+  const snap = ssUndoHist.pop();
+  ssD = snap.data; ssR = snap.rows; ssC = snap.cols;
+  LS('sheet', ssD); ssRender(); toast('Undone');
+};
+
+// ── Formula help panel ──
+$('#ssHelp').onclick = () => {
+  let panel = document.getElementById('ssHelpPanel');
+  if (panel) { panel.remove(); return; }
+  panel = document.createElement('div');
+  panel.id = 'ssHelpPanel';
+  panel.style.cssText = 'position:absolute;top:36px;left:0;right:0;bottom:0;z-index:20;background:var(--bg);overflow-y:auto;padding:12px;font-size:.65rem;color:var(--text);';
+  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+    '<span style="font-weight:700;font-size:.75rem;">Formula Reference</span>' +
+    '<button onclick="this.closest(\'#ssHelpPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.8rem;">&times;</button></div>' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+    [
+      ['SUM(A1:A10)', 'Sum of range'],
+      ['AVERAGE(A1:A10)', 'Average (also AVG)'],
+      ['MIN(A1:A10)', 'Minimum value'],
+      ['MAX(A1:A10)', 'Maximum value'],
+      ['COUNT(A1:A10)', 'Count numeric cells'],
+      ['MEDIAN(A1:A10)', 'Median value'],
+      ['PRODUCT(A1:A10)', 'Product of range'],
+      ['SUMIF(A1:A10,"&gt;5",B1:B10)', 'Conditional sum'],
+      ['COUNTIF(A1:A10,"&gt;5")', 'Conditional count'],
+      ['VLOOKUP(A1,B1:D10,2)', 'Vertical lookup'],
+      ['IF(A1&gt;5,"Yes","No")', 'Conditional value'],
+      ['LEN(A1)', 'String length'],
+      ['UPPER(A1) / LOWER(A1)', 'Case conversion'],
+      ['TRIM(A1)', 'Remove extra spaces'],
+      ['PROPER(A1)', 'Title case'],
+      ['LEFT(A1,3) / RIGHT(A1,3)', 'Substring from ends'],
+      ['MID(A1,2,3)', 'Substring from position'],
+      ['SUBSTITUTE(A1,"old","new")', 'Replace text'],
+      ['TEXT(A1,"0.00")', 'Format number as text'],
+      ['A1&amp;" "&amp;B1', 'Concatenate strings'],
+      ['CONCATENATE(A1,B1)', 'Join strings'],
+      ['ROUND(A1,2)', 'Round to decimals'],
+      ['ABS(A1)', 'Absolute value'],
+      ['SQRT(A1)', 'Square root'],
+      ['POW(A1,2)', 'Power/exponent'],
+      ['NOW()', 'Current date/time'],
+      ['TODAY()', 'Current date'],
+      ['SPARK(A1:A10)', 'Inline sparkline chart'],
+      ['Cell refs: A1, B2:D5', 'Single cell or range'],
+      ['Arithmetic: +, -, *, /', 'Basic math operators']
+    ].map(([fn, desc]) =>
+      '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 6px;font-family:monospace;white-space:nowrap;color:var(--accent);">=' + fn + '</td><td style="padding:3px 6px;color:var(--text-dim);">' + desc + '</td></tr>'
+    ).join('') +
+    '</table>';
+  document.getElementById('ssWrap').appendChild(panel);
+};
+
 $('#ssExport').onclick = () => {
   let csv = '';
   for (let r = 0; r < ssR; r++) csv += ssD[r].map(v => { const s = String(v); return s.includes(',') || s.includes('"') ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',') + '\n';
@@ -3487,13 +4104,32 @@ $$('.ctx-item').forEach(item => {
   item.onclick = () => {
     const action = item.dataset.action;
     const r = ctx._r, c = ctx._c;
+    if (action !== 'copy' && action !== 'validate') ssPushUndo();
     if (action === 'cut') { ssClipboard = ssD[r][c]; ssD[r][c] = ''; }
     else if (action === 'copy') { ssClipboard = ssD[r][c]; }
     else if (action === 'paste' && ssClipboard !== null) { ssD[r][c] = ssClipboard; }
-    else if (action === 'insertRow') { ssD.splice(r+1, 0, new Array(ssC).fill('')); ssR++; }
-    else if (action === 'insertCol') { ssD.forEach(row => row.splice(c+1, 0, '')); ssC++; }
-    else if (action === 'deleteRow' && ssR > 1) { ssD.splice(r, 1); ssR--; }
-    else if (action === 'deleteCol' && ssC > 1) { ssD.forEach(row => row.splice(c, 1)); ssC--; }
+    else if (action === 'insertRow') {
+      const idx = ssSel ? Math.max(ssSel.r1, ssSel.r2) + 1 : r + 1;
+      ssD.splice(idx, 0, new Array(ssC).fill('')); ssR++;
+    }
+    else if (action === 'insertCol') {
+      const idx = ssSel ? Math.max(ssSel.c1, ssSel.c2) + 1 : c + 1;
+      ssD.forEach(row => row.splice(idx, 0, '')); ssC++;
+    }
+    else if (action === 'deleteRow' && ssR > 1) {
+      if (ssSel) {
+        const minR = Math.min(ssSel.r1, ssSel.r2), maxR = Math.max(ssSel.r1, ssSel.r2);
+        const count = Math.min(maxR - minR + 1, ssR - 1);
+        ssD.splice(minR, count); ssR -= count; ssSel = null;
+      } else { ssD.splice(r, 1); ssR--; }
+    }
+    else if (action === 'deleteCol' && ssC > 1) {
+      if (ssSel) {
+        const minC = Math.min(ssSel.c1, ssSel.c2), maxC = Math.max(ssSel.c1, ssSel.c2);
+        const count = Math.min(maxC - minC + 1, ssC - 1);
+        ssD.forEach(row => row.splice(minC, count)); ssC -= count; ssSel = null;
+      } else { ssD.forEach(row => row.splice(c, 1)); ssC--; }
+    }
     else if (action === 'validate') {
       const rule = prompt('Validation rule:\n  "list:a,b,c" — dropdown\n  "range:0,100" — number range\n  "formula:=A1>0" — custom');
       if (rule) toast('Validation set: ' + rule);
@@ -4062,6 +4698,8 @@ async function renderCompareChart() {
     return;
   }
   wrap.style.display = 'flex';
+  // Wait for layout to resolve before measuring canvas
+  await new Promise(r => requestAnimationFrame(r));
   // Render compare chips
   chipsEl.innerHTML = '';
   compareTickers.forEach((t, i) => {
@@ -5313,6 +5951,45 @@ const COMPANY_DB = [
   { ticker: 'CVX', name: 'Chevron Corporation', exchange: 'NYSE', sector: 'Energy' },
   { ticker: 'COP', name: 'ConocoPhillips', exchange: 'NYSE', sector: 'Energy' },
   { ticker: 'SLB', name: 'Schlumberger Limited', exchange: 'NYSE', sector: 'Energy' },
+  // Small & Mid Cap additions
+  { ticker: 'PLTR', name: 'Palantir Technologies', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'CRWD', name: 'CrowdStrike Holdings', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'DDOG', name: 'Datadog Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'NET', name: 'Cloudflare Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'ZS', name: 'Zscaler Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'CFLT', name: 'Confluent Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'HIMS', name: 'Hims & Hers Health', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'GDRX', name: 'GoodRx Holdings', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'DOCS', name: 'Doximity Inc.', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'TALK', name: 'Talkspace Inc.', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'FCEL', name: 'FuelCell Energy', exchange: 'NASDAQ', sector: 'Energy' },
+  { ticker: 'PLUG', name: 'Plug Power Inc.', exchange: 'NASDAQ', sector: 'Energy' },
+  { ticker: 'RUN', name: 'Sunrun Inc.', exchange: 'NASDAQ', sector: 'Energy' },
+  { ticker: 'SOFI', name: 'SoFi Technologies', exchange: 'NASDAQ', sector: 'Financial' },
+  { ticker: 'AFRM', name: 'Affirm Holdings', exchange: 'NASDAQ', sector: 'Financial' },
+  { ticker: 'HOOD', name: 'Robinhood Markets', exchange: 'NASDAQ', sector: 'Financial' },
+  { ticker: 'DKNG', name: 'DraftKings Inc.', exchange: 'NASDAQ', sector: 'Consumer Cyclical' },
+  { ticker: 'BROS', name: 'Dutch Bros Inc.', exchange: 'NYSE', sector: 'Consumer Cyclical' },
+  { ticker: 'CAVA', name: 'CAVA Group Inc.', exchange: 'NYSE', sector: 'Consumer Cyclical' },
+  { ticker: 'BIRD', name: 'Allbirds Inc.', exchange: 'NASDAQ', sector: 'Consumer Cyclical' },
+  { ticker: 'JOBY', name: 'Joby Aviation', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'RKLB', name: 'Rocket Lab USA', exchange: 'NASDAQ', sector: 'Industrials' },
+  { ticker: 'BMBL', name: 'Bumble Inc.', exchange: 'NASDAQ', sector: 'Communication' },
+  { ticker: 'MTCH', name: 'Match Group Inc.', exchange: 'NASDAQ', sector: 'Communication' },
+  { ticker: 'OPEN', name: 'Opendoor Technologies', exchange: 'NASDAQ', sector: 'Real Estate' },
+  // ETFs
+  { ticker: 'SPY', name: 'SPDR S&P 500 ETF Trust', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'QQQ', name: 'Invesco QQQ Trust', exchange: 'NASDAQ', sector: 'ETF', isETF: true },
+  { ticker: 'IWM', name: 'iShares Russell 2000 ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'DIA', name: 'SPDR Dow Jones Industrial ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'VTI', name: 'Vanguard Total Stock Market ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'VOO', name: 'Vanguard S&P 500 ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'ARKK', name: 'ARK Innovation ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'XLF', name: 'Financial Select Sector SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'XLK', name: 'Technology Select Sector SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'XLE', name: 'Energy Select Sector SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'GLD', name: 'SPDR Gold Shares', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'TLT', name: 'iShares 20+ Year Treasury Bond', exchange: 'NASDAQ', sector: 'ETF', isETF: true },
 ];
 
 function searchCompanies(query) {
@@ -5382,9 +6059,12 @@ function getCompanyMetrics(ticker) {
   const shares = (rand() * 8 + 0.5) * 1e9; // 0.5B to 8.5B shares
   const mktCap = price * shares;
   let sizeGroup;
-  if (mktCap > 200e9) sizeGroup = 'Mega Cap';
+  const companyEntry = COMPANY_DB.find(c => c.ticker === ticker);
+  if (companyEntry && companyEntry.isETF) sizeGroup = 'ETF';
+  else if (mktCap > 200e9) sizeGroup = 'Mega Cap';
   else if (mktCap > 10e9) sizeGroup = 'Large Cap';
-  else sizeGroup = 'Mid Cap';
+  else if (mktCap > 2e9) sizeGroup = 'Mid Cap';
+  else sizeGroup = 'Small Cap';
   return { price, mktCap, sizeGroup };
 }
 
@@ -5424,7 +6104,7 @@ function renderBrowseList() {
     row.className = 'browse-row';
     const inTracked = stockTickers.includes(c.ticker);
     const inCompare = compareTickers.includes(c.ticker);
-    const szClass = c.sizeGroup === 'Mega Cap' ? 'sz-mega' : c.sizeGroup === 'Large Cap' ? 'sz-large' : 'sz-mid';
+    const szClass = c.sizeGroup === 'Mega Cap' ? 'sz-mega' : c.sizeGroup === 'Large Cap' ? 'sz-large' : c.sizeGroup === 'Mid Cap' ? 'sz-mid' : c.sizeGroup === 'ETF' ? 'sz-etf' : 'sz-small';
     row.innerHTML =
       '<span class="br-ticker">' + c.ticker + '</span>' +
       '<span class="br-name" title="' + c.name + '">' + c.name + '</span>' +
@@ -5784,6 +6464,7 @@ Format this as a polished research report. Cite specific sources by name. Use re
     aiSessionTokensIn += result.usage?.input_tokens || 0;
     aiSessionTokensOut += result.usage?.output_tokens || 0;
     aiSessionRequests++;
+    trackUserUsage(result.usage?.input_tokens || 0, result.usage?.output_tokens || 0, $('#aiModel').value);
 
     const reportText = (result.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
 
@@ -5862,7 +6543,7 @@ function openNewsArticle(title, url) {
     return;
   }
   // Cache mode — use Google web cache proxy in iframe viewer
-  const cacheUrl = 'https://webcache.googleusercontent.com/search?q=cache:' + encodeURIComponent(url);
+  const cacheUrl = 'https://archive.is/newest/' + encodeURIComponent(url);
   newsViewerState = { directUrl: url, cacheUrl };
   $('#newsViewerTitle').textContent = title;
   $('#newsViewerExternal').href = url;
@@ -6092,19 +6773,63 @@ function updatePricingCalc() {
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Blended cost/query:</span><span><b>$' + weightedCostPerQuery.toFixed(4) + '</b></span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Cost/user/month:</span><span><b>$' + costPerUser.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</b></span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:4px 0;font-size:.72rem;font-weight:700;color:var(--accent);"><span>Total monthly:</span><span>' + fmtCost(totalMonthlyCost) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Annual estimate:</span><span>' + fmtCost(totalMonthlyCost * 12) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Annual cost estimate:</span><span>' + fmtCost(totalMonthlyCost * 12) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
     '<div style="font-size:.55rem;color:var(--text-dim);">Fixed pricing suggestions:</div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>Break-even /user/mo:</span><span>$' + costPerUser.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>2x margin /user/mo:</span><span>$' + (costPerUser * 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin /user/mo:</span><span>$' + (costPerUser * 3).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>';
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin /user/mo:</span><span>$' + (costPerUser * 3).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
+    '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
+    '<div style="font-weight:700;color:var(--accent2);font-size:.62rem;margin-bottom:4px;">Annualized Revenue Projections</div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>Break-even revenue/yr:</span><span>' + fmtCost(costPerUser * users * 12) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>2x margin revenue/yr:</span><span>' + fmtCost(costPerUser * 2 * users * 12) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin revenue/yr:</span><span>' + fmtCost(costPerUser * 3 * users * 12) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;font-weight:600;color:var(--success, #10b981);"><span>2x margin profit/yr:</span><span>' + fmtCost((costPerUser * 2 * users * 12) - (totalMonthlyCost * 12)) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;font-weight:600;color:var(--success, #10b981);"><span>3x margin profit/yr:</span><span>' + fmtCost((costPerUser * 3 * users * 12) - (totalMonthlyCost * 12)) + '</span></div>';
 }
 
 $('#aiPricingBtn').onclick = () => {
   const panel = $('#aiPricingPanel');
   $('#aiCostPanel').style.display = 'none';
+  $('#aiUsageDash').style.display = 'none';
   if (panel.style.display === 'none') { updatePricingCalc(); panel.style.display = 'block'; }
   else panel.style.display = 'none';
+};
+
+$('#aiUsageDashBtn').onclick = () => {
+  const panel = $('#aiUsageDash');
+  $('#aiCostPanel').style.display = 'none';
+  $('#aiPricingPanel').style.display = 'none';
+  if (panel.style.display === 'none') {
+    const users = getAllUserUsage();
+    const el = $('#aiUsageDashContent');
+    if (!users.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:10px;">No user usage data tracked yet.</div>';
+    } else {
+      let totalCost = 0, totalReqs = 0, totalIn = 0, totalOut = 0;
+      let rows = users.map(u => {
+        totalCost += u.cost || 0; totalReqs += u.requests || 0;
+        totalIn += u.tokensIn || 0; totalOut += u.tokensOut || 0;
+        const lastActive = u.lastActive ? new Date(u.lastActive).toLocaleDateString() : '-';
+        return '<tr><td style="padding:3px 6px;font-weight:600;">' + u.name + '</td>' +
+          '<td style="padding:3px 6px;text-align:right;">' + (u.requests || 0) + '</td>' +
+          '<td style="padding:3px 6px;text-align:right;">' + (u.tokensIn || 0).toLocaleString() + '</td>' +
+          '<td style="padding:3px 6px;text-align:right;">' + (u.tokensOut || 0).toLocaleString() + '</td>' +
+          '<td style="padding:3px 6px;text-align:right;font-weight:600;">$' + (u.cost || 0).toFixed(4) + '</td>' +
+          '<td style="padding:3px 6px;text-align:right;color:var(--text-dim);">' + lastActive + '</td>' +
+          '<td style="padding:3px 4px;"><button onclick="localStorage.removeItem(\'ws_usage_' + u.name + '\');$(\'#aiUsageDashBtn\').click();$(\'#aiUsageDashBtn\').click();" style="font-size:.5rem;padding:1px 4px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Clear</button></td></tr>';
+      }).join('');
+      el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:.6rem;color:var(--text);">' +
+        '<tr style="border-bottom:1px solid var(--border);"><th style="padding:3px 6px;text-align:left;">User</th><th style="padding:3px 6px;text-align:right;">Reqs</th><th style="padding:3px 6px;text-align:right;">Tok In</th><th style="padding:3px 6px;text-align:right;">Tok Out</th><th style="padding:3px 6px;text-align:right;">Cost</th><th style="padding:3px 6px;text-align:right;">Last Active</th><th></th></tr>' +
+        rows +
+        '<tr style="border-top:1px solid var(--border);font-weight:700;"><td style="padding:3px 6px;">TOTAL</td><td style="padding:3px 6px;text-align:right;">' + totalReqs + '</td><td style="padding:3px 6px;text-align:right;">' + totalIn.toLocaleString() + '</td><td style="padding:3px 6px;text-align:right;">' + totalOut.toLocaleString() + '</td><td style="padding:3px 6px;text-align:right;">$' + totalCost.toFixed(4) + '</td><td></td><td></td></tr>' +
+        '</table>' +
+        '<div style="margin-top:6px;font-size:.55rem;color:var(--text-dim);">Annualized total cost: $' + (totalCost * 365 / Math.max(1, Math.ceil((Date.now() - new Date(users[users.length-1]?.lastActive || Date.now()).getTime()) / 86400000) || 1)).toFixed(2) + ' (estimated)</div>';
+    }
+    panel.style.display = 'block';
+  } else panel.style.display = 'none';
+  // Hide if not admin
+  if (!wsIsAdmin) { panel.style.display = 'none'; }
 };
 
 // Bind pricing sliders
@@ -6150,6 +6875,7 @@ $('#aiKeySave').onclick = () => {
 };
 
 $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
+$('#aiSavedActionsBtn').onclick = renderSavedActionsPanel;
 
 // ── Claude analytics log ──
 // Save chat sessions to localStorage and export to notepad tabs
@@ -6205,6 +6931,49 @@ $('#aiLogBtn').onclick = () => {
 };
 
 // Auto-save chat to log at end of each conversation
+// ── Auto-saved tool actions (linkage) ──
+let aiSavedActions = JSON.parse(localStorage.getItem('ws_aiSavedActions') || '[]');
+const REPLAYABLE_TOOLS = ['write_cells', 'create_table', 'write_note', 'update_graph', 'add_stock', 'set_comparison', 'add_concept_node', 'write_to_draw_pane', 'add_text_overlay'];
+
+function saveToolAction(toolName, input) {
+  if (!REPLAYABLE_TOOLS.includes(toolName)) return;
+  const action = { id: Date.now(), tool: toolName, input: JSON.parse(JSON.stringify(input)), timestamp: new Date().toISOString() };
+  aiSavedActions.push(action);
+  if (aiSavedActions.length > 100) aiSavedActions = aiSavedActions.slice(-100);
+  localStorage.setItem('ws_aiSavedActions', JSON.stringify(aiSavedActions));
+}
+
+async function replayToolAction(actionId) {
+  const action = aiSavedActions.find(a => a.id === actionId);
+  if (!action) { toast('Action not found'); return; }
+  await executeAgentTool(action.tool, action.input);
+  toast('Replayed: ' + action.tool);
+}
+
+function renderSavedActionsPanel() {
+  let panel = document.getElementById('aiSavedActionsPanel');
+  if (panel) { panel.remove(); return; }
+  panel = document.createElement('div');
+  panel.id = 'aiSavedActionsPanel';
+  panel.style.cssText = 'position:absolute;bottom:0;left:0;right:0;top:0;z-index:25;background:var(--bg);overflow-y:auto;padding:8px;font-size:.6rem;';
+  if (!aiSavedActions.length) {
+    panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;font-size:.7rem;">Saved Actions</span><button onclick="this.closest(\'#aiSavedActionsPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;">&times;</button></div><div style="color:var(--text-dim);text-align:center;padding:20px;">No saved actions yet. Claude\'s tool outputs will appear here.</div>';
+  } else {
+    let rows = aiSavedActions.slice().reverse().map(a => {
+      const time = new Date(a.timestamp).toLocaleString();
+      const label = a.tool.replace(/_/g, ' ');
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">' +
+        '<div><span style="font-weight:600;color:var(--accent);">' + label + '</span><br/><span style="color:var(--text-dim);font-size:.5rem;">' + time + '</span></div>' +
+        '<div style="display:flex;gap:4px;">' +
+        '<button onclick="replayToolAction(' + a.id + ')" style="font-size:.5rem;padding:2px 6px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">Replay</button>' +
+        '<button onclick="aiSavedActions=aiSavedActions.filter(x=>x.id!==' + a.id + ');localStorage.setItem(\'ws_aiSavedActions\',JSON.stringify(aiSavedActions));renderSavedActionsPanel();renderSavedActionsPanel();" style="font-size:.5rem;padding:2px 6px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Remove</button>' +
+        '</div></div>';
+    }).join('');
+    panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;font-size:.7rem;">Saved Actions (' + aiSavedActions.length + ')</span><button onclick="this.closest(\'#aiSavedActionsPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;">&times;</button></div>' + rows;
+  }
+  document.querySelector('.pane[data-pane="claude"]')?.appendChild(panel);
+}
+
 function autoSaveChatLog() {
   if (aiMessages.length > 1) {
     const entry = {
@@ -6578,7 +7347,7 @@ async function executeAgentTool(name, input) {
       // ANALYSIS TOOLS
       case 'run_scenario': {
         const data = genStockData(input.ticker.toUpperCase(), '1Y');
-        const basePrice = data[data.length - 1].close;
+        const basePrice = data[data.length - 1];
         const results = (input.scenarios || []).map(s => {
           const projected = [];
           for (let m = 0; m <= 12; m++) {
@@ -6594,7 +7363,7 @@ async function executeAgentTool(name, input) {
         const company = COMPANY_DB.find(c => c.ticker === t);
         const metrics = getCompanyMetrics(t);
         const articles = genNews(t).slice(0, 5);
-        const closes = data.map(d => d.close);
+        const closes = data;
         const thesis = {
           ticker: t,
           company: company ? company.name : t,
@@ -6787,7 +7556,7 @@ function startRobotIdleLook() {
 setTimeout(startRobotIdleLook, 1000);
 
 // ── Robot customization: tie + scene ──
-const ROBOT_SCENE_NAMES = ['office', 'tropical', 'volcano', 'forest', 'city'];
+const ROBOT_SCENE_NAMES = ['office', 'tropical', 'volcano', 'forest', 'city', 'sunset'];
 
 function setRobotScene(scene) {
   const bg = document.getElementById('robotBg');
@@ -6856,6 +7625,43 @@ if (robotSceneSel) {
   robotSceneSel.addEventListener('change', () => setRobotScene(robotSceneSel.value));
 }
 
+// ── Robot scene resize (expanded pane only) ──
+(function initRobotResize() {
+  const handle = document.getElementById('robotSceneResize');
+  const scene = document.getElementById('robotScene');
+  if (!handle || !scene) return;
+  const defaultH = 140;
+  let dragging = false, startY = 0, startH = defaultH;
+  const savedH = +localStorage.getItem('ws_robotSceneH');
+  if (savedH > 0) { scene.style.height = savedH + 'px'; }
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dragging = true; startY = e.clientY; startH = scene.offsetHeight;
+    document.body.style.cursor = 'ns-resize';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = startY - e.clientY; // dragging up = bigger scene
+    const pane = scene.closest('.pane');
+    const maxH = pane ? pane.offsetHeight * 0.6 : 400;
+    const newH = Math.max(80, Math.min(maxH, startH + delta));
+    scene.style.height = newH + 'px';
+    // Proportional scaling of robot elements
+    const scale = newH / defaultH;
+    const body = scene.querySelector('.robot-body');
+    if (body) { body.style.transform = 'scale(' + scale + ')'; body.style.transformOrigin = 'bottom right'; }
+    const monitors = scene.querySelector('.robot-monitors');
+    if (monitors) { monitors.style.transform = 'scale(' + scale + ')'; monitors.style.transformOrigin = 'bottom left'; }
+    const desk = scene.querySelector('.robot-desk');
+    if (desk) { desk.style.transform = 'scaleX(' + Math.min(scale, 1.5) + ')'; desk.style.transformOrigin = 'bottom center'; }
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false; document.body.style.cursor = '';
+    localStorage.setItem('ws_robotSceneH', scene.offsetHeight);
+  });
+})();
+
 // ── Agentic loop with tool_use ──
 async function sendAgentMessage() {
   if (!aiKey) { addAiMsg('system', 'Set your API key below to start.'); return; }
@@ -6920,6 +7726,7 @@ async function sendAgentMessage() {
       aiSessionTokensIn += result.usage?.input_tokens || 0;
       aiSessionTokensOut += result.usage?.output_tokens || 0;
       aiSessionRequests++;
+      trackUserUsage(result.usage?.input_tokens || 0, result.usage?.output_tokens || 0, $('#aiModel').value);
       if ($('#aiCostPanel').style.display !== 'none') updateCostPanel();
 
       // Extract text and tool_use blocks
@@ -6954,6 +7761,7 @@ async function sendAgentMessage() {
       const toolResults = [];
       for (const toolBlock of toolBlocks) {
         addToolStatus(toolBlock.name, toolBlock.input);
+        saveToolAction(toolBlock.name, toolBlock.input);
         const toolResult = await executeAgentTool(toolBlock.name, toolBlock.input);
         toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult });
       }
