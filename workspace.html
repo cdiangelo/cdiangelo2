@@ -455,6 +455,12 @@ body.light .fun-btn { background: var(--accent); }
 /* Desk lamp */
 .desk-light { position: absolute; right: 8px; top: -7px; width: 8px; height: 8px; border-radius: 50%; background: #444; border: 1px solid #333; transition: all 0.4s ease; z-index: 5; }
 .desk-light.on { background: #4CAF50; box-shadow: 0 0 8px #4CAF50, 0 0 16px rgba(76,175,80,.3); }
+/* Robot work timer — hovers above the green light */
+.robot-timer { position: absolute; right: -10px; top: -32px; z-index: 10; display: flex; align-items: center; gap: 4px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.robot-timer.active { opacity: 1; }
+.timer-clock { font-family: 'Courier New', monospace; font-size: .62rem; font-weight: 700; color: #4CAF50; background: rgba(0,0,0,.65); border: 1px solid rgba(76,175,80,.35); border-radius: 4px; padding: 1px 4px; text-shadow: 0 0 4px rgba(76,175,80,.5); white-space: nowrap; line-height: 1.2; }
+.timer-stats { display: flex; flex-direction: column; gap: 0; line-height: 1.1; }
+.timer-stats div { font-size: .42rem; color: rgba(76,175,80,.7); font-family: system-ui, sans-serif; white-space: nowrap; background: rgba(0,0,0,.5); border-radius: 2px; padding: 0 3px; }
 /* Tie/scene controls */
 .robot-controls { display: flex; gap: 4px; justify-content: center; padding: 3px 0; flex-shrink: 0; background: var(--panel-inset); border-bottom: 1px solid var(--border); }
 /* Robot scene resize handle — only visible in expanded pane */
@@ -1603,6 +1609,13 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
           <div class="robot-monitors"><div class="robot-monitor" id="robotMon1"></div><div class="robot-monitor" id="robotMon2"></div></div>
           <div class="robot-desk">
+            <div class="robot-timer" id="robotTimer">
+              <div class="timer-clock" id="timerClock">0:00</div>
+              <div class="timer-stats" id="timerStats">
+                <div id="timerTasks">0 tasks</div>
+                <div id="timerCurrent">—</div>
+              </div>
+            </div>
             <div class="desk-light" id="deskLight"></div>
           </div>
           <div class="robot-carpet"><div class="carpet-body"></div><div class="carpet-fringe-l"></div><div class="carpet-fringe-r"></div></div>
@@ -8882,11 +8895,86 @@ function setMonitorState(on) {
   if (m2) m2.classList.toggle('on', on);
 }
 
-// Patch setRobotWorking to also toggle monitors
+// ── Robot Work Timer ──
+const _robotTimer = {
+  totalMs: 0,          // cumulative working time across all sessions
+  sessionStart: 0,     // timestamp when current work session started
+  taskCount: 0,        // number of tool tasks completed this session
+  taskStart: 0,        // timestamp when current task started
+  interval: null,      // setInterval handle for live updates
+};
+
+function _fmtTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) return h + ':' + String(m % 60).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  return m + ':' + String(s % 60).padStart(2, '0');
+}
+
+function _updateTimerDisplay() {
+  const clock = document.getElementById('timerClock');
+  const tasksEl = document.getElementById('timerTasks');
+  const currentEl = document.getElementById('timerCurrent');
+  if (!clock) return;
+  const elapsed = _robotTimer.sessionStart ? Date.now() - _robotTimer.sessionStart : 0;
+  clock.textContent = _fmtTime(_robotTimer.totalMs + elapsed);
+  tasksEl.textContent = _robotTimer.taskCount + ' task' + (_robotTimer.taskCount !== 1 ? 's' : '');
+  if (_robotTimer.taskStart) {
+    currentEl.textContent = _fmtTime(Date.now() - _robotTimer.taskStart) + ' on task';
+  } else {
+    currentEl.textContent = elapsed > 0 ? 'working...' : '\u2014';
+  }
+}
+
+function _startWorkTimer() {
+  _robotTimer.sessionStart = Date.now();
+  _robotTimer.taskCount = 0;
+  _robotTimer.taskStart = 0;
+  const timer = document.getElementById('robotTimer');
+  if (timer) timer.classList.add('active');
+  _updateTimerDisplay();
+  clearInterval(_robotTimer.interval);
+  _robotTimer.interval = setInterval(_updateTimerDisplay, 1000);
+}
+
+function _stopWorkTimer() {
+  if (_robotTimer.sessionStart) {
+    _robotTimer.totalMs += Date.now() - _robotTimer.sessionStart;
+    _robotTimer.sessionStart = 0;
+  }
+  _robotTimer.taskStart = 0;
+  clearInterval(_robotTimer.interval);
+  _updateTimerDisplay();
+  // Keep timer visible for 5s after completion, then fade
+  setTimeout(() => {
+    if (!_robotTimer.sessionStart) {
+      const timer = document.getElementById('robotTimer');
+      if (timer) timer.classList.remove('active');
+    }
+  }, 5000);
+}
+
+// Called when a tool task starts
+window._robotTaskStart = function() {
+  _robotTimer.taskStart = Date.now();
+  _updateTimerDisplay();
+};
+
+// Called when a tool task completes
+window._robotTaskDone = function() {
+  _robotTimer.taskCount++;
+  _robotTimer.taskStart = 0;
+  _updateTimerDisplay();
+};
+
+// Patch setRobotWorking to also toggle monitors + timer
 const _origSetRobotWorking = setRobotWorking;
 setRobotWorking = function(active) {
   _origSetRobotWorking(active);
   setMonitorState(active);
+  if (active) _startWorkTimer();
+  else _stopWorkTimer();
 };
 
 // Init selectors
@@ -9438,10 +9526,12 @@ async function sendAgentMessage() {
       // Execute tool calls
       const toolResults = [];
       for (const toolBlock of toolBlocks) {
+        if (window._robotTaskStart) window._robotTaskStart();
         addToolStatus(toolBlock.name, toolBlock.input);
         saveToolAction(toolBlock.name, toolBlock.input);
         inquiryActions.push({ tool: toolBlock.name, input: JSON.parse(JSON.stringify(toolBlock.input)) });
         const toolResult = await executeAgentTool(toolBlock.name, toolBlock.input);
+        if (window._robotTaskDone) window._robotTaskDone();
         toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult });
       }
 
