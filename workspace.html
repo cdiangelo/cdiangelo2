@@ -9330,6 +9330,79 @@ async function sendAgentMessage() {
   setRobotWorking(true);
   const inquiryActions = []; // Track tool actions for this inquiry
 
+  // ── Stall / timeout watchdog ──
+  const _stall = {
+    lastActivity: Date.now(),
+    warned: false,
+    aborted: false,
+    noToolReplies: 0,       // consecutive text-only replies with no tool calls
+    lastReplyHash: '',      // detect repeated identical responses
+    repeatCount: 0,
+    timer: null,
+  };
+  const STALL_WARN_MS = 60000;       // 60s no activity → warning
+  const STALL_ABORT_MS = 120000;     // 120s no activity → auto-abort
+  const MAX_NO_TOOL_REPLIES = 3;     // 3 consecutive text-only replies → stall warning
+  const MAX_REPEAT_REPLIES = 2;      // 2 identical replies → confused warning
+
+  function _stallPing() { _stall.lastActivity = Date.now(); }
+
+  function _stallCheck() {
+    if (_stall.aborted || !aiStreaming) return;
+    const idle = Date.now() - _stall.lastActivity;
+    if (idle >= STALL_ABORT_MS && !_stall.aborted) {
+      _stall.aborted = true;
+      clearInterval(_stall.timer);
+      _showStallAlert('timeout', 'Claude appears to have stalled (' + Math.round(idle / 1000) + 's idle). The request has been stopped. Try rephrasing your request or breaking it into smaller steps.');
+      aiStreaming = false;
+      setRobotWorking(false);
+      return;
+    }
+    if (idle >= STALL_WARN_MS && !_stall.warned) {
+      _stall.warned = true;
+      _showStallAlert('warning', 'Claude has been idle for ' + Math.round(idle / 1000) + 's with no new output. If nothing happens soon, the request will auto-stop.');
+    }
+  }
+
+  function _showStallAlert(level, message) {
+    const div = document.createElement('div');
+    div.className = 'ai-msg system stall-alert';
+    const icon = level === 'timeout' ? '\u26D4' : '\u26A0\uFE0F';
+    div.innerHTML = '<span style="font-size:.72rem;">' + icon + '</span> <span>' + message + '</span>';
+    div.style.cssText = 'color:' + (level === 'timeout' ? 'var(--danger)' : '#FF9800') + ';font-size:.62rem;padding:6px 10px;background:' + (level === 'timeout' ? 'rgba(239,68,68,.08)' : 'rgba(255,152,0,.08)') + ';border:1px solid ' + (level === 'timeout' ? 'rgba(239,68,68,.25)' : 'rgba(255,152,0,.25)') + ';border-radius:6px;margin:4px 0;';
+    $('#aiMsgs').appendChild(div);
+    $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+  }
+
+  function _checkNoAction(textBlocks, toolBlocks) {
+    // Track consecutive text-only replies (no tool use)
+    if (textBlocks.length && !toolBlocks.length) {
+      _stall.noToolReplies++;
+      // Check for repeated identical replies (confused/looping)
+      const hash = textBlocks.map(b => b.text).join('').trim().substring(0, 200);
+      if (hash === _stall.lastReplyHash) {
+        _stall.repeatCount++;
+        if (_stall.repeatCount >= MAX_REPEAT_REPLIES) {
+          _showStallAlert('warning', 'Claude is repeating the same response without taking action. Try rephrasing your request with more specific instructions, e.g. "Use the write_cells tool to put X in cell A1".');
+        }
+      } else {
+        _stall.repeatCount = 0;
+      }
+      _stall.lastReplyHash = hash;
+
+      if (_stall.noToolReplies >= MAX_NO_TOOL_REPLIES) {
+        _showStallAlert('warning', 'Claude has responded ' + _stall.noToolReplies + ' times without executing any actions. It may have misunderstood your request. Try being more explicit about what you want done.');
+      }
+    } else if (toolBlocks.length) {
+      // Reset counters on successful tool use
+      _stall.noToolReplies = 0;
+      _stall.repeatCount = 0;
+      _stall.lastReplyHash = '';
+    }
+  }
+
+  _stall.timer = setInterval(_stallCheck, 5000);
+
   try {
     // Build API messages: history + context-enriched latest
     let apiMsgs = aiMessages.slice(0, -1).concat([contextMsg]);
@@ -9338,6 +9411,7 @@ async function sendAgentMessage() {
     const MAX_ITERATIONS = 10;
 
     while (iterations < MAX_ITERATIONS) {
+      if (_stall.aborted) break;
       iterations++;
 
       // ADDED — Phase 2: Streaming API response with non-streaming fallback
@@ -9382,6 +9456,7 @@ async function sendAgentMessage() {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          _stallPing(); // Activity detected — reset watchdog
           buffer += decoder.decode(value, { stream: true });
 
           const lines = buffer.split('\n');
@@ -9483,6 +9558,7 @@ async function sendAgentMessage() {
           return;
         }
         result = await resp2.json();
+        _stallPing();
       }
 
       // Track token usage for cost estimator
@@ -9495,6 +9571,8 @@ async function sendAgentMessage() {
       // Extract text and tool_use blocks
       const textBlocks = (result.content || []).filter(b => b.type === 'text');
       const toolBlocks = (result.content || []).filter(b => b.type === 'tool_use');
+      _stallPing();
+      _checkNoAction(textBlocks, toolBlocks);
 
       // Show any text response (if not already streamed)
       if (textBlocks.length && streamFailed) {
@@ -9526,11 +9604,13 @@ async function sendAgentMessage() {
       // Execute tool calls
       const toolResults = [];
       for (const toolBlock of toolBlocks) {
+        _stallPing();
         if (window._robotTaskStart) window._robotTaskStart();
         addToolStatus(toolBlock.name, toolBlock.input);
         saveToolAction(toolBlock.name, toolBlock.input);
         inquiryActions.push({ tool: toolBlock.name, input: JSON.parse(JSON.stringify(toolBlock.input)) });
         const toolResult = await executeAgentTool(toolBlock.name, toolBlock.input);
+        _stallPing();
         if (window._robotTaskDone) window._robotTaskDone();
         toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult });
       }
@@ -9546,8 +9626,9 @@ async function sendAgentMessage() {
     }
 
   } catch (e) {
-    thinkingDiv.textContent = 'Error: ' + e.message;
+    if (!_stall.aborted) thinkingDiv.textContent = 'Error: ' + e.message;
   }
+  clearInterval(_stall.timer);
   aiStreaming = false;
   setRobotWorking(false);
   // Save this inquiry as a granular log entry
