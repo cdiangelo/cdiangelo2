@@ -69,11 +69,12 @@ body { background: var(--bg); color: var(--text); font-family: system-ui, -apple
 
 /* ═══ HEADER ═══ */
 .header {
-  background: var(--panel); border-bottom: 1px solid var(--border);
+  background: var(--bg); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 16px; height: 44px;
   position: relative; z-index: 200; gap: 8px;
+  filter: brightness(0.9);
 }
-.header h1 { font-size: 14px; font-weight: 700; color: var(--accent); white-space: nowrap; letter-spacing: .5px; }
+.header h1 { font-size: 15px; font-weight: 700; color: var(--accent); white-space: nowrap; letter-spacing: .5px; }
 body.neon .header h1 { color: var(--accent2); }
 .header h1 span { color: var(--accent2); }
 body.neon .header h1 span { color: var(--accent); }
@@ -81,11 +82,11 @@ body.neon .header h1 span { color: var(--accent); }
 /* Nav Groups */
 .nav-groups { display: flex; gap: 16px; margin-left: 16px; }
 .nav-group { display: flex; flex-direction: column; gap: 2px; }
-.nav-group-label { font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); line-height: 1; }
+.nav-group-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); line-height: 1; }
 .nav-group-btns { display: flex; gap: 2px; }
 .nav-group-btns button {
   padding: 4px 10px; border: none; border-radius: 4px;
-  background: none; color: var(--text-dim); font-size: .75rem;
+  background: none; color: var(--text-dim); font-size: .8rem;
   font-weight: 500; cursor: pointer; transition: all .15s;
 }
 .nav-group-btns button:hover { color: var(--text); background: rgba(255,255,255,.06); }
@@ -222,18 +223,19 @@ body.light .fun-btn { background: var(--accent); }
   width: 100vw !important; height: calc(100vh - 44px) !important;
 }
 
-/* Pane header */
+/* Pane header — darker than body for visual separation */
 .p-head {
   display: flex; align-items: center; padding: 6px 10px; gap: 6px;
-  background: var(--panel-inset); border-bottom: 1px solid var(--border);
-  min-height: 32px; flex-shrink: 0;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  min-height: 34px; flex-shrink: 0;
+  filter: brightness(0.85);
 }
-.p-title { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+.p-title { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text); }
 .p-title .p-icon { margin-right: 3px; }
 .p-spacer { flex: 1; }
 .p-btn {
   background: none; border: none; color: var(--text-dim); cursor: pointer;
-  font-size: 13px; padding: 2px 5px; border-radius: 3px;
+  font-size: 14px; padding: 2px 5px; border-radius: 3px;
 }
 .p-btn:hover { color: var(--accent2); background: rgba(255,255,255,.05); }
 .p-body { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; }
@@ -396,6 +398,27 @@ body.light .fun-btn { background: var(--accent); }
 .pane.expanded .stat-card { min-width: 220px; }
 .pane.expanded #stockCompareWrap { min-height: 250px; flex: 0 0 40%; }
 .pane.expanded #stockDash { flex: 1; }
+
+/* Page tabs for multi-page panes */
+.page-tabs {
+  display: flex; align-items: center; gap: 2px; padding: 2px 6px;
+  border-bottom: 1px solid var(--border); background: var(--panel-inset);
+  flex-shrink: 0; overflow-x: auto; min-height: 24px;
+}
+.page-tab {
+  padding: 2px 8px; font-size: .62rem; border: 1px solid var(--border);
+  border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer;
+  background: var(--bg); color: var(--text-dim); white-space: nowrap;
+  display: flex; align-items: center; gap: 4px;
+}
+.page-tab.active { background: var(--panel); color: var(--text); font-weight: 600; }
+.page-tab .tab-close { font-size: .55rem; opacity: .5; cursor: pointer; }
+.page-tab .tab-close:hover { opacity: 1; color: var(--danger); }
+.page-tab-add {
+  padding: 2px 6px; font-size: .7rem; border: 1px dashed var(--border);
+  border-radius: 4px; cursor: pointer; color: var(--text-dim); background: none;
+}
+.page-tab-add:hover { color: var(--text); border-color: var(--accent); }
 
 /* Chart right margin so labels are readable */
 #stockDash { padding-right: 6px; }
@@ -632,6 +655,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button class="p-btn" data-expand="q-notepad" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body">
+      <div class="page-tabs" id="npPageTabs"></div>
       <div class="toolbar" id="npToolbar">
         <button onclick="document.execCommand('bold')"><b>B</b></button>
         <button onclick="document.execCommand('italic')"><i>I</i></button>
@@ -681,10 +705,16 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
+      <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
       <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
       <button class="p-btn" data-expand="q-claude" title="Expand">&#x2922;</button>
     </div>
-    <div class="p-body" style="display:flex;flex-direction:column;">
+    <div class="p-body" style="display:flex;flex-direction:column;position:relative;">
+      <!-- Cost estimator panel -->
+      <div id="aiCostPanel" style="display:none;position:absolute;top:0;right:4px;z-index:80;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:10px 14px;font-size:.65rem;min-width:220px;">
+        <div style="font-weight:700;color:var(--accent2);margin-bottom:6px;">API Usage This Session</div>
+        <div id="aiCostDetails"></div>
+      </div>
       <div class="ai-msgs" id="aiMsgs"></div>
       <div class="ai-input-row">
         <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="2"></textarea>
@@ -693,6 +723,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div style="padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
         <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
           <input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
+          <button id="aiKeyToggle" style="padding:3px 6px;border:none;border-radius:4px;background:var(--panel-inset);color:var(--text-dim);cursor:pointer;font-size:.6rem;" title="Show/hide key">&#128065;</button>
           <button id="aiKeySave" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Save</button>
         </div>
         <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Key stored locally. Never sent anywhere except api.anthropic.com.</div>
@@ -711,6 +742,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button class="p-btn" data-expand="q-whiteboard" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body">
+      <div class="page-tabs" id="wbPageTabs"></div>
       <div class="toolbar">
         <button class="wb-tool active" data-tool="pen">Pen</button>
         <button class="wb-tool" data-tool="line">Line</button>
@@ -774,6 +806,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button class="p-btn" data-expand="q-sheet" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body">
+      <div class="page-tabs" id="ssPageTabs"></div>
       <div class="toolbar">
         <span class="cell-ref" id="ssCellRef">A1</span>
         <input type="text" id="ssFormula" placeholder="=SUM  =SUMIF  =COUNTIF  =VLOOKUP  =LEN  =A1&amp;B1  =TEXT(A1,&quot;0.00&quot;)  =UPPER  =LEFT  =IF" />
@@ -1012,8 +1045,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <button id="newsViewerBack" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);cursor:pointer;font-size:.72rem;">&larr; Back</button>
           <span id="newsViewerTitle" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;color:var(--text);font-weight:600;"></span>
           <select id="newsViewerMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
-            <option value="archive">Archive.is</option>
             <option value="direct">Direct</option>
+            <option value="archive">Cache</option>
           </select>
           <a id="newsViewerExternal" href="#" target="_blank" style="font-size:.65rem;color:var(--accent2);text-decoration:none;padding:2px 6px;border:1px solid var(--border);border-radius:3px;" title="Open in new tab">&#8599; New Tab</a>
         </div>
@@ -1191,7 +1224,7 @@ $$('[data-expand]').forEach(btn => {
     const was = p.classList.contains('expanded');
     $$('.pane').forEach(el => el.classList.remove('expanded'));
     if (!was) p.classList.add('expanded');
-    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); }, 50);
+    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
 });
 
@@ -1205,7 +1238,7 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
     if (pane !== 'all') {
       document.getElementById(pane).classList.add('expanded');
     }
-    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); }, 50);
+    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
 });
 
@@ -1561,11 +1594,82 @@ function npUpdateWords() {
 }
 np.addEventListener('input', npUpdateWords);
 
+// ── Notepad multi-page system ──
+let npPages = LS('notepadPages') || [{ id: 1, title: 'Page 1', content: '' }];
+let npActivePageId = LS('npActivePageId') || 1;
+let npPageIdCounter = LS('npPageIdCounter') || 1;
+
+// Migrate old single-page notepad into page 1
+if (!LS('notepadPages') && LS('notepad')) {
+  npPages[0].content = LS('notepad');
+}
+
+function saveNpPages() {
+  LS('notepadPages', npPages);
+  LS('npActivePageId', npActivePageId);
+  LS('npPageIdCounter', npPageIdCounter);
+}
+
+function npSaveCurrentPage() {
+  const page = npPages.find(p => p.id === npActivePageId);
+  if (page) page.content = np.innerHTML;
+  saveNpPages();
+  LS('notepad', np.innerHTML);
+  $('#npSaveStatus').textContent = 'Saved';
+}
+
+function npSwitchPage(id) {
+  npSaveCurrentPage();
+  npActivePageId = id;
+  const page = npPages.find(p => p.id === id);
+  np.innerHTML = page ? page.content : '';
+  npUpdateWords();
+  renderNpTabs();
+}
+
+function npAddPage() {
+  npSaveCurrentPage();
+  npPageIdCounter++;
+  const page = { id: npPageIdCounter, title: 'Page ' + npPageIdCounter, content: '' };
+  npPages.push(page);
+  npSwitchPage(page.id);
+}
+
+function npDeletePage(id) {
+  if (npPages.length <= 1) return;
+  npPages = npPages.filter(p => p.id !== id);
+  if (npActivePageId === id) npSwitchPage(npPages[0].id);
+  else { saveNpPages(); renderNpTabs(); }
+}
+
+function renderNpTabs() {
+  const el = $('#npPageTabs');
+  el.innerHTML = '';
+  npPages.forEach(page => {
+    const tab = document.createElement('div');
+    tab.className = 'page-tab' + (page.id === npActivePageId ? ' active' : '');
+    tab.innerHTML = '<span class="tab-title">' + page.title + '</span>' +
+      (npPages.length > 1 ? '<span class="tab-close">&times;</span>' : '');
+    tab.onclick = e => {
+      if (e.target.classList.contains('tab-close')) { npDeletePage(page.id); return; }
+      npSwitchPage(page.id);
+    };
+    tab.addEventListener('dblclick', () => {
+      const name = prompt('Page name:', page.title);
+      if (name) { page.title = name; saveNpPages(); renderNpTabs(); }
+    });
+    el.appendChild(tab);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'page-tab-add'; addBtn.textContent = '+'; addBtn.title = 'New page';
+  addBtn.onclick = npAddPage;
+  el.appendChild(addBtn);
+}
+
 // Auto-save every 5s
 setInterval(() => {
   if ($('#npSaveStatus').textContent === 'Unsaved' && np.innerHTML.length > 0) {
-    LS('notepad', np.innerHTML);
-    $('#npSaveStatus').textContent = 'Saved';
+    npSaveCurrentPage();
   }
 }, 5000);
 
@@ -1576,9 +1680,10 @@ $('#npTimestamp').onclick = () => {
   document.execCommand('insertHTML', false, '<br><span style="color:var(--text-dim);font-size:.78rem;">' + ts + '</span><br>');
 };
 
-// Load saved
-const savedNP = LS('notepad');
-if (savedNP) { np.innerHTML = savedNP; npUpdateWords(); }
+// Load saved — init active page
+const initNpPage = npPages.find(p => p.id === npActivePageId) || npPages[0];
+if (initNpPage) { npActivePageId = initNpPage.id; np.innerHTML = initNpPage.content; npUpdateWords(); }
+renderNpTabs();
 
 /* ═══════════════════════════════════════════
    WHITEBOARD
@@ -1716,6 +1821,98 @@ let wbLayers = [];
 let wbLayerIdCounter = 0;
 let wbSelectedLayer = null;
 
+// ── Whiteboard multi-page system ──
+let wbPages = LS('wbPages') || [{ id: 1, title: 'Page 1', dataUrl: '', layers: [] }];
+let wbActivePageId = LS('wbActivePageId') || 1;
+let wbPageIdCounter = LS('wbPageIdCounter') || 1;
+
+function saveWbPages() {
+  LS('wbPages', wbPages);
+  LS('wbActivePageId', wbActivePageId);
+  LS('wbPageIdCounter', wbPageIdCounter);
+}
+
+function wbSaveCurrentPage() {
+  const page = wbPages.find(p => p.id === wbActivePageId);
+  if (page) {
+    page.dataUrl = wbC.toDataURL();
+    page.layers = JSON.parse(JSON.stringify(wbLayers));
+  }
+  saveWbPages();
+}
+
+function wbSwitchPage(id) {
+  wbSaveCurrentPage();
+  wbActivePageId = id;
+  const page = wbPages.find(p => p.id === id);
+  wbX.clearRect(0, 0, wbC.width, wbC.height);
+  wbLayers = page ? JSON.parse(JSON.stringify(page.layers || [])) : [];
+  wbRenderLayers();
+  if (page && page.dataUrl) {
+    const img = new Image();
+    img.onload = () => { wbX.drawImage(img, 0, 0); if (wbShowGrid) wbDrawGrid(); };
+    img.src = page.dataUrl;
+  } else if (wbShowGrid) wbDrawGrid();
+  wbHist = [];
+  renderWbTabs();
+}
+
+function wbAddPage() {
+  wbSaveCurrentPage();
+  wbPageIdCounter++;
+  const page = { id: wbPageIdCounter, title: 'Page ' + wbPageIdCounter, dataUrl: '', layers: [] };
+  wbPages.push(page);
+  wbSwitchPage(page.id);
+}
+
+function wbDeletePage(id) {
+  if (wbPages.length <= 1) return;
+  wbPages = wbPages.filter(p => p.id !== id);
+  if (wbActivePageId === id) wbSwitchPage(wbPages[0].id);
+  else { saveWbPages(); renderWbTabs(); }
+}
+
+function renderWbTabs() {
+  const el = $('#wbPageTabs');
+  if (!el) return;
+  el.innerHTML = '';
+  wbPages.forEach(page => {
+    const tab = document.createElement('div');
+    tab.className = 'page-tab' + (page.id === wbActivePageId ? ' active' : '');
+    tab.innerHTML = '<span class="tab-title">' + page.title + '</span>' +
+      (wbPages.length > 1 ? '<span class="tab-close">&times;</span>' : '');
+    tab.onclick = e => {
+      if (e.target.classList.contains('tab-close')) { wbDeletePage(page.id); return; }
+      wbSwitchPage(page.id);
+    };
+    tab.addEventListener('dblclick', () => {
+      const name = prompt('Page name:', page.title);
+      if (name) { page.title = name; saveWbPages(); renderWbTabs(); }
+    });
+    el.appendChild(tab);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'page-tab-add'; addBtn.textContent = '+'; addBtn.title = 'New page';
+  addBtn.onclick = wbAddPage;
+  el.appendChild(addBtn);
+}
+
+// Init whiteboard page
+setTimeout(() => {
+  const initWbPage = wbPages.find(p => p.id === wbActivePageId) || wbPages[0];
+  if (initWbPage) {
+    wbActivePageId = initWbPage.id;
+    wbLayers = JSON.parse(JSON.stringify(initWbPage.layers || []));
+    wbRenderLayers();
+    if (initWbPage.dataUrl) {
+      const img = new Image();
+      img.onload = () => { wbX.drawImage(img, 0, 0); if (wbShowGrid) wbDrawGrid(); };
+      img.src = initWbPage.dataUrl;
+    }
+  }
+  renderWbTabs();
+}, 200);
+
 function wbAddLayer(type, content, opts) {
   const id = ++wbLayerIdCounter;
   const layer = {
@@ -1749,6 +1946,12 @@ function wbRenderLayers() {
       img.src = layer.content;
       img.style.cssText = 'width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;';
       img.draggable = false;
+      img.onerror = function() {
+        this.style.display = 'none';
+        el.style.border = '2px dashed var(--danger)';
+        el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.justifyContent = 'center';
+        el.innerHTML = '<span style="color:var(--danger);font-size:.65rem;text-align:center;padding:8px;">Image failed to load</span>';
+      };
       el.appendChild(img);
     } else if (layer.type === 'table') {
       const div = document.createElement('div');
@@ -1833,19 +2036,19 @@ $('#wbImgUrlAdd').onclick = () => {
   toast('Image added');
 };
 
-// Image search via Unsplash
+// Image search via picsum.photos
 $('#wbImgSearchBtn').onclick = () => {
   const q = $('#wbImgQuery').value.trim();
   if (!q) return;
   const results = $('#wbImgResults');
-  results.innerHTML = '<div style="color:var(--text-dim);font-size:.62rem;padding:8px;">Loading...</div>';
   results.innerHTML = '';
   for (let i = 0; i < 8; i++) {
-    const url = 'https://source.unsplash.com/featured/300x200/?' + encodeURIComponent(q) + '&sig=' + (Date.now() + i);
+    const url = 'https://picsum.photos/seed/' + encodeURIComponent(q + i) + '/300/200';
     const img = document.createElement('img');
     img.src = url;
     img.style.cssText = 'width:60px;height:45px;object-fit:cover;border-radius:3px;cursor:pointer;border:1px solid var(--border);';
     img.title = 'Click to add';
+    img.onerror = function() { this.style.border = '1px dashed var(--danger)'; this.title = 'Failed'; };
     img.onclick = () => {
       wbAddLayer('image', url, { label: q + ' ' + (i + 1), w: 250, h: 180 });
       $('#wbImgPanel').style.display = 'none';
@@ -1905,12 +2108,107 @@ $('#wbPasteTable').onclick = () => {
 let ssR = 20, ssC = 10, ssD = [], ssSel = null, ssShowFormulas = false, ssHeatMap = false;
 let ssClipboard = null, ssColNames = [];
 
-function ssInit() {
-  ssD = LS('sheet') || [];
-  if (!ssD.length) { for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; } }
-  ssR = ssD.length; ssC = ssD[0].length;
-  ssColNames = LS('sheetColNames') || [];
+// ── Sheet multi-page system ──
+let ssPages = LS('ssPages') || [{ id: 1, title: 'Sheet 1', data: null, colNames: [] }];
+let ssActivePageId = LS('ssActivePageId') || 1;
+let ssPageIdCounter = LS('ssPageIdCounter') || 1;
+
+// Migrate old single sheet into page 1
+if (!LS('ssPages') && LS('sheet')) {
+  ssPages[0].data = LS('sheet');
+  ssPages[0].colNames = LS('sheetColNames') || [];
+}
+
+function saveSsPages() {
+  LS('ssPages', ssPages);
+  LS('ssActivePageId', ssActivePageId);
+  LS('ssPageIdCounter', ssPageIdCounter);
+}
+
+function ssSaveCurrentPage() {
+  const page = ssPages.find(p => p.id === ssActivePageId);
+  if (page) {
+    page.data = JSON.parse(JSON.stringify(ssD));
+    page.colNames = ssColNames.slice();
+  }
+  saveSsPages();
+  LS('sheet', ssD);
+  LS('sheetColNames', ssColNames);
+}
+
+function ssSwitchPage(id) {
+  ssSaveCurrentPage();
+  ssActivePageId = id;
+  const page = ssPages.find(p => p.id === id);
+  if (page && page.data) {
+    ssD = JSON.parse(JSON.stringify(page.data));
+    ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10;
+    ssColNames = page.colNames ? page.colNames.slice() : [];
+  } else {
+    ssD = []; ssR = 20; ssC = 10;
+    for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; }
+    ssColNames = [];
+  }
+  LS('sheet', ssD); LS('sheetColNames', ssColNames);
   ssRender();
+  renderSsTabs();
+}
+
+function ssAddPage() {
+  ssSaveCurrentPage();
+  ssPageIdCounter++;
+  const page = { id: ssPageIdCounter, title: 'Sheet ' + ssPageIdCounter, data: null, colNames: [] };
+  ssPages.push(page);
+  ssSwitchPage(page.id);
+}
+
+function ssDeletePage(id) {
+  if (ssPages.length <= 1) return;
+  ssPages = ssPages.filter(p => p.id !== id);
+  if (ssActivePageId === id) ssSwitchPage(ssPages[0].id);
+  else { saveSsPages(); renderSsTabs(); }
+}
+
+function renderSsTabs() {
+  const el = $('#ssPageTabs');
+  if (!el) return;
+  el.innerHTML = '';
+  ssPages.forEach(page => {
+    const tab = document.createElement('div');
+    tab.className = 'page-tab' + (page.id === ssActivePageId ? ' active' : '');
+    tab.innerHTML = '<span class="tab-title">' + page.title + '</span>' +
+      (ssPages.length > 1 ? '<span class="tab-close">&times;</span>' : '');
+    tab.onclick = e => {
+      if (e.target.classList.contains('tab-close')) { ssDeletePage(page.id); return; }
+      ssSwitchPage(page.id);
+    };
+    tab.addEventListener('dblclick', () => {
+      const name = prompt('Sheet name:', page.title);
+      if (name) { page.title = name; saveSsPages(); renderSsTabs(); }
+    });
+    el.appendChild(tab);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'page-tab-add'; addBtn.textContent = '+'; addBtn.title = 'New sheet';
+  addBtn.onclick = ssAddPage;
+  el.appendChild(addBtn);
+}
+
+function ssInit() {
+  // Load from active page if available
+  const initPage = ssPages.find(p => p.id === ssActivePageId) || ssPages[0];
+  if (initPage && initPage.data) {
+    ssD = JSON.parse(JSON.stringify(initPage.data));
+    ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10;
+    ssColNames = initPage.colNames ? initPage.colNames.slice() : [];
+  } else {
+    ssD = LS('sheet') || [];
+    if (!ssD.length) { for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; } }
+    ssR = ssD.length; ssC = ssD[0].length;
+    ssColNames = LS('sheetColNames') || [];
+  }
+  ssRender();
+  renderSsTabs();
 }
 
 function colN(c) { let s = ''; while (c >= 0) { s = String.fromCharCode(65 + (c % 26)) + s; c = Math.floor(c/26)-1; } return s; }
@@ -3004,15 +3302,21 @@ function renderCompareChart() {
   });
   // Draw comparison chart on canvas
   const cvs = $('#compareCanvas');
-  const rect = cvs.parentElement.getBoundingClientRect();
-  cvs.width = cvs.offsetWidth * (window.devicePixelRatio || 1);
-  cvs.height = Math.max(120, cvs.offsetHeight) * (window.devicePixelRatio || 1);
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = cvs.offsetWidth || cvs.parentElement.clientWidth || 300;
+  const cssH = Math.max(120, cvs.offsetHeight || cvs.parentElement.clientHeight || 200);
+  cvs.width = cssW * dpr;
+  cvs.height = cssH * dpr;
+  cvs.style.width = cssW + 'px';
+  cvs.style.height = cssH + 'px';
   const ctx = cvs.getContext('2d');
-  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-  const w = cvs.offsetWidth, h = Math.max(120, cvs.offsetHeight);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = cssW, h = cssH;
   ctx.clearRect(0, 0, w, h);
   const range = $('#stockRange').value;
-  const pad = { top: 20, right: 50, bottom: 24, left: 50 };
+  // Scale font and padding proportionally
+  const baseFontSize = Math.max(10, Math.min(14, w / 50));
+  const pad = { top: 24, right: Math.max(50, w * 0.06), bottom: 28, left: Math.max(50, w * 0.06) };
   const plotW = w - pad.left - pad.right;
   const plotH = h - pad.top - pad.bottom;
   // Normalize all to % change
@@ -3027,7 +3331,7 @@ function renderCompareChart() {
   ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--border') || '#333';
   ctx.lineWidth = 0.5;
   ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-dim') || '#888';
-  ctx.font = '10px sans-serif';
+  ctx.font = baseFontSize + 'px system-ui, sans-serif';
   ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
     const y = pad.top + (plotH / 4) * i;
@@ -3046,9 +3350,7 @@ function renderCompareChart() {
   }
   // Draw each series
   function drawCompareSeries(hoverIdx) {
-    // Clear plot area and redraw grid
     ctx.clearRect(pad.left, pad.top, plotW, plotH);
-    // Redraw grid lines
     ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--border') || '#333';
     ctx.lineWidth = 0.5;
     for (let i = 0; i <= 4; i++) {
@@ -3065,39 +3367,39 @@ function renderCompareChart() {
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
       });
       ctx.stroke();
-      // Label at end
       const lastY = pad.top + ((gMax - series[series.length - 1]) / gRange) * plotH;
-      ctx.fillStyle = color; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillStyle = color; ctx.font = 'bold ' + baseFontSize + 'px system-ui, sans-serif'; ctx.textAlign = 'left';
       ctx.fillText(compareTickers[si], w - pad.right + 3, lastY + 3);
     });
-    // Hover crosshair
     if (hoverIdx >= 0 && allSeries.length && hoverIdx < allSeries[0].length) {
       const hx = pad.left + (hoverIdx / (allSeries[0].length - 1)) * plotW;
       ctx.beginPath(); ctx.moveTo(hx, pad.top); ctx.lineTo(hx, pad.top + plotH);
       ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
-      // Value dots + labels
       allSeries.forEach((series, si) => {
         const v = series[hoverIdx];
         const hy = pad.top + ((gMax - v) / gRange) * plotH;
         const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
-        ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2);
         ctx.fillStyle = color; ctx.fill();
         ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
         const label = compareTickers[si] + ': ' + v.toFixed(1) + '%';
-        ctx.font = '9px system-ui'; ctx.fillStyle = color; ctx.textAlign = 'left';
-        ctx.fillText(label, hx + 8, hy + 3 + si * 12);
+        ctx.font = (baseFontSize - 1) + 'px system-ui'; ctx.fillStyle = color; ctx.textAlign = 'left';
+        ctx.fillText(label, hx + 8, hy + 3 + si * (baseFontSize + 2));
       });
     }
   }
   drawCompareSeries(-1);
   cvs.style.cursor = 'crosshair';
-  cvs.addEventListener('mousemove', e => {
-    const rect = cvs.getBoundingClientRect();
+  // Remove old listeners by cloning
+  const newCvs = cvs.cloneNode(true);
+  cvs.parentNode.replaceChild(newCvs, cvs);
+  newCvs.addEventListener('mousemove', e => {
+    const rect = newCvs.getBoundingClientRect();
     const mx = (e.clientX - rect.left) / rect.width * w;
     const dataIdx = Math.round(((mx - pad.left) / plotW) * ((allSeries[0] || []).length - 1));
     drawCompareSeries(Math.max(0, Math.min(dataIdx, (allSeries[0] || []).length - 1)));
   });
-  cvs.addEventListener('mouseleave', () => drawCompareSeries(-1));
+  newCvs.addEventListener('mouseleave', () => drawCompareSeries(-1));
 }
 
 $('#clearCompare').onclick = () => {
@@ -3465,14 +3767,27 @@ setTimeout(() => { if ($('#graphCalcView').style.display === 'flex') resizeGC();
 function genId() { return Math.random().toString(36).slice(2, 10); }
 
 function serializeState() {
+  // Save current pages before serializing
+  if (typeof npSaveCurrentPage === 'function') npSaveCurrentPage();
+  if (typeof wbSaveCurrentPage === 'function') wbSaveCurrentPage();
+  if (typeof ssSaveCurrentPage === 'function') ssSaveCurrentPage();
   return {
     notepad: np.innerHTML,
+    npPages: JSON.parse(JSON.stringify(npPages)),
+    npActivePageId: npActivePageId,
+    npPageIdCounter: npPageIdCounter,
     stockTickers: stockTickers.slice(),
     compareTickers: compareTickers.slice(),
     stockRange: $('#stockRange').value,
     sheet: JSON.parse(JSON.stringify(ssD)),
     sheetColNames: ssColNames.slice(),
+    ssPages: JSON.parse(JSON.stringify(ssPages)),
+    ssActivePageId: ssActivePageId,
+    ssPageIdCounter: ssPageIdCounter,
     wbCanvas: wbC.toDataURL(),
+    wbPages: JSON.parse(JSON.stringify(wbPages)),
+    wbActivePageId: wbActivePageId,
+    wbPageIdCounter: wbPageIdCounter,
     cmNodes: JSON.parse(JSON.stringify(cmNodes)),
     cmEdges: JSON.parse(JSON.stringify(cmEdges)),
     cmNID: cmNID,
@@ -3492,19 +3807,53 @@ function serializeState() {
 
 function deserializeState(s) {
   if (!s) return;
-  // Notepad
-  if (s.notepad !== undefined) { np.innerHTML = s.notepad; npUpdateWords(); }
+  // Notepad pages
+  if (s.npPages) {
+    npPages = JSON.parse(JSON.stringify(s.npPages));
+    npActivePageId = s.npActivePageId || npPages[0].id;
+    npPageIdCounter = s.npPageIdCounter || npPages.length;
+    saveNpPages();
+    const pg = npPages.find(p => p.id === npActivePageId) || npPages[0];
+    np.innerHTML = pg ? pg.content : ''; npUpdateWords();
+    renderNpTabs();
+  } else if (s.notepad !== undefined) { np.innerHTML = s.notepad; npUpdateWords(); }
   // Stocks
   if (s.stockTickers) { stockTickers = s.stockTickers.slice(); LS('stockTickers', stockTickers); }
   if (s.compareTickers) { compareTickers = s.compareTickers.slice(); LS('compareTickers', compareTickers); }
   if (s.stockRange) { $('#stockRange').value = s.stockRange; }
   renderStockChips();
   renderStockDash();
-  // Sheet
-  if (s.sheet) { ssD = JSON.parse(JSON.stringify(s.sheet)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; LS('sheet', ssD); ssRender(); }
-  if (s.sheetColNames) { ssColNames = s.sheetColNames.slice(); LS('sheetColNames', ssColNames); }
-  // Whiteboard
-  if (s.wbCanvas) {
+  // Sheet pages
+  if (s.ssPages) {
+    ssPages = JSON.parse(JSON.stringify(s.ssPages));
+    ssActivePageId = s.ssActivePageId || ssPages[0].id;
+    ssPageIdCounter = s.ssPageIdCounter || ssPages.length;
+    saveSsPages();
+    const pg = ssPages.find(p => p.id === ssActivePageId) || ssPages[0];
+    if (pg && pg.data) { ssD = JSON.parse(JSON.stringify(pg.data)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; }
+    ssColNames = pg && pg.colNames ? pg.colNames.slice() : [];
+    LS('sheet', ssD); LS('sheetColNames', ssColNames); ssRender();
+    renderSsTabs();
+  } else {
+    if (s.sheet) { ssD = JSON.parse(JSON.stringify(s.sheet)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; LS('sheet', ssD); ssRender(); }
+    if (s.sheetColNames) { ssColNames = s.sheetColNames.slice(); LS('sheetColNames', ssColNames); }
+  }
+  // Whiteboard pages
+  if (s.wbPages) {
+    wbPages = JSON.parse(JSON.stringify(s.wbPages));
+    wbActivePageId = s.wbActivePageId || wbPages[0].id;
+    wbPageIdCounter = s.wbPageIdCounter || wbPages.length;
+    saveWbPages();
+    const pg = wbPages.find(p => p.id === wbActivePageId) || wbPages[0];
+    wbLayers = pg ? JSON.parse(JSON.stringify(pg.layers || [])) : [];
+    wbRenderLayers();
+    if (pg && pg.dataUrl) {
+      const img = new Image();
+      img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
+      img.src = pg.dataUrl;
+    }
+    renderWbTabs();
+  } else if (s.wbCanvas) {
     const img = new Image();
     img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
     img.src = s.wbCanvas;
@@ -4495,20 +4844,23 @@ function renderNewsFeed() {
     const div = document.createElement('div');
     div.className = 'news-item';
     const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? a.hoursAgo + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
-    const archiveUrl = 'https://archive.is/?url=' + encodeURIComponent(a.directUrl || a.url);
+    const archiveUrl = 'https://webcache.googleusercontent.com/search?q=cache:' + encodeURIComponent(a.directUrl || a.url);
     div.innerHTML =
       '<div class="news-source">' + a.source + '</div>' +
       '<div class="news-title">' + a.title + '</div>' +
       '<div class="news-snippet">' + a.snippet + '</div>' +
       '<div class="news-meta"><span>' + timeStr + '</span>' +
       a.tags.map(t => '<span class="news-tag">' + t + '</span>').join('') +
-      '<a class="news-direct" href="' + (a.directUrl || a.url) + '" target="_blank" title="Open source section" style="font-size:.6rem;color:var(--text-dim);text-decoration:none;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Source &#8599;</a>' +
-      '<a class="news-search" href="' + a.url + '" target="_blank" title="Find real articles on Google News" style="font-size:.6rem;color:var(--accent2);text-decoration:none;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Search &#8599;</a>' +
-      '<a class="news-open" href="' + archiveUrl + '" target="_blank" title="Open via archive.is">Archive &#8599;</a>' +
+      '<span class="news-direct" data-action="source" style="font-size:.6rem;color:var(--text-dim);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Source</span>' +
+      '<span class="news-search" data-action="search" style="font-size:.6rem;color:var(--accent2);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Search</span>' +
+      '<span class="news-open" data-action="archive" style="font-size:.6rem;color:var(--accent);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Archive</span>' +
       '</div>';
-    // Click article body to open inline viewer with Google News search results
+    // All links open in the inline viewer within the news pane
     div.onclick = (e) => {
-      if (e.target.closest('.news-open') || e.target.closest('.news-direct') || e.target.closest('.news-search')) return;
+      const action = e.target.dataset?.action;
+      if (action === 'source') { openNewsViewer(a.title, a.directUrl || a.url, archiveUrl); return; }
+      if (action === 'search') { openNewsViewer(a.title, a.url, archiveUrl); return; }
+      if (action === 'archive') { openNewsViewer(a.title, a.url, archiveUrl); return; }
       openNewsViewer(a.title, a.url, archiveUrl);
     };
     feed.appendChild(div);
@@ -4580,7 +4932,59 @@ let aiKey = localStorage.getItem('ws_aiApiKey') || '';
 let aiMessages = [];
 let aiStreaming = false;
 
+// ── Token tracking for cost estimator ──
+let aiSessionTokensIn = 0;
+let aiSessionTokensOut = 0;
+let aiSessionRequests = 0;
+
+const MODEL_RATES = {
+  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
+  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
+  'claude-opus-4-6': { input: 15.00, output: 75.00 }
+};
+
+function getSessionCost() {
+  const model = $('#aiModel').value;
+  const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
+  return (aiSessionTokensIn / 1e6 * rates.input) + (aiSessionTokensOut / 1e6 * rates.output);
+}
+
+function updateCostPanel() {
+  const model = $('#aiModel').value;
+  const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
+  const cost = getSessionCost();
+  const el = $('#aiCostDetails');
+  if (!el) return;
+  el.innerHTML =
+    '<div style="display:flex;justify-content:space-between;margin:3px 0;"><span>Requests:</span><span>' + aiSessionRequests + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:3px 0;"><span>Input tokens:</span><span>' + aiSessionTokensIn.toLocaleString() + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:3px 0;"><span>Output tokens:</span><span>' + aiSessionTokensOut.toLocaleString() + '</span></div>' +
+    '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:3px 0;color:var(--text-dim);"><span>Rate:</span><span>$' + rates.input.toFixed(2) + '/1M in, $' + rates.output.toFixed(2) + '/1M out</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:3px 0;font-weight:700;color:var(--accent2);"><span>Session cost:</span><span>~$' + cost.toFixed(4) + '</span></div>' +
+    '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
+    '<div style="color:var(--text-dim);font-size:.58rem;">Per-task estimates (' + model.split('-').slice(1,2).join('') + '):</div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Simple Q&A</span><span>~$' + (1500/1e6*rates.input + 300/1e6*rates.output).toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>1 tool call</span><span>~$' + (3000/1e6*rates.input + 800/1e6*rates.output).toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Multi-tool</span><span>~$' + (8000/1e6*rates.input + 2000/1e6*rates.output).toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Build thesis</span><span>~$' + (12000/1e6*rates.input + 3000/1e6*rates.output).toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Idle:</span><span>$0.00/hr</span></div>';
+}
+
+$('#aiCostBtn').onclick = () => {
+  const panel = $('#aiCostPanel');
+  if (panel.style.display === 'none') { updateCostPanel(); panel.style.display = 'block'; }
+  else panel.style.display = 'none';
+};
+
 if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
+
+// API key show/hide toggle
+$('#aiKeyToggle').onclick = () => {
+  const inp = $('#aiApiKey');
+  if (inp.type === 'password') { inp.type = 'text'; }
+  else { inp.type = 'password'; }
+};
 
 $('#aiKeySave').onclick = () => {
   const v = $('#aiApiKey').value.trim();
@@ -4588,6 +4992,7 @@ $('#aiKeySave').onclick = () => {
   aiKey = v;
   localStorage.setItem('ws_aiApiKey', v);
   $('#aiApiKey').value = '••••••••••' + v.slice(-4);
+  $('#aiApiKey').type = 'password';
   addAiMsg('system', 'API key saved. Claude is ready.');
 };
 
@@ -4674,7 +5079,9 @@ BEHAVIORAL RULES:
 
 SUPPORTED FORMULAS for the sheet: =SUM, =AVG, =MIN, =MAX, =COUNT, =MEDIAN, =PRODUCT, =SUMIF, =COUNTIF, =VLOOKUP, =IF, =LEN, =UPPER, =LOWER, =TRIM, =LEFT, =RIGHT, =MID, =SUBSTITUTE, =CONCAT, =TEXT, =ROUND, =ABS, =SPARK, & concatenation, cell arithmetic (=A1+B1*2).
 
-TEMPLATES you can scaffold: stock_comparison_table, earnings_tracker, portfolio_summary, scenario_model, news_sentiment_board, macro_dashboard.`;
+TEMPLATES you can scaffold: stock_comparison_table, earnings_tracker, portfolio_summary, scenario_model, news_sentiment_board, macro_dashboard.
+
+MEME RULES: When creating memes, keep text under 8 words per line. Top text = setup, bottom text = punchline. Match the template energy (e.g. stonks = irrationally bullish). Use specific context like ticker symbols, prices, or events — generic memes are boring. Available templates: drake, stonks, this_is_fine, galaxy_brain, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been, distracted_boyfriend, gru_plan, hide_the_pain.`;
 
 // ── Tool definitions for Anthropic API ──
 const AGENT_TOOLS = [
@@ -4712,11 +5119,11 @@ const AGENT_TOOLS = [
 
   // IMAGE/MEME TOOLS
   { name: 'search_image', description: 'Search for images by query. Returns URLs that can be added to draw pane.', input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
-  { name: 'create_meme', description: 'Create a meme with top and bottom text overlaid on a template image, rendered to the draw pane.', input_schema: { type: 'object', properties: { template_name: { type: 'string', description: 'Meme template: stonks, this_is_fine, galaxy_brain, drake, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been' }, top_text: { type: 'string' }, bottom_text: { type: 'string' } }, required: ['template_name', 'top_text', 'bottom_text'] } }
+  { name: 'create_meme', description: 'Generate a finished meme image via imgflip API with text baked in. Returns the image URL and adds it to the draw pane. Keep text SHORT (under 8 words per line).', input_schema: { type: 'object', properties: { template_name: { type: 'string', description: 'Meme template: drake, stonks, this_is_fine, galaxy_brain, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been, distracted_boyfriend, gru_plan, hide_the_pain' }, top_text: { type: 'string', description: 'Top text (setup). Keep under 8 words.' }, bottom_text: { type: 'string', description: 'Bottom text (punchline). Keep under 8 words.' } }, required: ['template_name', 'top_text', 'bottom_text'] } }
 ];
 
 // ── Tool execution dispatcher ──
-function executeAgentTool(name, input) {
+async function executeAgentTool(name, input) {
   try {
     switch (name) {
       // READ TOOLS
@@ -4965,42 +5372,38 @@ function executeAgentTool(name, input) {
       // IMAGE/MEME TOOLS
       case 'search_image': {
         const urls = [];
-        for (let i = 0; i < 6; i++) urls.push('https://source.unsplash.com/featured/400x300/?' + encodeURIComponent(input.query) + '&sig=' + (Date.now() + i));
+        for (let i = 0; i < 6; i++) urls.push('https://picsum.photos/seed/' + encodeURIComponent(input.query + i) + '/400/300');
         return JSON.stringify({ query: input.query, urls });
       }
       case 'create_meme': {
-        // Use placeholder meme images based on template name
-        const MEME_URLS = {
-          stonks: 'https://i.imgflip.com/2xnzjd.jpg',
-          this_is_fine: 'https://i.imgflip.com/wxica.jpg',
-          galaxy_brain: 'https://i.imgflip.com/1yxkcp.jpg',
-          drake: 'https://i.imgflip.com/30b1gx.jpg',
-          disaster_girl: 'https://i.imgflip.com/23ls.jpg',
-          expanding_brain: 'https://i.imgflip.com/1jwhww.jpg',
-          trade_offer: 'https://i.imgflip.com/54hjww.jpg',
-          change_my_mind: 'https://i.imgflip.com/24y43o.jpg',
-          always_has_been: 'https://i.imgflip.com/46e43q.jpg'
+        const IMGFLIP_TEMPLATES = {
+          drake: 181913649, stonks: 326428803, this_is_fine: 55311130,
+          galaxy_brain: 262867959, disaster_girl: 97984, expanding_brain: 93895088,
+          trade_offer: 309868304, change_my_mind: 129242436, always_has_been: 252600902,
+          distracted_boyfriend: 112126428, gru_plan: 131940431, hide_the_pain: 27813981
         };
-        const imgUrl = MEME_URLS[input.template_name] || MEME_URLS['stonks'];
-        // Add image as layer
-        wbAddLayer('image', imgUrl, { label: 'Meme: ' + input.template_name, w: 300, h: 280, x: 30, y: 30 });
-        // Draw text overlays on canvas
-        wbSaveState();
-        wbX.font = 'bold 28px Impact, sans-serif';
-        wbX.fillStyle = '#ffffff';
-        wbX.strokeStyle = '#000000';
-        wbX.lineWidth = 3;
-        wbX.textAlign = 'center';
-        if (input.top_text) {
-          wbX.strokeText(input.top_text.toUpperCase(), wbC.width / 2, 50);
-          wbX.fillText(input.top_text.toUpperCase(), wbC.width / 2, 50);
+        const templateId = IMGFLIP_TEMPLATES[input.template_name] || IMGFLIP_TEMPLATES['stonks'];
+        try {
+          const formData = new URLSearchParams({
+            template_id: templateId,
+            username: 'imgflip_hubot',
+            password: 'imgflip_hubot',
+            text0: input.top_text || '',
+            text1: input.bottom_text || ''
+          });
+          const memeResp = await fetch('https://api.imgflip.com/caption_image', {
+            method: 'POST', body: formData
+          });
+          const memeData = await memeResp.json();
+          if (memeData.success) {
+            wbAddLayer('image', memeData.data.url, { label: 'Meme: ' + input.template_name, w: 300, h: 300, x: 30, y: 30 });
+            toast('Meme created!');
+            return JSON.stringify({ success: true, url: memeData.data.url });
+          }
+          return JSON.stringify({ error: memeData.error_message || 'imgflip API failed' });
+        } catch (err) {
+          return JSON.stringify({ error: 'imgflip API error: ' + err.message });
         }
-        if (input.bottom_text) {
-          wbX.strokeText(input.bottom_text.toUpperCase(), wbC.width / 2, wbC.height - 30);
-          wbX.fillText(input.bottom_text.toUpperCase(), wbC.width / 2, wbC.height - 30);
-        }
-        toast('Meme created: ' + input.template_name);
-        return JSON.stringify({ success: true, template: input.template_name });
       }
 
       default: return JSON.stringify({ error: 'Unknown tool: ' + name });
@@ -5067,6 +5470,12 @@ async function sendAgentMessage() {
 
       const result = await resp.json();
 
+      // Track token usage for cost estimator
+      aiSessionTokensIn += result.usage?.input_tokens || 0;
+      aiSessionTokensOut += result.usage?.output_tokens || 0;
+      aiSessionRequests++;
+      if ($('#aiCostPanel').style.display !== 'none') updateCostPanel();
+
       // Extract text and tool_use blocks
       const textBlocks = (result.content || []).filter(b => b.type === 'text');
       const toolBlocks = (result.content || []).filter(b => b.type === 'tool_use');
@@ -5099,7 +5508,7 @@ async function sendAgentMessage() {
       const toolResults = [];
       for (const toolBlock of toolBlocks) {
         addToolStatus(toolBlock.name, toolBlock.input);
-        const toolResult = executeAgentTool(toolBlock.name, toolBlock.input);
+        const toolResult = await executeAgentTool(toolBlock.name, toolBlock.input);
         toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult });
       }
 
