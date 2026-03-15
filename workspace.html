@@ -547,7 +547,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <span class="toggle-track"></span>
     </label>
     <div class="fun-btn-wrap">
-      <button class="fun-btn" id="funToggle">&#9733; Media</button>
+      <div style="display:flex;gap:2px;">
+        <button class="fun-btn" id="funQuickPlay" title="Play / Pause" style="padding:5px 8px;border-radius:6px 0 0 6px;">&#9654;</button>
+        <button class="fun-btn" id="funToggle" title="Media settings" style="padding:5px 8px;border-radius:0 6px 6px 0;border-left:1px solid rgba(255,255,255,.2);">&#9881;</button>
+      </div>
       <div class="fun-panel" id="funPanel" style="resize:both;overflow:auto;min-width:280px;min-height:200px;">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
           <h3 style="margin:0;flex:1;">Media Player &amp; URLs</h3>
@@ -1064,6 +1067,27 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
    MEDIA BUTTON — URL + AUDIO
    ═══════════════════════════════════════════ */
 $('#funToggle').onclick = e => { e.stopPropagation(); $('#funPanel').classList.toggle('open'); };
+// Quick play button — one click to play/pause without opening the panel
+$('#funQuickPlay').onclick = e => {
+  e.stopPropagation();
+  if (!audio.paused) {
+    audio.pause();
+    $('#funQuickPlay').innerHTML = '&#9654;';
+    toast('Paused');
+    return;
+  }
+  if (playlist.length) {
+    if (plCurrent < 0) plCurrent = 0;
+    playTrack(plCurrent);
+    $('#funQuickPlay').innerHTML = '&#10074;&#10074;';
+    plAutoPlay = true;
+    $('#aAutoPlay').style.background = 'var(--accent)';
+    $('#aAutoPlay').style.color = '#fff';
+  } else {
+    toast('Add audio URLs in Media settings first');
+    $('#funPanel').classList.add('open');
+  }
+};
 document.addEventListener('click', e => { if (!e.target.closest('.fun-btn-wrap')) $('#funPanel').classList.remove('open'); });
 
 let urls = LS('urls') || [];
@@ -1131,6 +1155,7 @@ function playTrack(i) {
   audio.play().catch(() => toast('Cannot play'));
   const name = playlist[i].split('/').pop().split('?')[0] || 'Track ' + (i + 1);
   $('#nowPlaying').textContent = name;
+  $('#funQuickPlay').innerHTML = '&#10074;&#10074;';
   renderPlaylist();
 }
 
@@ -1151,8 +1176,8 @@ $('#aPlay').onclick = () => {
   const s = $('#audioUrlInput').value.trim();
   if (s) { audio.src = s; audio.play().catch(() => toast('Cannot play')); }
 };
-$('#aPause').onclick = () => audio.pause();
-$('#aStop').onclick = () => { audio.pause(); audio.currentTime = 0; };
+$('#aPause').onclick = () => { audio.pause(); $('#funQuickPlay').innerHTML = '&#9654;'; };
+$('#aStop').onclick = () => { audio.pause(); audio.currentTime = 0; $('#funQuickPlay').innerHTML = '&#9654;'; };
 $('#aPrev').onclick = () => { if (plCurrent > 0) playTrack(plCurrent - 1); };
 $('#aNext').onclick = () => { if (plCurrent < playlist.length - 1) playTrack(plCurrent + 1); };
 $('#aVol').oninput = function() { audio.volume = this.value / 100; $('#aVolLbl').textContent = this.value + '%'; };
