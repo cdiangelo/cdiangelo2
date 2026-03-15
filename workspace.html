@@ -2425,17 +2425,22 @@ if (wsIsAdmin) showLogoutButton();
 
 /* Per-user API usage tracking */
 function trackUserUsage(tokensIn, tokensOut, model) {
-  const name = localStorage.getItem('ws_userName');
+  const name = localStorage.getItem('ws_userName') || (wsIsAdmin ? 'admin' : '');
   if (!name) return;
   const key = 'ws_usage_' + name;
-  const data = JSON.parse(localStorage.getItem(key) || '{"requests":0,"tokensIn":0,"tokensOut":0,"cost":0,"models":{}}');
+  const data = JSON.parse(localStorage.getItem(key) || '{"requests":0,"tokensIn":0,"tokensOut":0,"cost":0,"models":{},"log":[]}');
   data.requests++;
   data.tokensIn += tokensIn;
   data.tokensOut += tokensOut;
   const rates = typeof MODEL_RATES !== 'undefined' ? (MODEL_RATES[model] || { input: 3, output: 15 }) : { input: 3, output: 15 };
-  data.cost += (tokensIn / 1e6 * rates.input) + (tokensOut / 1e6 * rates.output);
+  const reqCost = (tokensIn / 1e6 * rates.input) + (tokensOut / 1e6 * rates.output);
+  data.cost += reqCost;
   data.models[model] = (data.models[model] || 0) + 1;
   data.lastActive = new Date().toISOString();
+  // Per-request log for admin drill-in
+  if (!data.log) data.log = [];
+  data.log.push({ ts: data.lastActive, model, tokIn: tokensIn, tokOut: tokensOut, cost: reqCost });
+  if (data.log.length > 500) data.log = data.log.slice(-500); // Cap at 500 entries
   localStorage.setItem(key, JSON.stringify(data));
 }
 
@@ -7472,9 +7477,18 @@ function updateCostPanel() {
     '<div style="color:var(--text-dim);font-size:.55rem;">Avg cost/req: ~$' + (aiSessionRequests ? (cost / aiSessionRequests).toFixed(4) : '0.00') + '</div>';
 }
 
+// Close all admin action panels (mutually exclusive)
+function closeAllAdminPanels(except) {
+  ['aiCostPanel', 'aiPricingPanel', 'aiUsageDash'].forEach(id => {
+    if (id !== except) $('#' + id).style.display = 'none';
+  });
+  const accPanel = document.getElementById('aiAccessPanel');
+  if (accPanel && except !== 'aiAccessPanel') accPanel.remove();
+}
+
 $('#aiCostBtn').onclick = () => {
   const panel = $('#aiCostPanel');
-  $('#aiPricingPanel').style.display = 'none';
+  closeAllAdminPanels('aiCostPanel');
   if (panel.style.display === 'none') { updateCostPanel(); panel.style.display = 'block'; }
   else panel.style.display = 'none';
 };
@@ -7609,16 +7623,104 @@ function updatePricingCalc() {
 
 $('#aiPricingBtn').onclick = () => {
   const panel = $('#aiPricingPanel');
-  $('#aiCostPanel').style.display = 'none';
-  $('#aiUsageDash').style.display = 'none';
+  closeAllAdminPanels('aiPricingPanel');
   if (panel.style.display === 'none') { updatePricingCalc(); panel.style.display = 'block'; }
   else panel.style.display = 'none';
 };
 
+// Drill-in: show per-request log for a user
+function showUserDrillIn(userName) {
+  const el = $('#aiUsageDashContent');
+  const data = JSON.parse(localStorage.getItem('ws_usage_' + userName) || '{}');
+  const log = data.log || [];
+  if (!log.length) {
+    el.innerHTML = '<div style="margin-bottom:8px;"><a href="#" onclick="$(\'#aiUsageDashBtn\').click();$(\'#aiUsageDashBtn\').click();return false;" style="color:var(--accent2);font-size:.65rem;">&larr; Back to all users</a></div>' +
+      '<div style="color:var(--text-dim);text-align:center;padding:10px;">No per-request data logged yet for ' + userName + '.</div>';
+    return;
+  }
+
+  // State for filtering
+  let filterModel = '';
+  let filterDateFrom = '';
+  let filterDateTo = '';
+
+  function renderDrillIn() {
+    // Apply filters
+    const filtered = log.filter(r => {
+      if (filterModel && r.model !== filterModel) return false;
+      if (filterDateFrom) { const d = new Date(r.ts); if (d < new Date(filterDateFrom)) return false; }
+      if (filterDateTo) { const d = new Date(r.ts); if (d > new Date(filterDateTo + 'T23:59:59')) return false; }
+      return true;
+    });
+
+    // Totals for filtered set
+    let fCost = 0, fIn = 0, fOut = 0;
+    filtered.forEach(r => { fCost += r.cost || 0; fIn += r.tokIn || 0; fOut += r.tokOut || 0; });
+
+    // Unique models for filter dropdown
+    const models = [...new Set(log.map(r => r.model))];
+
+    let html = '<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+      '<a href="#" id="drillBackBtn" style="color:var(--accent2);font-size:.65rem;white-space:nowrap;">&larr; All users</a>' +
+      '<span style="font-weight:700;color:var(--text);font-size:.7rem;">' + userName + '</span>' +
+      '<span style="font-size:.58rem;color:var(--text-dim);">' + filtered.length + ' of ' + log.length + ' requests</span>' +
+    '</div>';
+
+    // Filters row
+    html += '<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">' +
+      '<select id="drillFilterModel" style="padding:2px 4px;font-size:.58rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;">' +
+        '<option value="">All models</option>' +
+        models.map(m => '<option value="' + m + '"' + (filterModel === m ? ' selected' : '') + '>' + m.replace('claude-', '') + '</option>').join('') +
+      '</select>' +
+      '<input type="date" id="drillFilterFrom" value="' + filterDateFrom + '" style="padding:2px 4px;font-size:.58rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;" title="From date" />' +
+      '<input type="date" id="drillFilterTo" value="' + filterDateTo + '" style="padding:2px 4px;font-size:.58rem;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;" title="To date" />' +
+      '<button id="drillFilterClear" style="padding:2px 6px;font-size:.55rem;background:none;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);cursor:pointer;">Clear</button>' +
+    '</div>';
+
+    // Summary total row at top
+    html += '<div style="display:flex;gap:12px;padding:6px 8px;margin-bottom:6px;background:rgba(59,130,246,.08);border:1px solid var(--accent);border-radius:6px;font-size:.62rem;">' +
+      '<div><span style="color:var(--text-dim);">Requests:</span> <strong style="color:var(--text);">' + filtered.length + '</strong></div>' +
+      '<div><span style="color:var(--text-dim);">Tok In:</span> <strong style="color:var(--text);">' + fIn.toLocaleString() + '</strong></div>' +
+      '<div><span style="color:var(--text-dim);">Tok Out:</span> <strong style="color:var(--text);">' + fOut.toLocaleString() + '</strong></div>' +
+      '<div><span style="color:var(--text-dim);">Total Cost:</span> <strong style="color:var(--accent2);">$' + fCost.toFixed(4) + '</strong></div>' +
+    '</div>';
+
+    // Request table (newest first)
+    const sorted = [...filtered].reverse();
+    html += '<div style="max-height:300px;overflow-y:auto;">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:.56rem;color:var(--text);">' +
+      '<tr style="border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel-inset);"><th style="padding:3px 4px;text-align:left;">#</th><th style="padding:3px 4px;text-align:left;">Timestamp</th><th style="padding:3px 4px;text-align:left;">Model</th><th style="padding:3px 4px;text-align:right;">Tok In</th><th style="padding:3px 4px;text-align:right;">Tok Out</th><th style="padding:3px 4px;text-align:right;">Cost</th></tr>';
+    sorted.forEach((r, i) => {
+      const ts = new Date(r.ts);
+      const tsStr = ts.toLocaleDateString() + ' ' + ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const modelShort = (r.model || '').replace('claude-', '').replace('-20251001', '');
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,.03);">' +
+        '<td style="padding:2px 4px;color:var(--text-dim);">' + (filtered.length - i) + '</td>' +
+        '<td style="padding:2px 4px;">' + tsStr + '</td>' +
+        '<td style="padding:2px 4px;">' + modelShort + '</td>' +
+        '<td style="padding:2px 4px;text-align:right;">' + (r.tokIn || 0).toLocaleString() + '</td>' +
+        '<td style="padding:2px 4px;text-align:right;">' + (r.tokOut || 0).toLocaleString() + '</td>' +
+        '<td style="padding:2px 4px;text-align:right;font-weight:600;">$' + (r.cost || 0).toFixed(4) + '</td>' +
+      '</tr>';
+    });
+    html += '</table></div>';
+
+    el.innerHTML = html;
+
+    // Bind filter events
+    document.getElementById('drillBackBtn').onclick = (e) => { e.preventDefault(); $('#aiUsageDashBtn').click(); $('#aiUsageDashBtn').click(); };
+    document.getElementById('drillFilterModel').onchange = (e) => { filterModel = e.target.value; renderDrillIn(); };
+    document.getElementById('drillFilterFrom').onchange = (e) => { filterDateFrom = e.target.value; renderDrillIn(); };
+    document.getElementById('drillFilterTo').onchange = (e) => { filterDateTo = e.target.value; renderDrillIn(); };
+    document.getElementById('drillFilterClear').onclick = () => { filterModel = ''; filterDateFrom = ''; filterDateTo = ''; renderDrillIn(); };
+  }
+
+  renderDrillIn();
+}
+
 $('#aiUsageDashBtn').onclick = () => {
   const panel = $('#aiUsageDash');
-  $('#aiCostPanel').style.display = 'none';
-  $('#aiPricingPanel').style.display = 'none';
+  closeAllAdminPanels('aiUsageDash');
   if (panel.style.display === 'none') {
     const users = getAllUserUsage();
     const el = $('#aiUsageDashContent');
@@ -7630,24 +7732,29 @@ $('#aiUsageDashBtn').onclick = () => {
         totalCost += u.cost || 0; totalReqs += u.requests || 0;
         totalIn += u.tokensIn || 0; totalOut += u.tokensOut || 0;
         const lastActive = u.lastActive ? new Date(u.lastActive).toLocaleDateString() : '-';
-        return '<tr><td style="padding:3px 6px;font-weight:600;">' + u.name + '</td>' +
+        return '<tr><td style="padding:3px 6px;"><a href="#" class="user-drill-link" data-user="' + u.name.replace(/"/g, '&quot;') + '" style="color:var(--accent2);font-weight:600;text-decoration:none;">' + u.name + '</a></td>' +
           '<td style="padding:3px 6px;text-align:right;">' + (u.requests || 0) + '</td>' +
           '<td style="padding:3px 6px;text-align:right;">' + (u.tokensIn || 0).toLocaleString() + '</td>' +
           '<td style="padding:3px 6px;text-align:right;">' + (u.tokensOut || 0).toLocaleString() + '</td>' +
-          '<td style="padding:3px 6px;text-align:right;font-weight:600;">$' + (u.cost || 0).toFixed(4) + '</td>' +
+          '<td style="padding:3px 6px;text-align:right;"><a href="#" class="user-drill-link" data-user="' + u.name.replace(/"/g, '&quot;') + '" style="color:var(--accent2);font-weight:600;text-decoration:none;">$' + (u.cost || 0).toFixed(4) + '</a></td>' +
           '<td style="padding:3px 6px;text-align:right;color:var(--text-dim);">' + lastActive + '</td>' +
           '<td style="padding:3px 4px;"><button onclick="localStorage.removeItem(\'ws_usage_' + u.name + '\');$(\'#aiUsageDashBtn\').click();$(\'#aiUsageDashBtn\').click();" style="font-size:.5rem;padding:1px 4px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Clear</button></td></tr>';
       }).join('');
       el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:.6rem;color:var(--text);">' +
+        '<tr style="border-bottom:1px solid var(--border);font-weight:700;background:rgba(59,130,246,.06);"><td style="padding:4px 6px;">TOTAL</td><td style="padding:4px 6px;text-align:right;">' + totalReqs + '</td><td style="padding:4px 6px;text-align:right;">' + totalIn.toLocaleString() + '</td><td style="padding:4px 6px;text-align:right;">' + totalOut.toLocaleString() + '</td><td style="padding:4px 6px;text-align:right;color:var(--accent2);">$' + totalCost.toFixed(4) + '</td><td></td><td></td></tr>' +
         '<tr style="border-bottom:1px solid var(--border);"><th style="padding:3px 6px;text-align:left;">User</th><th style="padding:3px 6px;text-align:right;">Reqs</th><th style="padding:3px 6px;text-align:right;">Tok In</th><th style="padding:3px 6px;text-align:right;">Tok Out</th><th style="padding:3px 6px;text-align:right;">Cost</th><th style="padding:3px 6px;text-align:right;">Last Active</th><th></th></tr>' +
         rows +
-        '<tr style="border-top:1px solid var(--border);font-weight:700;"><td style="padding:3px 6px;">TOTAL</td><td style="padding:3px 6px;text-align:right;">' + totalReqs + '</td><td style="padding:3px 6px;text-align:right;">' + totalIn.toLocaleString() + '</td><td style="padding:3px 6px;text-align:right;">' + totalOut.toLocaleString() + '</td><td style="padding:3px 6px;text-align:right;">$' + totalCost.toFixed(4) + '</td><td></td><td></td></tr>' +
         '</table>' +
-        '<div style="margin-top:6px;font-size:.55rem;color:var(--text-dim);">Annualized total cost: $' + (totalCost * 365 / Math.max(1, Math.ceil((Date.now() - new Date(users[users.length-1]?.lastActive || Date.now()).getTime()) / 86400000) || 1)).toFixed(2) + ' (estimated)</div>';
+        '<div style="margin-top:6px;font-size:.55rem;color:var(--text-dim);">Click a user name or cost to drill into per-request detail. Annualized: $' + (totalCost * 365 / Math.max(1, Math.ceil((Date.now() - new Date(users[users.length-1]?.lastActive || Date.now()).getTime()) / 86400000) || 1)).toFixed(2) + '</div>';
+      // Bind drill-in links
+      el.querySelectorAll('.user-drill-link').forEach(link => {
+        link.onclick = (e) => { e.preventDefault(); showUserDrillIn(link.dataset.user); };
+        link.onmouseenter = () => { link.style.textDecoration = 'underline'; };
+        link.onmouseleave = () => { link.style.textDecoration = 'none'; };
+      });
     }
     panel.style.display = 'block';
   } else panel.style.display = 'none';
-  // Hide if not admin
   if (!wsIsAdmin) { panel.style.display = 'none'; }
 };
 $('#aiAccessReqBtn').onclick = renderAccessRequestsPanel;
@@ -8965,6 +9072,7 @@ function getAllKnownUsers() {
 function renderAccessRequestsPanel() {
   let panel = document.getElementById('aiAccessPanel');
   if (panel) { panel.remove(); return; }
+  closeAllAdminPanels('aiAccessPanel');
   panel = document.createElement('div');
   panel.id = 'aiAccessPanel';
   panel.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:30;background:var(--bg);overflow-y:auto;padding:12px;font-size:.6rem;';
