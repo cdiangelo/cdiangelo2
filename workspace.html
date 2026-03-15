@@ -536,7 +536,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button id="authAdminBtn" style="padding:12px 28px;border:1px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.1);color:var(--accent2);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;">&#128272; Admin</button>
     </div>
     <div id="authAdminForm" style="display:none;margin-top:12px;">
-      <input type="password" id="authPassword" placeholder="Admin password" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:10px;box-sizing:border-box;" />
+      <div style="position:relative;">
+        <input type="password" id="authPassword" placeholder="Admin password" style="width:100%;padding:10px 14px;padding-right:40px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:10px;box-sizing:border-box;" />
+        <button id="authTogglePw" type="button" style="position:absolute;right:8px;top:8px;background:none;border:none;cursor:pointer;font-size:1rem;color:var(--text-dim);padding:0;line-height:1;" title="Show/hide password">&#128065;</button>
+      </div>
       <button id="authLoginBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Sign In</button>
       <div id="authError" style="color:var(--danger);font-size:.7rem;margin-top:6px;display:none;">Invalid password</div>
     </div>
@@ -1097,6 +1100,12 @@ const ADMIN_PASSWORD = 'alphabetsoup'; // In production, validate server-side
   document.getElementById('authPassword').addEventListener('keydown', e => {
     if (e.key === 'Enter') adminLogin();
   });
+  document.getElementById('authTogglePw').onclick = () => {
+    const pw = document.getElementById('authPassword');
+    const isHidden = pw.type === 'password';
+    pw.type = isHidden ? 'text' : 'password';
+    document.getElementById('authTogglePw').innerHTML = isHidden ? '&#128064;' : '&#128065;';
+  };
 })();
 
 // Show logout button if admin
