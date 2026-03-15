@@ -143,6 +143,42 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 }
 .fun-panel.open { display: block; }
 .fun-panel h3 { font-size: .78rem; color: var(--accent2); margin-bottom: 8px; font-weight: 600; }
+/* AI Agent panel */
+#aiPanel {
+  display: none; position: fixed; bottom: 12px; right: 12px; width: 380px; height: 520px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.45); z-index: 9500; flex-direction: column;
+  font-size: .78rem; overflow: hidden; resize: both; min-width: 300px; min-height: 300px;
+}
+#aiPanel.open { display: flex; }
+#aiPanel .ai-head {
+  padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex;
+  align-items: center; gap: 8px; background: var(--panel-inset); flex-shrink: 0;
+}
+#aiPanel .ai-head span { font-weight: 700; color: var(--accent2); font-size: .8rem; }
+#aiPanel .ai-msgs {
+  flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
+}
+#aiPanel .ai-msg {
+  padding: 8px 10px; border-radius: 8px; max-width: 92%; line-height: 1.4;
+  white-space: pre-wrap; word-break: break-word; font-size: .74rem;
+}
+#aiPanel .ai-msg.user { align-self: flex-end; background: rgba(59,130,246,.15); color: var(--text); }
+#aiPanel .ai-msg.assistant { align-self: flex-start; background: var(--panel-inset); color: var(--text); }
+#aiPanel .ai-msg.system { align-self: center; color: var(--text-dim); font-size: .65rem; font-style: italic; }
+#aiPanel .ai-input-row {
+  padding: 8px 12px; border-top: 1px solid var(--border); display: flex; gap: 6px;
+  background: var(--panel-inset); flex-shrink: 0;
+}
+#aiPanel .ai-input-row textarea {
+  flex: 1; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: .74rem; resize: none;
+  font-family: inherit; min-height: 36px; max-height: 100px;
+}
+#aiPanel .ai-input-row button {
+  padding: 6px 12px; border: none; border-radius: 6px; background: rgba(59,130,246,.7);
+  color: #fff; cursor: pointer; font-weight: 600; font-size: .74rem; align-self: flex-end;
+}
 /* Video player PIP overlay */
 #funVideoWrap { border-radius: 12px; overflow: hidden; }
 #funVideoWrap iframe { border: none; }
@@ -560,6 +596,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
       </div>
     </div>
+    <button class="fun-btn" id="aiToggle" title="Claude AI Agent" style="padding:5px 10px;">&#129302; Claude</button>
     <button class="fs-btn" id="helpBtn" title="Help" style="font-size:1rem;">?</button>
     <button class="fs-btn" id="fsBtn" title="Fullscreen">&#x26F6;</button>
   </div>
@@ -671,6 +708,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="ssSortD">&#8595;</button>
         <button id="ssHeat" title="Heat map">Heat</button>
         <button id="ssFormulas" title="Show formulas">fx</button>
+        <button id="ssCalcAll" title="Force recalculate all formulas" style="color:var(--accent2);font-weight:600;">&#9889; Calc</button>
         <button id="ssExport">CSV</button>
       </div>
       <div class="ss-wrap" id="ssWrap">
@@ -1745,6 +1783,24 @@ $('#ssSortA').onclick = () => { if (!ssSel) return; const c = ssSel.col; ssD.sor
 $('#ssSortD').onclick = () => { if (!ssSel) return; const c = ssSel.col; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); };
 $('#ssHeat').onclick = function() { ssHeatMap = !ssHeatMap; this.classList.toggle('active', ssHeatMap); ssRender(); };
 $('#ssFormulas').onclick = function() { ssShowFormulas = !ssShowFormulas; this.classList.toggle('active', ssShowFormulas); ssRender(); };
+// Force recalculate all formula cells
+$('#ssCalcAll').onclick = () => {
+  let count = 0;
+  for (let r = 0; r < ssR; r++) {
+    for (let c = 0; c < ssC; c++) {
+      const raw = ssD[r][c] || '';
+      if (typeof raw === 'string' && raw.startsWith('=')) {
+        const result = evalF(raw);
+        if (typeof result === 'number' || (typeof result === 'string' && !result.startsWith('#') && !result.startsWith('$$SPARK$$'))) {
+          ssD[r][c] = String(result);
+          count++;
+        }
+      }
+    }
+  }
+  LS('sheet', ssD); ssRender();
+  toast(count ? 'Calculated ' + count + ' cell' + (count > 1 ? 's' : '') : 'No formulas to calculate');
+};
 $('#ssExport').onclick = () => {
   let csv = '';
   for (let r = 0; r < ssR; r++) csv += ssD[r].map(v => { const s = String(v); return s.includes(',') || s.includes('"') ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',') + '\n';
@@ -3686,6 +3742,211 @@ $('#newsSearch').addEventListener('keydown', e => { if (e.key === 'Enter') rende
 renderNewsChips();
 renderNewsFeed();
 
+/* ═══════════════════════════════════════════
+   CLAUDE AI AGENT
+   ═══════════════════════════════════════════ */
+(function() {
+  // Create panel DOM
+  const panel = document.createElement('div');
+  panel.id = 'aiPanel';
+  panel.innerHTML =
+    '<div class="ai-head">' +
+      '<span>&#129302; Claude Agent</span>' +
+      '<div style="flex:1;"></div>' +
+      '<select id="aiModel" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">' +
+        '<option value="claude-sonnet-4-6">Sonnet 4.6</option>' +
+        '<option value="claude-haiku-4-5-20251001">Haiku 4.5</option>' +
+        '<option value="claude-opus-4-6">Opus 4.6</option>' +
+      '</select>' +
+      '<button id="aiClear" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;" title="Clear chat">&#128465;</button>' +
+      '<button id="aiClose" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">&times;</button>' +
+    '</div>' +
+    '<div class="ai-msgs" id="aiMsgs"></div>' +
+    '<div class="ai-input-row">' +
+      '<textarea id="aiInput" placeholder="Ask Claude about your workspace, data, formulas..." rows="2"></textarea>' +
+      '<button id="aiSend">Send</button>' +
+    '</div>' +
+    '<div style="padding:4px 12px 8px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">' +
+      '<div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">' +
+        '<input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />' +
+        '<button id="aiKeySave" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Save</button>' +
+      '</div>' +
+      '<div style="font-size:.58rem;color:var(--text-dim);margin-top:3px;">Key stored locally. Never sent anywhere except api.anthropic.com.</div>' +
+    '</div>';
+  document.body.appendChild(panel);
+
+  let aiKey = localStorage.getItem('ws_aiApiKey') || '';
+  let aiMessages = [];
+  let aiStreaming = false;
+
+  if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
+
+  $('#aiKeySave').onclick = () => {
+    const v = $('#aiApiKey').value.trim();
+    if (!v || v.startsWith('••')) return;
+    aiKey = v;
+    localStorage.setItem('ws_aiApiKey', v);
+    $('#aiApiKey').value = '••••••••••' + v.slice(-4);
+    addAiMsg('system', 'API key saved. Claude is ready.');
+  };
+
+  // Toggle
+  $('#aiToggle').onclick = () => {
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open') && !$('#aiMsgs').children.length) {
+      addAiMsg('system', 'Claude can read your workspace data and help with formulas, analysis, and writing. Set your API key below to start.');
+    }
+  };
+  $('#aiClose').onclick = () => panel.classList.remove('open');
+  $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
+
+  function addAiMsg(role, text) {
+    const div = document.createElement('div');
+    div.className = 'ai-msg ' + role;
+    div.textContent = text;
+    $('#aiMsgs').appendChild(div);
+    $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+    return div;
+  }
+
+  // Build workspace context for Claude
+  function getWorkspaceContext() {
+    const ws = wsIndex.find(w => w.id === wsActiveId);
+    const parts = ['Workspace: ' + (ws ? ws.name : 'Default')];
+
+    // Sheet data summary
+    const nonEmpty = [];
+    for (let r = 0; r < ssR; r++) {
+      for (let c = 0; c < ssC; c++) {
+        if (ssD[r][c]) nonEmpty.push(colN(c) + (r + 1) + '=' + ssD[r][c]);
+      }
+    }
+    if (nonEmpty.length) parts.push('Sheet cells: ' + nonEmpty.slice(0, 80).join(', ') + (nonEmpty.length > 80 ? ' ... (' + nonEmpty.length + ' total)' : ''));
+
+    // Stock tickers
+    if (stockTickers.length) parts.push('Tracked stocks: ' + stockTickers.join(', '));
+    if (compareTickers.length) parts.push('Comparison chart: ' + compareTickers.join(', '));
+
+    // Notepad excerpt
+    const noteText = np.innerText.trim();
+    if (noteText) parts.push('Notepad excerpt: ' + noteText.substring(0, 500) + (noteText.length > 500 ? '...' : ''));
+
+    // Graph calc expressions
+    if (gcExpressions.length) parts.push('Graph expressions: ' + gcExpressions.map(e => e.expr).join(', '));
+
+    // Concept map
+    if (cmNodes.length) parts.push('Concept map nodes: ' + cmNodes.map(n => n.title).join(', '));
+
+    // News watchlist
+    if (newsTickerWatchlist.length) parts.push('News watchlist: ' + newsTickerWatchlist.join(', '));
+
+    return parts.join('\n');
+  }
+
+  const SYSTEM_PROMPT = `You are Claude, an AI assistant embedded in an interactive workspace app. You can see the user's workspace state (sheet data, notes, stocks, graphs, etc.) and help them with:
+- Writing and explaining spreadsheet formulas (=SUM, =AVG, =IF, =SPARK, cell refs like A1+B2)
+- Analyzing their data and stocks
+- Writing content for their notepad
+- Suggesting graph expressions (sin(x), x^2, etc.)
+- General questions and brainstorming
+
+When suggesting formulas, use the supported syntax: =SUM(A1:A5), =AVG(B1:B10), =MIN, =MAX, =COUNT, =MEDIAN, =PRODUCT, =IF(A1>5,yes,no), =SPARK(A1:A12), or cell arithmetic like =A1+B1*2.
+
+Keep responses concise and actionable. Use plain text, not markdown.`;
+
+  async function sendToClaudeDirect() {
+    if (!aiKey) { addAiMsg('system', 'Set your API key first.'); return; }
+    const input = $('#aiInput').value.trim();
+    if (!input) return;
+    if (aiStreaming) return;
+
+    addAiMsg('user', input);
+    $('#aiInput').value = '';
+
+    // Add context on first message or when user asks about data
+    const ctx = getWorkspaceContext();
+    const contextMsg = { role: 'user', content: '[Workspace Context]\n' + ctx + '\n\n[User Question]\n' + input };
+
+    // Keep conversation history manageable
+    aiMessages.push({ role: 'user', content: input });
+    if (aiMessages.length > 20) aiMessages = aiMessages.slice(-16);
+
+    // Build messages for API: include context in the latest user message
+    const apiMsgs = aiMessages.slice(0, -1).concat([contextMsg]);
+
+    const model = $('#aiModel').value;
+    const responseDiv = addAiMsg('assistant', '...');
+    aiStreaming = true;
+
+    try {
+      // Use fetch with streaming
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': aiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: model,
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          messages: apiMsgs,
+          stream: true
+        })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.text();
+        responseDiv.textContent = 'Error: ' + resp.status + ' — ' + (err.substring(0, 200));
+        aiStreaming = false;
+        return;
+      }
+
+      // Stream SSE
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+          try {
+            const evt = JSON.parse(data);
+            if (evt.type === 'content_block_delta' && evt.delta && evt.delta.text) {
+              fullText += evt.delta.text;
+              responseDiv.textContent = fullText;
+              $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+            }
+          } catch(e) {}
+        }
+      }
+
+      if (!fullText) fullText = '(empty response)';
+      responseDiv.textContent = fullText;
+      aiMessages.push({ role: 'assistant', content: fullText });
+    } catch(e) {
+      responseDiv.textContent = 'Error: ' + e.message;
+    }
+    aiStreaming = false;
+  }
+
+  // Send handlers
+  $('#aiSend').onclick = sendToClaudeDirect;
+  $('#aiInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendToClaudeDirect(); }
+  });
+})();
 
 </script>
 </body>
