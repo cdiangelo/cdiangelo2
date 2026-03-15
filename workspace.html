@@ -156,6 +156,24 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
   border-bottom: 1px solid var(--border); font-size: .72rem;
 }
 .url-item a { color: var(--accent2); text-decoration: none; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Playlist items */
+.playlist-item {
+  display: flex; align-items: center; gap: 4px; padding: 3px 6px;
+  border-bottom: 1px solid var(--border); font-size: .68rem; cursor: grab;
+  transition: background .1s;
+}
+.playlist-item:hover { background: rgba(99,102,241,.08); }
+.playlist-item.playing { background: rgba(99,102,241,.15); font-weight: 600; }
+.playlist-item .pl-grip { color: var(--text-dim); cursor: grab; font-size: 10px; }
+.playlist-item .pl-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.playlist-item .pl-play { cursor: pointer; color: var(--accent); font-size: 10px; }
+.playlist-item .pl-del { cursor: pointer; color: var(--danger); opacity: .6; font-size: 11px; }
+.playlist-item .pl-del:hover { opacity: 1; }
+
+/* Media panel snap sizes */
+.fun-panel.half-size { width: 50vw !important; height: 50vh !important; }
+.fun-panel.quarter-size { width: 25vw !important; height: auto !important; }
 .url-item a:hover { text-decoration: underline; }
 .url-del { color: var(--danger); cursor: pointer; font-size: 14px; padding: 0 3px; }
 .btn-sm {
@@ -181,11 +199,11 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 
 /* ═══ WORKSPACE GRID ═══ */
 .workspace {
-  display: grid; grid-template-columns: 1fr 4px 1fr; grid-template-rows: 1fr 4px 1fr;
+  display: grid; grid-template-columns: 1fr 4px 1fr 4px 1fr; grid-template-rows: 1fr 4px 1fr;
   height: calc(100vh - 44px); background: var(--border);
 }
 .divider-h, .divider-v {
-  background: var(--border); cursor: col-resize; z-index: 10;
+  background: var(--border); z-index: 10;
   transition: background .15s;
 }
 .divider-h { cursor: col-resize; grid-row: 1 / -1; }
@@ -371,6 +389,17 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .sc-up { color: var(--success); }
 .sc-down { color: var(--danger); }
 .stat-card canvas { display: block; margin-top: 4px; }
+
+/* Expanded pane: bigger charts */
+.pane.expanded .stat-card { min-width: 220px; }
+.pane.expanded .stat-card canvas { width: 100%; height: 80px; }
+.pane.expanded #stockCompareWrap { min-height: 250px; flex: 0 0 40%; }
+.pane.expanded #stockDash { flex: 1; }
+
+/* Chart right margin so labels are readable */
+#stockDash { padding-right: 6px; }
+#stockCompareWrap canvas { margin-right: 4px; }
+#gcCanvasWrap { padding: 4px; }
 .stat-card .sc-compare-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--accent);
@@ -419,6 +448,33 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .ws-item .ws-actions button:hover { color: var(--text); border-color: var(--accent); }
 .ws-item .ws-merge-check { width: 14px; height: 14px; accent-color: var(--accent); }
 
+/* News feed items */
+.news-item {
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background .12s;
+}
+.news-item:hover { background: rgba(99,102,241,.06); }
+.news-item .news-source { font-size: .62rem; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.news-item .news-title { font-size: .82rem; font-weight: 600; color: var(--text); margin: 2px 0; line-height: 1.3; }
+.news-item .news-snippet { font-size: .72rem; color: var(--text-dim); line-height: 1.4; }
+.news-item .news-meta { font-size: .6rem; color: var(--text-dim); margin-top: 3px; display: flex; gap: 8px; }
+.news-item .news-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; background: rgba(99,102,241,.1); color: var(--accent); font-size: .6rem; font-weight: 600; }
+
+/* Stock company search */
+.stock-search-results {
+  position: absolute; top: 100%; left: 0; right: 0; max-height: 200px;
+  overflow-y: auto; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 0 0 6px 6px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,.3);
+}
+.stock-search-item {
+  padding: 6px 10px; cursor: pointer; display: flex; justify-content: space-between;
+  align-items: center; border-bottom: 1px solid var(--border); transition: background .1s;
+}
+.stock-search-item:hover { background: rgba(99,102,241,.1); }
+.stock-search-item .ssi-ticker { font-weight: 700; font-size: .78rem; color: var(--accent); }
+.stock-search-item .ssi-name { font-size: .72rem; color: var(--text-dim); flex: 1; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stock-search-item .ssi-exchange { font-size: .6rem; color: var(--text-dim); }
+
 /* Toast */
 .toast {
   position: fixed; bottom: 16px; left: 50%;
@@ -445,7 +501,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button data-pane="q-notepad">Notes</button>
         <button data-pane="q-whiteboard">Draw</button>
         <button data-pane="q-sheet">Sheet</button>
-        <button data-pane="q-map">Map</button>
+        <button data-pane="q-map">Analytics</button>
+        <button data-pane="q-news">News</button>
       </div>
     </div>
   </div>
@@ -461,8 +518,14 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </label>
     <div class="fun-btn-wrap">
       <button class="fun-btn" id="funToggle">&#9733; Media</button>
-      <div class="fun-panel" id="funPanel">
-        <h3>URL Collection &amp; Media</h3>
+      <div class="fun-panel" id="funPanel" style="resize:both;overflow:auto;min-width:280px;min-height:200px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <h3 style="margin:0;flex:1;">Media Player &amp; URLs</h3>
+          <label style="font-size:.62rem;color:var(--text-dim);display:flex;align-items:center;gap:3px;" title="Panel opacity">
+            &#128065; <input type="range" id="funOpacity" min="30" max="100" value="100" style="width:50px;height:3px;" />
+          </label>
+          <button class="btn-sm" id="funExpand" style="padding:1px 5px;font-size:.7rem;background:var(--panel-inset);color:var(--text-dim);border:1px solid var(--border);" title="Toggle size">&#x2922;</button>
+        </div>
         <div class="fun-section">
           <label>Save a URL</label>
           <div style="display:flex;gap:3px;">
@@ -473,14 +536,24 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <div style="margin-top:4px;"><button class="btn-sm btn-clear" id="clearUrlsBtn">Clear</button></div>
         </div>
         <div class="fun-section">
-          <label>Audio (MP3 / stream URL)</label>
-          <input class="fun-input" type="url" id="audioUrlInput" placeholder="https://example.com/audio.mp3" />
-          <div class="audio-controls">
+          <label>Audio Playlist</label>
+          <div style="display:flex;gap:3px;margin-bottom:4px;">
+            <input class="fun-input" type="url" id="audioUrlInput" placeholder="https://example.com/audio.mp3" style="flex:1;" />
+            <button class="btn-sm btn-add" id="playlistAddBtn">+</button>
+          </div>
+          <div id="playlistItems" style="max-height:100px;overflow-y:auto;margin-bottom:4px;"></div>
+          <div class="audio-controls" style="display:flex;align-items:center;gap:4px;">
+            <button id="aPrev" title="Previous">&#9198;</button>
             <button id="aPlay">&#9654;</button>
             <button id="aPause">&#10074;&#10074;</button>
             <button id="aStop">&#9632;</button>
-            <input type="range" id="aVol" min="0" max="100" value="70" />
+            <button id="aNext" title="Next">&#9197;</button>
+            <button id="aAutoPlay" title="Auto-play through list" style="font-size:.62rem;padding:3px 6px;">Auto &#128257;</button>
+            <input type="range" id="aVol" min="0" max="100" value="70" style="width:50px;" />
             <span style="font-size:.68rem;color:var(--text-dim);min-width:24px;" id="aVolLbl">70%</span>
+          </div>
+          <div style="font-size:.62rem;color:var(--text-dim);margin-top:3px;">
+            Now playing: <span id="nowPlaying">—</span>
           </div>
           <audio id="audioEl" preload="none"></audio>
         </div>
@@ -510,7 +583,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <div class="workspace" id="workspace">
 
   <!-- PANE 1: NOTEPAD -->
-  <div class="pane" id="q-notepad" style="grid-column:1;grid-row:1;">
+  <div class="pane" id="q-notepad" style="grid-column:1/span 3;grid-row:1;">
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#128221;</span> Notepad</span>
       <div class="p-spacer"></div>
@@ -553,11 +626,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
   </div>
 
-  <!-- DIVIDER H -->
-  <div class="divider-h" id="divH"></div>
+  <!-- DIVIDER H (between Notes and Draw in top row) -->
+  <div class="divider-h" id="divH" style="grid-column:4;"></div>
 
   <!-- PANE 2: WHITEBOARD -->
-  <div class="pane" id="q-whiteboard" style="grid-column:3;grid-row:1;">
+  <div class="pane" id="q-whiteboard" style="grid-column:5;grid-row:1;">
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#127912;</span> Whiteboard</span>
       <div class="p-spacer"></div>
@@ -620,8 +693,12 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
   </div>
 
-  <!-- PANE 4: MAP / STOCKS -->
+  <!-- DIVIDER H-BOTTOM (between Sheet and Analytics) -->
+  <div class="divider-h" style="grid-column:2;grid-row:3;"></div>
+
+  <!-- PANE 4: ANALYTICS / STOCKS -->
   <div class="pane" id="q-map" style="grid-column:3;grid-row:3;">
+
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#128200;</span> Analytics</span>
       <div class="p-spacer"></div>
@@ -637,7 +714,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <!-- STOCKS VIEW -->
       <div id="stocksView" style="display:flex;flex-direction:column;flex:1;">
         <div class="toolbar">
-          <input type="text" id="stockInput" placeholder="Ticker (e.g. AAPL)" style="max-width:100px;" />
+          <div style="position:relative;">
+            <input type="text" id="stockInput" placeholder="Search ticker or company..." style="max-width:160px;" />
+            <div id="stockSearchResults" class="stock-search-results" style="display:none;"></div>
+          </div>
           <button id="stockAdd">+Add</button>
           <div class="sep"></div>
           <span id="stockChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
@@ -769,6 +849,32 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
     </div>
   </div>
+
+  <!-- DIVIDER H2 (between Analytics and News in bottom row) -->
+  <div class="divider-h" style="grid-column:4;grid-row:3;"></div>
+
+  <!-- PANE 5: NEWS & MARKET COVERAGE -->
+  <div class="pane" id="q-news" style="grid-column:5;grid-row:3;">
+    <div class="p-head">
+      <span class="p-title"><span class="p-icon">&#128240;</span> News &amp; Markets</span>
+      <div class="p-spacer"></div>
+      <button class="p-btn" data-expand="q-news" title="Expand">&#x2922;</button>
+    </div>
+    <div class="p-body">
+      <div class="toolbar">
+        <input type="text" id="newsSearch" placeholder="Search news by keyword or ticker..." style="flex:1;min-width:120px;" />
+        <button id="newsSearchBtn">Search</button>
+        <div class="sep"></div>
+        <span id="newsTickerChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
+      </div>
+      <div id="newsFeed" style="flex:1;overflow-y:auto;padding:10px;">
+        <div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">
+          Search for keywords or push stocks from the Stocks panel to see related news &amp; market coverage.<br>
+          Data is simulated for demonstration.
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Context menu -->
@@ -792,7 +898,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <p style="margin-bottom:6px;"><b>Notepad</b> (top-left) &mdash; Rich text editor with formatting, colors, and auto-save.</p>
     <p style="margin-bottom:6px;"><b>Whiteboard</b> (top-right) &mdash; Draw with pen, shapes, text. Use <i>Size</i> and <i>Opacity</i> sliders to adjust.</p>
     <p style="margin-bottom:6px;"><b>Scratch Sheet</b> (bottom-left) &mdash; Click any cell to edit. Supports formulas: <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SUM(A1:A5)</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=AVG</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SPARK</code></p>
-    <p style="margin-bottom:6px;"><b>Analytics</b> (bottom-right) &mdash; Stock charts with comparison view (click &#x27A4; to compare), Concept Map, or Graph Calculator with shading &amp; export.</p>
+    <p style="margin-bottom:6px;"><b>Analytics</b> (bottom-center) &mdash; Stock charts with comparison view (click &#x27A4; to compare, &#128240; for news), Concept Map, or Graph Calculator with shading &amp; export.</p>
+    <p style="margin-bottom:6px;"><b>News &amp; Markets</b> (bottom-right) &mdash; Search news by keyword or push tickers from Stocks for simulated market coverage.</p>
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
     <p style="font-size:.8rem;color:var(--text-dim);">Use the <b>pane tabs</b> in the header (All / Notes / Draw / Sheet / Map) to focus on one pane. Click the <b>expand arrow</b> in any pane header to maximize it. The <b>Media</b> button stores URLs and plays audio.</p>
     <button onclick="document.getElementById('helpOverlay').style.display='none'" style="margin-top:16px;padding:7px 20px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600;font-size:.82rem;">Got it</button>
@@ -920,10 +1027,120 @@ $('#urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#add
 $('#clearUrlsBtn').onclick = () => { urls = []; LS('urls', urls); renderUrls(); toast('Cleared'); };
 
 const audio = $('#audioEl');
-$('#aPlay').onclick = () => { const s = $('#audioUrlInput').value.trim(); if (s && audio.src !== s) audio.src = s; audio.play().catch(() => toast('Cannot play')); };
+let playlist = LS('playlist') || [];
+let plCurrent = -1;
+let plAutoPlay = false;
+
+function renderPlaylist() {
+  const el = $('#playlistItems');
+  el.innerHTML = '';
+  playlist.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'playlist-item' + (i === plCurrent ? ' playing' : '');
+    div.draggable = true;
+    const name = item.split('/').pop().split('?')[0] || 'Track ' + (i + 1);
+    div.innerHTML = '<span class="pl-grip">&#9776;</span><span class="pl-name" title="' + item + '">' + name + '</span><span class="pl-play">&#9654;</span><span class="pl-del">&times;</span>';
+    div.querySelector('.pl-play').onclick = () => { plCurrent = i; playTrack(i); };
+    div.querySelector('.pl-del').onclick = () => { playlist.splice(i, 1); LS('playlist', playlist); if (plCurrent >= playlist.length) plCurrent = -1; renderPlaylist(); };
+    // Drag reorder
+    div.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', i); div.style.opacity = '.4'; });
+    div.addEventListener('dragend', () => { div.style.opacity = '1'; });
+    div.addEventListener('dragover', e => { e.preventDefault(); div.style.borderTop = '2px solid var(--accent)'; });
+    div.addEventListener('dragleave', () => { div.style.borderTop = ''; });
+    div.addEventListener('drop', e => {
+      e.preventDefault(); div.style.borderTop = '';
+      const from = +e.dataTransfer.getData('text/plain');
+      if (from !== i) {
+        const item = playlist.splice(from, 1)[0];
+        playlist.splice(i, 0, item);
+        if (plCurrent === from) plCurrent = i;
+        else if (from < plCurrent && i >= plCurrent) plCurrent--;
+        else if (from > plCurrent && i <= plCurrent) plCurrent++;
+        LS('playlist', playlist);
+        renderPlaylist();
+      }
+    });
+    el.appendChild(div);
+  });
+}
+
+function playTrack(i) {
+  if (i < 0 || i >= playlist.length) return;
+  plCurrent = i;
+  audio.src = playlist[i];
+  audio.play().catch(() => toast('Cannot play'));
+  const name = playlist[i].split('/').pop().split('?')[0] || 'Track ' + (i + 1);
+  $('#nowPlaying').textContent = name;
+  renderPlaylist();
+}
+
+$('#playlistAddBtn').onclick = () => {
+  const v = $('#audioUrlInput').value.trim();
+  if (!v) return;
+  playlist.push(v);
+  LS('playlist', playlist);
+  $('#audioUrlInput').value = '';
+  renderPlaylist();
+  toast('Added to playlist');
+};
+
+$('#aPlay').onclick = () => {
+  if (playlist.length && plCurrent < 0) { playTrack(0); return; }
+  if (plCurrent >= 0) { playTrack(plCurrent); return; }
+  // Fallback: play from URL input directly
+  const s = $('#audioUrlInput').value.trim();
+  if (s) { audio.src = s; audio.play().catch(() => toast('Cannot play')); }
+};
 $('#aPause').onclick = () => audio.pause();
 $('#aStop').onclick = () => { audio.pause(); audio.currentTime = 0; };
+$('#aPrev').onclick = () => { if (plCurrent > 0) playTrack(plCurrent - 1); };
+$('#aNext').onclick = () => { if (plCurrent < playlist.length - 1) playTrack(plCurrent + 1); };
 $('#aVol').oninput = function() { audio.volume = this.value / 100; $('#aVolLbl').textContent = this.value + '%'; };
+
+$('#aAutoPlay').onclick = function() {
+  plAutoPlay = !plAutoPlay;
+  this.style.background = plAutoPlay ? 'var(--accent)' : '';
+  this.style.color = plAutoPlay ? '#fff' : '';
+  toast(plAutoPlay ? 'Auto-play ON' : 'Auto-play OFF');
+};
+
+audio.addEventListener('ended', () => {
+  if (plAutoPlay && plCurrent < playlist.length - 1) {
+    playTrack(plCurrent + 1);
+  } else if (plAutoPlay && plCurrent === playlist.length - 1) {
+    playTrack(0); // Loop back
+  }
+});
+
+// Media panel opacity
+$('#funOpacity').oninput = function() { $('#funPanel').style.opacity = this.value / 100; };
+
+// Media panel expand/snap toggle
+let funPanelSize = 0; // 0=default, 1=quarter, 2=half
+$('#funExpand').onclick = () => {
+  funPanelSize = (funPanelSize + 1) % 3;
+  const p = $('#funPanel');
+  p.classList.remove('half-size', 'quarter-size');
+  if (funPanelSize === 1) { p.classList.add('quarter-size'); toast('1/4 size'); }
+  else if (funPanelSize === 2) { p.classList.add('half-size'); toast('1/2 size'); }
+  else { toast('Default size'); }
+};
+
+// Magnetic snap on manual resize
+const funPanel = $('#funPanel');
+let funResizeObs = new ResizeObserver(() => {
+  const w = funPanel.offsetWidth, vw = window.innerWidth;
+  const h = funPanel.offsetHeight, vh = window.innerHeight;
+  // Snap hints (visual feedback, not forced)
+  const nearQW = Math.abs(w - vw * 0.25) < 30;
+  const nearHW = Math.abs(w - vw * 0.5) < 30;
+  if (nearQW) funPanel.style.outline = '2px solid var(--accent)';
+  else if (nearHW) funPanel.style.outline = '2px solid var(--accent2)';
+  else funPanel.style.outline = '';
+});
+funResizeObs.observe(funPanel);
+
+renderPlaylist();
 audio.volume = 0.7;
 
 /* ═══════════════════════════════════════════
@@ -1732,7 +1949,8 @@ function renderStockDash() {
     card.style.flex = '1';
     card.innerHTML =
       '<div class="sc-header"><div class="sc-label">' + ticker + '</div>' +
-      '<span class="sc-compare-btn' + (inCompare ? ' active' : '') + '" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart">&#x27A4;</span></div>' +
+      '<span class="sc-compare-btn' + (inCompare ? ' active' : '') + '" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart">&#x27A4;</span>' +
+      '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">&#128240;</span></div>' +
       '<div class="sc-value">$' + current.toFixed(2) + '</div>' +
       '<div class="sc-change ' + (isUp ? 'sc-up' : 'sc-down') + '">' + (isUp ? '&#9650; +' : '&#9660; ') + change.toFixed(2) + '% (' + range + ')</div>' +
       '<canvas width="180" height="50"></canvas>';
@@ -1747,6 +1965,11 @@ function renderStockDash() {
       }
       LS('compareTickers', compareTickers);
       renderStockDash();
+    };
+
+    // News button handler
+    card.querySelector('.sc-news-btn').onclick = () => {
+      pushTickerToNews(ticker);
     };
 
     // Draw sparkline chart
@@ -1813,7 +2036,7 @@ function renderCompareChart() {
   const w = cvs.offsetWidth, h = Math.max(120, cvs.offsetHeight);
   ctx.clearRect(0, 0, w, h);
   const range = $('#stockRange').value;
-  const pad = { top: 20, right: 10, bottom: 24, left: 50 };
+  const pad = { top: 20, right: 50, bottom: 24, left: 50 };
   const plotW = w - pad.left - pad.right;
   const plotH = h - pad.top - pad.bottom;
   // Normalize all to % change
@@ -2217,6 +2440,8 @@ function serializeState() {
     },
     gcShadeMode: $('#gcShadeMode').value,
     urls: urls.slice(),
+    newsTickers: newsTickerWatchlist.slice(),
+    playlist: playlist.slice(),
     scheme: +$('#schemeSlider').value,
     lightMode: $('#toggleDark').checked
   };
@@ -2256,6 +2481,8 @@ function deserializeState(s) {
   if ($('#graphCalcView').style.display === 'flex') { resizeGC(); } else { renderGC(); }
   // URLs
   if (s.urls) { urls = s.urls.slice(); LS('urls', urls); renderUrls(); }
+  if (s.newsTickers) { newsTickerWatchlist = s.newsTickers.slice(); LS('newsTickers', newsTickerWatchlist); if (typeof renderNewsChips === 'function') { renderNewsChips(); renderNewsFeed(); } }
+  if (s.playlist) { playlist = s.playlist.slice(); LS('playlist', playlist); if (typeof renderPlaylist === 'function') renderPlaylist(); }
   // Theme
   if (s.scheme !== undefined) { $('#schemeSlider').value = s.scheme; applyScheme(s.scheme); }
   if (s.lightMode !== undefined) { $('#toggleDark').checked = s.lightMode; applyDarkLight(s.lightMode); }
@@ -2532,6 +2759,229 @@ $('#wsExport').onclick = () => {
 };
 
 renderWSList();
+
+/* ═══════════════════════════════════════════
+   COMPANY SEARCH / TICKER LOOKUP
+   ═══════════════════════════════════════════ */
+const COMPANY_DB = [
+  { ticker: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'GOOGL', name: 'Alphabet Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'AMZN', name: 'Amazon.com Inc.', exchange: 'NASDAQ', sector: 'Consumer Cyclical' },
+  { ticker: 'META', name: 'Meta Platforms Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', sector: 'Automotive' },
+  { ticker: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'JPM', name: 'JPMorgan Chase & Co.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'V', name: 'Visa Inc.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'JNJ', name: 'Johnson & Johnson', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'WMT', name: 'Walmart Inc.', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  { ticker: 'PG', name: 'Procter & Gamble Co.', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  { ticker: 'MA', name: 'Mastercard Inc.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'UNH', name: 'UnitedHealth Group Inc.', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'HD', name: 'The Home Depot Inc.', exchange: 'NYSE', sector: 'Consumer Cyclical' },
+  { ticker: 'DIS', name: 'The Walt Disney Company', exchange: 'NYSE', sector: 'Communication' },
+  { ticker: 'NFLX', name: 'Netflix Inc.', exchange: 'NASDAQ', sector: 'Communication' },
+  { ticker: 'ADBE', name: 'Adobe Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'CRM', name: 'Salesforce Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'PYPL', name: 'PayPal Holdings Inc.', exchange: 'NASDAQ', sector: 'Financial' },
+  { ticker: 'INTC', name: 'Intel Corporation', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'AMD', name: 'Advanced Micro Devices', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'CSCO', name: 'Cisco Systems Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'PEP', name: 'PepsiCo Inc.', exchange: 'NASDAQ', sector: 'Consumer Defensive' },
+  { ticker: 'KO', name: 'The Coca-Cola Company', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  { ticker: 'COST', name: 'Costco Wholesale Corp.', exchange: 'NASDAQ', sector: 'Consumer Defensive' },
+  { ticker: 'ABBV', name: 'AbbVie Inc.', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'MRK', name: 'Merck & Co. Inc.', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'PFE', name: 'Pfizer Inc.', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'TMO', name: 'Thermo Fisher Scientific', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'AVGO', name: 'Broadcom Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'LLY', name: 'Eli Lilly and Company', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'ORCL', name: 'Oracle Corporation', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'ACN', name: 'Accenture plc', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'TXN', name: 'Texas Instruments Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'BA', name: 'The Boeing Company', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'CAT', name: 'Caterpillar Inc.', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'GS', name: 'Goldman Sachs Group Inc.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'BLK', name: 'BlackRock Inc.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'SPGI', name: 'S&P Global Inc.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'DE', name: 'Deere & Company', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'MMM', name: '3M Company', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'IBM', name: 'International Business Machines', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'GE', name: 'General Electric Company', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'F', name: 'Ford Motor Company', exchange: 'NYSE', sector: 'Automotive' },
+  { ticker: 'GM', name: 'General Motors Company', exchange: 'NYSE', sector: 'Automotive' },
+  { ticker: 'XOM', name: 'Exxon Mobil Corporation', exchange: 'NYSE', sector: 'Energy' },
+  { ticker: 'CVX', name: 'Chevron Corporation', exchange: 'NYSE', sector: 'Energy' },
+  { ticker: 'COP', name: 'ConocoPhillips', exchange: 'NYSE', sector: 'Energy' },
+  { ticker: 'SLB', name: 'Schlumberger Limited', exchange: 'NYSE', sector: 'Energy' },
+];
+
+function searchCompanies(query) {
+  if (!query || query.length < 1) return [];
+  const q = query.toLowerCase();
+  return COMPANY_DB.filter(c =>
+    c.ticker.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+  ).slice(0, 8);
+}
+
+function renderStockSearch() {
+  const el = $('#stockSearchResults');
+  const query = $('#stockInput').value.trim();
+  const results = searchCompanies(query);
+  if (!results.length || !query) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = '';
+  results.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'stock-search-item';
+    item.innerHTML = '<span class="ssi-ticker">' + c.ticker + '</span>' +
+      '<span class="ssi-name">' + c.name + '</span>' +
+      '<span class="ssi-exchange">' + c.exchange + '</span>';
+    item.onclick = () => {
+      $('#stockInput').value = c.ticker;
+      el.style.display = 'none';
+      $('#stockAdd').click();
+    };
+    el.appendChild(item);
+  });
+}
+
+$('#stockInput').addEventListener('input', renderStockSearch);
+$('#stockInput').addEventListener('focus', renderStockSearch);
+document.addEventListener('click', e => {
+  if (!e.target.closest('#stockSearchResults') && !e.target.closest('#stockInput')) {
+    $('#stockSearchResults').style.display = 'none';
+  }
+});
+
+/* ═══════════════════════════════════════════
+   NEWS & MARKET COVERAGE (Simulated)
+   ═══════════════════════════════════════════ */
+const NEWS_SOURCES = ['Reuters', 'Bloomberg', 'CNBC', 'Financial Times', 'WSJ', 'MarketWatch', 'Barron\'s', 'Seeking Alpha'];
+const NEWS_TEMPLATES = [
+  { title: '{company} Reports Strong Q{q} Earnings, Beats Estimates', snippet: '{company} posted quarterly revenue of ${rev}B, surpassing analyst expectations of ${exp}B. The stock moved {dir} {pct}% in after-hours trading.' },
+  { title: '{company} Announces Strategic Partnership with {partner}', snippet: 'The deal is expected to generate ${val}B in combined revenue over the next three years, focusing on {sector} innovation.' },
+  { title: 'Analysts Upgrade {ticker} to "Buy" with ${target} Price Target', snippet: 'Multiple Wall Street firms have raised their outlook on {company}, citing strong fundamentals and growth potential in {sector}.' },
+  { title: '{company} Unveils New {product} Platform, Shares Rally', snippet: 'The announcement drove a {pct}% increase in share price as investors responded positively to the company\'s strategic direction in {sector}.' },
+  { title: '{sector} Sector Outlook: {company} Positioned for Growth', snippet: 'Industry analysts point to {company}\'s market position and recent investments as key drivers for anticipated {pct}% growth in the coming fiscal year.' },
+  { title: '{company} CEO Discusses {topic} Strategy in Investor Call', snippet: 'Leadership outlined plans to invest ${val}B in {topic} initiatives, expecting returns within 18-24 months. Analysts reacted {reaction}.' },
+  { title: 'Breaking: {company} to Acquire {target_co} for ${val}B', snippet: 'The acquisition would expand {company}\'s footprint in {sector} and is expected to close in Q{q} pending regulatory approval.' },
+  { title: '{ticker} Options Activity Surges Ahead of Earnings', snippet: 'Unusual options volume detected for {company} with {vol}K contracts traded, suggesting institutional positioning ahead of the Q{q} report.' },
+  { title: 'Market Movers: {company} Leads {sector} Rally', snippet: '{ticker} gained {pct}% today as the broader {sector} index advanced on positive economic data and strong corporate guidance.' },
+  { title: '{company} Expands Global Operations, Opens {region} Hub', snippet: 'The new facility represents a ${val}B investment and is expected to create {jobs} jobs over the next two years.' },
+];
+const TOPICS = ['AI', 'cloud computing', 'sustainability', 'digital transformation', 'supply chain', 'market expansion', 'R&D', 'automation'];
+const PRODUCTS = ['AI-powered', 'next-gen', 'enterprise', 'cloud-native', 'integrated', 'modular'];
+const REGIONS = ['Asia-Pacific', 'European', 'Latin American', 'Middle Eastern', 'Indian'];
+const REACTIONS = ['favorably', 'cautiously optimistic', 'with enthusiasm', 'with measured approval'];
+const PARTNERS = ['Microsoft', 'Google', 'Amazon', 'Samsung', 'Intel', 'IBM', 'Oracle', 'SAP'];
+
+function genNews(keyword) {
+  // Seed from keyword
+  let seed = 0;
+  for (let i = 0; i < keyword.length; i++) seed = (seed * 37 + keyword.charCodeAt(i)) & 0x7fffffff;
+  function rand() { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; }
+
+  const company = COMPANY_DB.find(c => c.ticker === keyword.toUpperCase()) || { ticker: keyword.toUpperCase(), name: keyword, sector: 'Technology', exchange: 'NYSE' };
+  const articles = [];
+  const usedTemplates = new Set();
+
+  for (let i = 0; i < 8; i++) {
+    let tIdx;
+    do { tIdx = Math.floor(rand() * NEWS_TEMPLATES.length); } while (usedTemplates.has(tIdx) && usedTemplates.size < NEWS_TEMPLATES.length);
+    usedTemplates.add(tIdx);
+    const t = NEWS_TEMPLATES[tIdx];
+    const vars = {
+      company: company.name, ticker: company.ticker, sector: company.sector,
+      q: Math.floor(rand() * 4) + 1, rev: (rand() * 50 + 5).toFixed(1), exp: (rand() * 45 + 4).toFixed(1),
+      dir: rand() > 0.5 ? 'up' : 'down', pct: (rand() * 8 + 0.5).toFixed(1),
+      val: (rand() * 20 + 1).toFixed(1), target: Math.floor(rand() * 300 + 50),
+      product: PRODUCTS[Math.floor(rand() * PRODUCTS.length)],
+      topic: TOPICS[Math.floor(rand() * TOPICS.length)],
+      partner: PARTNERS.filter(p => p !== company.name)[Math.floor(rand() * (PARTNERS.length - 1))],
+      target_co: 'TechVenture ' + String.fromCharCode(65 + Math.floor(rand() * 26)),
+      reaction: REACTIONS[Math.floor(rand() * REACTIONS.length)],
+      region: REGIONS[Math.floor(rand() * REGIONS.length)],
+      vol: Math.floor(rand() * 500 + 10), jobs: Math.floor(rand() * 5000 + 200),
+    };
+    let title = t.title, snippet = t.snippet;
+    Object.keys(vars).forEach(k => {
+      title = title.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
+      snippet = snippet.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
+    });
+    const hoursAgo = Math.floor(rand() * 72);
+    const source = NEWS_SOURCES[Math.floor(rand() * NEWS_SOURCES.length)];
+    articles.push({ title, snippet, source, hoursAgo, tags: [company.ticker, company.sector] });
+  }
+  return articles.sort((a, b) => a.hoursAgo - b.hoursAgo);
+}
+
+let newsTickerWatchlist = LS('newsTickers') || [];
+
+function renderNewsFeed() {
+  const feed = $('#newsFeed');
+  const query = $('#newsSearch').value.trim();
+  const allKeywords = [...new Set([...newsTickerWatchlist, ...(query ? [query] : [])])];
+
+  if (!allKeywords.length) {
+    feed.innerHTML = '<div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">Search for keywords or push stocks from the Stocks panel to see related news & market coverage.<br>Data is simulated for demonstration.</div>';
+    return;
+  }
+
+  let allArticles = [];
+  allKeywords.forEach(kw => {
+    allArticles = allArticles.concat(genNews(kw));
+  });
+  allArticles.sort((a, b) => a.hoursAgo - b.hoursAgo);
+
+  feed.innerHTML = '';
+  allArticles.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'news-item';
+    const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? a.hoursAgo + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
+    div.innerHTML =
+      '<div class="news-source">' + a.source + '</div>' +
+      '<div class="news-title">' + a.title + '</div>' +
+      '<div class="news-snippet">' + a.snippet + '</div>' +
+      '<div class="news-meta"><span>' + timeStr + '</span>' +
+      a.tags.map(t => '<span class="news-tag">' + t + '</span>').join('') +
+      '</div>';
+    feed.appendChild(div);
+  });
+}
+
+function renderNewsChips() {
+  const el = $('#newsTickerChips');
+  el.innerHTML = '';
+  newsTickerWatchlist.forEach((t, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'ticker-chip';
+    chip.innerHTML = t + ' <span class="tc-del">&times;</span>';
+    chip.querySelector('.tc-del').onclick = () => {
+      newsTickerWatchlist.splice(i, 1);
+      LS('newsTickers', newsTickerWatchlist);
+      renderNewsChips();
+      renderNewsFeed();
+    };
+    el.appendChild(chip);
+  });
+}
+
+function pushTickerToNews(ticker) {
+  if (!newsTickerWatchlist.includes(ticker)) {
+    newsTickerWatchlist.push(ticker);
+    LS('newsTickers', newsTickerWatchlist);
+  }
+  renderNewsChips();
+  renderNewsFeed();
+  toast(ticker + ' → News');
+}
+
+$('#newsSearchBtn').onclick = () => { renderNewsFeed(); };
+$('#newsSearch').addEventListener('keydown', e => { if (e.key === 'Enter') renderNewsFeed(); });
+
+renderNewsChips();
+renderNewsFeed();
 
 
 </script>
