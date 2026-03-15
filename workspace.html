@@ -2769,47 +2769,113 @@ $('#gridApplyBtn').onclick = () => {
 // ── Mobile navigation ──
 (function initMobileNav() {
   const MOBILE_PANES = [
-    { id: 'q-claude', label: 'Claude' },
-    { id: 'q-map', label: 'Analytics' },
-    { id: 'q-news', label: 'News' },
-    { id: 'q-notepad', label: 'Notes' },
-    { id: 'q-whiteboard', label: 'Draw' },
-    { id: 'q-sheet', label: 'Sheet' },
-    { id: 'q-media', label: 'Media' }
+    { id: 'q-claude', label: 'Claude', icon: '\uD83E\uDD16', desc: 'AI agent with workspace tools' },
+    { id: 'q-map', label: 'Analytics', icon: '\uD83D\uDCC8', desc: 'Stocks, concept maps, graphs' },
+    { id: 'q-news', label: 'News', icon: '\uD83D\uDCF0', desc: 'Market news and research' },
+    { id: 'q-notepad', label: 'Notes', icon: '\uD83D\uDCDD', desc: 'Rich text notepad' },
+    { id: 'q-whiteboard', label: 'Draw', icon: '\uD83C\uDFA8', desc: 'Whiteboard and diagrams' },
+    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA', desc: 'Spreadsheet with formulas' },
+    { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F', desc: 'YouTube player' }
   ];
-  let mobIdx = 0;
+  let mobIdx = -1; // -1 = table of contents home
   const isMobile = () => window.innerWidth <= 768;
   const pagesEl = document.getElementById('mobPages');
   const prevBtn = document.getElementById('mobPrev');
   const nextBtn = document.getElementById('mobNext');
   if (!pagesEl || !prevBtn || !nextBtn) return;
 
+  // ADDED — Phase 11: Table of contents home screen
+  let mobTocEl = null;
+  function showMobToc() {
+    $$('.pane').forEach(el => el.classList.remove('mobile-active'));
+    if (!mobTocEl) {
+      mobTocEl = document.createElement('div');
+      mobTocEl.id = 'mobileToc';
+      mobTocEl.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:100;overflow-y:auto;padding:20px 16px;';
+      const title = document.createElement('div');
+      title.style.cssText = 'font-size:1.1rem;font-weight:700;color:var(--accent2);margin-bottom:16px;text-align:center;';
+      title.textContent = 'Interactive Workspace';
+      mobTocEl.appendChild(title);
+
+      MOBILE_PANES.forEach((p, i) => {
+        const card = document.createElement('button');
+        card.style.cssText = 'display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:var(--text);cursor:pointer;text-align:left;transition:all .15s;';
+        card.onmouseenter = card.ontouchstart = function() { card.style.borderColor = 'var(--accent)'; card.style.background = 'var(--panel-inset)'; };
+        card.onmouseleave = card.ontouchend = function() { card.style.borderColor = 'var(--border)'; card.style.background = 'var(--panel)'; };
+        const iconSpan = document.createElement('span');
+        iconSpan.style.cssText = 'font-size:1.6rem;flex-shrink:0;width:40px;text-align:center;';
+        iconSpan.textContent = p.icon;
+        const textDiv = document.createElement('div');
+        textDiv.style.cssText = 'flex:1;';
+        const nameDiv = document.createElement('div');
+        nameDiv.style.cssText = 'font-weight:700;font-size:.85rem;color:var(--text);';
+        nameDiv.textContent = p.label;
+        const descDiv = document.createElement('div');
+        descDiv.style.cssText = 'font-size:.65rem;color:var(--text-dim);margin-top:2px;';
+        descDiv.textContent = p.desc;
+        textDiv.appendChild(nameDiv);
+        textDiv.appendChild(descDiv);
+        card.appendChild(iconSpan);
+        card.appendChild(textDiv);
+        const arrow = document.createElement('span');
+        arrow.style.cssText = 'color:var(--text-dim);font-size:.8rem;';
+        arrow.textContent = '\u203A';
+        card.appendChild(arrow);
+        card.onclick = () => { mobIdx = i; showMobPane(); };
+        mobTocEl.appendChild(card);
+      });
+
+      document.getElementById('workspace').appendChild(mobTocEl);
+    }
+    mobTocEl.style.display = '';
+    renderMobPages();
+  }
+
+  function hideMobToc() {
+    if (mobTocEl) mobTocEl.style.display = 'none';
+  }
+
   function renderMobPages() {
-    pagesEl.innerHTML = MOBILE_PANES.map((p, i) =>
+    const homeBtn = '<button class="mob-page' + (mobIdx === -1 ? ' active' : '') + '" data-idx="-1">\u2302</button>';
+    pagesEl.innerHTML = homeBtn + MOBILE_PANES.map((p, i) =>
       '<button class="mob-page' + (i === mobIdx ? ' active' : '') + '" data-idx="' + i + '">' + p.label + '</button>'
     ).join('');
     pagesEl.querySelectorAll('.mob-page').forEach(btn => {
-      btn.onclick = () => { mobIdx = +btn.dataset.idx; showMobPane(); };
+      btn.onclick = () => {
+        mobIdx = +btn.dataset.idx;
+        if (mobIdx === -1) showMobToc();
+        else showMobPane();
+      };
     });
   }
 
   function showMobPane() {
     if (!isMobile()) return;
+    hideMobToc();
     $$('.pane').forEach(el => el.classList.remove('mobile-active'));
+    if (mobIdx < 0 || mobIdx >= MOBILE_PANES.length) { showMobToc(); return; }
     const el = document.getElementById(MOBILE_PANES[mobIdx].id);
     if (el) el.classList.add('mobile-active');
     renderMobPages();
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   }
 
-  prevBtn.onclick = () => { mobIdx = (mobIdx - 1 + MOBILE_PANES.length) % MOBILE_PANES.length; showMobPane(); };
-  nextBtn.onclick = () => { mobIdx = (mobIdx + 1) % MOBILE_PANES.length; showMobPane(); };
+  prevBtn.onclick = () => {
+    if (mobIdx <= 0) { mobIdx = -1; showMobToc(); }
+    else { mobIdx--; showMobPane(); }
+  };
+  nextBtn.onclick = () => {
+    if (mobIdx === -1) { mobIdx = 0; showMobPane(); }
+    else { mobIdx = (mobIdx + 1) % MOBILE_PANES.length; showMobPane(); }
+  };
 
-  // Initialize on load if mobile
+  // Initialize on load if mobile — show table of contents
   function checkMobile() {
     if (isMobile()) {
-      showMobPane();
+      if (mobIdx === -1) showMobToc();
+      else showMobPane();
     } else {
+      hideMobToc();
       $$('.pane').forEach(el => el.classList.remove('mobile-active'));
     }
   }
@@ -2823,9 +2889,8 @@ $('#gridApplyBtn').onclick = () => {
     if (!isMobile()) return;
     const dx = e.changedTouches[0].clientX - touchStartX;
     if (Math.abs(dx) > 50) {
-      if (dx > 0) { mobIdx = (mobIdx - 1 + MOBILE_PANES.length) % MOBILE_PANES.length; }
-      else { mobIdx = (mobIdx + 1) % MOBILE_PANES.length; }
-      showMobPane();
+      if (dx > 0) { if (mobIdx <= 0) { mobIdx = -1; showMobToc(); } else { mobIdx--; showMobPane(); } }
+      else { if (mobIdx === -1) { mobIdx = 0; } else { mobIdx = (mobIdx + 1) % MOBILE_PANES.length; } showMobPane(); }
     }
   }, { passive: true });
 })();
