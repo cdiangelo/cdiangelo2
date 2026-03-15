@@ -1322,7 +1322,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   #q-claude .p-head { flex-wrap: wrap; gap: 2px; }
   #q-claude .p-head .p-btn, #q-claude .p-head select, #q-claude .p-head label { font-size: .5rem !important; }
   /* Hide less important Claude header buttons on mobile */
-  #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn, #aiOrchToggleLabel { display: none !important; }
+  #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn { display: none !important; }
   /* Make exit/logout buttons visible and tappable on mobile */
   #userExitBtn, #logoutBtn { font-size: .6rem !important; padding: 4px 10px !important; min-height: 28px; }
   #userNameDisplay { font-size: .6rem !important; }
@@ -1568,10 +1568,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <input type="checkbox" id="aiDeepToggle" style="width:12px;height:12px;cursor:pointer;">
         <span>Deep</span>
       </label>
-      <label id="aiOrchToggleLabel" style="display:flex;align-items:center;gap:2px;font-size:.55rem;color:var(--text-dim);cursor:pointer;" title="Orchestrator: auto-decomposes complex requests into parallel sub-tasks with error interception">
-        <input type="checkbox" id="aiOrchestratorToggle" checked style="width:12px;height:12px;cursor:pointer;">
-        <span>Orch</span>
-      </label>
+      <!-- Orchestrator is automatic — no toggle needed -->
       <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
       <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
@@ -2347,17 +2344,11 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
     if (pricingBtn) pricingBtn.style.display = 'none';
     const pricingPanel = document.getElementById('aiPricingPanel');
     if (pricingPanel) pricingPanel.style.display = 'none';
+    // Users never see the API key — admin controls it centrally
     const apiSection = document.getElementById('aiApiKeySection');
     const lockedSection = document.getElementById('aiApiKeyLocked');
-    // If no API key is set yet, show the key input for first-time setup
-    const existingKey = localStorage.getItem('ws_aiApiKey');
-    if (!existingKey) {
-      if (apiSection) apiSection.style.display = 'block';
-      if (lockedSection) lockedSection.style.display = 'none';
-    } else {
-      if (apiSection) apiSection.style.display = 'none';
-      if (lockedSection) lockedSection.style.display = 'block';
-    }
+    if (apiSection) apiSection.style.display = 'none';
+    if (lockedSection) lockedSection.style.display = 'none';
     const usageDashBtn = document.getElementById('aiUsageDashBtn');
     if (usageDashBtn) usageDashBtn.style.display = 'none';
     const accessReqBtn = document.getElementById('aiAccessReqBtn');
@@ -9613,7 +9604,14 @@ function renderAccessRequestsPanel() {
 
 // ── Agentic loop with tool_use ──
 async function sendAgentMessage() {
-  if (!aiKey) { addAiMsg('system', 'Set your API key below to start.'); return; }
+  if (!aiKey) {
+    if (wsIsAdmin) {
+      addAiMsg('system', 'Set your API key below to start.');
+    } else {
+      addAiMsg('system', 'AI is not configured yet. Ask your admin to set the API key.');
+    }
+    return;
+  }
   const input = $('#aiInput').value.trim();
   if (!input || aiStreaming) return;
 
@@ -9635,9 +9633,8 @@ async function sendAgentMessage() {
     useGeniePrompt();
   }
 
-  // ADDED — Phase 11: Auto-detect complex requests and route to orchestrator
-  const orchToggle = $('#aiOrchestratorToggle') && $('#aiOrchestratorToggle').checked;
-  if (orchToggle && window._isComplexRequest && window._isComplexRequest(input) && window._runOrchestrated) {
+  // Auto-detect complex requests and route to orchestrator (always-on, no toggle)
+  if (window._isComplexRequest && window._isComplexRequest(input) && window._runOrchestrated) {
     addAiMsg('user', input);
     $('#aiInput').value = '';
     const ctx = getWorkspaceContext();
