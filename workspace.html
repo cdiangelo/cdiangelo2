@@ -428,7 +428,7 @@ body.light .fun-btn { background: var(--accent); }
 .robot-desk { position: absolute; bottom: 0; left: 0; right: 0; height: 20px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 4px rgba(0,0,0,.3); }
 /* Monitors — in front of robot (z-index 5), positioned on desk */
 .robot-monitors { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); margin-left: -16px; display: flex; gap: 6px; z-index: 5; }
-.robot-monitor { width: 22px; height: 16px; background: #0a0a0a; border: 2px solid #333; border-radius: 2px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s, border-color 0.3s; }
+.robot-monitor { width: 22px; height: 28px; background: #0a0a0a; border: 2px solid #333; border-radius: 2px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s, border-color 0.3s; }
 .robot-monitor.on { border-color: #555; box-shadow: inset 0 0 5px rgba(76,175,80,.4), 0 0 4px rgba(76,175,80,.2); }
 /* Robot body — behind monitors (z-index 4), centered slightly right of monitors */
 .robot-body { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); margin-left: 14px; text-align: center; z-index: 4; }
@@ -1602,6 +1602,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <option value="forest">Forest</option>
           <option value="city">City</option>
           <option value="sunset">Sunset</option>
+          <option value="desert">Desert</option>
         </select>
       </div>
       <div id="aiApiKeySection" style="padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
@@ -1779,6 +1780,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <span style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;">Comparison Chart</span>
             <span id="compareChips" style="display:flex;gap:4px;flex-wrap:wrap;margin-left:6px;"></span>
             <div style="flex:1;"></div>
+            <button id="compareModeToggle" style="font-size:.68rem;padding:2px 8px;border-radius:4px;border:1px solid var(--accent);background:var(--panel-inset);color:var(--accent);cursor:pointer;">Growth %</button>
             <button id="clearCompare" style="font-size:.68rem;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text-dim);cursor:pointer;">Clear</button>
           </div>
           <canvas id="compareCanvas" style="flex:1;min-height:120px;width:100%;"></canvas>
@@ -4931,6 +4933,7 @@ async function fetchRealStockData(ticker, range) {
 const stockRealDataStatus = {}; // { 'AAPL': true/false }
 
 let compareTickers = LS('compareTickers') || [];
+let compareMode = LS('compareMode') || 'pct'; // 'pct' = indexed growth %, 'dollar' = raw dollar price
 const COMPARE_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'];
 
 async function renderStockDash() {
@@ -5113,17 +5116,36 @@ async function renderCompareChart() {
   const pad = { top: 24, right: Math.max(50, w * 0.06), bottom: 28, left: Math.max(50, w * 0.06) };
   const plotW = w - pad.left - pad.right;
   const plotH = h - pad.top - pad.bottom;
-  // Normalize all to % change — try real data first
-  const allSeries = [];
+  // Fetch raw data for all tickers, then transform based on compareMode
+  const allRawSeries = [];
   for (const t of compareTickers) {
     let data = genStockData(t, range);
     const realData = await fetchRealStockData(t, range);
     if (realData && realData.length >= 2) data = realData;
-    allSeries.push(data.map(v => ((v - data[0]) / data[0]) * 100));
+    allRawSeries.push(data);
+  }
+  // Update toggle button label
+  const modeBtn = document.getElementById('compareModeToggle');
+  if (modeBtn) modeBtn.textContent = compareMode === 'pct' ? 'Growth %' : '$ Price';
+  // Transform data based on mode
+  const allSeries = [];
+  const isDollarMode = compareMode === 'dollar';
+  for (const data of allRawSeries) {
+    if (!data || data.length === 0) { allSeries.push([0]); continue; }
+    if (isDollarMode) {
+      allSeries.push(data.slice());
+    } else {
+      const base = data[0] || 1; // guard division by zero
+      allSeries.push(data.map(v => ((v - base) / base) * 100));
+    }
   }
   let gMin = Infinity, gMax = -Infinity;
   allSeries.forEach(s => { s.forEach(v => { if (v < gMin) gMin = v; if (v > gMax) gMax = v; }); });
+  if (!isFinite(gMin)) gMin = 0;
+  if (!isFinite(gMax)) gMax = 1;
   const gRange = gMax - gMin || 1;
+  const valueSuffix = isDollarMode ? '' : '%';
+  const valuePrefix = isDollarMode ? '$' : '';
   // Grid lines
   ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--border') || '#333';
   ctx.lineWidth = 0.5;
@@ -5134,10 +5156,10 @@ async function renderCompareChart() {
     const y = pad.top + (plotH / 4) * i;
     const val = gMax - (gRange / 4) * i;
     ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
-    ctx.fillText(val.toFixed(1) + '%', pad.left - 4, y + 3);
+    ctx.fillText(valuePrefix + (isDollarMode ? val.toFixed(2) : val.toFixed(1)) + valueSuffix, pad.left - 4, y + 3);
   }
-  // Zero line
-  if (gMin < 0 && gMax > 0) {
+  // Zero line (only meaningful in % mode)
+  if (!isDollarMode && gMin < 0 && gMax > 0) {
     const zeroY = pad.top + ((gMax - 0) / gRange) * plotH;
     ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--text-dim') || '#666';
     ctx.lineWidth = 1;
@@ -5179,7 +5201,7 @@ async function renderCompareChart() {
         ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2);
         ctx.fillStyle = color; ctx.fill();
         ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
-        const label = compareTickers[si] + ': ' + v.toFixed(1) + '%';
+        const label = compareTickers[si] + ': ' + valuePrefix + (isDollarMode ? v.toFixed(2) : v.toFixed(1)) + valueSuffix;
         ctx.font = (baseFontSize - 1) + 'px system-ui'; ctx.fillStyle = color; ctx.textAlign = 'left';
         ctx.fillText(label, hx + 8, hy + 3 + si * (baseFontSize + 2));
       });
