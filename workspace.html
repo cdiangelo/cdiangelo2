@@ -275,9 +275,7 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .swatch:hover { transform: scale(1.2); }
 
 /* ═══ Q2: WHITEBOARD ═══ */
-.wb-wrap { flex: 1; position: relative; overflow: hidden; background: #fff; }
-body.neon .wb-wrap { background: #0a0a1a; }
-body.muted .wb-wrap { background: #f5f0e8; }
+.wb-wrap { flex: 1; position: relative; overflow: hidden; background: var(--panel-inset); }
 .wb-wrap canvas { position: absolute; top: 0; left: 0; }
 
 /* ═══ Q3: SPREADSHEET ═══ */
@@ -300,6 +298,8 @@ body.muted .wb-wrap { background: #f5f0e8; }
   width: 100%; height: 100%; padding: 1px 5px; background: transparent;
   border: none; color: var(--text); font-size: .72rem; font-family: monospace; outline: none;
 }
+.ss-table td:hover { background: var(--panel-inset); }
+.ss-table td .ci:focus { background: rgba(255,255,255,.05); }
 .ss-table td.formula-cell .ci { color: var(--accent2); }
 .ss-table td.heat-green { background: rgba(74,153,99,.15); }
 .ss-table td.heat-red { background: rgba(204,68,68,.15); }
@@ -439,6 +439,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
       </div>
     </div>
+    <button class="fs-btn" id="helpBtn" title="Help" style="font-size:1rem;">?</button>
     <button class="fs-btn" id="fsBtn" title="Fullscreen">&#x26F6;</button>
   </div>
 </div>
@@ -510,7 +511,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button class="wb-tool" data-tool="text">Text</button>
         <div class="sep"></div>
         <input type="color" id="wbColor" value="#222222" title="Color" />
+        <span style="font-size:.7rem;color:var(--text-dim)">Size</span>
         <input type="range" id="wbSize" min="1" max="30" value="3" title="Size" />
+        <span style="font-size:.7rem;color:var(--text-dim)">Opacity</span>
         <input type="range" id="wbOpacity" min="10" max="100" value="100" title="Opacity" />
         <div class="sep"></div>
         <button id="wbGrid" title="Toggle grid">Grid</button>
@@ -659,9 +662,20 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <div class="ctx-item" data-action="validate">Validate...</div>
 </div>
 
+<div id="helpOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px 28px;max-width:500px;color:var(--text);line-height:1.7;">
+    <h3 style="margin-bottom:14px;font-size:1rem;color:var(--accent2);">Welcome to Interactive Workspace</h3>
+    <p style="margin-bottom:6px;"><b>Notepad</b> (top-left) &mdash; Rich text editor with formatting, colors, and auto-save.</p>
+    <p style="margin-bottom:6px;"><b>Whiteboard</b> (top-right) &mdash; Draw with pen, shapes, text. Use <i>Size</i> and <i>Opacity</i> sliders to adjust.</p>
+    <p style="margin-bottom:6px;"><b>Scratch Sheet</b> (bottom-left) &mdash; Click any cell to edit. Supports formulas: <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SUM(A1:A5)</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=AVG</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SPARK</code></p>
+    <p style="margin-bottom:6px;"><b>Analytics</b> (bottom-right) &mdash; Add stock tickers for simulated charts, or switch to Concept Map.</p>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
+    <p style="font-size:.8rem;color:var(--text-dim);">Use the <b>pane tabs</b> in the header (All / Notes / Draw / Sheet / Map) to focus on one pane. Click the <b>expand arrow</b> in any pane header to maximize it. The <b>Media</b> button stores URLs and plays audio.</p>
+    <button onclick="document.getElementById('helpOverlay').style.display='none'" style="margin-top:16px;padding:7px 20px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600;font-size:.82rem;">Got it</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
 /* ═══════════════════════════════════════════
    CORE UTILS
    ═══════════════════════════════════════════ */
@@ -720,6 +734,10 @@ $('#fsBtn').onclick = () => {
   else document.exitFullscreen();
 };
 
+/* Help overlay */
+$('#helpBtn').onclick = () => { $('#helpOverlay').style.display = 'flex'; };
+if (!LS('helpSeen')) { $('#helpOverlay').style.display = 'flex'; LS('helpSeen', true); }
+
 /* ═══════════════════════════════════════════
    PANE EXPAND / FOCUS
    ═══════════════════════════════════════════ */
@@ -748,7 +766,7 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
 });
 
 /* ═══════════════════════════════════════════
-   FUN BUTTON — URL + AUDIO
+   MEDIA BUTTON — URL + AUDIO
    ═══════════════════════════════════════════ */
 $('#funToggle').onclick = e => { e.stopPropagation(); $('#funPanel').classList.toggle('open'); };
 document.addEventListener('click', e => { if (!e.target.closest('.fun-btn-wrap')) $('#funPanel').classList.remove('open'); });
@@ -849,11 +867,7 @@ function resizeWB() {
   if (wbShowGrid) wbDrawGrid();
 }
 function wbFillBg() {
-  const scheme = SCHEMES[+$('#schemeSlider').value];
-  const isLight = document.body.classList.contains('light');
-  if (scheme === 'neon') wbX.fillStyle = isLight ? '#f0f0ff' : '#0a0a1a';
-  else if (scheme === 'muted') wbX.fillStyle = isLight ? '#f5f0e8' : '#1a1714';
-  else wbX.fillStyle = isLight ? '#ffffff' : '#ffffff';
+  wbX.fillStyle = getComputedStyle($('#wbWrap')).backgroundColor;
   wbX.fillRect(0, 0, wbC.width, wbC.height);
 }
 function wbDrawGrid() {
@@ -1128,7 +1142,7 @@ function ssRender() {
     });
     inp.addEventListener('blur', () => {
       const r = +inp.dataset.r, c = +inp.dataset.c;
-      ssD[r][c] = inp.value; LS('sheet', ssD); ssRender();
+      ssD[r][c] = inp.value; LS('sheet', ssD); ssRender(); ssShowHint();
     });
     inp.addEventListener('keydown', e => {
       const r = +inp.dataset.r, c = +inp.dataset.c;
@@ -1222,7 +1236,21 @@ $$('.ctx-item').forEach(item => {
   };
 });
 
+function ssShowHint() {
+  const empty = ssD.every(row => row.every(c => !c));
+  let hint = document.getElementById('ssHint');
+  if (empty && !hint) {
+    hint = document.createElement('div');
+    hint.id = 'ssHint';
+    hint.style.cssText = 'position:absolute;top:50px;left:50%;transform:translateX(-50%);color:var(--text-dim);font-size:.8rem;pointer-events:none;text-align:center;';
+    hint.textContent = 'Click any cell to start editing. Try formulas like =SUM(A1:A5)';
+    document.getElementById('ssWrap').appendChild(hint);
+  } else if (!empty && hint) {
+    hint.remove();
+  }
+}
 ssInit();
+ssShowHint();
 
 /* ═══════════════════════════════════════════
    CONCEPT MAP
@@ -1512,7 +1540,7 @@ $$('#q4Tabs button').forEach(btn => {
     btn.classList.add('active');
     const tab = btn.dataset.q4;
     if (tab === 'stocks') {
-      $('#stocksView').style.display = '';
+      $('#stocksView').style.display = 'flex';
       $('#cmapView').style.display = 'none';
     } else {
       $('#stocksView').style.display = 'none';
@@ -1638,7 +1666,7 @@ function renderStockChips() {
 renderStockChips();
 renderStockDash();
 
-}); /* end DOMContentLoaded */
+
 </script>
 </body>
 </html>
