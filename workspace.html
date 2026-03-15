@@ -222,6 +222,19 @@ body.light .fun-btn { background: var(--accent); }
   right: 0 !important; bottom: 0 !important; z-index: 150;
   width: 100vw !important; height: calc(100vh - 44px) !important;
 }
+.pane.expanded .p-body { font-size: 1.1rem; }
+.pane.expanded .p-head .p-title { font-size: 1.1rem; }
+.pane.expanded .toolbar { font-size: 1rem; }
+.pane.expanded .ss-table td .ci { font-size: .95rem; }
+.pane.expanded .ss-table th { font-size: .85rem; }
+.pane.expanded .ai-msgs { font-size: 1.05rem; }
+.pane.expanded .np-area { font-size: 1.1rem; }
+/* Zoom controls — only visible in expanded mode */
+.zoom-controls { display: none; margin-left: auto; gap: 4px; align-items: center; }
+.pane.expanded .zoom-controls { display: flex; }
+.zoom-controls button { width: 24px; height: 24px; font-size: .9rem; border-radius: 4px; background: var(--panel); border: 1px solid var(--border); cursor: pointer; color: var(--text); line-height: 1; }
+.zoom-controls button:hover { background: var(--panel-inset); }
+.zoom-controls span { font-size: .7rem; color: var(--text-dim); min-width: 36px; text-align: center; }
 
 /* Pane header — darker than body for visual separation */
 .p-head {
@@ -315,7 +328,14 @@ body.light .fun-btn { background: var(--accent); }
   padding: 0; border: 1px solid var(--border); min-width: 80px; height: 24px;
   background: var(--bg); position: relative;
 }
-.ss-table td.selected { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 1; }
+.ss-table td.active-cell { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 1; }
+.ss-table td.in-selection { background: rgba(59,130,246,.12); }
+.ss-table td.sel-top { border-top: 2px solid var(--accent); }
+.ss-table td.sel-bottom { border-bottom: 2px solid var(--accent); }
+.ss-table td.sel-left { border-left: 2px solid var(--accent); }
+.ss-table td.sel-right { border-right: 2px solid var(--accent); }
+.ss-table th.row-h.row-selected { background: rgba(59,130,246,.25); color: var(--text); }
+.ss-table th[data-c].col-selected { background: rgba(59,130,246,.25); color: var(--text); }
 .ss-table td .ci {
   width: 100%; height: 100%; padding: 1px 5px; background: transparent;
   border: none; color: var(--text); font-size: .72rem; font-family: monospace; outline: none;
@@ -327,6 +347,25 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.heat-red { background: rgba(204,68,68,.15); }
 .ss-table td.heat-yellow { background: rgba(204,153,51,.15); }
 .ss-table td.validation-error { border-color: var(--danger); }
+
+/* ═══ ROBOT ASSISTANT ═══ */
+.robot-scene { position: relative; width: 100px; height: 72px; margin: 4px auto 2px; flex-shrink: 0; }
+.robot-desk { position: absolute; bottom: 0; width: 80px; left: 50%; transform: translateX(-50%); height: 14px; background: linear-gradient(180deg, #8B6914, #6B4F12); border-radius: 3px 3px 0 0; }
+.robot-body { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); text-align: center; }
+.robot-head { width: 22px; height: 18px; background: #C0A030; border-radius: 5px 5px 3px 3px; margin: 0 auto; position: relative; transition: transform 0.6s ease; }
+.robot-eyes { display: flex; justify-content: center; gap: 5px; padding-top: 5px; }
+.robot-eyes .eye { width: 4px; height: 4px; background: #222; border-radius: 50%; }
+.robot-torso { width: 26px; height: 16px; background: #E8E0D0; border-radius: 3px; margin: 1px auto 0; position: relative; }
+.robot-tie { width: 5px; height: 10px; background: #D32F2F; margin: 0 auto; clip-path: polygon(50% 0, 100% 20%, 65% 100%, 50% 80%, 35% 100%, 0 20%); }
+.robot-arms { display: flex; justify-content: center; gap: 20px; margin-top: -10px; }
+.robot-arms .arm { width: 6px; height: 12px; background: #C0A030; border-radius: 2px; transition: transform 0.15s; transform-origin: top center; }
+.robot-arms .arm.typing-l { transform: rotate(-8deg) translateY(2px); }
+.robot-arms .arm.typing-r { transform: rotate(8deg) translateY(2px); }
+.desk-light { position: absolute; right: 6px; top: -6px; width: 8px; height: 8px; border-radius: 50%; background: #555; border: 1px solid #444; transition: all 0.3s; }
+.desk-light.on { background: #4CAF50; box-shadow: 0 0 6px #4CAF50, 0 0 12px rgba(76,175,80,.3); }
+.desk-monitor { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); width: 20px; height: 14px; background: #333; border: 1px solid #555; border-radius: 2px; }
+.desk-monitor .screen { width: 16px; height: 10px; margin: 1px auto; background: #1a3a2a; border-radius: 1px; overflow: hidden; }
+.desk-monitor .screen.on { background: #0f2a1a; box-shadow: inset 0 0 4px rgba(76,175,80,.3); }
 
 /* Context menu */
 .ctx-menu {
@@ -652,6 +691,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#128221;</span> Notepad</span>
       <div class="p-spacer"></div>
+      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-notepad" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body">
@@ -681,7 +721,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div class="sep"></div>
         <div class="swatch-row" id="npHlColors"></div>
         <div class="sep"></div>
-        <button onclick="document.execCommand('removeFormat')">Clear</button>
+        <button onclick="document.execCommand('removeFormat')" title="Remove formatting from selection">Fmt</button>
+        <button onclick="if(confirm('Clear all content?')){document.getElementById('npArea').innerHTML='';if(typeof npSaveCurrentPage==='function')npSaveCurrentPage();}" title="Clear all content">Clear</button>
         <button id="npTimestamp" title="Insert timestamp">&#128339;</button>
       </div>
       <div class="np-area" id="npArea" contenteditable="true" spellcheck="true"></div>
@@ -708,6 +749,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
       <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
       <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
+      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-claude" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body" style="display:flex;flex-direction:column;position:relative;">
@@ -720,13 +762,23 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div id="aiPricingPanel" style="display:none;position:absolute;top:0;left:4px;right:4px;z-index:80;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:12px 14px;font-size:.65rem;overflow-y:auto;max-height:90%;">
         <div style="font-weight:700;color:var(--accent2);margin-bottom:8px;">&#128176; Pricing Calculator</div>
         <div style="display:flex;flex-direction:column;gap:8px;" id="pricingCalcBody">
-          <div>
-            <label style="font-size:.58rem;color:var(--text-dim);">Model</label>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;">
+              <label style="font-size:.58rem;color:var(--text-dim);">Model</label>
             <select id="pricingModel" style="width:100%;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
               <option value="claude-sonnet-4-6">Sonnet 4.6 ($3 / $15 per 1M)</option>
               <option value="claude-haiku-4-5-20251001">Haiku 4.5 ($1 / $5 per 1M)</option>
               <option value="claude-opus-4-6">Opus 4.6 ($15 / $75 per 1M)</option>
             </select>
+            </div>
+            <div style="flex:0 0 auto;">
+              <label style="font-size:.58rem;color:var(--text-dim);">Display Unit</label>
+              <select id="pricingUnit" onchange="updatePricingCalc()" style="width:100%;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
+                <option value="1">Singles ($)</option>
+                <option value="1000">Thousands ($K)</option>
+                <option value="1000000">Millions ($M)</option>
+              </select>
+            </div>
           </div>
           <div>
             <label style="font-size:.58rem;color:var(--text-dim);">Estimated Users: <b id="pricingUsersVal">100</b></label>
@@ -753,6 +805,21 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="2"></textarea>
         <button id="aiSend">Send</button>
       </div>
+      <div class="robot-scene" id="robotScene">
+        <div class="robot-body">
+          <div class="robot-head" id="robotHead">
+            <div class="robot-eyes"><span class="eye"></span><span class="eye"></span></div>
+          </div>
+          <div class="robot-torso"><div class="robot-tie"></div></div>
+          <div class="robot-arms">
+            <span class="arm" id="robotArmL"></span>
+            <span class="arm" id="robotArmR"></span>
+          </div>
+        </div>
+        <div class="robot-desk">
+          <div class="desk-light" id="deskLight"></div>
+        </div>
+      </div>
       <div style="padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
         <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
           <input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
@@ -772,6 +839,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#127912;</span> Whiteboard</span>
       <div class="p-spacer"></div>
+      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-whiteboard" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body">
@@ -836,6 +904,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#128202;</span> Scratch Sheet</span>
       <div class="p-spacer"></div>
+      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-sheet" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body">
@@ -876,6 +945,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button data-q4="graphcalc">Graph Calc</button>
       </div>
       <div class="p-spacer"></div>
+      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-map" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body">
@@ -1057,6 +1127,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#128240;</span> News &amp; Markets</span>
       <div class="p-spacer"></div>
+      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-news" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body">
@@ -1163,6 +1234,7 @@ const ADMIN_PASSWORD = 'alphabetsoup'; // In production, validate server-side
       wsIsAdmin = true;
       localStorage.setItem('ws_adminSession', 'true');
       gate.style.display = 'none';
+      showLogoutButton();
     } else {
       document.getElementById('authError').style.display = 'block';
       document.getElementById('authPassword').value = '';
@@ -1181,11 +1253,15 @@ const ADMIN_PASSWORD = 'alphabetsoup'; // In production, validate server-side
   };
 })();
 
-// Show logout button if admin
-if (wsIsAdmin) {
+// Show logout button if admin — always bind the handler and persist visibility
+function showLogoutButton() {
   const lb = document.getElementById('logoutBtn');
-  if (lb) { lb.style.display = 'inline-block'; lb.onclick = () => { localStorage.removeItem('ws_adminSession'); location.reload(); }; }
+  if (lb) {
+    lb.style.display = 'inline-block';
+    lb.onclick = () => { localStorage.removeItem('ws_adminSession'); location.reload(); };
+  }
 }
+if (wsIsAdmin) showLogoutButton();
 
 /* ═══════════════════════════════════════════
    CORE UTILS
@@ -1258,11 +1334,29 @@ if (!LS('helpSeen')) { $('#helpOverlay').style.display = 'flex'; LS('helpSeen', 
 /* ═══════════════════════════════════════════
    PANE EXPAND / FOCUS
    ═══════════════════════════════════════════ */
+function paneZoom(btn, delta) {
+  const pane = btn.closest('.pane');
+  const body = pane.querySelector('.p-body');
+  const label = pane.querySelector('.zoom-level');
+  let current = parseInt(body.dataset.zoom || '100');
+  current = Math.max(50, Math.min(200, current + delta));
+  body.dataset.zoom = current;
+  body.style.fontSize = (current / 100) + 'rem';
+  label.textContent = current + '%';
+}
+
 $$('[data-expand]').forEach(btn => {
   btn.addEventListener('click', () => {
     const p = document.getElementById(btn.dataset.expand);
     const was = p.classList.contains('expanded');
-    $$('.pane').forEach(el => el.classList.remove('expanded'));
+    // Reset zoom on all panes when collapsing
+    $$('.pane').forEach(el => {
+      el.classList.remove('expanded');
+      const body = el.querySelector('.p-body');
+      const label = el.querySelector('.zoom-level');
+      if (body) { body.style.fontSize = ''; body.dataset.zoom = '100'; }
+      if (label) label.textContent = '100%';
+    });
     if (!was) p.classList.add('expanded');
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
@@ -2147,6 +2241,104 @@ $('#wbPasteTable').onclick = () => {
    ═══════════════════════════════════════════ */
 let ssR = 20, ssC = 10, ssD = [], ssSel = null, ssShowFormulas = false, ssHeatMap = false;
 let ssClipboard = null, ssColNames = [];
+let ssSelecting = false, ssEditing = false;
+let ssClipboardRange = null; // { data: 2D array, rows, cols }
+
+function ssSelRange() {
+  if (!ssSel) return null;
+  return {
+    minR: Math.min(ssSel.r1, ssSel.r2), maxR: Math.max(ssSel.r1, ssSel.r2),
+    minC: Math.min(ssSel.c1, ssSel.c2), maxC: Math.max(ssSel.c1, ssSel.c2)
+  };
+}
+function ssInSelection(r, c) {
+  const s = ssSelRange(); return s && r >= s.minR && r <= s.maxR && c >= s.minC && c <= s.maxC;
+}
+function ssIsActiveCell(r, c) { return ssSel && r === ssSel.r1 && c === ssSel.c1; }
+
+function ssRenderSelection() {
+  const t = $('#ssTable');
+  if (!t) return;
+  t.querySelectorAll('.in-selection,.active-cell,.sel-top,.sel-bottom,.sel-left,.sel-right,.row-selected,.col-selected')
+    .forEach(el => el.classList.remove('in-selection','active-cell','sel-top','sel-bottom','sel-left','sel-right','row-selected','col-selected'));
+  if (!ssSel) return;
+  const s = ssSelRange();
+  for (let r = s.minR; r <= s.maxR; r++) {
+    for (let c = s.minC; c <= s.maxC; c++) {
+      const td = t.querySelector('td[data-r="'+r+'"][data-c="'+c+'"]');
+      if (!td) continue;
+      td.classList.add('in-selection');
+      if (r === s.minR) td.classList.add('sel-top');
+      if (r === s.maxR) td.classList.add('sel-bottom');
+      if (c === s.minC) td.classList.add('sel-left');
+      if (c === s.maxC) td.classList.add('sel-right');
+    }
+  }
+  const activeTd = t.querySelector('td[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+  if (activeTd) activeTd.classList.add('active-cell');
+  // Row header highlighting
+  const rowHeaders = t.querySelectorAll('th.row-h');
+  rowHeaders.forEach((rh, idx) => {
+    if (idx >= s.minR && idx <= s.maxR) rh.classList.add('row-selected');
+  });
+  // Col header highlighting
+  for (let c = s.minC; c <= s.maxC; c++) {
+    const ch = t.querySelector('thead th[data-c="'+c+'"]');
+    if (ch) ch.classList.add('col-selected');
+  }
+  // Update formula bar
+  if (s.minR === s.maxR && s.minC === s.maxC) {
+    $('#ssCellRef').textContent = colN(ssSel.c1) + (ssSel.r1 + 1);
+  } else {
+    $('#ssCellRef').textContent = colN(s.minC) + (s.minR+1) + ':' + colN(s.maxC) + (s.maxR+1);
+  }
+  $('#ssFormula').value = ssD[ssSel.r1]?.[ssSel.c1] || '';
+  // Position drag-fill handle at bottom-right of selection
+  const oldHandle = t.querySelector('.ss-fill-handle');
+  if (oldHandle) oldHandle.remove();
+  const brTd = t.querySelector('td[data-r="'+s.maxR+'"][data-c="'+s.maxC+'"]');
+  if (brTd) {
+    const handle = document.createElement('div');
+    handle.className = 'ss-fill-handle';
+    handle.style.cssText = 'position:absolute;bottom:-3px;right:-3px;width:7px;height:7px;background:var(--accent);cursor:crosshair;z-index:5;border:1px solid var(--panel);';
+    brTd.style.position = 'relative';
+    brTd.appendChild(handle);
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const startR = ssSel.r1, startC = ssSel.c1;
+      const srcVal = ssD[startR][startC] || '';
+      function onMove(ev) {
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        if (el && el.classList.contains('ci')) {
+          el.parentElement.style.outline = '2px solid var(--accent)';
+        }
+      }
+      function onUp(ev) {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        t.querySelectorAll('td').forEach(td => td.style.outline = '');
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        if (el && el.classList.contains('ci')) {
+          const endR = +el.dataset.r, endC = +el.dataset.c;
+          if (endC === startC && endR !== startR) {
+            const dir = endR > startR ? 1 : -1;
+            for (let fr = startR + dir; dir > 0 ? fr <= endR : fr >= endR; fr += dir) {
+              ssD[fr][startC] = ssFillAdjust(srcVal, fr - startR, 0);
+            }
+          } else if (endR === startR && endC !== startC) {
+            const dir = endC > startC ? 1 : -1;
+            for (let fc = startC + dir; dir > 0 ? fc <= endC : fc >= endC; fc += dir) {
+              ssD[startR][fc] = ssFillAdjust(srcVal, 0, fc - startC);
+            }
+          }
+          LS('sheet', ssD); ssRender(); toast('Filled');
+        }
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+}
 
 // ── Sheet multi-page system ──
 let ssPages = LS('ssPages') || [{ id: 1, title: 'Sheet 1', data: null, colNames: [] }];
@@ -2616,11 +2808,10 @@ function ssRender() {
           else cls += ' heat-red';
         }
       }
-      const sel = ssSel && ssSel.row === r && ssSel.col === c ? ' selected' : '';
       if (isSpark) {
-        h += '<td class="'+cls+sel+'" data-r="'+r+'" data-c="'+c+'"><canvas class="spark-cell" data-formula="'+raw+'" width="76" height="20"></canvas></td>';
+        h += '<td class="'+cls+'" data-r="'+r+'" data-c="'+c+'"><canvas class="spark-cell" data-formula="'+raw+'" width="76" height="20"></canvas></td>';
       } else {
-        h += '<td class="'+cls+sel+'" data-r="'+r+'" data-c="'+c+'"><input class="ci" value="'+String(display == null ? '' : display).replace(/"/g,'&quot;')+'" data-r="'+r+'" data-c="'+c+'" /></td>';
+        h += '<td class="'+cls+'" data-r="'+r+'" data-c="'+c+'"><input class="ci" value="'+String(display == null ? '' : display).replace(/"/g,'&quot;')+'" data-r="'+r+'" data-c="'+c+'" readonly /></td>';
       }
     }
     h += '</tr>';
@@ -2646,123 +2837,231 @@ function ssRender() {
     }
   });
 
-  // Attach cell events
-  t.querySelectorAll('.ci').forEach(inp => {
-    inp.addEventListener('focus', () => {
-      const r = +inp.dataset.r, c = +inp.dataset.c;
-      ssSel = { row: r, col: c };
-      $('#ssCellRef').textContent = colN(c) + (r+1);
-      $('#ssFormula').value = ssD[r][c] || '';
-      t.querySelectorAll('td.selected').forEach(td => td.classList.remove('selected'));
-      inp.parentElement.classList.add('selected');
-    });
-    inp.addEventListener('blur', () => {
-      const r = +inp.dataset.r, c = +inp.dataset.c;
-      ssD[r][c] = inp.value; LS('sheet', ssD); ssRender(); ssShowHint();
-    });
-    inp.addEventListener('keydown', e => {
-      const r = +inp.dataset.r, c = +inp.dataset.c;
-      if (e.key === 'Enter') { e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+(r+1)+'"][data-c="'+c+'"]'); if (next) next.focus(); else ssRender(); }
-      else if (e.key === 'Tab') { e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const nc = e.shiftKey ? c-1 : c+1; const next = t.querySelector('.ci[data-r="'+r+'"][data-c="'+nc+'"]'); if (next) next.focus(); else ssRender(); }
-      // Arrow key navigation (when not actively editing text)
-      else if (e.key === 'ArrowDown') { e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+(r+1)+'"][data-c="'+c+'"]'); if (next) next.focus(); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+(r-1)+'"][data-c="'+c+'"]'); if (next) next.focus(); }
-      else if (e.key === 'ArrowRight' && (inp.selectionStart === inp.value.length || e.ctrlKey || e.metaKey)) {
-        if (!e.ctrlKey && !e.metaKey && inp.selectionStart !== inp.value.length) return;
-        e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+r+'"][data-c="'+(c+1)+'"]'); if (next) next.focus();
-      }
-      else if (e.key === 'ArrowLeft' && (inp.selectionStart === 0 || e.ctrlKey || e.metaKey)) {
-        if (!e.ctrlKey && !e.metaKey && inp.selectionStart !== 0) return;
-        e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+r+'"][data-c="'+(c-1)+'"]'); if (next) next.focus();
-      }
-      // Ctrl+C / Ctrl+V / Ctrl+X clipboard
-      else if ((e.ctrlKey || e.metaKey) && e.key === 'c' && inp.selectionStart === inp.selectionEnd) {
-        e.preventDefault(); ssClipboard = ssD[r][c]; navigator.clipboard.writeText(ssD[r][c] || '').catch(() => {}); toast('Copied');
-      }
-      else if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
-        e.preventDefault(); ssClipboard = ssD[r][c]; navigator.clipboard.writeText(ssD[r][c] || '').catch(() => {}); ssD[r][c] = ''; LS('sheet', ssD); ssRender(); toast('Cut');
-      }
-      else if ((e.ctrlKey || e.metaKey) && e.key === 'v' && inp.selectionStart === inp.selectionEnd && !inp.value) {
-        // Only intercept paste on empty cells; otherwise let native paste work
-        e.preventDefault();
-        navigator.clipboard.readText().then(text => {
-          // Multi-cell paste: detect tab/newline grid
-          const rows = text.split('\n').filter(r => r.length);
-          if (rows.length > 1 || rows[0].includes('\t')) {
-            rows.forEach((rowStr, ri) => {
-              const cells = rowStr.split('\t');
-              cells.forEach((val, ci) => {
-                const tr = r + ri, tc = c + ci;
-                if (tr < ssR && tc < ssC) ssD[tr][tc] = val;
-              });
-            });
-          } else {
-            ssD[r][c] = ssClipboard !== null ? ssClipboard : text;
-          }
-          LS('sheet', ssD); ssRender(); toast('Pasted');
-        }).catch(() => {
-          if (ssClipboard !== null) { ssD[r][c] = ssClipboard; LS('sheet', ssD); ssRender(); toast('Pasted'); }
-        });
-      }
-      // Delete key clears cell
-      else if (e.key === 'Delete') { ssD[r][c] = ''; LS('sheet', ssD); ssRender(); }
-    });
+  // Apply selection visuals after render
+  ssRenderSelection();
+}
 
-    // Drag-fill handle: small square at bottom-right of selected cell
-    if (ssSel && +inp.dataset.r === ssSel.row && +inp.dataset.c === ssSel.col) {
-      const td = inp.parentElement;
-      const handle = document.createElement('div');
-      handle.className = 'ss-fill-handle';
-      handle.style.cssText = 'position:absolute;bottom:-3px;right:-3px;width:7px;height:7px;background:var(--accent);cursor:crosshair;z-index:5;border:1px solid var(--panel);';
-      td.style.position = 'relative';
-      td.appendChild(handle);
-      handle.addEventListener('mousedown', e => {
-        e.preventDefault(); e.stopPropagation();
-        const startR = ssSel.row, startC = ssSel.col;
-        const srcVal = ssD[startR][startC] || '';
-        function onMove(ev) {
-          const el = document.elementFromPoint(ev.clientX, ev.clientY);
-          if (el && el.classList.contains('ci')) {
-            el.parentElement.style.outline = '2px solid var(--accent)';
-          }
-        }
-        function onUp(ev) {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-          t.querySelectorAll('td').forEach(td => td.style.outline = '');
-          const el = document.elementFromPoint(ev.clientX, ev.clientY);
-          if (el && el.classList.contains('ci')) {
-            const endR = +el.dataset.r, endC = +el.dataset.c;
-            // Fill down or right
-            if (endC === startC && endR !== startR) {
-              const dir = endR > startR ? 1 : -1;
-              for (let fr = startR + dir; dir > 0 ? fr <= endR : fr >= endR; fr += dir) {
-                ssD[fr][startC] = ssFillAdjust(srcVal, fr - startR, 0);
-              }
-            } else if (endR === startR && endC !== startC) {
-              const dir = endC > startC ? 1 : -1;
-              for (let fc = startC + dir; dir > 0 ? fc <= endC : fc >= endC; fc += dir) {
-                ssD[startR][fc] = ssFillAdjust(srcVal, 0, fc - startC);
-              }
-            }
-            LS('sheet', ssD); ssRender(); toast('Filled');
-          }
-        }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
+// ── Sheet mouse/keyboard event delegation ──
+(function initSheetEvents() {
+  const t = $('#ssTable');
+  if (!t) return;
+
+  function ssEnterEdit(r, c) {
+    ssEditing = true;
+    const inp = t.querySelector('.ci[data-r="'+r+'"][data-c="'+c+'"]');
+    if (inp) { inp.removeAttribute('readonly'); inp.focus(); inp.select(); }
+  }
+  function ssExitEdit() {
+    if (!ssEditing || !ssSel) return;
+    ssEditing = false;
+    const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+    if (inp) { ssD[ssSel.r1][ssSel.c1] = inp.value; inp.setAttribute('readonly', ''); }
+    LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); ssShowHint();
+  }
+
+  // mousedown: set selection anchor
+  t.addEventListener('mousedown', e => {
+    // Don't interfere with fill handle
+    if (e.target.classList.contains('ss-fill-handle')) return;
+    const td = e.target.closest('td[data-r]');
+    if (!td) {
+      const rh = e.target.closest('th.row-h');
+      if (rh) {
+        const idx = Array.from(t.querySelectorAll('th.row-h')).indexOf(rh);
+        if (idx >= 0) { ssExitEdit(); ssSel = { r1: idx, c1: 0, r2: idx, c2: ssC-1 }; ssSelecting = true; ssRenderSelection(); }
+        return;
+      }
+      const ch = e.target.closest('th[data-c]');
+      if (ch) {
+        const c = +ch.dataset.c;
+        ssExitEdit(); ssSel = { r1: 0, c1: c, r2: ssR-1, c2: c }; ssSelecting = true; ssRenderSelection();
+        return;
+      }
+      if (e.target.closest('th.corner')) {
+        ssExitEdit(); ssSel = { r1: 0, c1: 0, r2: ssR-1, c2: ssC-1 }; ssRenderSelection();
+        return;
+      }
+      return;
+    }
+    const r = +td.dataset.r, c = +td.dataset.c;
+    if (ssEditing && ssSel && r === ssSel.r1 && c === ssSel.c1) return; // clicking active editing cell
+    ssExitEdit();
+    if (e.shiftKey && ssSel) {
+      ssSel.r2 = r; ssSel.c2 = c;
+    } else {
+      ssSel = { r1: r, c1: c, r2: r, c2: c };
+    }
+    ssSelecting = true;
+    ssRenderSelection();
+  });
+
+  // mousemove: extend selection during drag
+  t.addEventListener('mousemove', e => {
+    if (!ssSelecting || !ssSel) return;
+    const td = e.target.closest('td[data-r]');
+    if (!td) return;
+    const r = +td.dataset.r, c = +td.dataset.c;
+    if (r !== ssSel.r2 || c !== ssSel.c2) {
+      ssSel.r2 = r; ssSel.c2 = c;
+      ssRenderSelection();
     }
   });
 
-  // Column header double-click to rename
-  t.querySelectorAll('th[data-c]').forEach(th => {
-    th.addEventListener('dblclick', () => {
-      const c = +th.dataset.c;
+  // mouseup: stop selecting
+  document.addEventListener('mouseup', () => { ssSelecting = false; });
+
+  // dblclick: enter edit mode
+  t.addEventListener('dblclick', e => {
+    const td = e.target.closest('td[data-r]');
+    if (td) {
+      const r = +td.dataset.r, c = +td.dataset.c;
+      ssSel = { r1: r, c1: c, r2: r, c2: c };
+      ssRenderSelection();
+      ssEnterEdit(r, c);
+      return;
+    }
+    // Column header rename on dblclick
+    const ch = e.target.closest('th[data-c]');
+    if (ch) {
+      const c = +ch.dataset.c;
       const name = prompt('Column name:', ssColNames[c] || colN(c));
       if (name !== null) { ssColNames[c] = name; LS('sheetColNames', ssColNames); ssRender(); }
-    });
+    }
   });
-}
+
+  // Keyboard navigation on the table wrapper
+  const wrap = t.closest('.ss-wrap') || t.parentElement;
+  wrap.setAttribute('tabindex', '0');
+  wrap.style.outline = 'none';
+
+  wrap.addEventListener('keydown', e => {
+    if (!ssSel) return;
+
+    // In edit mode, only handle Enter/Tab/Escape
+    if (ssEditing) {
+      const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+      if (e.key === 'Escape') { e.preventDefault(); ssEditing = false; if (inp) { inp.value = ssD[ssSel.r1][ssSel.c1] || ''; inp.setAttribute('readonly', ''); } ssRenderSelection(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); ssExitEdit(); const nr = Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); return; }
+      if (e.key === 'Tab') { e.preventDefault(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); return; }
+      return; // let typing go to the input
+    }
+
+    // Navigation without edit mode
+    const s = ssSelRange();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      let nr = ssSel.r1, nc = ssSel.c1;
+      if (e.key === 'ArrowDown') nr = Math.min(nr+1, ssR-1);
+      if (e.key === 'ArrowUp') nr = Math.max(nr-1, 0);
+      if (e.key === 'ArrowRight') nc = Math.min(nc+1, ssC-1);
+      if (e.key === 'ArrowLeft') nc = Math.max(nc-1, 0);
+      if (e.shiftKey) {
+        ssSel.r2 = e.key === 'ArrowDown' ? Math.min(ssSel.r2+1, ssR-1) : e.key === 'ArrowUp' ? Math.max(ssSel.r2-1, 0) : ssSel.r2;
+        ssSel.c2 = e.key === 'ArrowRight' ? Math.min(ssSel.c2+1, ssC-1) : e.key === 'ArrowLeft' ? Math.max(ssSel.c2-1, 0) : ssSel.c2;
+      } else {
+        ssSel = { r1: nr, c1: nc, r2: nr, c2: nc };
+      }
+      ssRenderSelection();
+      // Scroll active cell into view
+      const activeTd = t.querySelector('td[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+      if (activeTd) activeTd.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      return;
+    }
+    if (e.key === 'Enter') { e.preventDefault(); ssEnterEdit(ssSel.r1, ssSel.c1); return; }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1);
+      ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc };
+      ssRenderSelection(); return;
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      const sr = ssSelRange();
+      for (let r = sr.minR; r <= sr.maxR; r++)
+        for (let c = sr.minC; c <= sr.maxC; c++) ssD[r][c] = '';
+      LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); return;
+    }
+    // Ctrl+C: copy range
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      e.preventDefault();
+      const sr = ssSelRange();
+      let text = '';
+      const data = [];
+      for (let r = sr.minR; r <= sr.maxR; r++) {
+        const row = [];
+        for (let c = sr.minC; c <= sr.maxC; c++) row.push(ssD[r][c] || '');
+        text += row.join('\t') + '\n';
+        data.push(row);
+      }
+      navigator.clipboard.writeText(text).catch(() => {});
+      ssClipboardRange = { data, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1 };
+      toast('Copied ' + (sr.maxR-sr.minR+1) + '×' + (sr.maxC-sr.minC+1));
+      return;
+    }
+    // Ctrl+X: cut range
+    if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
+      e.preventDefault();
+      const sr = ssSelRange();
+      let text = '';
+      const data = [];
+      for (let r = sr.minR; r <= sr.maxR; r++) {
+        const row = [];
+        for (let c = sr.minC; c <= sr.maxC; c++) { row.push(ssD[r][c] || ''); ssD[r][c] = ''; }
+        text += row.join('\t') + '\n';
+        data.push(row);
+      }
+      navigator.clipboard.writeText(text).catch(() => {});
+      ssClipboardRange = { data, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1 };
+      LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); toast('Cut');
+      return;
+    }
+    // Ctrl+V: paste from clipboard
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+      e.preventDefault();
+      navigator.clipboard.readText().then(text => {
+        const rows = text.split('\n').filter(r => r.length);
+        if (rows.length > 0) {
+          rows.forEach((rowStr, ri) => {
+            const cells = rowStr.split('\t');
+            cells.forEach((val, ci) => {
+              const tr = ssSel.r1 + ri, tc = ssSel.c1 + ci;
+              if (tr < ssR && tc < ssC) ssD[tr][tc] = val;
+            });
+          });
+        }
+        LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); toast('Pasted');
+      }).catch(() => {
+        if (ssClipboardRange) {
+          ssClipboardRange.data.forEach((row, ri) => {
+            row.forEach((val, ci) => {
+              const tr = ssSel.r1 + ri, tc = ssSel.c1 + ci;
+              if (tr < ssR && tc < ssC) ssD[tr][tc] = val;
+            });
+          });
+          LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); toast('Pasted');
+        }
+      });
+      return;
+    }
+    // Ctrl+A: select all
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      e.preventDefault();
+      ssSel = { r1: 0, c1: 0, r2: ssR-1, c2: ssC-1 };
+      ssRenderSelection(); return;
+    }
+    // Typing starts edit mode
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      ssEnterEdit(ssSel.r1, ssSel.c1);
+      // Clear cell content and let the keystroke type into it
+      const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+      if (inp) { inp.value = ''; }
+      return;
+    }
+  });
+
+  // Focus the wrapper when clicking the sheet area
+  t.addEventListener('mousedown', () => { setTimeout(() => { if (!ssEditing) wrap.focus(); }, 0); });
+})();
 
 function renderSparkline(canvas, values) {
   if (!values.length) return;
@@ -2789,15 +3088,15 @@ function renderSparkline(canvas, values) {
 // Formula bar
 $('#ssFormula').addEventListener('keydown', e => {
   if (e.key === 'Enter' && ssSel) {
-    ssD[ssSel.row][ssSel.col] = $('#ssFormula').value;
-    LS('sheet', ssD); ssRender();
+    ssD[ssSel.r1][ssSel.c1] = $('#ssFormula').value;
+    LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
   }
 });
 
 $('#ssAddRow').onclick = () => { ssD.push(new Array(ssC).fill('')); ssR++; LS('sheet', ssD); ssRender(); };
 $('#ssAddCol').onclick = () => { ssD.forEach(r => r.push('')); ssC++; LS('sheet', ssD); ssRender(); };
-$('#ssSortA').onclick = () => { if (!ssSel) return; const c = ssSel.col; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(a[c]).localeCompare(String(b[c])) : va-vb; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2191'); };
-$('#ssSortD').onclick = () => { if (!ssSel) return; const c = ssSel.col; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); };
+$('#ssSortA').onclick = () => { if (!ssSel) return; const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(a[c]).localeCompare(String(b[c])) : va-vb; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2191'); };
+$('#ssSortD').onclick = () => { if (!ssSel) return; const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); };
 $('#ssHeat').onclick = function() { ssHeatMap = !ssHeatMap; this.classList.toggle('active', ssHeatMap); ssRender(); };
 $('#ssFormulas').onclick = function() { ssShowFormulas = !ssShowFormulas; this.classList.toggle('active', ssShowFormulas); ssRender(); };
 // Force recalculate all formula cells
@@ -5231,6 +5530,38 @@ const PRICING_TOKEN_PROFILES = {
   deep:  { inputTokens: 55000, outputTokens: 5000, calls: 6 }
 };
 
+function fmtCost(val) {
+  const unitEl = $('#pricingUnit');
+  const unit = unitEl ? +unitEl.value : 1;
+  const scaled = val / unit;
+  const suffix = unit === 1000 ? 'K' : unit === 1000000 ? 'M' : '';
+  return '$' + scaled.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + suffix;
+}
+
+function balanceMixSliders(changedId) {
+  const ids = ['pricingMixQA', 'pricingMixTool', 'pricingMixMulti', 'pricingMixDeep'];
+  const changedVal = +$('#' + changedId).value;
+  const remaining = 100 - changedVal;
+  const others = ids.filter(id => id !== changedId);
+  const othersTotal = others.reduce((sum, id) => sum + (+$('#' + id).value), 0);
+  if (othersTotal === 0) {
+    const each = Math.floor(remaining / others.length);
+    others.forEach((id, i) => { $('#' + id).value = i === others.length - 1 ? remaining - each * (others.length - 1) : each; });
+  } else {
+    let assigned = 0;
+    others.forEach((id, i) => {
+      if (i === others.length - 1) {
+        $('#' + id).value = remaining - assigned;
+      } else {
+        const v = Math.round(remaining * (+$('#' + id).value) / othersTotal);
+        $('#' + id).value = v;
+        assigned += v;
+      }
+    });
+  }
+  updatePricingCalc();
+}
+
 function updatePricingCalc() {
   const model = $('#pricingModel').value;
   const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
@@ -5253,7 +5584,6 @@ function updatePricingCalc() {
   const totalQueries = users * qpu;
   const normalize = mixTotal > 0 ? 100 / mixTotal : 1;
 
-  // Calculate cost per query type
   function queryCost(profile) {
     const p = PRICING_TOKEN_PROFILES[profile];
     return (p.inputTokens / 1e6 * rates.input) + (p.outputTokens / 1e6 * rates.output);
@@ -5279,14 +5609,14 @@ function updatePricingCalc() {
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per deep research:</span><span>$' + costDeep.toFixed(4) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Blended cost/query:</span><span><b>$' + weightedCostPerQuery.toFixed(4) + '</b></span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Cost/user/month:</span><span><b>$' + costPerUser.toFixed(2) + '</b></span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:4px 0;font-size:.72rem;font-weight:700;color:var(--accent);"><span>Total monthly:</span><span>$' + totalMonthlyCost.toFixed(2) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Annual estimate:</span><span>$' + (totalMonthlyCost * 12).toFixed(2) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Cost/user/month:</span><span><b>' + fmtCost(costPerUser) + '</b></span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:4px 0;font-size:.72rem;font-weight:700;color:var(--accent);"><span>Total monthly:</span><span>' + fmtCost(totalMonthlyCost) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Annual estimate:</span><span>' + fmtCost(totalMonthlyCost * 12) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
     '<div style="font-size:.55rem;color:var(--text-dim);">Fixed pricing suggestions:</div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>Break-even /user/mo:</span><span>$' + costPerUser.toFixed(2) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>2x margin /user/mo:</span><span>$' + (costPerUser * 2).toFixed(2) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin /user/mo:</span><span>$' + (costPerUser * 3).toFixed(2) + '</span></div>';
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>Break-even /user/mo:</span><span>' + fmtCost(costPerUser) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>2x margin /user/mo:</span><span>' + fmtCost(costPerUser * 2) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin /user/mo:</span><span>' + fmtCost(costPerUser * 3) + '</span></div>';
 }
 
 $('#aiPricingBtn').onclick = () => {
@@ -5297,9 +5627,14 @@ $('#aiPricingBtn').onclick = () => {
 };
 
 // Bind pricing sliders
-['pricingModel', 'pricingUsers', 'pricingQpu', 'pricingMixQA', 'pricingMixTool', 'pricingMixMulti', 'pricingMixDeep'].forEach(id => {
+['pricingModel', 'pricingUsers', 'pricingQpu'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('input', updatePricingCalc);
+});
+// Mix sliders auto-balance
+['pricingMixQA', 'pricingMixTool', 'pricingMixMulti', 'pricingMixDeep'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => balanceMixSliders(id));
 });
 
 if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
@@ -5406,7 +5741,18 @@ SUPPORTED FORMULAS for the sheet: =SUM, =AVG, =MIN, =MAX, =COUNT, =MEDIAN, =PROD
 
 TEMPLATES you can scaffold: stock_comparison_table, earnings_tracker, portfolio_summary, scenario_model, news_sentiment_board, macro_dashboard.
 
-MEME RULES: When creating memes, keep text under 8 words per line. Top text = setup, bottom text = punchline. Match the template energy (e.g. stonks = irrationally bullish). Use specific context like ticker symbols, prices, or events — generic memes are boring. Available templates: drake, stonks, this_is_fine, galaxy_brain, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been, distracted_boyfriend, gru_plan, hide_the_pain.`;
+MEME RULES: When creating memes, keep text under 8 words per line. Top text = setup, bottom text = punchline. Match the template energy (e.g. stonks = irrationally bullish). Use specific context like ticker symbols, prices, or events — generic memes are boring. Available templates: drake, stonks, this_is_fine, galaxy_brain, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been, distracted_boyfriend, gru_plan, hide_the_pain.
+
+PRICING ANALYSIS RULES:
+When asked about pricing, costs, or business modeling:
+1. Use pricing_analysis tool to get current cost data and scenarios at different user scales.
+2. Build comparison tables in the sheet showing cost/revenue at different scales using create_table or write_cells.
+3. Consider: freemium tiers, per-seat pricing, usage-based pricing, hybrid models.
+4. Research competitors mentioned — compare their pricing/features.
+5. Model break-even points and margin dynamics.
+6. Write strategic recommendations to the notepad with specific numbers using write_note.
+7. Always show the path from current costs to profitable unit economics.
+8. When suggesting pricing tiers, include at least 3 tiers (free/starter, pro, enterprise).`;
 
 // ── Tool definitions for Anthropic API ──
 const AGENT_TOOLS = [
@@ -5447,7 +5793,10 @@ const AGENT_TOOLS = [
   { name: 'create_meme', description: 'Generate a finished meme image via imgflip API with text baked in. Returns the image URL and adds it to the draw pane. Keep text SHORT (under 8 words per line).', input_schema: { type: 'object', properties: { template_name: { type: 'string', description: 'Meme template: drake, stonks, this_is_fine, galaxy_brain, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been, distracted_boyfriend, gru_plan, hide_the_pain' }, top_text: { type: 'string', description: 'Top text (setup). Keep under 8 words.' }, bottom_text: { type: 'string', description: 'Bottom text (punchline). Keep under 8 words.' } }, required: ['template_name', 'top_text', 'bottom_text'] } },
 
   // RESEARCH TOOLS
-  { name: 'deep_research', description: 'Trigger a deep research scan on a topic. Fetches real articles from Google News, then you can analyze them. Returns article list for your synthesis.', input_schema: { type: 'object', properties: { topic: { type: 'string', description: 'Research topic or query' } }, required: ['topic'] } }
+  { name: 'deep_research', description: 'Trigger a deep research scan on a topic. Fetches real articles from Google News, then you can analyze them. Returns article list for your synthesis.', input_schema: { type: 'object', properties: { topic: { type: 'string', description: 'Research topic or query' } }, required: ['topic'] } },
+
+  // PRICING/BUSINESS TOOLS
+  { name: 'pricing_analysis', description: 'Run pricing scenario analysis. Models API costs at different user scales, evaluates unit economics and profitability dynamics. Returns cost scenarios for analysis. Write results to sheet and notepad.', input_schema: { type: 'object', properties: { product_type: { type: 'string', description: 'Type of product (SaaS tool, API wrapper, consumer app, etc.)' }, target_users: { type: 'number', description: 'Target user count' }, queries_per_user: { type: 'number', description: 'Expected queries per user per month' }, competitors: { type: 'string', description: 'Comma-separated competitor names to research' } }, required: ['product_type'] } }
 ];
 
 // ── Tool execution dispatcher ──
@@ -5734,6 +6083,35 @@ async function executeAgentTool(name, input) {
         }
       }
 
+      case 'pricing_analysis': {
+        const model = $('#pricingModel')?.value || $('#aiModel').value;
+        const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
+        const users = input.target_users || +($('#pricingUsers')?.value || 100);
+        const qpu = input.queries_per_user || +($('#pricingQpu')?.value || 20);
+        const mixQA = +($('#pricingMixQA')?.value || 40);
+        const mixTool = +($('#pricingMixTool')?.value || 30);
+        const mixMulti = +($('#pricingMixMulti')?.value || 20);
+        const mixDeep = +($('#pricingMixDeep')?.value || 10);
+        const mixTotal = mixQA + mixTool + mixMulti + mixDeep || 100;
+        function pqCost(profile) {
+          const p = PRICING_TOKEN_PROFILES[profile];
+          return (p.inputTokens / 1e6 * rates.input) + (p.outputTokens / 1e6 * rates.output);
+        }
+        const blendedCost = (pqCost('qa') * mixQA + pqCost('tool') * mixTool + pqCost('multi') * mixMulti + pqCost('deep') * mixDeep) / mixTotal;
+        const scenarios = [10, 100, 500, 1000, 5000, 10000, 50000].map(u => {
+          const totalQ = u * qpu;
+          return { users: u, totalQueries: totalQ, monthlyCost: +(blendedCost * totalQ).toFixed(2), costPerUser: +(blendedCost * qpu).toFixed(4), annualCost: +(blendedCost * totalQ * 12).toFixed(2) };
+        });
+        toast('Pricing analysis: ' + scenarios.length + ' scenarios');
+        return JSON.stringify({
+          model, rates, blendedCostPerQuery: +blendedCost.toFixed(6), scenarios,
+          queryMix: { qa: mixQA, tool: mixTool, multi: mixMulti, deep: mixDeep },
+          product_type: input.product_type,
+          competitors: input.competitors || '',
+          instruction: 'Analyze these cost scenarios. Build a pricing comparison table in the sheet using write_cells or create_table. Write a pricing strategy recommendation to the notepad using write_note. Consider: unit economics at each scale, margin requirements, competitive positioning, adoption incentives (freemium/trial), and path to profitability. Show break-even pricing and suggested tiers.'
+        });
+      }
+
       case 'deep_research': {
         try {
           const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(input.topic) + '&hl=en-US&gl=US&ceid=US:en';
@@ -5767,6 +6145,50 @@ async function executeAgentTool(name, input) {
   }
 }
 
+// ── Robot animation ──
+let robotWorking = false, robotLookTimer = null, robotTypeTimer = null;
+
+function setRobotWorking(active) {
+  robotWorking = active;
+  const light = document.getElementById('deskLight');
+  if (!light) return;
+  if (active) {
+    light.classList.add('on');
+    clearInterval(robotLookTimer);
+    clearInterval(robotTypeTimer);
+    let tick = 0;
+    robotTypeTimer = setInterval(() => {
+      tick++;
+      const armL = document.getElementById('robotArmL');
+      const armR = document.getElementById('robotArmR');
+      if (armL) armL.classList.toggle('typing-l', tick % 2 === 0);
+      if (armR) armR.classList.toggle('typing-r', tick % 2 === 1);
+    }, 200);
+  } else {
+    light.classList.remove('on');
+    clearInterval(robotTypeTimer);
+    const armL = document.getElementById('robotArmL');
+    const armR = document.getElementById('robotArmR');
+    if (armL) armL.classList.remove('typing-l');
+    if (armR) armR.classList.remove('typing-r');
+    startRobotIdleLook();
+  }
+}
+
+function startRobotIdleLook() {
+  clearInterval(robotLookTimer);
+  robotLookTimer = setInterval(() => {
+    const head = document.getElementById('robotHead');
+    if (!head) return;
+    const dir = Math.random() > 0.5 ? '2px' : '-2px';
+    head.style.transform = 'translateX(' + dir + ')';
+    setTimeout(() => { if (head) head.style.transform = ''; }, 2000);
+  }, 4000);
+}
+
+// Start idle on load
+setTimeout(startRobotIdleLook, 1000);
+
 // ── Agentic loop with tool_use ──
 async function sendAgentMessage() {
   if (!aiKey) { addAiMsg('system', 'Set your API key below to start.'); return; }
@@ -5787,6 +6209,7 @@ async function sendAgentMessage() {
   const model = $('#aiModel').value;
   const thinkingDiv = addAiMsg('system', 'Thinking...');
   aiStreaming = true;
+  setRobotWorking(true);
 
   try {
     // Build API messages: history + context-enriched latest
@@ -5880,6 +6303,7 @@ async function sendAgentMessage() {
     thinkingDiv.textContent = 'Error: ' + e.message;
   }
   aiStreaming = false;
+  setRobotWorking(false);
 }
 
 // Welcome message
