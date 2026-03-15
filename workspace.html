@@ -2769,12 +2769,13 @@ $('#gridApplyBtn').onclick = () => {
 // ── Mobile navigation ──
 (function initMobileNav() {
   const MOBILE_PANES = [
-    { id: 'q-notepad', label: 'Notes' },
     { id: 'q-claude', label: 'Claude' },
-    { id: 'q-sheet', label: 'Sheet' },
-    { id: 'q-whiteboard', label: 'Draw' },
     { id: 'q-map', label: 'Analytics' },
-    { id: 'q-news', label: 'News' }
+    { id: 'q-news', label: 'News' },
+    { id: 'q-notepad', label: 'Notes' },
+    { id: 'q-whiteboard', label: 'Draw' },
+    { id: 'q-sheet', label: 'Sheet' },
+    { id: 'q-media', label: 'Media' }
   ];
   let mobIdx = 0;
   const isMobile = () => window.innerWidth <= 768;
