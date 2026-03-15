@@ -928,6 +928,19 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           Data is simulated for demonstration.
         </div>
       </div>
+      <!-- Inline article viewer (archive.is sub-browser) -->
+      <div id="newsViewer" style="display:none;flex-direction:column;position:absolute;inset:0;z-index:50;background:var(--panel);">
+        <div style="display:flex;align-items:center;padding:6px 10px;gap:6px;border-bottom:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
+          <button id="newsViewerBack" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);cursor:pointer;font-size:.72rem;">&larr; Back</button>
+          <span id="newsViewerTitle" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;color:var(--text);font-weight:600;"></span>
+          <select id="newsViewerMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+            <option value="archive">Archive.is</option>
+            <option value="direct">Direct</option>
+          </select>
+          <a id="newsViewerExternal" href="#" target="_blank" style="font-size:.65rem;color:var(--accent2);text-decoration:none;padding:2px 6px;border:1px solid var(--border);border-radius:3px;" title="Open in new tab">&#8599; New Tab</a>
+        </div>
+        <iframe id="newsViewerFrame" style="flex:1;border:none;width:100%;background:#fff;" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
+      </div>
     </div>
   </div>
 </div>
@@ -3597,15 +3610,61 @@ $('#browseSearch').addEventListener('input', renderBrowseList);
    NEWS & MARKET COVERAGE (Simulated)
    ═══════════════════════════════════════════ */
 const NEWS_SOURCES = ['Reuters', 'Bloomberg', 'CNBC', 'Financial Times', 'WSJ', 'MarketWatch', 'Barron\'s', 'Seeking Alpha'];
-const SOURCE_DOMAINS = {
-  'Reuters': 'reuters.com/business',
-  'Bloomberg': 'bloomberg.com/news/articles',
-  'CNBC': 'cnbc.com/2025',
-  'Financial Times': 'ft.com/content',
-  'WSJ': 'wsj.com/articles',
-  'MarketWatch': 'marketwatch.com/story',
-  "Barron's": 'barrons.com/articles',
-  'Seeking Alpha': 'seekingalpha.com/article'
+const SOURCE_SECTION_URLS = {
+  'Reuters': {
+    'Technology': 'https://www.reuters.com/technology/',
+    'Financial Services': 'https://www.reuters.com/business/finance/',
+    'Healthcare': 'https://www.reuters.com/business/healthcare-pharmaceuticals/',
+    'Energy': 'https://www.reuters.com/business/energy/',
+    'Consumer Cyclical': 'https://www.reuters.com/business/retail-consumer/',
+    'Consumer Defensive': 'https://www.reuters.com/business/retail-consumer/',
+    'Industrials': 'https://www.reuters.com/business/aerospace-defense/',
+    'Communication Services': 'https://www.reuters.com/technology/media-telecom/',
+    '_default': 'https://www.reuters.com/markets/us/'
+  },
+  'Bloomberg': {
+    'Technology': 'https://www.bloomberg.com/technology',
+    'Financial Services': 'https://www.bloomberg.com/markets',
+    'Healthcare': 'https://www.bloomberg.com/pursuits/health',
+    'Energy': 'https://www.bloomberg.com/energy',
+    '_default': 'https://www.bloomberg.com/markets'
+  },
+  'CNBC': {
+    'Technology': 'https://www.cnbc.com/technology/',
+    'Financial Services': 'https://www.cnbc.com/finance/',
+    'Healthcare': 'https://www.cnbc.com/health-and-science/',
+    'Energy': 'https://www.cnbc.com/energy/',
+    '_default': 'https://www.cnbc.com/markets/'
+  },
+  'Financial Times': {
+    'Technology': 'https://www.ft.com/technology',
+    'Financial Services': 'https://www.ft.com/financial-services',
+    'Healthcare': 'https://www.ft.com/health',
+    'Energy': 'https://www.ft.com/energy',
+    '_default': 'https://www.ft.com/markets'
+  },
+  'WSJ': {
+    'Technology': 'https://www.wsj.com/tech',
+    'Financial Services': 'https://www.wsj.com/finance',
+    'Healthcare': 'https://www.wsj.com/health',
+    'Energy': 'https://www.wsj.com/business/energy-oil',
+    '_default': 'https://www.wsj.com/market-data'
+  },
+  'MarketWatch': {
+    'Technology': 'https://www.marketwatch.com/investing/stocks?mod=mw_lnav',
+    '_default': 'https://www.marketwatch.com/markets'
+  },
+  "Barron's": {
+    'Technology': 'https://www.barrons.com/topics/technology',
+    '_default': 'https://www.barrons.com/market-data'
+  },
+  'Seeking Alpha': {
+    'Technology': 'https://seekingalpha.com/sector/technology',
+    'Financial Services': 'https://seekingalpha.com/sector/financial',
+    'Healthcare': 'https://seekingalpha.com/sector/healthcare',
+    'Energy': 'https://seekingalpha.com/sector/energy',
+    '_default': 'https://seekingalpha.com/market-news'
+  }
 };
 const NEWS_TEMPLATES = [
   { title: '{company} Reports Strong Q{q} Earnings, Beats Estimates', snippet: '{company} posted quarterly revenue of ${rev}B, surpassing analyst expectations of ${exp}B. The stock moved {dir} {pct}% in after-hours trading.' },
@@ -3660,9 +3719,8 @@ function genNews(keyword) {
     });
     const hoursAgo = Math.floor(rand() * 72);
     const source = NEWS_SOURCES[Math.floor(rand() * NEWS_SOURCES.length)];
-    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').slice(0, 60);
-    const domain = SOURCE_DOMAINS[source] || 'reuters.com/business';
-    const url = 'https://' + domain + '/' + slug;
+    const sectionMap = SOURCE_SECTION_URLS[source] || SOURCE_SECTION_URLS['Reuters'];
+    const url = sectionMap[company.sector] || sectionMap['_default'];
     articles.push({ title, snippet, source, hoursAgo, tags: [company.ticker, company.sector], url });
   }
   return articles.sort((a, b) => a.hoursAgo - b.hoursAgo);
@@ -3691,23 +3749,48 @@ function renderNewsFeed() {
     const div = document.createElement('div');
     div.className = 'news-item';
     const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? a.hoursAgo + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
-    const archiveUrl = 'https://archive.is/?url=' + encodeURIComponent(a.url);
+    const archiveUrl = 'https://archive.is/newest/' + encodeURIComponent(a.url);
     div.innerHTML =
       '<div class="news-source">' + a.source + '</div>' +
       '<div class="news-title">' + a.title + '</div>' +
       '<div class="news-snippet">' + a.snippet + '</div>' +
       '<div class="news-meta"><span>' + timeStr + '</span>' +
       a.tags.map(t => '<span class="news-tag">' + t + '</span>').join('') +
-      '<a class="news-open" href="' + archiveUrl + '" target="_blank" title="Open via archive.is (bypasses paywalls)">Open &#8599;</a>' +
+      '<a class="news-direct" href="' + a.url + '" target="_blank" title="Open source directly" style="font-size:.6rem;color:var(--text-dim);text-decoration:none;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Direct &#8599;</a>' +
+      '<a class="news-open" href="' + archiveUrl + '" target="_blank" title="Open via archive.is">Archive &#8599;</a>' +
       '</div>';
-    // Click anywhere on article to open via archive.is
+    // Click article body to open inline viewer
     div.onclick = (e) => {
-      if (e.target.closest('.news-open')) return; // let the link handle itself
-      window.open(archiveUrl, '_blank');
+      if (e.target.closest('.news-open') || e.target.closest('.news-direct')) return;
+      openNewsViewer(a.title, a.url, archiveUrl);
     };
     feed.appendChild(div);
   });
 }
+
+// Inline article viewer
+let newsViewerState = { directUrl: '', archiveUrl: '' };
+
+function openNewsViewer(title, directUrl, archiveUrl) {
+  newsViewerState = { directUrl, archiveUrl };
+  $('#newsViewerTitle').textContent = title;
+  $('#newsViewerExternal').href = archiveUrl;
+  const mode = $('#newsViewerMode').value;
+  $('#newsViewerFrame').src = mode === 'archive' ? archiveUrl : directUrl;
+  $('#newsViewer').style.display = 'flex';
+}
+
+$('#newsViewerBack').onclick = () => {
+  $('#newsViewer').style.display = 'none';
+  $('#newsViewerFrame').src = 'about:blank';
+};
+
+$('#newsViewerMode').onchange = function() {
+  if (!newsViewerState.directUrl) return;
+  const src = this.value === 'archive' ? newsViewerState.archiveUrl : newsViewerState.directUrl;
+  $('#newsViewerFrame').src = src;
+  $('#newsViewerExternal').href = src;
+};
 
 function renderNewsChips() {
   const el = $('#newsTickerChips');
