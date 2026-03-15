@@ -1507,6 +1507,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
       <div class="wb-wrap" id="wbWrap" style="position:relative;">
         <canvas id="wbCanvas" style="position:relative;z-index:1;"></canvas>
+        <canvas id="wbGridCanvas" style="position:absolute;top:0;left:0;z-index:2;pointer-events:none;"></canvas>
         <!-- Layer objects rendered here -->
       </div>
       <!-- Layer panel -->
@@ -2757,6 +2758,8 @@ renderNpTabs();
    ═══════════════════════════════════════════ */
 const wbC = $('#wbCanvas');
 const wbX = wbC.getContext('2d');
+const wbGC = $('#wbGridCanvas');
+const wbGX = wbGC.getContext('2d');
 let wbTool = 'pen', wbDraw = false, wbHist = [], wbSX, wbSY, wbGridMode = 'none';
 
 function resizeWB() {
@@ -2768,46 +2771,112 @@ function resizeWB() {
   tmp.width = wbC.width; tmp.height = wbC.height;
   tmp.getContext('2d').drawImage(wbC, 0, 0);
   wbC.width = cw; wbC.height = ch;
-  // Canvas is transparent; CSS background on .wb-wrap handles the bg color
+  wbGC.width = cw; wbGC.height = ch;
   wbX.drawImage(tmp, 0, 0);
-  if (wbGridMode !== 'none') wbDrawGrid();
+  wbDrawGrid();
 }
 function wbDrawGrid() {
+  wbGX.clearRect(0, 0, wbGC.width, wbGC.height);
   if (wbGridMode === 'none') return;
-  wbX.save();
+  const W = wbGC.width, H = wbGC.height;
+  wbGX.save();
   if (wbGridMode === 'simple') {
-    wbX.strokeStyle = 'rgba(128,128,128,.1)'; wbX.lineWidth = 0.5;
-    for (let x = 0; x < wbC.width; x += 20) { wbX.beginPath(); wbX.moveTo(x, 0); wbX.lineTo(x, wbC.height); wbX.stroke(); }
-    for (let y = 0; y < wbC.height; y += 20) { wbX.beginPath(); wbX.moveTo(0, y); wbX.lineTo(wbC.width, y); wbX.stroke(); }
+    wbGX.strokeStyle = 'rgba(128,128,128,.1)'; wbGX.lineWidth = 0.5;
+    for (let x = 0; x < W; x += 20) { wbGX.beginPath(); wbGX.moveTo(x, 0); wbGX.lineTo(x, H); wbGX.stroke(); }
+    for (let y = 0; y < H; y += 20) { wbGX.beginPath(); wbGX.moveTo(0, y); wbGX.lineTo(W, y); wbGX.stroke(); }
   } else if (wbGridMode === '2d') {
-    const step = 40, originX = 50, originY = wbC.height - 40;
-    wbX.strokeStyle = 'rgba(128,128,128,.3)'; wbX.lineWidth = 1.5;
-    wbX.beginPath(); wbX.moveTo(originX, 10); wbX.lineTo(originX, originY); wbX.lineTo(wbC.width - 10, originY); wbX.stroke();
-    wbX.strokeStyle = 'rgba(128,128,128,.08)'; wbX.lineWidth = 0.5;
-    wbX.fillStyle = 'rgba(128,128,128,.4)'; wbX.font = '9px system-ui'; wbX.textAlign = 'center';
-    for (let x = originX; x < wbC.width - 10; x += step) {
-      wbX.beginPath(); wbX.moveTo(x, 10); wbX.lineTo(x, originY); wbX.stroke();
-      wbX.fillText(Math.round((x - originX) / step).toString(), x, originY + 14);
+    const step = 40, originX = 50, originY = H - 40;
+    wbGX.strokeStyle = 'rgba(128,128,128,.3)'; wbGX.lineWidth = 1.5;
+    wbGX.beginPath(); wbGX.moveTo(originX, 10); wbGX.lineTo(originX, originY); wbGX.lineTo(W - 10, originY); wbGX.stroke();
+    wbGX.strokeStyle = 'rgba(128,128,128,.08)'; wbGX.lineWidth = 0.5;
+    wbGX.fillStyle = 'rgba(128,128,128,.4)'; wbGX.font = '9px system-ui'; wbGX.textAlign = 'center';
+    for (let x = originX; x < W - 10; x += step) {
+      wbGX.beginPath(); wbGX.moveTo(x, 10); wbGX.lineTo(x, originY); wbGX.stroke();
+      wbGX.fillText(Math.round((x - originX) / step).toString(), x, originY + 14);
     }
-    wbX.textAlign = 'right';
+    wbGX.textAlign = 'right';
     for (let y = originY; y > 10; y -= step) {
-      wbX.beginPath(); wbX.moveTo(originX, y); wbX.lineTo(wbC.width - 10, y); wbX.stroke();
-      wbX.fillText(Math.round((originY - y) / step).toString(), originX - 6, y + 3);
+      wbGX.beginPath(); wbGX.moveTo(originX, y); wbGX.lineTo(W - 10, y); wbGX.stroke();
+      wbGX.fillText(Math.round((originY - y) / step).toString(), originX - 6, y + 3);
     }
   } else if (wbGridMode === '3d') {
-    const step = 30;
-    wbX.strokeStyle = 'rgba(128,128,128,.08)'; wbX.lineWidth = 0.5;
-    for (let y = 0; y < wbC.height; y += step) {
-      wbX.beginPath(); wbX.moveTo(0, y); wbX.lineTo(wbC.width, y); wbX.stroke();
+    const step = 40;
+    const ox = W * 0.4, oy = H * 0.6;
+    const axLen = Math.min(W, H) * 0.4;
+    const xEnd = { x: ox + axLen, y: oy };
+    const yEnd = { x: ox, y: oy - axLen };
+    const zAngle = Math.PI * 5 / 6;
+    const zEnd = { x: ox + Math.cos(zAngle) * axLen * 0.7, y: oy - Math.sin(zAngle) * axLen * 0.7 };
+    // Grid lines along X-Z plane
+    wbGX.strokeStyle = 'rgba(128,128,128,.06)'; wbGX.lineWidth = 0.5;
+    const xDir = { x: (xEnd.x - ox) / axLen, y: (xEnd.y - oy) / axLen };
+    const zDir = { x: (zEnd.x - ox) / axLen, y: (zEnd.y - oy) / axLen };
+    const gridSteps = Math.floor(axLen / step);
+    for (let i = 0; i <= gridSteps; i++) {
+      const t = i * step;
+      wbGX.beginPath();
+      wbGX.moveTo(ox + xDir.x * t, oy + xDir.y * t);
+      wbGX.lineTo(ox + xDir.x * t + zDir.x * axLen * 0.7, oy + xDir.y * t + zDir.y * axLen * 0.7);
+      wbGX.stroke();
+      wbGX.beginPath();
+      wbGX.moveTo(ox + zDir.x * t * 0.7 / (axLen / step) * step, oy + zDir.y * t * 0.7 / (axLen / step) * step);
+      wbGX.lineTo(ox + zDir.x * t * 0.7 / (axLen / step) * step + xDir.x * axLen, oy + zDir.y * t * 0.7 / (axLen / step) * step + xDir.y * axLen);
+      wbGX.stroke();
     }
-    const angle = Math.PI / 6;
-    const dx = wbC.height / Math.tan(angle);
-    for (let x = -wbC.height * 2; x < wbC.width + wbC.height * 2; x += step) {
-      wbX.beginPath(); wbX.moveTo(x, wbC.height); wbX.lineTo(x + dx, 0); wbX.stroke();
-      wbX.beginPath(); wbX.moveTo(x, wbC.height); wbX.lineTo(x - dx, 0); wbX.stroke();
+    // Y-axis grid lines (horizontal planes)
+    for (let i = 1; i <= gridSteps; i++) {
+      const t = i * step;
+      const by = oy - (yEnd.y - oy) / axLen * t * -1;
+      wbGX.beginPath();
+      wbGX.moveTo(ox - 4, by);
+      wbGX.lineTo(ox + 4, by);
+      wbGX.stroke();
+    }
+    // Draw axes
+    wbGX.lineWidth = 2;
+    // X axis (right) - red
+    wbGX.strokeStyle = 'rgba(220,80,80,.5)';
+    wbGX.beginPath(); wbGX.moveTo(ox, oy); wbGX.lineTo(xEnd.x, xEnd.y); wbGX.stroke();
+    // Arrow
+    wbGX.beginPath(); wbGX.moveTo(xEnd.x, xEnd.y); wbGX.lineTo(xEnd.x - 8, xEnd.y - 5); wbGX.moveTo(xEnd.x, xEnd.y); wbGX.lineTo(xEnd.x - 8, xEnd.y + 5); wbGX.stroke();
+    // Y axis (up) - green
+    wbGX.strokeStyle = 'rgba(80,180,80,.5)';
+    wbGX.beginPath(); wbGX.moveTo(ox, oy); wbGX.lineTo(yEnd.x, yEnd.y); wbGX.stroke();
+    wbGX.beginPath(); wbGX.moveTo(yEnd.x, yEnd.y); wbGX.lineTo(yEnd.x - 5, yEnd.y + 8); wbGX.moveTo(yEnd.x, yEnd.y); wbGX.lineTo(yEnd.x + 5, yEnd.y + 8); wbGX.stroke();
+    // Z axis (left-forward) - blue
+    wbGX.strokeStyle = 'rgba(80,120,220,.5)';
+    wbGX.beginPath(); wbGX.moveTo(ox, oy); wbGX.lineTo(zEnd.x, zEnd.y); wbGX.stroke();
+    const za = Math.atan2(zEnd.y - oy, zEnd.x - ox);
+    wbGX.beginPath(); wbGX.moveTo(zEnd.x, zEnd.y); wbGX.lineTo(zEnd.x - 8 * Math.cos(za - 0.4), zEnd.y - 8 * Math.sin(za - 0.4));
+    wbGX.moveTo(zEnd.x, zEnd.y); wbGX.lineTo(zEnd.x - 8 * Math.cos(za + 0.4), zEnd.y - 8 * Math.sin(za + 0.4)); wbGX.stroke();
+    // Labels
+    wbGX.font = 'bold 12px system-ui';
+    wbGX.fillStyle = 'rgba(220,80,80,.7)'; wbGX.textAlign = 'center';
+    wbGX.fillText('X', xEnd.x + 10, xEnd.y + 4);
+    wbGX.fillStyle = 'rgba(80,180,80,.7)';
+    wbGX.fillText('Y', yEnd.x, yEnd.y - 8);
+    wbGX.fillStyle = 'rgba(80,120,220,.7)';
+    wbGX.fillText('Z', zEnd.x - 10, zEnd.y - 4);
+    // Tick marks on axes
+    wbGX.lineWidth = 1;
+    for (let i = 1; i <= gridSteps; i++) {
+      const t = i * step / axLen;
+      // X ticks
+      wbGX.strokeStyle = 'rgba(220,80,80,.3)';
+      const xt = { x: ox + (xEnd.x - ox) * t, y: oy + (xEnd.y - oy) * t };
+      wbGX.beginPath(); wbGX.moveTo(xt.x, xt.y - 3); wbGX.lineTo(xt.x, xt.y + 3); wbGX.stroke();
+      // Y ticks
+      wbGX.strokeStyle = 'rgba(80,180,80,.3)';
+      const yt = { x: ox + (yEnd.x - ox) * t, y: oy + (yEnd.y - oy) * t };
+      wbGX.beginPath(); wbGX.moveTo(yt.x - 3, yt.y); wbGX.lineTo(yt.x + 3, yt.y); wbGX.stroke();
+      // Z ticks
+      wbGX.strokeStyle = 'rgba(80,120,220,.3)';
+      const zt = { x: ox + (zEnd.x - ox) * t, y: oy + (zEnd.y - oy) * t };
+      const zp = { x: -Math.sin(za) * 3, y: Math.cos(za) * 3 };
+      wbGX.beginPath(); wbGX.moveTo(zt.x + zp.x, zt.y + zp.y); wbGX.lineTo(zt.x - zp.x, zt.y - zp.y); wbGX.stroke();
     }
   }
-  wbX.restore();
+  wbGX.restore();
 }
 function wbSaveState() { wbHist.push(wbC.toDataURL()); if (wbHist.length > 50) wbHist.shift(); }
 
@@ -2824,11 +2893,7 @@ $$('.wb-tool').forEach(btn => {
 
 $('#wbGridMode').onchange = function() {
   wbGridMode = this.value;
-  if (wbHist.length) {
-    const img = new Image();
-    img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); wbDrawGrid(); };
-    img.src = wbHist[wbHist.length - 1];
-  } else { wbDrawGrid(); }
+  wbDrawGrid();
 };
 
 wbC.addEventListener('mousedown', e => {
@@ -2897,7 +2962,7 @@ $('#wbUndo').onclick = () => {
   img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
   img.src = wbHist.pop();
 };
-$('#wbClear').onclick = () => { wbSaveState(); wbX.clearRect(0, 0, wbC.width, wbC.height); if (wbShowGrid) wbDrawGrid(); };
+$('#wbClear').onclick = () => { wbSaveState(); wbX.clearRect(0, 0, wbC.width, wbC.height); };
 $('#wbSave').onclick = () => {
   const expCvs = document.createElement('canvas');
   expCvs.width = wbC.width; expCvs.height = wbC.height;
@@ -2944,9 +3009,9 @@ function wbSwitchPage(id) {
   wbRenderLayers();
   if (page && page.dataUrl) {
     const img = new Image();
-    img.onload = () => { wbX.drawImage(img, 0, 0); if (wbShowGrid) wbDrawGrid(); };
+    img.onload = () => { wbX.drawImage(img, 0, 0); };
     img.src = page.dataUrl;
-  } else if (wbShowGrid) wbDrawGrid();
+  }
   wbHist = [];
   renderWbTabs();
 }
@@ -3000,7 +3065,7 @@ setTimeout(() => {
     wbRenderLayers();
     if (initWbPage.dataUrl) {
       const img = new Image();
-      img.onload = () => { wbX.drawImage(img, 0, 0); if (wbShowGrid) wbDrawGrid(); };
+      img.onload = () => { wbX.drawImage(img, 0, 0); };
       img.src = initWbPage.dataUrl;
     }
   }
@@ -7446,7 +7511,7 @@ async function executeAgentTool(name, input) {
         wbSaveState();
         wbX.clearRect(0, 0, wbC.width, wbC.height);
         wbLayers = []; wbRenderLayers();
-        if (wbShowGrid) wbDrawGrid();
+        // Grid is on separate overlay canvas, no redraw needed
         toast('Draw pane cleared');
         return JSON.stringify({ success: true });
       }
