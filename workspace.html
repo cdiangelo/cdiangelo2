@@ -392,13 +392,16 @@ body.light .fun-btn { background: var(--accent); }
 .plant-leaf-l { bottom: 16px; left: 0; transform: rotate(-30deg); }
 .plant-leaf-r { bottom: 18px; right: 0; transform: rotate(30deg); }
 .plant-leaf-t { bottom: 22px; left: 50%; transform: translateX(-50%); width: 5px; height: 6px; border-radius: 50% 50% 30% 30%; background: #81C784; }
-/* Desk + monitors + robot grouped at center */
-.robot-desk { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 20px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 4px rgba(0,0,0,.3); }
-.robot-monitors { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); margin-left: -30px; display: flex; gap: 6px; z-index: 3; }
+/* Workstation container — single centered unit for desk, monitors, robot */
+.robot-workstation { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 80px; z-index: 3; }
+/* Desk — full width of workstation, at bottom */
+.robot-desk { position: absolute; bottom: 0; left: 0; right: 0; height: 20px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 4px rgba(0,0,0,.3); }
+/* Monitors — in front of robot (z-index 5), positioned on desk */
+.robot-monitors { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); margin-left: -16px; display: flex; gap: 6px; z-index: 5; }
 .robot-monitor { width: 22px; height: 16px; background: #0a0a0a; border: 2px solid #333; border-radius: 2px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s, border-color 0.3s; }
 .robot-monitor.on { border-color: #555; box-shadow: inset 0 0 5px rgba(76,175,80,.4), 0 0 4px rgba(76,175,80,.2); }
-/* Robot body — right of monitors, stays close */
-.robot-body { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); margin-left: 24px; text-align: center; z-index: 4; }
+/* Robot body — behind monitors (z-index 4), centered slightly right of monitors */
+.robot-body { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); margin-left: 14px; text-align: center; z-index: 4; }
 .robot-head { width: 32px; height: 26px; background: linear-gradient(180deg, #8a8a98, #6e6e7e, #5a5a68); border-radius: 5px 5px 3px 3px; margin: 0 auto; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.4); animation: robotLook 5s ease-in-out infinite; }
 .robot-glasses { position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 24px; height: 6px; z-index: 1; }
 .robot-glasses::before, .robot-glasses::after { content: ''; position: absolute; top: 0; width: 9px; height: 5px; border: 1.5px solid #1a1a1a; border-radius: 50%; background: rgba(20,20,30,.15); }
@@ -1464,20 +1467,22 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div class="robot-glass"></div>
         <div class="robot-plant robot-plant-l"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div><div class="plant-leaf plant-leaf-t"></div></div>
         <div class="robot-plant robot-plant-r"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div></div>
-        <div class="robot-body">
-          <div class="robot-head" id="robotHead">
-            <div class="robot-glasses"><div class="robot-glasses-bridge"></div></div>
-            <div class="robot-eyes"><span class="eye"></span><span class="eye"></span></div>
+        <div class="robot-workstation" id="robotWorkstation">
+          <div class="robot-body">
+            <div class="robot-head" id="robotHead">
+              <div class="robot-glasses"><div class="robot-glasses-bridge"></div></div>
+              <div class="robot-eyes"><span class="eye"></span><span class="eye"></span></div>
+            </div>
+            <div class="robot-torso"><div class="robot-tie" id="robotTie"></div></div>
+            <div class="robot-arms">
+              <span class="arm" id="robotArmL"></span>
+              <span class="arm" id="robotArmR"></span>
+            </div>
           </div>
-          <div class="robot-torso"><div class="robot-tie" id="robotTie"></div></div>
-          <div class="robot-arms">
-            <span class="arm" id="robotArmL"></span>
-            <span class="arm" id="robotArmR"></span>
+          <div class="robot-monitors"><div class="robot-monitor" id="robotMon1"></div><div class="robot-monitor" id="robotMon2"></div></div>
+          <div class="robot-desk">
+            <div class="desk-light" id="deskLight"></div>
           </div>
-        </div>
-        <div class="robot-monitors"><div class="robot-monitor" id="robotMon1"></div><div class="robot-monitor" id="robotMon2"></div></div>
-        <div class="robot-desk">
-          <div class="desk-light" id="deskLight"></div>
         </div>
       </div>
       <div class="robot-controls">
@@ -7818,14 +7823,10 @@ if (robotSceneSel) {
     const maxH = pane ? pane.offsetHeight * 0.6 : 400;
     const newH = Math.max(80, Math.min(maxH, startH + delta));
     scene.style.height = newH + 'px';
-    // Proportional scaling of robot elements — preserve translateX centering
+    // Scale the entire workstation as one unit
     const scale = newH / defaultH;
-    const body = scene.querySelector('.robot-body');
-    if (body) { body.style.transform = 'translateX(-50%) scale(' + scale + ')'; body.style.transformOrigin = 'bottom center'; }
-    const monitors = scene.querySelector('.robot-monitors');
-    if (monitors) { monitors.style.transform = 'translateX(-50%) scale(' + scale + ')'; monitors.style.transformOrigin = 'bottom center'; }
-    const desk = scene.querySelector('.robot-desk');
-    if (desk) { desk.style.transform = 'translateX(-50%) scaleX(' + Math.min(scale, 1.5) + ')'; desk.style.transformOrigin = 'bottom center'; }
+    const ws = scene.querySelector('.robot-workstation');
+    if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
   });
   document.addEventListener('mouseup', () => {
     if (!dragging) return;
