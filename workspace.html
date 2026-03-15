@@ -8398,6 +8398,16 @@ function activateGenieMode() {
   // Disable scene selector in user mode
   const sel = document.getElementById('robotSceneSelect');
   if (sel) sel.disabled = true;
+  // Check if user is blocked/paused
+  const blockStatus = isUserBlocked(wsUserName);
+  if (blockStatus) {
+    const msg = blockStatus.status === 'blocked'
+      ? 'Your access has been blocked by an admin.'
+      : 'Your access is currently paused by an admin.';
+    activateSleepMode();
+    addAiMsg('system', msg + ' Contact your administrator to restore access.');
+    return;
+  }
   // Load remaining prompts from storage
   const stored = localStorage.getItem('ws_geniePrompts_' + (wsUserName || 'anon'));
   if (stored !== null) geniePromptsLeft = parseInt(stored);
@@ -8464,12 +8474,70 @@ function grantUserAccess(userName, extraPrompts) {
   const key = 'ws_geniePrompts_' + userName;
   const current = parseInt(localStorage.getItem(key) || '0');
   localStorage.setItem(key, current + extraPrompts);
+  // Unblock if blocked
+  const blocked = JSON.parse(localStorage.getItem('ws_blockedUsers') || '{}');
+  if (blocked[userName]) { delete blocked[userName]; localStorage.setItem('ws_blockedUsers', JSON.stringify(blocked)); }
   // Update request status
   const requests = JSON.parse(localStorage.getItem('ws_accessRequests') || '[]');
   const req = requests.find(r => r.name === userName && r.status === 'pending');
   if (req) { req.status = 'granted'; req.grantedAt = new Date().toISOString(); req.extraPrompts = extraPrompts; }
   localStorage.setItem('ws_accessRequests', JSON.stringify(requests));
   toast('Granted ' + extraPrompts + ' prompts to ' + userName);
+}
+
+function blockUser(userName) {
+  const blocked = JSON.parse(localStorage.getItem('ws_blockedUsers') || '{}');
+  blocked[userName] = { status: 'blocked', since: new Date().toISOString() };
+  localStorage.setItem('ws_blockedUsers', JSON.stringify(blocked));
+  // Zero out their prompts
+  localStorage.setItem('ws_geniePrompts_' + userName, '0');
+  toast(userName + ' has been blocked');
+}
+
+function pauseUser(userName) {
+  const blocked = JSON.parse(localStorage.getItem('ws_blockedUsers') || '{}');
+  blocked[userName] = { status: 'paused', since: new Date().toISOString() };
+  localStorage.setItem('ws_blockedUsers', JSON.stringify(blocked));
+  // Zero out their prompts to force sleep
+  localStorage.setItem('ws_geniePrompts_' + userName, '0');
+  toast(userName + ' has been paused');
+}
+
+function unblockUser(userName) {
+  const blocked = JSON.parse(localStorage.getItem('ws_blockedUsers') || '{}');
+  delete blocked[userName];
+  localStorage.setItem('ws_blockedUsers', JSON.stringify(blocked));
+  toast(userName + ' has been unblocked');
+}
+
+function isUserBlocked(userName) {
+  const blocked = JSON.parse(localStorage.getItem('ws_blockedUsers') || '{}');
+  return blocked[userName] || null;
+}
+
+function getAllKnownUsers() {
+  const users = {};
+  // From access requests
+  const requests = JSON.parse(localStorage.getItem('ws_accessRequests') || '[]');
+  requests.forEach(r => { if (!users[r.name]) users[r.name] = { name: r.name, firstSeen: r.timestamp }; });
+  // From usage tracking
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith('ws_usage_')) {
+      const name = k.replace('ws_usage_', '');
+      if (!users[name]) users[name] = { name, firstSeen: null };
+    }
+    if (k.startsWith('ws_geniePrompts_')) {
+      const name = k.replace('ws_geniePrompts_', '');
+      if (!users[name]) users[name] = { name, firstSeen: null };
+    }
+  }
+  // From registered contacts
+  const contacts = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
+  Object.values(contacts).forEach(name => {
+    if (!users[name]) users[name] = { name, firstSeen: null };
+  });
+  return Object.values(users);
 }
 
 // Admin: Access requests panel
@@ -8504,7 +8572,7 @@ function renderAccessRequestsPanel() {
       });
     }
     if (granted.length) {
-      html += '<div style="font-weight:600;color:var(--success);margin:8px 0 4px;">Granted (' + granted.length + ')</div>';
+      html += '<div style="font-weight:600;color:var(--success);margin:8px 0 4px;">Recently Granted</div>';
       granted.slice(-10).reverse().forEach(r => {
         const d = new Date(r.grantedAt || r.timestamp);
         html += '<div style="padding:3px 0;border-bottom:1px solid var(--border);color:var(--text-dim);font-size:.5rem;">' +
@@ -8512,6 +8580,49 @@ function renderAccessRequestsPanel() {
       });
     }
   }
+
+  // User management section
+  const allUsers = getAllKnownUsers();
+  const blocked = JSON.parse(localStorage.getItem('ws_blockedUsers') || '{}');
+  if (allUsers.length) {
+    html += '<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px;">' +
+      '<div style="font-weight:700;font-size:.68rem;margin-bottom:6px;">User Management</div>' +
+      '<table style="width:100%;font-size:.52rem;border-collapse:collapse;">' +
+      '<tr style="color:var(--text-dim);border-bottom:1px solid var(--border);"><th style="text-align:left;padding:3px 4px;">User</th><th style="text-align:center;padding:3px 4px;">Prompts Left</th><th style="text-align:center;padding:3px 4px;">Status</th><th style="text-align:right;padding:3px 4px;">Actions</th></tr>';
+    allUsers.forEach(u => {
+      const name = u.name;
+      const escapedName = name.replace(/'/g, "\\'");
+      const prompts = parseInt(localStorage.getItem('ws_geniePrompts_' + name) || '0');
+      const blockInfo = blocked[name];
+      const status = blockInfo ? (blockInfo.status === 'blocked' ? '<span style="color:var(--danger);font-weight:600;">Blocked</span>' : '<span style="color:#FF9800;font-weight:600;">Paused</span>') : (prompts > 0 ? '<span style="color:var(--success);">Active</span>' : '<span style="color:var(--text-dim);">Sleeping</span>');
+      const contact = '';
+      // Find contact info
+      const contacts = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
+      let userContact = '';
+      Object.entries(contacts).forEach(([c, n]) => { if (n === name) userContact = c; });
+
+      html += '<tr style="border-bottom:1px solid var(--border);">' +
+        '<td style="padding:4px;"><span style="font-weight:600;">' + name + '</span>' +
+        (userContact ? '<br><span style="color:var(--text-dim);font-size:.45rem;">' + userContact + '</span>' : '') + '</td>' +
+        '<td style="padding:4px;text-align:center;">' + prompts + '</td>' +
+        '<td style="padding:4px;text-align:center;">' + status + '</td>' +
+        '<td style="padding:4px;text-align:right;">' +
+        '<div style="display:flex;gap:3px;justify-content:flex-end;flex-wrap:wrap;">';
+
+      if (blockInfo && blockInfo.status === 'blocked') {
+        html += '<button onclick="unblockUser(\'' + escapedName + '\');renderAccessRequestsPanel();renderAccessRequestsPanel();" style="font-size:.44rem;padding:1px 5px;border:1px solid var(--success);color:var(--success);background:none;border-radius:3px;cursor:pointer;">Unblock</button>';
+      } else if (blockInfo && blockInfo.status === 'paused') {
+        html += '<button onclick="unblockUser(\'' + escapedName + '\');renderAccessRequestsPanel();renderAccessRequestsPanel();" style="font-size:.44rem;padding:1px 5px;border:1px solid var(--success);color:var(--success);background:none;border-radius:3px;cursor:pointer;">Resume</button>';
+      } else {
+        html += '<button onclick="pauseUser(\'' + escapedName + '\');renderAccessRequestsPanel();renderAccessRequestsPanel();" style="font-size:.44rem;padding:1px 5px;border:1px solid #FF9800;color:#FF9800;background:none;border-radius:3px;cursor:pointer;">Pause</button>';
+      }
+      html += '<button onclick="blockUser(\'' + escapedName + '\');renderAccessRequestsPanel();renderAccessRequestsPanel();" style="font-size:.44rem;padding:1px 5px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Block</button>' +
+        '<button onclick="grantUserAccess(\'' + escapedName + '\',3);renderAccessRequestsPanel();renderAccessRequestsPanel();" style="font-size:.44rem;padding:1px 5px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">+3</button>' +
+        '</div></td></tr>';
+    });
+    html += '</table></div>';
+  }
+
   panel.innerHTML = html;
   document.querySelector('#q-claude .p-body')?.appendChild(panel);
 }
@@ -8565,8 +8676,17 @@ async function sendAgentMessage() {
   const input = $('#aiInput').value.trim();
   if (!input || aiStreaming) return;
 
-  // Genie mode: check prompt limit (only for non-admin users)
+  // Genie mode: check prompt limit and block status (only for non-admin users)
   if (genieMode && !wsIsAdmin) {
+    const blockStatus = isUserBlocked(wsUserName);
+    if (blockStatus) {
+      const msg = blockStatus.status === 'blocked'
+        ? 'Your access has been blocked by an admin. Contact your administrator.'
+        : 'Your access has been paused by an admin. Contact your administrator to resume.';
+      addAiMsg('system', msg);
+      if (!genieSleeping) activateSleepMode();
+      return;
+    }
     if (genieSleeping) {
       addAiMsg('system', 'The Genie is sleeping. Request access from your admin to get more wishes.');
       return;
