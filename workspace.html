@@ -7195,7 +7195,7 @@ $('#aiInfoBtn').onclick = () => {
     '<div style="margin-top:8px;"><button onclick="if(confirm(\'Clear ALL stored data? This cannot be undone.\')){ localStorage.clear(); location.reload(); }" style="font-size:.58rem;padding:3px 10px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:4px;cursor:pointer;">Reset All Data</button></div>' +
     '</div>';
 
-  document.querySelector('.pane[data-pane="claude"] .p-body').appendChild(panel);
+  document.querySelector('#q-claude .p-body').appendChild(panel);
 };
 
 // ── Claude analytics log ──
@@ -7242,80 +7242,181 @@ function exportLogToNotepad() {
   toast('Exported ' + aiChatLog.length + ' sessions to notepad tabs');
 }
 
-$('#aiLogBtn').onclick = () => {
+$('#aiLogBtn').onclick = () => { renderHistoryPanel(); };
+
+function renderHistoryPanel() {
   let panel = document.getElementById('aiHistoryPanel');
   if (panel) { panel.remove(); return; }
   panel = document.createElement('div');
   panel.id = 'aiHistoryPanel';
   panel.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:28;background:var(--bg);overflow-y:auto;padding:10px 12px;font-size:.6rem;';
 
+  const typeIcons = { sheet: '&#9638;', whiteboard: '&#9998;', note: '&#9776;', graph: '&#8767;', stocks: '&#8599;', research: '&#128269;', analysis: '&#9879;', concept: '&#9673;', tool: '&#9881;' };
+  const typeColors = { sheet: '#10b981', whiteboard: '#e64a19', note: 'var(--accent)', graph: '#8b5cf6', stocks: '#f59e0b', research: '#3b82f6', analysis: '#ec4899', concept: '#6366f1', tool: 'var(--text-dim)' };
+
   const topBar = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
-    '<span style="font-weight:700;font-size:.72rem;">Chat Session History</span>' +
+    '<span style="font-weight:700;font-size:.72rem;">Inquiry History</span>' +
     '<div style="display:flex;gap:6px;align-items:center;">' +
-    '<button id="aiHistSave" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">Save Current</button>' +
-    '<button id="aiHistExport" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--text-dim);color:var(--text-dim);background:none;border-radius:3px;cursor:pointer;">Export to Notes</button>' +
+    '<button id="aiHistRestoreAll" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--accent2);color:var(--accent2);background:none;border-radius:3px;cursor:pointer;" title="Re-execute all artifact-producing inquiries">Restore All</button>' +
+    '<button id="aiHistClearAll" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Clear All</button>' +
     '<button onclick="this.closest(\'#aiHistoryPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button>' +
     '</div></div>';
 
-  if (!aiChatLog.length) {
-    panel.innerHTML = topBar + '<div style="color:var(--text-dim);text-align:center;padding:30px 10px;">No saved sessions yet.<br><br>Click <b>Save Current</b> to snapshot this conversation.<br>Sessions are stored locally in your browser.</div>';
+  if (!aiInquiryLog.length) {
+    panel.innerHTML = topBar + '<div style="color:var(--text-dim);text-align:center;padding:30px 10px;">No inquiries logged yet.<br><br>Inquiries are auto-saved each time you ask Claude something.<br>Sheet outputs, whiteboard items, notes, research, and analysis are all captured.</div>';
   } else {
-    let rows = aiChatLog.slice().reverse().map((entry, i) => {
+    let rows = aiInquiryLog.slice().reverse().map((entry, i) => {
+      const realIdx = aiInquiryLog.length - 1 - i;
       const d = new Date(entry.timestamp);
-      const date = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-      const msgCount = (entry.messages || []).length;
-      const userMsgs = (entry.messages || []).filter(m => m.role === 'user');
-      const preview = userMsgs.length ? userMsgs[0].content.substring(0, 60) + (userMsgs[0].content.length > 60 ? '...' : '') : '(no user messages)';
-      const tokens = ((entry.tokensIn || 0) + (entry.tokensOut || 0)).toLocaleString();
-      const realIdx = aiChatLog.length - 1 - i;
+      const time = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      const query = (entry.query || '').substring(0, 80) + ((entry.query || '').length > 80 ? '...' : '');
+      const resp = (entry.response || '').substring(0, 100) + ((entry.response || '').length > 100 ? '...' : '');
+      const badges = (entry.artifactTypes || []).map(t =>
+        '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:.45rem;background:' + (typeColors[t] || 'var(--text-dim)') + ';color:#fff;margin:1px 2px;">' + (typeIcons[t] || '') + ' ' + t + '</span>'
+      ).join('');
+      const hasArtifacts = (entry.artifacts || []).length > 0;
+
       return '<div style="padding:6px 0;border-bottom:1px solid var(--border);">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
         '<div style="flex:1;min-width:0;">' +
-        '<div style="font-weight:600;color:var(--accent);">' + date + ' <span style="color:var(--text-dim);font-weight:400;">(' + entry.model + ')</span></div>' +
-        '<div style="color:var(--text-dim);margin:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + preview.replace(/</g,'&lt;') + '</div>' +
-        '<div style="color:var(--text-dim);font-size:.5rem;">' + msgCount + ' messages &middot; ' + tokens + ' tokens &middot; ' + (entry.requests || 0) + ' API calls</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<span style="font-weight:600;color:var(--accent);font-size:.55rem;">' + time + '</span>' +
+        '<span style="color:var(--text-dim);font-size:.48rem;">' + (entry.model || '') + '</span>' +
         '</div>' +
-        '<div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px;">' +
-        '<button onclick="viewChatLogEntry(' + realIdx + ')" style="font-size:.5rem;padding:2px 6px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">View</button>' +
-        '<button onclick="if(confirm(\'Delete this session?\')){aiChatLog.splice(' + realIdx + ',1);LS(\'aiChatLog\',aiChatLog);$(\'#aiLogBtn\').click();$(\'#aiLogBtn\').click();}" style="font-size:.5rem;padding:2px 6px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Delete</button>' +
+        '<div style="margin:2px 0;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + query.replace(/</g,'&lt;') + '</div>' +
+        (resp ? '<div style="color:var(--text-dim);margin:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.52rem;">' + resp.replace(/</g,'&lt;') + '</div>' : '') +
+        (badges ? '<div style="margin-top:2px;">' + badges + '</div>' : '') +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;margin-left:8px;">' +
+        '<button onclick="viewInquiryDetail(' + realIdx + ')" style="font-size:.48rem;padding:2px 6px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">View</button>' +
+        (hasArtifacts ? '<button onclick="restoreInquiry(' + realIdx + ')" style="font-size:.48rem;padding:2px 6px;border:1px solid var(--accent2);color:var(--accent2);background:none;border-radius:3px;cursor:pointer;">Restore</button>' : '') +
+        '<button onclick="deleteInquiry(' + realIdx + ')" style="font-size:.48rem;padding:2px 6px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Delete</button>' +
         '</div></div></div>';
     }).join('');
-    panel.innerHTML = topBar + '<div style="color:var(--text-dim);margin-bottom:6px;font-size:.52rem;">' + aiChatLog.length + ' saved session' + (aiChatLog.length === 1 ? '' : 's') + '</div>' + rows;
+
+    const artCount = aiInquiryLog.filter(e => (e.artifacts || []).length > 0).length;
+    panel.innerHTML = topBar +
+      '<div style="color:var(--text-dim);margin-bottom:6px;font-size:.52rem;">' + aiInquiryLog.length + ' inquiries &middot; ' + artCount + ' with artifacts</div>' +
+      rows;
   }
 
-  document.querySelector('.pane[data-pane="claude"] .p-body').appendChild(panel);
+  document.querySelector('#q-claude .p-body').appendChild(panel);
 
-  // Wire up buttons after appended to DOM
-  const saveBtn = document.getElementById('aiHistSave');
-  const exportBtn = document.getElementById('aiHistExport');
-  if (saveBtn) saveBtn.onclick = () => { saveCurrentChatToLog(); $('#aiLogBtn').click(); $('#aiLogBtn').click(); };
-  if (exportBtn) exportBtn.onclick = () => { exportLogToNotepad(); document.getElementById('aiHistoryPanel')?.remove(); };
-};
+  // Wire buttons
+  const restoreAllBtn = document.getElementById('aiHistRestoreAll');
+  const clearAllBtn = document.getElementById('aiHistClearAll');
+  if (restoreAllBtn) restoreAllBtn.onclick = async () => {
+    if (!confirm('Restore all artifacts from ' + aiInquiryLog.filter(e => (e.artifacts||[]).length).length + ' inquiries? This will re-execute all sheet writes, notes, graphs, etc.')) return;
+    let count = 0;
+    for (const entry of aiInquiryLog) {
+      for (const art of (entry.artifacts || [])) {
+        if (REPLAYABLE_TOOLS.includes(art.tool)) {
+          await executeAgentTool(art.tool, art.input);
+          count++;
+        }
+      }
+    }
+    toast('Restored ' + count + ' artifacts');
+  };
+  if (clearAllBtn) clearAllBtn.onclick = () => {
+    if (!confirm('Delete ALL inquiry history? This cannot be undone.')) return;
+    aiInquiryLog = [];
+    localStorage.setItem('ws_aiInquiryLog', '[]');
+    document.getElementById('aiHistoryPanel')?.remove();
+    renderHistoryPanel();
+  };
+}
 
-function viewChatLogEntry(idx) {
-  const entry = aiChatLog[idx];
+function viewInquiryDetail(idx) {
+  const entry = aiInquiryLog[idx];
   if (!entry) return;
-  let panel = document.getElementById('aiHistoryPanel');
+  const panel = document.getElementById('aiHistoryPanel');
   if (!panel) return;
+
+  const typeIcons = { sheet: '&#9638;', whiteboard: '&#9998;', note: '&#9776;', graph: '&#8767;', stocks: '&#8599;', research: '&#128269;', analysis: '&#9879;', concept: '&#9673;', tool: '&#9881;' };
+  const typeColors = { sheet: '#10b981', whiteboard: '#e64a19', note: 'var(--accent)', graph: '#8b5cf6', stocks: '#f59e0b', research: '#3b82f6', analysis: '#ec4899', concept: '#6366f1', tool: 'var(--text-dim)' };
   const d = new Date(entry.timestamp);
+
   let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
-    '<span style="font-weight:700;font-size:.72rem;">Session: ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + '</span>' +
+    '<span style="font-weight:700;font-size:.68rem;">Inquiry Detail</span>' +
     '<div style="display:flex;gap:6px;align-items:center;">' +
-    '<button onclick="$(\'#aiLogBtn\').click();$(\'#aiLogBtn\').click();" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">Back</button>' +
+    ((entry.artifacts||[]).length ? '<button onclick="restoreInquiry(' + idx + ')" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--accent2);color:var(--accent2);background:none;border-radius:3px;cursor:pointer;">Restore Artifacts</button>' : '') +
+    '<button onclick="document.getElementById(\'aiHistoryPanel\')?.remove();renderHistoryPanel();" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">Back</button>' +
     '<button onclick="this.closest(\'#aiHistoryPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button>' +
     '</div></div>';
-  html += '<div style="color:var(--text-dim);margin-bottom:6px;font-size:.52rem;">Model: ' + entry.model + ' &middot; ' +
-    ((entry.tokensIn||0)+(entry.tokensOut||0)).toLocaleString() + ' tokens &middot; ' + (entry.requests||0) + ' API calls</div>';
-  (entry.messages || []).forEach(m => {
-    const isUser = m.role === 'user';
-    const isSystem = m.role === 'system';
-    const bg = isUser ? 'var(--accent)' : isSystem ? 'var(--text-dim)' : 'var(--accent2)';
-    const align = isUser ? 'flex-end' : 'flex-start';
-    html += '<div style="display:flex;justify-content:' + align + ';margin:3px 0;">' +
-      '<div style="max-width:85%;padding:5px 8px;border-radius:6px;background:' + bg + ';color:#fff;font-size:.58rem;white-space:pre-wrap;word-break:break-word;">' +
-      String(m.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div></div>';
-  });
+
+  html += '<div style="color:var(--text-dim);font-size:.5rem;margin-bottom:6px;">' +
+    d.toLocaleDateString() + ' ' + d.toLocaleTimeString() + ' &middot; ' + (entry.model || '') + '</div>';
+
+  // User query
+  html += '<div style="display:flex;justify-content:flex-end;margin:6px 0;">' +
+    '<div style="max-width:85%;padding:6px 10px;border-radius:8px;background:var(--accent);color:#fff;font-size:.58rem;white-space:pre-wrap;word-break:break-word;">' +
+    (entry.query || '').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div></div>';
+
+  // Claude response
+  if (entry.response) {
+    html += '<div style="display:flex;justify-content:flex-start;margin:6px 0;">' +
+      '<div style="max-width:85%;padding:6px 10px;border-radius:8px;background:var(--accent2);color:#fff;font-size:.58rem;white-space:pre-wrap;word-break:break-word;">' +
+      entry.response.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div></div>';
+  }
+
+  // Artifacts
+  if ((entry.artifacts || []).length) {
+    html += '<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">' +
+      '<div style="font-weight:700;font-size:.62rem;margin-bottom:6px;">Artifacts (' + entry.artifacts.length + ')</div>';
+    entry.artifacts.forEach((art, ai) => {
+      const color = typeColors[art.type] || 'var(--text-dim)';
+      const icon = typeIcons[art.type] || '&#9881;';
+      const toolLabel = art.tool.replace(/_/g, ' ');
+      let detail = '';
+      if (art.tool === 'write_cells' && art.input.cells) detail = art.input.cells.length + ' cells' + (art.input.label ? ' → "' + art.input.label + '"' : '');
+      else if (art.tool === 'create_table' && art.input.headers) detail = art.input.headers.length + ' cols, ' + (art.input.rows||[]).length + ' rows' + (art.input.title ? ' → "' + art.input.title + '"' : '');
+      else if (art.tool === 'write_note') detail = (art.input.content||'').substring(0,60) + ((art.input.content||'').length > 60 ? '...' : '');
+      else if (art.tool === 'update_graph') detail = (art.input.expressions||[]).join(', ');
+      else if (art.tool === 'deep_research') detail = art.input.topic || '';
+      else if (art.tool === 'write_to_draw_pane') detail = art.input.label || art.input.image_url || '';
+      else if (art.tool === 'add_text_overlay') detail = art.input.text || '';
+      else if (art.tool === 'create_meme') detail = art.input.template_name + ': ' + (art.input.top_text||'');
+      else if (art.input) detail = JSON.stringify(art.input).substring(0,60);
+
+      const canReplay = REPLAYABLE_TOOLS.includes(art.tool) || ['create_template','deep_research','run_scenario','build_thesis','sentiment_summary','pricing_analysis','search_image','create_meme'].includes(art.tool);
+
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">' +
+        '<div style="flex:1;min-width:0;">' +
+        '<span style="color:' + color + ';font-weight:600;">' + icon + ' ' + toolLabel + '</span>' +
+        (detail ? '<div style="color:var(--text-dim);font-size:.48rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + detail.replace(/</g,'&lt;') + '</div>' : '') +
+        '</div>' +
+        (canReplay ? '<button onclick="restoreSingleArtifact(' + idx + ',' + ai + ')" style="font-size:.46rem;padding:2px 5px;border:1px solid ' + color + ';color:' + color + ';background:none;border-radius:3px;cursor:pointer;">Restore</button>' : '') +
+        '</div>';
+    });
+    html += '</div>';
+  }
   panel.innerHTML = html;
+}
+
+async function restoreInquiry(idx) {
+  const entry = aiInquiryLog[idx];
+  if (!entry || !(entry.artifacts||[]).length) return;
+  let count = 0;
+  for (const art of entry.artifacts) {
+    try { await executeAgentTool(art.tool, art.input); count++; } catch(e) { console.warn('Restore failed:', art.tool, e); }
+  }
+  toast('Restored ' + count + ' artifact' + (count === 1 ? '' : 's') + ' from inquiry');
+}
+
+async function restoreSingleArtifact(inquiryIdx, artIdx) {
+  const art = (aiInquiryLog[inquiryIdx]?.artifacts || [])[artIdx];
+  if (!art) return;
+  try { await executeAgentTool(art.tool, art.input); toast('Restored: ' + art.tool.replace(/_/g,' ')); }
+  catch(e) { toast('Restore failed: ' + e.message); }
+}
+
+function deleteInquiry(idx) {
+  if (!confirm('Delete this inquiry?')) return;
+  aiInquiryLog.splice(idx, 1);
+  localStorage.setItem('ws_aiInquiryLog', JSON.stringify(aiInquiryLog));
+  document.getElementById('aiHistoryPanel')?.remove();
+  renderHistoryPanel();
 }
 
 // Auto-save chat to log at end of each conversation
@@ -7359,25 +7460,59 @@ function renderSavedActionsPanel() {
     }).join('');
     panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;font-size:.7rem;">Saved Actions (' + aiSavedActions.length + ')</span><button onclick="this.closest(\'#aiSavedActionsPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;">&times;</button></div>' + rows;
   }
-  document.querySelector('.pane[data-pane="claude"]')?.appendChild(panel);
+  document.querySelector('#q-claude .p-body')?.appendChild(panel);
 }
 
 function autoSaveChatLog() {
+  // Legacy — kept for manual save button
   if (aiMessages.length > 1) {
     const entry = {
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-      model: $('#aiModel').value,
-      tokensIn: aiSessionTokensIn,
-      tokensOut: aiSessionTokensOut,
-      requests: aiSessionRequests,
+      id: Date.now(), timestamp: new Date().toISOString(), model: $('#aiModel').value,
+      tokensIn: aiSessionTokensIn, tokensOut: aiSessionTokensOut, requests: aiSessionRequests,
       messages: aiMessages.slice()
     };
     aiChatLog.push(entry);
-    // Keep only last 50 sessions
     if (aiChatLog.length > 50) aiChatLog = aiChatLog.slice(-50);
     LS('aiChatLog', aiChatLog);
   }
+}
+
+// ── Per-inquiry log with artifacts ──
+let aiInquiryLog = JSON.parse(localStorage.getItem('ws_aiInquiryLog') || '[]');
+
+function saveInquiryLog(userQuery, model, actions) {
+  // Collect the assistant's last response from aiMessages
+  const assistantMsgs = [];
+  for (let i = aiMessages.length - 1; i >= 0; i--) {
+    if (aiMessages[i].role === 'assistant') assistantMsgs.unshift(aiMessages[i].content);
+    else if (aiMessages[i].role === 'user') break;
+  }
+  // Classify artifact types from actions
+  const artifacts = actions.map(a => {
+    let type = 'tool';
+    if (['write_cells', 'create_table', 'clear_range', 'create_template'].includes(a.tool)) type = 'sheet';
+    else if (['write_to_draw_pane', 'add_text_overlay', 'clear_draw_pane', 'search_image', 'create_meme'].includes(a.tool)) type = 'whiteboard';
+    else if (a.tool === 'write_note') type = 'note';
+    else if (a.tool === 'update_graph') type = 'graph';
+    else if (['add_stock', 'remove_stock', 'set_comparison', 'add_news_ticker'].includes(a.tool)) type = 'stocks';
+    else if (a.tool === 'deep_research') type = 'research';
+    else if (['run_scenario', 'build_thesis', 'sentiment_summary', 'pricing_analysis'].includes(a.tool)) type = 'analysis';
+    else if (a.tool === 'add_concept_node') type = 'concept';
+    return { type, tool: a.tool, input: a.input };
+  });
+
+  const entry = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    query: userQuery,
+    model: model,
+    response: assistantMsgs.join('\n\n'),
+    artifacts: artifacts,
+    artifactTypes: [...new Set(artifacts.map(a => a.type))]
+  };
+  aiInquiryLog.push(entry);
+  if (aiInquiryLog.length > 200) aiInquiryLog = aiInquiryLog.slice(-200);
+  localStorage.setItem('ws_aiInquiryLog', JSON.stringify(aiInquiryLog));
 }
 
 function addAiMsg(role, text) {
@@ -8079,6 +8214,7 @@ async function sendAgentMessage() {
   const thinkingDiv = addAiMsg('system', 'Thinking...');
   aiStreaming = true;
   setRobotWorking(true);
+  const inquiryActions = []; // Track tool actions for this inquiry
 
   try {
     // Build API messages: history + context-enriched latest
@@ -8156,6 +8292,7 @@ async function sendAgentMessage() {
       for (const toolBlock of toolBlocks) {
         addToolStatus(toolBlock.name, toolBlock.input);
         saveToolAction(toolBlock.name, toolBlock.input);
+        inquiryActions.push({ tool: toolBlock.name, input: JSON.parse(JSON.stringify(toolBlock.input)) });
         const toolResult = await executeAgentTool(toolBlock.name, toolBlock.input);
         toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult });
       }
@@ -8175,7 +8312,8 @@ async function sendAgentMessage() {
   }
   aiStreaming = false;
   setRobotWorking(false);
-  autoSaveChatLog();
+  // Save this inquiry as a granular log entry
+  saveInquiryLog(input, model, inquiryActions);
 }
 
 // Welcome message
