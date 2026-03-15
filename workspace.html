@@ -8003,14 +8003,35 @@ function updateCostPanel() {
     '<div style="display:flex;justify-content:space-between;margin:3px 0;color:var(--text-dim);"><span>Rate:</span><span>$' + rates.input.toFixed(2) + '/1M in, $' + rates.output.toFixed(2) + '/1M out</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:3px 0;font-weight:700;color:var(--accent2);"><span>Session cost:</span><span>~$' + cost.toFixed(4) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-    '<div style="color:var(--text-dim);font-size:.58rem;">Per-task estimates (incl ~5K base from 28 tools + system prompt):</div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Simple Q&A (1 call)</span><span>~$' + (8000/1e6*rates.input + 500/1e6*rates.output).toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>1 tool call (2 calls)</span><span>~$' + (18000/1e6*rates.input + 1500/1e6*rates.output).toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Multi-tool (3-4 calls)</span><span>~$' + (35000/1e6*rates.input + 3000/1e6*rates.output).toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Build thesis (5+ calls)</span><span>~$' + (55000/1e6*rates.input + 5000/1e6*rates.output).toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Idle:</span><span>$0.00/hr</span></div>' +
+    '<div style="color:var(--text-dim);font-size:.58rem;font-weight:600;margin-bottom:4px;">Example asks &amp; estimated cost:</div>' +
+    // Simple Q&A — no tools
+    '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid var(--accent2);">' +
+      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">Simple Q&A (1 call, no tools)</span><span style="color:var(--accent2);font-weight:600;">~$' + (8000/1e6*rates.input + 500/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"What sector is AAPL in?" · "Explain P/E ratio"</div>' +
+    '</div>' +
+    // Single tool call
+    '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid #f59e0b;">' +
+      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">1 tool call (2 round-trips)</span><span style="color:#f59e0b;font-weight:600;">~$' + (18000/1e6*rates.input + 1500/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Add NVDA to watchlist" · "Get TSLA stock data" · "Write a note about earnings"</div>' +
+    '</div>' +
+    // Multi-tool
+    '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid #8b5cf6;">' +
+      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">Multi-tool (3-4 calls)</span><span style="color:#8b5cf6;font-weight:600;">~$' + (35000/1e6*rates.input + 3000/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Compare AAPL vs MSFT — add both, set comparison" · "Build a stock comparison table in the sheet"</div>' +
+    '</div>' +
+    // Deep research / thesis
+    '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid #ef4444;">' +
+      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">Build thesis / deep research (5-8 calls)</span><span style="color:#ef4444;font-weight:600;">~$' + (55000/1e6*rates.input + 5000/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Build an investment thesis for NVDA" · "Run bull/base/bear scenarios for TSLA" · "Full pricing analysis"</div>' +
+    '</div>' +
+    // Preset queries
+    '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid #10b981;">' +
+      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">Preset: Macro Dashboard template</span><span style="color:#10b981;font-weight:600;">~$' + (25000/1e6*rates.input + 2000/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Create a macro dashboard" · "Scaffold earnings tracker" · "Portfolio summary template"</div>' +
+    '</div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-    '<div style="color:var(--text-dim);font-size:.55rem;">Avg cost/req: ~$' + (aiSessionRequests ? (cost / aiSessionRequests).toFixed(4) : '0.00') + '</div>';
+    '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.55rem;"><span>Avg cost/req:</span><span>~$' + (aiSessionRequests ? (cost / aiSessionRequests).toFixed(4) : '0.00') + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.55rem;"><span>Idle:</span><span>$0.00/hr (no polling)</span></div>';
 }
 
 // Close all admin action panels (mutually exclusive)
