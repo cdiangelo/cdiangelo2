@@ -105,7 +105,12 @@ export const toolHandlers = {
       const realData = await fetchRealStockData(ticker, range);
       if (realData && realData.length >= 2) { closes = realData; isReal = true; }
     } catch(e) {}
-    if (!closes) closes = genStockData(ticker, range);
+    // Only fall back to simulated data for known companies
+    if (!closes) {
+      const known = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === ticker);
+      if (!known) return JSON.stringify({ error: true, ticker, message: 'No data available for ' + ticker + '. Ticker not recognized and live data unavailable.' });
+      closes = genStockData(ticker, range);
+    }
     const stats = {
       current: closes[closes.length - 1].toFixed(2),
       high: Math.max(...closes).toFixed(2),
@@ -114,14 +119,29 @@ export const toolHandlers = {
       data_points: closes.length,
       data_source: isReal ? 'Yahoo Finance (live)' : 'Simulated'
     };
+    // Include enriched OHLCV data when available from cache
+    const cacheKey = ticker + '_' + range;
+    const cached = typeof stockDataCache !== 'undefined' && stockDataCache[cacheKey];
+    if (isReal && cached && cached.volume) {
+      const totalVol = cached.volume.reduce((a, b) => a + (b || 0), 0);
+      const avgVol = totalVol / cached.volume.length;
+      stats.total_volume = totalVol;
+      stats.avg_volume = Math.round(avgVol);
+      if (cached.high && cached.high.length) stats.period_high = Math.max(...cached.high.filter(v => v != null)).toFixed(2);
+      if (cached.low && cached.low.length) stats.period_low = Math.min(...cached.low.filter(v => v != null && v > 0)).toFixed(2);
+    }
     const recent = closes.slice(-20).map((v, i) => ({ price: +v.toFixed(2) }));
     return JSON.stringify({ ticker, range, stats, recent });
   },
 
   get_stock_fundamentals: async (input) => {
     const t = input.ticker.toUpperCase();
-    const company = COMPANY_DB.find(c => c.ticker === t);
+    const company = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === t);
     const metrics = await getCompanyMetricsReal(t);
+    // If we got only simulated data and ticker isn't in our DB, don't return fake metrics
+    if (!company && metrics.source === 'simulated') {
+      return JSON.stringify({ error: true, ticker: t, message: 'No data available for ' + t + '. Ticker not recognized and live data unavailable.' });
+    }
     return JSON.stringify({ ticker: t, name: company ? company.name : t, sector: company ? company.sector : 'Unknown', ...metrics });
   },
 
@@ -225,6 +245,19 @@ export const toolHandlers = {
 
   add_stock: async (input) => {
     const t = input.ticker.toUpperCase();
+    // Only allow tickers from COMPANY_DB or that have real data available
+    const known = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === t);
+    if (!known) {
+      // Try to verify via real data before rejecting
+      try {
+        const realData = await fetchRealStockData(t, '1M');
+        if (!realData || realData.length < 2) {
+          return JSON.stringify({ error: true, ticker: t, message: 'Ticker ' + t + ' not recognized. Cannot add unknown tickers without live data.' });
+        }
+      } catch(e) {
+        return JSON.stringify({ error: true, ticker: t, message: 'Ticker ' + t + ' not recognized. Cannot add unknown tickers without live data.' });
+      }
+    }
     if (!stockTickers.includes(t)) { stockTickers.push(t); LS('stockTickers', stockTickers); }
     if (typeof renderStockDash === 'function') renderStockDash();
     if (typeof renderStockChips === 'function') renderStockChips();
@@ -243,7 +276,7 @@ export const toolHandlers = {
   },
 
   set_comparison: async (input) => {
-    compareTickers = (input.tickers || []).map(t => t.toUpperCase());
+    compareTickers = [...new Set((input.tickers || []).map(t => t.toUpperCase()))];
     LS('compareTickers', compareTickers);
     if (typeof renderCompareChart === 'function') renderCompareChart();
     toast('Comparison: ' + compareTickers.join(', '));

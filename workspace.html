@@ -5507,10 +5507,9 @@ async function fetchRealStockData(ticker, range) {
   const yRange = rangeMap[range] || '1mo';
   const yInterval = intervalMap[range] || '1d';
 
-  try {
+  async function attemptFetch(retries) {
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ticker) +
       '?range=' + yRange + '&interval=' + yInterval + '&includePrePost=false';
-    // ADDED — Phase 1: Local proxy with allorigins fallback
     let proxyUrl = 'http://localhost:3001/proxy/yahoo?url=' + encodeURIComponent(url);
     let resp;
     try {
@@ -5519,15 +5518,41 @@ async function fetchRealStockData(ticker, range) {
       proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
       resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
     }
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    if (!resp.ok) {
+      if (retries > 0 && resp.status >= 500) {
+        await new Promise(r => setTimeout(r, 1500));
+        return attemptFetch(retries - 1);
+      }
+      throw new Error('HTTP ' + resp.status);
+    }
+    return resp;
+  }
+
+  try {
+    const resp = await attemptFetch(2); // up to 2 retries on server errors
     const json = await resp.json();
     const result = json.chart?.result?.[0];
     if (!result) throw new Error('No data');
-    const closes = result.indicators?.quote?.[0]?.close || [];
+    const quote = result.indicators?.quote?.[0] || {};
+    const closes = quote.close || [];
+    const volumes = quote.volume || [];
+    const highs = quote.high || [];
+    const lows = quote.low || [];
+    const opens = quote.open || [];
+    const timestamps = result.timestamp || [];
     const data = closes.filter(v => v != null);
     if (data.length < 2) throw new Error('Insufficient data');
-    stockDataCache[cacheKey] = { data, ts: Date.now() };
-    return data;
+    // Store enriched data in cache
+    const enriched = closes.map((c, i) => c != null ? c : null).filter(v => v != null);
+    stockDataCache[cacheKey] = {
+      data: enriched,
+      volume: volumes.filter((v, i) => closes[i] != null),
+      high: highs.filter((v, i) => closes[i] != null),
+      low: lows.filter((v, i) => closes[i] != null),
+      open: opens.filter((v, i) => closes[i] != null),
+      ts: Date.now()
+    };
+    return enriched;
   } catch (e) {
     // Fallback to simulated
     return null;
@@ -5617,10 +5642,29 @@ async function renderStockDash() {
     const rng = max - min || 1;
     const lineColor = isUp ? '#4a9963' : '#cc4444';
     const fillColor = isUp ? 'rgba(74,153,99,.12)' : 'rgba(204,68,68,.12)';
+    // Get volume data from cache if available
+    const cacheKey = ticker + '_' + range;
+    const cachedEntry = stockDataCache[cacheKey];
+    const volData = (isReal && cachedEntry && cachedEntry.volume) ? cachedEntry.volume : null;
+    const volMax = volData ? Math.max(...volData.filter(v => v != null)) : 0;
 
     function drawSparkline(hoverIdx) {
       ctx2.save(); ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx2.clearRect(0, 0, w, h);
+      // Volume bars (subtle, behind price line)
+      if (volData && volMax > 0) {
+        const barW = Math.max(1, w / volData.length * 0.6);
+        const volH = h * 0.2; // Volume takes bottom 20% of sparkline
+        ctx2.globalAlpha = 0.15;
+        volData.forEach((v, i) => {
+          if (v == null) return;
+          const x = (i / (volData.length - 1)) * w - barW / 2;
+          const bh = (v / volMax) * volH;
+          ctx2.fillStyle = lineColor;
+          ctx2.fillRect(x, h - bh, barW, bh);
+        });
+        ctx2.globalAlpha = 1;
+      }
       // Fill area
       ctx2.beginPath();
       data.forEach((v, i) => {
@@ -5650,8 +5694,12 @@ async function renderStockDash() {
         ctx2.beginPath(); ctx2.arc(hx, hy, 3, 0, Math.PI * 2);
         ctx2.fillStyle = lineColor; ctx2.fill();
         ctx2.strokeStyle = '#fff'; ctx2.lineWidth = 1; ctx2.stroke();
-        // Value label
-        const label = '$' + hv.toFixed(2);
+        // Value label (with volume if available)
+        let label = '$' + hv.toFixed(2);
+        if (volData && volData[hoverIdx] != null) {
+          const vol = volData[hoverIdx];
+          label += '  Vol: ' + (vol >= 1e6 ? (vol / 1e6).toFixed(1) + 'M' : vol >= 1e3 ? (vol / 1e3).toFixed(0) + 'K' : vol);
+        }
         ctx2.font = 'bold 9px system-ui';
         const tw = ctx2.measureText(label).width;
         const lx = hx + 6 + tw > w ? hx - tw - 8 : hx + 6;
@@ -5836,10 +5884,10 @@ async function renderCompareChart() {
       const y = pad.top + (plotH / 4) * i;
       const val = gMax - (gRange / 4) * i;
       ctx2.beginPath(); ctx2.moveTo(pad.left, y); ctx2.lineTo(w - pad.right, y); ctx2.stroke();
-      ctx2.fillText(val.toFixed(1) + '%', pad.left - 4, y + 3);
+      ctx2.fillText(valuePrefix + (isDollarMode ? val.toFixed(2) : val.toFixed(1)) + valueSuffix, pad.left - 4, y + 3);
     }
-    // Zero line
-    if (gMin < 0 && gMax > 0) {
+    // Zero line (only meaningful in % mode)
+    if (!isDollarMode && gMin < 0 && gMax > 0) {
       const zeroY = pad.top + ((gMax - 0) / gRange) * plotH;
       ctx2.strokeStyle = getComputedStyle(document.body).getPropertyValue('--text-dim') || '#666';
       ctx2.lineWidth = 1; ctx2.setLineDash([4, 4]);
@@ -5873,7 +5921,7 @@ async function renderCompareChart() {
         ctx2.fillStyle = color; ctx2.fill();
         ctx2.strokeStyle = '#000'; ctx2.lineWidth = 1; ctx2.stroke();
         ctx2.font = (baseFontSize - 1) + 'px system-ui'; ctx2.fillStyle = color; ctx2.textAlign = 'left';
-        ctx2.fillText(compareTickers[si] + ': ' + v.toFixed(1) + '%', hx + 8, hy + 3 + si * (baseFontSize + 2));
+        ctx2.fillText(compareTickers[si] + ': ' + valuePrefix + (isDollarMode ? v.toFixed(2) : v.toFixed(1)) + valueSuffix, hx + 8, hy + 3 + si * (baseFontSize + 2));
       });
     }
   }
@@ -7043,6 +7091,123 @@ const COMPANY_DB = [
   { ticker: 'BMBL', name: 'Bumble Inc.', exchange: 'NASDAQ', sector: 'Communication' },
   { ticker: 'MTCH', name: 'Match Group Inc.', exchange: 'NASDAQ', sector: 'Communication' },
   { ticker: 'OPEN', name: 'Opendoor Technologies', exchange: 'NASDAQ', sector: 'Real Estate' },
+  // Additional Large Cap / Blue Chip
+  { ticker: 'BRK.B', name: 'Berkshire Hathaway Inc.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'T', name: 'AT&T Inc.', exchange: 'NYSE', sector: 'Communication' },
+  { ticker: 'VZ', name: 'Verizon Communications', exchange: 'NYSE', sector: 'Communication' },
+  { ticker: 'TMUS', name: 'T-Mobile US Inc.', exchange: 'NASDAQ', sector: 'Communication' },
+  { ticker: 'CMCSA', name: 'Comcast Corporation', exchange: 'NASDAQ', sector: 'Communication' },
+  { ticker: 'NEE', name: 'NextEra Energy Inc.', exchange: 'NYSE', sector: 'Utilities' },
+  { ticker: 'DUK', name: 'Duke Energy Corporation', exchange: 'NYSE', sector: 'Utilities' },
+  { ticker: 'SO', name: 'The Southern Company', exchange: 'NYSE', sector: 'Utilities' },
+  { ticker: 'D', name: 'Dominion Energy Inc.', exchange: 'NYSE', sector: 'Utilities' },
+  { ticker: 'AEP', name: 'American Electric Power', exchange: 'NASDAQ', sector: 'Utilities' },
+  { ticker: 'LOW', name: 'Lowe\'s Companies Inc.', exchange: 'NYSE', sector: 'Consumer Cyclical' },
+  { ticker: 'TGT', name: 'Target Corporation', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  { ticker: 'MCD', name: 'McDonald\'s Corporation', exchange: 'NYSE', sector: 'Consumer Cyclical' },
+  { ticker: 'SBUX', name: 'Starbucks Corporation', exchange: 'NASDAQ', sector: 'Consumer Cyclical' },
+  { ticker: 'NKE', name: 'Nike Inc.', exchange: 'NYSE', sector: 'Consumer Cyclical' },
+  { ticker: 'LULU', name: 'Lululemon Athletica', exchange: 'NASDAQ', sector: 'Consumer Cyclical' },
+  { ticker: 'TJX', name: 'The TJX Companies Inc.', exchange: 'NYSE', sector: 'Consumer Cyclical' },
+  { ticker: 'ABNB', name: 'Airbnb Inc.', exchange: 'NASDAQ', sector: 'Consumer Cyclical' },
+  { ticker: 'BKNG', name: 'Booking Holdings Inc.', exchange: 'NASDAQ', sector: 'Consumer Cyclical' },
+  { ticker: 'UBER', name: 'Uber Technologies Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'LYFT', name: 'Lyft Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'SQ', name: 'Block Inc.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'COIN', name: 'Coinbase Global Inc.', exchange: 'NASDAQ', sector: 'Financial' },
+  { ticker: 'MARA', name: 'Marathon Digital Holdings', exchange: 'NASDAQ', sector: 'Financial' },
+  { ticker: 'RIOT', name: 'Riot Platforms Inc.', exchange: 'NASDAQ', sector: 'Financial' },
+  { ticker: 'C', name: 'Citigroup Inc.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'BAC', name: 'Bank of America Corp.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'WFC', name: 'Wells Fargo & Company', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'MS', name: 'Morgan Stanley', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'SCHW', name: 'Charles Schwab Corp.', exchange: 'NYSE', sector: 'Financial' },
+  { ticker: 'AXP', name: 'American Express Co.', exchange: 'NYSE', sector: 'Financial' },
+  // Additional Tech
+  { ticker: 'NOW', name: 'ServiceNow Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'SNOW', name: 'Snowflake Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'SHOP', name: 'Shopify Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'SPOT', name: 'Spotify Technology SA', exchange: 'NYSE', sector: 'Communication' },
+  { ticker: 'SNAP', name: 'Snap Inc.', exchange: 'NYSE', sector: 'Communication' },
+  { ticker: 'PINS', name: 'Pinterest Inc.', exchange: 'NYSE', sector: 'Communication' },
+  { ticker: 'ROKU', name: 'Roku Inc.', exchange: 'NASDAQ', sector: 'Communication' },
+  { ticker: 'TWLO', name: 'Twilio Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'OKTA', name: 'Okta Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'MDB', name: 'MongoDB Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'PANW', name: 'Palo Alto Networks', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'FTNT', name: 'Fortinet Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'TEAM', name: 'Atlassian Corporation', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'WDAY', name: 'Workday Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'VEEV', name: 'Veeva Systems Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'DOCU', name: 'DocuSign Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'U', name: 'Unity Software Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'RBLX', name: 'Roblox Corporation', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'PATH', name: 'UiPath Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'AI', name: 'C3.ai Inc.', exchange: 'NYSE', sector: 'Technology' },
+  { ticker: 'SMCI', name: 'Super Micro Computer', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'ARM', name: 'Arm Holdings plc', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'QCOM', name: 'Qualcomm Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'MU', name: 'Micron Technology', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'MRVL', name: 'Marvell Technology', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'KLAC', name: 'KLA Corporation', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'AMAT', name: 'Applied Materials Inc.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'LRCX', name: 'Lam Research Corp.', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'ASML', name: 'ASML Holding NV', exchange: 'NASDAQ', sector: 'Technology' },
+  { ticker: 'TSM', name: 'Taiwan Semiconductor', exchange: 'NYSE', sector: 'Technology' },
+  // Additional Healthcare / Biotech
+  { ticker: 'AMGN', name: 'Amgen Inc.', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'GILD', name: 'Gilead Sciences Inc.', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'BIIB', name: 'Biogen Inc.', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'REGN', name: 'Regeneron Pharmaceuticals', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'VRTX', name: 'Vertex Pharmaceuticals', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'MRNA', name: 'Moderna Inc.', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'ISRG', name: 'Intuitive Surgical Inc.', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'DXCM', name: 'DexCom Inc.', exchange: 'NASDAQ', sector: 'Healthcare' },
+  { ticker: 'ZTS', name: 'Zoetis Inc.', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'MDT', name: 'Medtronic plc', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'SYK', name: 'Stryker Corporation', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'BMY', name: 'Bristol-Myers Squibb', exchange: 'NYSE', sector: 'Healthcare' },
+  { ticker: 'CVS', name: 'CVS Health Corporation', exchange: 'NYSE', sector: 'Healthcare' },
+  // Additional Industrials / Defense
+  { ticker: 'HON', name: 'Honeywell International', exchange: 'NASDAQ', sector: 'Industrials' },
+  { ticker: 'UNP', name: 'Union Pacific Corp.', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'UPS', name: 'United Parcel Service', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'FDX', name: 'FedEx Corporation', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'RTX', name: 'RTX Corporation', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'LMT', name: 'Lockheed Martin Corp.', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'NOC', name: 'Northrop Grumman Corp.', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'GD', name: 'General Dynamics Corp.', exchange: 'NYSE', sector: 'Industrials' },
+  { ticker: 'LHX', name: 'L3Harris Technologies', exchange: 'NYSE', sector: 'Industrials' },
+  // Additional Energy
+  { ticker: 'EOG', name: 'EOG Resources Inc.', exchange: 'NYSE', sector: 'Energy' },
+  { ticker: 'PXD', name: 'Pioneer Natural Resources', exchange: 'NYSE', sector: 'Energy' },
+  { ticker: 'OXY', name: 'Occidental Petroleum', exchange: 'NYSE', sector: 'Energy' },
+  { ticker: 'MPC', name: 'Marathon Petroleum Corp.', exchange: 'NYSE', sector: 'Energy' },
+  { ticker: 'VLO', name: 'Valero Energy Corp.', exchange: 'NYSE', sector: 'Energy' },
+  { ticker: 'ENPH', name: 'Enphase Energy Inc.', exchange: 'NASDAQ', sector: 'Energy' },
+  { ticker: 'SEDG', name: 'SolarEdge Technologies', exchange: 'NASDAQ', sector: 'Energy' },
+  // Real Estate
+  { ticker: 'AMT', name: 'American Tower Corp.', exchange: 'NYSE', sector: 'Real Estate' },
+  { ticker: 'PLD', name: 'Prologis Inc.', exchange: 'NYSE', sector: 'Real Estate' },
+  { ticker: 'CCI', name: 'Crown Castle Inc.', exchange: 'NYSE', sector: 'Real Estate' },
+  { ticker: 'EQIX', name: 'Equinix Inc.', exchange: 'NASDAQ', sector: 'Real Estate' },
+  { ticker: 'O', name: 'Realty Income Corp.', exchange: 'NYSE', sector: 'Real Estate' },
+  // Materials
+  { ticker: 'LIN', name: 'Linde plc', exchange: 'NYSE', sector: 'Materials' },
+  { ticker: 'APD', name: 'Air Products & Chemicals', exchange: 'NYSE', sector: 'Materials' },
+  { ticker: 'SHW', name: 'Sherwin-Williams Co.', exchange: 'NYSE', sector: 'Materials' },
+  { ticker: 'FCX', name: 'Freeport-McMoRan Inc.', exchange: 'NYSE', sector: 'Materials' },
+  { ticker: 'NEM', name: 'Newmont Corporation', exchange: 'NYSE', sector: 'Materials' },
+  // Consumer Staples
+  { ticker: 'PM', name: 'Philip Morris International', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  { ticker: 'MO', name: 'Altria Group Inc.', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  { ticker: 'CL', name: 'Colgate-Palmolive Co.', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  { ticker: 'KMB', name: 'Kimberly-Clark Corp.', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  { ticker: 'MDLZ', name: 'Mondelez International', exchange: 'NASDAQ', sector: 'Consumer Defensive' },
+  { ticker: 'KHC', name: 'The Kraft Heinz Company', exchange: 'NASDAQ', sector: 'Consumer Defensive' },
+  { ticker: 'GIS', name: 'General Mills Inc.', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  { ticker: 'K', name: 'Kellanova', exchange: 'NYSE', sector: 'Consumer Defensive' },
+  // ETFs (additional)
   // ETFs
   { ticker: 'SPY', name: 'SPDR S&P 500 ETF Trust', exchange: 'NYSE', sector: 'ETF', isETF: true },
   { ticker: 'QQQ', name: 'Invesco QQQ Trust', exchange: 'NASDAQ', sector: 'ETF', isETF: true },
@@ -7056,6 +7221,25 @@ const COMPANY_DB = [
   { ticker: 'XLE', name: 'Energy Select Sector SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
   { ticker: 'GLD', name: 'SPDR Gold Shares', exchange: 'NYSE', sector: 'ETF', isETF: true },
   { ticker: 'TLT', name: 'iShares 20+ Year Treasury Bond', exchange: 'NASDAQ', sector: 'ETF', isETF: true },
+  { ticker: 'VGT', name: 'Vanguard Information Technology ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'VHT', name: 'Vanguard Health Care ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'VNQ', name: 'Vanguard Real Estate ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'XLV', name: 'Health Care Select Sector SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'XLI', name: 'Industrial Select Sector SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'XLP', name: 'Consumer Staples Select Sector SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'XLY', name: 'Consumer Discretionary Select SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'XLU', name: 'Utilities Select Sector SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'XLB', name: 'Materials Select Sector SPDR', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'SCHD', name: 'Schwab US Dividend Equity ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'VYM', name: 'Vanguard High Dividend Yield ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'EEM', name: 'iShares MSCI Emerging Markets ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'EFA', name: 'iShares MSCI EAFE ETF', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'SLV', name: 'iShares Silver Trust', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'USO', name: 'United States Oil Fund', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'BND', name: 'Vanguard Total Bond Market ETF', exchange: 'NASDAQ', sector: 'ETF', isETF: true },
+  { ticker: 'HYG', name: 'iShares iBoxx High Yield Corporate Bond', exchange: 'NYSE', sector: 'ETF', isETF: true },
+  { ticker: 'SOXX', name: 'iShares Semiconductor ETF', exchange: 'NASDAQ', sector: 'ETF', isETF: true },
+  { ticker: 'SMH', name: 'VanEck Semiconductor ETF', exchange: 'NASDAQ', sector: 'ETF', isETF: true },
 ];
 
 function searchCompanies(query) {
