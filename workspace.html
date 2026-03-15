@@ -349,43 +349,170 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.validation-error { border-color: var(--danger); }
 
 /* ═══ ROBOT ASSISTANT ═══ */
-.robot-scene { position: relative; width: 160px; height: 100px; margin: 4px auto 2px; flex-shrink: 0; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,.08); background: #1a1a2a; }
-.robot-bg { position: absolute; inset: 0; z-index: 0; opacity: 0; transition: opacity 0.6s ease, background 0.6s ease; }
-.robot-glass { position: absolute; inset: 0; z-index: 1; border: 1px solid rgba(255,255,255,.08); background: linear-gradient(135deg, rgba(255,255,255,.04) 0%, transparent 40%, rgba(255,255,255,.02) 100%); pointer-events: none; }
-.robot-glass::before, .robot-glass::after { content:''; position: absolute; background: rgba(255,255,255,.05); }
-.robot-glass::before { top: 0; bottom: 0; left: 33%; width: 1px; }
-.robot-glass::after { top: 0; bottom: 0; right: 33%; width: 1px; }
+.robot-scene { position: relative; width: 100%; height: 110px; margin: 0; flex-shrink: 0; overflow: hidden; border-top: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); background: #0e0e1a; }
+/* Background layer + animated pseudo-elements */
+.robot-bg { position: absolute; inset: 0; z-index: 0; }
+.robot-bg::before, .robot-bg::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+/* Glass office overlay */
+.robot-glass { position: absolute; inset: 0; z-index: 1; border: none; background: linear-gradient(135deg, rgba(255,255,255,.03) 0%, transparent 40%, rgba(255,255,255,.015) 100%); pointer-events: none; }
+.robot-glass::before, .robot-glass::after { content:''; position: absolute; background: rgba(255,255,255,.04); }
+.robot-glass::before { top: 0; bottom: 0; left: 30%; width: 1px; }
+.robot-glass::after { top: 0; bottom: 0; right: 30%; width: 1px; }
 /* CSS-only potted plants */
-.robot-plant { position: absolute; bottom: 0; z-index: 2; width: 16px; height: 28px; }
-.robot-plant-l { left: 6px; }
-.robot-plant-r { right: 6px; }
-.plant-pot { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 10px; height: 7px; background: linear-gradient(180deg, #8D6E63, #6D4C41); border-radius: 1px 1px 3px 3px; clip-path: polygon(5% 0, 95% 0, 80% 100%, 20% 100%); }
-.plant-stem { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 1.5px; height: 12px; background: #4CAF50; border-radius: 1px; }
+.robot-plant { position: absolute; bottom: 0; z-index: 5; width: 18px; height: 30px; }
+.robot-plant-l { left: 15%; }
+.robot-plant-r { right: 15%; }
+.plant-pot { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 11px; height: 8px; background: linear-gradient(180deg, #8D6E63, #6D4C41); border-radius: 1px 1px 3px 3px; clip-path: polygon(5% 0, 95% 0, 80% 100%, 20% 100%); }
+.plant-stem { position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%); width: 1.5px; height: 13px; background: #4CAF50; border-radius: 1px; }
 .plant-leaf { position: absolute; width: 7px; height: 4px; border-radius: 50%; background: #66BB6A; }
-.plant-leaf-l { bottom: 14px; left: 0; transform: rotate(-30deg); }
-.plant-leaf-r { bottom: 16px; right: 0; transform: rotate(30deg); }
-.plant-leaf-t { bottom: 20px; left: 50%; transform: translateX(-50%); width: 5px; height: 6px; border-radius: 50% 50% 30% 30%; background: #81C784; }
+.plant-leaf-l { bottom: 16px; left: 0; transform: rotate(-30deg); }
+.plant-leaf-r { bottom: 18px; right: 0; transform: rotate(30deg); }
+.plant-leaf-t { bottom: 22px; left: 50%; transform: translateX(-50%); width: 5px; height: 6px; border-radius: 50% 50% 30% 30%; background: #81C784; }
 /* Desk + monitors */
-.robot-desk { position: absolute; bottom: 0; width: 70px; left: 50%; transform: translateX(-50%); height: 14px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 3px rgba(0,0,0,.2); }
-.robot-monitors { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; z-index: 3; }
-.robot-monitor { width: 14px; height: 10px; background: #0a0a0a; border: 1.5px solid #333; border-radius: 1px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s; }
-.robot-monitor.on { border-color: #555; box-shadow: inset 0 0 4px rgba(76,175,80,.35), 0 0 3px rgba(76,175,80,.15); }
+.robot-desk { position: absolute; bottom: 0; width: 80px; left: 50%; transform: translateX(-50%); height: 16px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 4px rgba(0,0,0,.3); }
+.robot-monitors { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; z-index: 3; }
+.robot-monitor { width: 16px; height: 11px; background: #0a0a0a; border: 1.5px solid #333; border-radius: 1px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s, border-color 0.3s; }
+.robot-monitor.on { border-color: #555; box-shadow: inset 0 0 5px rgba(76,175,80,.4), 0 0 4px rgba(76,175,80,.2); }
 /* Robot body */
-.robot-body { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 4; }
-.robot-head { width: 20px; height: 16px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 5px 5px 3px 3px; margin: 0 auto; position: relative; transition: transform 0.6s ease; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
-.robot-eyes { display: flex; justify-content: center; gap: 4px; padding-top: 4px; }
+.robot-body { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 4; }
+.robot-head { width: 22px; height: 18px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 5px 5px 3px 3px; margin: 0 auto; position: relative; transition: transform 0.6s ease; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.robot-eyes { display: flex; justify-content: center; gap: 5px; padding-top: 5px; }
 .robot-eyes .eye { width: 3px; height: 3px; background: #1a1a1a; border-radius: 50%; box-shadow: inset 0 0 1px rgba(255,255,255,.2); }
-.robot-torso { width: 22px; height: 14px; background: linear-gradient(180deg, #222, #111); border-radius: 3px; margin: 1px auto 0; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
-.robot-tie { width: 4px; height: 9px; margin: 0 auto; clip-path: polygon(50% 0, 100% 20%, 65% 100%, 50% 80%, 35% 100%, 0 20%); background: #D32F2F; transition: background 0.3s, clip-path 0.3s; }
-.robot-arms { display: flex; justify-content: center; gap: 16px; margin-top: -8px; }
-.robot-arms .arm { width: 5px; height: 10px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 2px; transition: transform 0.15s; transform-origin: top center; }
+.robot-torso { width: 24px; height: 16px; background: linear-gradient(180deg, #222, #111); border-radius: 3px; margin: 1px auto 0; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.robot-tie { width: 4px; height: 10px; margin: 0 auto; clip-path: polygon(50% 0, 100% 20%, 65% 100%, 50% 80%, 35% 100%, 0 20%); background: #D32F2F; transition: background 0.3s, clip-path 0.3s; }
+.robot-arms { display: flex; justify-content: center; gap: 18px; margin-top: -9px; }
+.robot-arms .arm { width: 5px; height: 11px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 2px; transition: transform 0.15s; transform-origin: top center; }
 .robot-arms .arm.typing-l { transform: rotate(-8deg) translateY(2px); }
 .robot-arms .arm.typing-r { transform: rotate(8deg) translateY(2px); }
 /* Desk lamp */
-.desk-light { position: absolute; right: 6px; top: -6px; width: 7px; height: 7px; border-radius: 50%; background: #444; border: 1px solid #333; transition: all 0.4s ease; z-index: 5; }
-.desk-light.on { background: #4CAF50; box-shadow: 0 0 6px #4CAF50, 0 0 14px rgba(76,175,80,.25); }
+.desk-light { position: absolute; right: 8px; top: -7px; width: 8px; height: 8px; border-radius: 50%; background: #444; border: 1px solid #333; transition: all 0.4s ease; z-index: 5; }
+.desk-light.on { background: #4CAF50; box-shadow: 0 0 8px #4CAF50, 0 0 16px rgba(76,175,80,.3); }
 /* Tie/scene controls */
-.robot-controls { display: flex; gap: 3px; justify-content: center; margin-top: 2px; flex-shrink: 0; }
+.robot-controls { display: flex; gap: 4px; justify-content: center; padding: 3px 0; flex-shrink: 0; background: var(--panel-inset); border-bottom: 1px solid var(--border); }
+
+/* ═══ SCENE ANIMATIONS ═══ */
+@keyframes sceneDrift { 0% { transform: translateX(-10%); } 100% { transform: translateX(10%); } }
+@keyframes sceneTwinkle { 0%,100% { opacity: .15; } 50% { opacity: .7; } }
+@keyframes sceneTwinkle2 { 0%,100% { opacity: .3; } 50% { opacity: .9; } }
+@keyframes sceneGlow { 0%,100% { opacity: .4; } 50% { opacity: .7; } }
+@keyframes sceneLava { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+@keyframes sceneWave { 0%,100% { transform: translateX(0) scaleY(1); } 25% { transform: translateX(-3px) scaleY(1.02); } 75% { transform: translateX(3px) scaleY(.98); } }
+@keyframes sceneScroll { from { background-position: 0 bottom; } to { background-position: -400px bottom; } }
+@keyframes sceneFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes scenePulse { 0%,100% { opacity: .2; } 50% { opacity: .5; } }
+
+/* ── Office (default) ── */
+.robot-bg.scene-office {
+  background: linear-gradient(180deg, #1a1a2e 0%, #16162a 40%, #121226 70%, #0e0e1a 100%);
+}
+.robot-bg.scene-office::before {
+  background: radial-gradient(ellipse at 70% 30%, rgba(100,120,180,.06) 0%, transparent 50%),
+              radial-gradient(ellipse at 30% 60%, rgba(80,100,160,.04) 0%, transparent 40%);
+}
+
+/* ── Tropical Paradise ── */
+.robot-bg.scene-tropical {
+  background: linear-gradient(180deg, #1a0533 0%, #4a1942 10%, #c2185b 25%, #ff6f00 40%, #ffab40 52%, #80deea 60%, #26c6da 70%, #00897b 82%, #004d40 100%);
+}
+.robot-bg.scene-tropical::before {
+  background:
+    radial-gradient(ellipse 80px 20px at 25% 18%, rgba(255,255,255,.2) 0%, transparent 100%),
+    radial-gradient(ellipse 60px 15px at 65% 12%, rgba(255,255,255,.15) 0%, transparent 100%),
+    radial-gradient(ellipse 100px 18px at 80% 22%, rgba(255,255,255,.12) 0%, transparent 100%);
+  animation: sceneDrift 20s ease-in-out infinite alternate;
+}
+.robot-bg.scene-tropical::after {
+  background:
+    radial-gradient(ellipse at 50% 95%, rgba(255,255,255,.08) 0%, transparent 40%);
+  animation: sceneWave 6s ease-in-out infinite;
+}
+
+/* ── Volcano ── */
+.robot-bg.scene-volcano {
+  background: linear-gradient(180deg, #0a0200 0%, #1a0800 15%, #3e1500 30%, #7f2000 48%, #bf360c 60%, #e65100 72%, #ff6d00 82%, #ff9100 90%, #ffd600 100%);
+}
+.robot-bg.scene-volcano::before {
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(255,100,0,.35) 0%, transparent 55%),
+    radial-gradient(ellipse at 40% 50%, rgba(255,60,0,.2) 0%, transparent 40%),
+    radial-gradient(ellipse at 60% 40%, rgba(255,150,0,.15) 0%, transparent 45%);
+  animation: sceneGlow 4s ease-in-out infinite;
+}
+.robot-bg.scene-volcano::after {
+  background:
+    radial-gradient(1.5px 1.5px at 20% 30%, #FFD600, transparent),
+    radial-gradient(1px 1px at 35% 20%, #FF6D00, transparent),
+    radial-gradient(1.5px 1.5px at 55% 25%, #FFAB00, transparent),
+    radial-gradient(1px 1px at 70% 35%, #FF6D00, transparent),
+    radial-gradient(1px 1px at 85% 15%, #FFD600, transparent),
+    radial-gradient(1.5px 1.5px at 15% 45%, #FF9100, transparent),
+    radial-gradient(1px 1px at 45% 38%, #FFD600, transparent),
+    radial-gradient(1px 1px at 78% 42%, #FF6D00, transparent);
+  animation: sceneTwinkle 2.5s ease-in-out infinite, sceneFloat 5s ease-in-out infinite;
+}
+
+/* ── Forest ── */
+.robot-bg.scene-forest {
+  background: linear-gradient(180deg, #a8d5ba 0%, #6abf7b 12%, #4caf50 22%, #388e3c 35%, #2e7d32 48%, #1b5e20 62%, #145218 75%, #0d3b12 88%, #071f09 100%);
+}
+.robot-bg.scene-forest::before {
+  background:
+    radial-gradient(circle 8px at 22% 28%, rgba(255,255,200,.12) 0%, transparent 100%),
+    radial-gradient(circle 6px at 55% 18%, rgba(255,255,200,.1) 0%, transparent 100%),
+    radial-gradient(circle 10px at 78% 32%, rgba(255,255,200,.08) 0%, transparent 100%),
+    radial-gradient(circle 5px at 40% 40%, rgba(255,255,200,.09) 0%, transparent 100%);
+  animation: sceneDrift 12s ease-in-out infinite alternate;
+}
+.robot-bg.scene-forest::after {
+  background:
+    linear-gradient(180deg, transparent 50%, rgba(13,59,18,.6) 70%, rgba(7,31,9,.8) 100%),
+    radial-gradient(ellipse 30px 60px at 12% 80%, rgba(27,94,32,.7) 0%, transparent 100%),
+    radial-gradient(ellipse 25px 50px at 35% 85%, rgba(27,94,32,.5) 0%, transparent 100%),
+    radial-gradient(ellipse 35px 55px at 65% 82%, rgba(27,94,32,.6) 0%, transparent 100%),
+    radial-gradient(ellipse 28px 50px at 88% 78%, rgba(27,94,32,.5) 0%, transparent 100%);
+}
+
+/* ── City (Roku-inspired art deco) ── */
+.robot-bg.scene-city {
+  background: linear-gradient(180deg, #0a0a1e 0%, #1a1040 12%, #2d1560 25%, #4a1a7a 38%, #7b1fa2 50%, #c2185b 65%, #e64a19 78%, #ff8f00 88%, #ffd54f 100%);
+}
+.robot-bg.scene-city::before {
+  background:
+    repeating-linear-gradient(90deg,
+      transparent 0px, transparent 6px,
+      rgba(0,0,0,.45) 6px, rgba(0,0,0,.45) 8px,
+      transparent 8px, transparent 10px,
+      rgba(0,0,0,.35) 10px, rgba(0,0,0,.35) 14px,
+      transparent 14px, transparent 20px,
+      rgba(0,0,0,.5) 20px, rgba(0,0,0,.5) 22px,
+      transparent 22px, transparent 28px,
+      rgba(0,0,0,.4) 28px, rgba(0,0,0,.4) 32px,
+      transparent 32px, transparent 36px);
+  background-size: 400px 100%;
+  background-position: 0 bottom;
+  mask-image: linear-gradient(180deg, transparent 40%, black 55%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 40%, black 55%);
+  animation: sceneScroll 25s linear infinite;
+  opacity: .6;
+}
+.robot-bg.scene-city::after {
+  background:
+    radial-gradient(1px 1px at 10% 60%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 18% 65%, #FFC107, transparent),
+    radial-gradient(1px 1px at 25% 58%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 33% 70%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 42% 62%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 50% 68%, #FFC107, transparent),
+    radial-gradient(1px 1px at 58% 55%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 65% 72%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 72% 60%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 80% 66%, #FFC107, transparent),
+    radial-gradient(1px 1px at 88% 58%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 95% 64%, #FF8F00, transparent);
+  animation: sceneTwinkle2 3s ease-in-out infinite;
+  mask-image: linear-gradient(180deg, transparent 45%, black 60%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 45%, black 60%);
+}
 
 /* Context menu */
 .ctx-menu {
@@ -823,6 +950,14 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <div style="display:flex;align-items:center;gap:4px;"><span style="flex:0 0 90px;font-size:.58rem;">Deep Research</span><input type="range" id="pricingMixDeep" min="0" max="100" value="10" style="flex:1;" /><span id="pricingMixDeepVal" style="font-size:.58rem;width:30px;text-align:right;">10%</span></div>
             </div>
           </div>
+          <div style="border-top:1px solid var(--border);padding-top:6px;">
+            <label style="font-size:.58rem;color:var(--text-dim);">Model Mix (must total 100%):</label>
+            <div style="display:flex;flex-direction:column;gap:3px;margin-top:3px;">
+              <div style="display:flex;align-items:center;gap:4px;"><span style="flex:0 0 90px;font-size:.58rem;">Haiku ($1/$5)</span><input type="range" id="pricingModelHaiku" min="0" max="100" value="30" style="flex:1;" /><span id="pricingModelHaikuVal" style="font-size:.58rem;width:30px;text-align:right;">30%</span></div>
+              <div style="display:flex;align-items:center;gap:4px;"><span style="flex:0 0 90px;font-size:.58rem;">Sonnet ($3/$15)</span><input type="range" id="pricingModelSonnet" min="0" max="100" value="60" style="flex:1;" /><span id="pricingModelSonnetVal" style="font-size:.58rem;width:30px;text-align:right;">60%</span></div>
+              <div style="display:flex;align-items:center;gap:4px;"><span style="flex:0 0 90px;font-size:.58rem;">Opus ($15/$75)</span><input type="range" id="pricingModelOpus" min="0" max="100" value="10" style="flex:1;" /><span id="pricingModelOpusVal" style="font-size:.58rem;width:30px;text-align:right;">10%</span></div>
+            </div>
+          </div>
           <div style="border-top:1px solid var(--border);padding-top:8px;" id="pricingResults"></div>
         </div>
       </div>
@@ -1015,6 +1150,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <div id="stockSearchResults" class="stock-search-results" style="display:none;"></div>
           </div>
           <button id="stockAdd">+Add</button>
+          <button id="stockClearSearch" title="Clear search" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">&#x2715;</button>
           <button id="stockBrowse" title="Browse all companies" style="font-size:.68rem;">&#128203; List</button>
           <div class="sep"></div>
           <span id="stockChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
@@ -1194,8 +1330,13 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <option value="quick">Quick</option>
           <option value="verified">Verified</option>
         </select>
+        <select id="newsOpenMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);" title="How to open articles">
+          <option value="newtab">New Tab</option>
+          <option value="cache">Cached</option>
+        </select>
         <input type="text" id="newsSearch" placeholder="Search news by keyword or ticker..." style="flex:1;min-width:120px;" />
         <button id="newsSearchBtn">Search</button>
+        <button id="newsClearBtn" title="Clear search" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">&#x2715;</button>
         <button id="newsDeepResearch" title="Deep Research — Claude scans multiple sources and generates a PDF report" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.62rem;font-weight:600;">&#128269; Deep Research</button>
         <div class="sep"></div>
         <span id="newsTickerChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
@@ -1436,15 +1577,23 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
 
 // Reset grid — show all panes in default layout
 $('#resetGridBtn').onclick = () => {
-  // Remove expanded state
+  // Remove expanded state and reset zoom
   $$('.pane').forEach(el => {
     el.classList.remove('expanded');
     el.style.display = '';
+    el.style.gridColumn = '';
+    el.style.gridRow = '';
     const body = el.querySelector('.p-body');
     const label = el.querySelector('.zoom-level');
     if (body) { body.style.fontSize = ''; body.dataset.zoom = '100'; }
     if (label) label.textContent = '100%';
   });
+  // Reset grid template to CSS defaults (clear inline overrides from divider dragging)
+  const ws = $('#workspace');
+  ws.style.gridTemplateColumns = '';
+  ws.style.gridTemplateRows = '';
+  // Show dividers
+  $$('.divider-h, .divider-v').forEach(d => d.style.display = '');
   // Reset nav buttons to "All"
   $$('.nav-group-btns button[data-pane]').forEach(b => b.classList.remove('active'));
   const allBtn = document.querySelector('.nav-group-btns button[data-pane="all"]');
@@ -1664,17 +1813,28 @@ function applyFullscreenStyle(el) {
 function showVideo(idx) {
   const v = FUN_VIDEOS[idx];
   if (adTimer) { clearTimeout(adTimer); adTimer = null; }
+  const wasFullscreen = isFullscreen;
   if (funWrap) { funWrap.remove(); funWrap = null; }
-  isFullscreen = false;
 
   funWrap = document.createElement('div');
   funWrap.id = 'funVideoWrap';
-  applyPipStyle(funWrap);
+  // Preserve fullscreen state when switching videos
+  if (wasFullscreen) {
+    isFullscreen = true;
+    applyFullscreenStyle(funWrap);
+  } else {
+    isFullscreen = false;
+    applyPipStyle(funWrap);
+  }
 
   const iframe = document.createElement('iframe');
   iframe.id = 'funVideoFrame';
   iframe.src = buildIframeSrc(v);
-  iframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:auto;opacity:' + savedOpacity;
+  if (wasFullscreen) {
+    iframe.style.cssText = 'position:absolute;top:50%;left:50%;width:120vw;height:120vh;transform:translate(-50%,-50%);border:none;opacity:' + savedOpacity;
+  } else {
+    iframe.style.cssText = 'width:100%;height:100%;border:none;pointer-events:auto;opacity:' + savedOpacity;
+  }
   iframe.allow = 'autoplay; encrypted-media';
   iframe.loading = 'lazy';
   iframe.addEventListener('load', () => { setTimeout(() => applyVolumeToPlayer(), 1500); });
@@ -1704,9 +1864,23 @@ function showVideo(idx) {
   controls.appendChild(fsBtn);
   funWrap.appendChild(controls);
 
+  // Persistent skip/next button — always visible
+  const skipBtn = document.createElement('button');
+  skipBtn.innerHTML = '&#x23ED;';
+  skipBtn.title = 'Next video';
+  skipBtn.style.cssText = 'position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.2);width:28px;height:22px;border-radius:4px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;pointer-events:auto;z-index:3;transition:background .2s';
+  skipBtn.addEventListener('mouseenter', () => skipBtn.style.background = 'rgba(0,0,0,.7)');
+  skipBtn.addEventListener('mouseleave', () => skipBtn.style.background = 'rgba(0,0,0,.5)');
+  skipBtn.addEventListener('click', () => {
+    funState++;
+    if (funState >= FUN_VIDEOS.length) funState = 0;
+    showVideo(funState);
+  });
+  funWrap.appendChild(skipBtn);
+
   // Label
   const lbl = document.createElement('div');
-  lbl.textContent = v.label;
+  lbl.textContent = v.label + (FUN_VIDEOS.length > 1 ? ' (' + (idx + 1) + '/' + FUN_VIDEOS.length + ')' : '');
   lbl.style.cssText = 'position:absolute;bottom:6px;left:8px;font-size:.6rem;color:rgba(255,255,255,.7);text-shadow:0 1px 3px rgba(0,0,0,.6);pointer-events:none;z-index:2;letter-spacing:.3px';
   funWrap.appendChild(lbl);
 
@@ -1716,7 +1890,7 @@ function showVideo(idx) {
   overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:1;transition:opacity 1.5s ease;cursor:pointer;border-radius:12px;pointer-events:auto';
   const skipHint = document.createElement('div');
   skipHint.textContent = 'click to skip';
-  skipHint.style.cssText = 'position:absolute;bottom:8px;right:8px;font-size:.55rem;color:rgba(255,255,255,.6);text-shadow:0 1px 3px rgba(0,0,0,.5);z-index:2;pointer-events:none;letter-spacing:.3px;transition:opacity 1.5s ease';
+  skipHint.style.cssText = 'position:absolute;bottom:8px;right:8px;font-size:.55rem;color:rgba(255,255,255,.6);text-shadow:0 1px 3px rgba(0,0,0,.5);z-index:4;pointer-events:none;letter-spacing:.3px;transition:opacity 1.5s ease';
   funWrap.appendChild(overlay);
   funWrap.appendChild(skipHint);
 
@@ -5326,9 +5500,9 @@ function renderQuickNewsFeed() {
       '</div>';
     div.onclick = (e) => {
       const action = e.target.dataset?.action;
-      if (action === 'source') { openNewsViewer(a.title, a.directUrl || a.url, a.url); return; }
-      if (action === 'search') { openNewsViewer(a.title, a.url, a.url); return; }
-      openNewsViewer(a.title, a.url, a.url);
+      if (action === 'source') { openNewsArticle(a.title, a.directUrl || a.url); return; }
+      if (action === 'search') { openNewsArticle(a.title, a.url); return; }
+      openNewsArticle(a.title, a.url);
     };
     feed.appendChild(div);
   });
@@ -5392,7 +5566,7 @@ async function renderVerifiedNewsFeed() {
       '<span class="news-action" data-action="read" style="font-size:.6rem;color:var(--accent2);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Read</span>' +
       '</div>';
     div.onclick = (e) => {
-      openNewsViewer(a.title, a.url, a.url);
+      openNewsArticle(a.title, a.url);
     };
     feed.appendChild(div);
   });
@@ -5540,13 +5714,26 @@ $('#newsDeepResearch').onclick = runDeepResearch;
 // Inline article viewer
 let newsViewerState = { directUrl: '', archiveUrl: '' };
 
-function openNewsViewer(title, directUrl, archiveUrl) {
-  newsViewerState = { directUrl, archiveUrl };
+function openNewsArticle(title, url) {
+  const openMode = $('#newsOpenMode')?.value || 'newtab';
+  if (openMode === 'newtab') {
+    // Open directly in new tab — bypasses iframe restrictions
+    window.open(url, '_blank');
+    return;
+  }
+  // Cache mode — use Google web cache proxy in iframe viewer
+  const cacheUrl = 'https://webcache.googleusercontent.com/search?q=cache:' + encodeURIComponent(url);
+  newsViewerState = { directUrl: url, cacheUrl };
   $('#newsViewerTitle').textContent = title;
-  $('#newsViewerExternal').href = archiveUrl;
-  const mode = $('#newsViewerMode').value;
-  $('#newsViewerFrame').src = mode === 'archive' ? archiveUrl : directUrl;
+  $('#newsViewerExternal').href = url;
+  $('#newsViewerMode').value = 'archive';
+  $('#newsViewerFrame').src = cacheUrl;
   $('#newsViewer').style.display = 'flex';
+}
+
+// Legacy compat
+function openNewsViewer(title, directUrl, archiveUrl) {
+  openNewsArticle(title, directUrl || archiveUrl);
 }
 
 $('#newsViewerBack').onclick = () => {
@@ -5556,9 +5743,9 @@ $('#newsViewerBack').onclick = () => {
 
 $('#newsViewerMode').onchange = function() {
   if (!newsViewerState.directUrl) return;
-  const src = this.value === 'archive' ? newsViewerState.archiveUrl : newsViewerState.directUrl;
+  const src = this.value === 'archive' ? newsViewerState.cacheUrl : newsViewerState.directUrl;
   $('#newsViewerFrame').src = src;
-  $('#newsViewerExternal').href = src;
+  $('#newsViewerExternal').href = newsViewerState.directUrl;
 };
 
 function renderNewsChips() {
@@ -5590,6 +5777,8 @@ function pushTickerToNews(ticker) {
 
 $('#newsSearchBtn').onclick = () => { renderNewsFeed(); };
 $('#newsSearch').addEventListener('keydown', e => { if (e.key === 'Enter') renderNewsFeed(); });
+$('#newsClearBtn').onclick = () => { $('#newsSearch').value = ''; renderNewsFeed(); };
+$('#stockClearSearch').onclick = () => { $('#stockInput').value = ''; $('#stockSearchResults').style.display = 'none'; };
 
 renderNewsChips();
 renderNewsFeed();
@@ -5666,11 +5855,10 @@ function fmtCost(val) {
   return '$' + scaled.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + suffix;
 }
 
-function balanceMixSliders(changedId) {
-  const ids = ['pricingMixQA', 'pricingMixTool', 'pricingMixMulti', 'pricingMixDeep'];
+function balanceSliderGroup(changedId, groupIds) {
   const changedVal = +$('#' + changedId).value;
   const remaining = 100 - changedVal;
-  const others = ids.filter(id => id !== changedId);
+  const others = groupIds.filter(id => id !== changedId);
   const othersTotal = others.reduce((sum, id) => sum + (+$('#' + id).value), 0);
   if (othersTotal === 0) {
     const each = Math.floor(remaining / others.length);
@@ -5689,10 +5877,10 @@ function balanceMixSliders(changedId) {
   }
   updatePricingCalc();
 }
+const QUERY_MIX_IDS = ['pricingMixQA', 'pricingMixTool', 'pricingMixMulti', 'pricingMixDeep'];
+const MODEL_MIX_IDS = ['pricingModelHaiku', 'pricingModelSonnet', 'pricingModelOpus'];
 
 function updatePricingCalc() {
-  const model = $('#pricingModel').value;
-  const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
   const users = +$('#pricingUsers').value;
   const qpu = +$('#pricingQpu').value;
   const mixQA = +$('#pricingMixQA').value;
@@ -5701,6 +5889,22 @@ function updatePricingCalc() {
   const mixDeep = +$('#pricingMixDeep').value;
   const mixTotal = mixQA + mixTool + mixMulti + mixDeep;
 
+  // Model mix
+  const mHaiku = +($('#pricingModelHaiku')?.value || 30);
+  const mSonnet = +($('#pricingModelSonnet')?.value || 60);
+  const mOpus = +($('#pricingModelOpus')?.value || 10);
+  const mTotal = mHaiku + mSonnet + mOpus;
+  const mNorm = mTotal > 0 ? 100 / mTotal : 1;
+
+  // Blended model rates (weighted average)
+  const blendedInput = (MODEL_RATES['claude-haiku-4-5-20251001'].input * mHaiku +
+    MODEL_RATES['claude-sonnet-4-6'].input * mSonnet +
+    MODEL_RATES['claude-opus-4-6'].input * mOpus) * mNorm / 100;
+  const blendedOutput = (MODEL_RATES['claude-haiku-4-5-20251001'].output * mHaiku +
+    MODEL_RATES['claude-sonnet-4-6'].output * mSonnet +
+    MODEL_RATES['claude-opus-4-6'].output * mOpus) * mNorm / 100;
+  const rates = { input: blendedInput, output: blendedOutput };
+
   // Update labels
   $('#pricingUsersVal').textContent = users.toLocaleString();
   $('#pricingQpuVal').textContent = qpu;
@@ -5708,6 +5912,9 @@ function updatePricingCalc() {
   $('#pricingMixToolVal').textContent = mixTool + '%';
   $('#pricingMixMultiVal').textContent = mixMulti + '%';
   $('#pricingMixDeepVal').textContent = mixDeep + '%';
+  if ($('#pricingModelHaikuVal')) $('#pricingModelHaikuVal').textContent = mHaiku + '%';
+  if ($('#pricingModelSonnetVal')) $('#pricingModelSonnetVal').textContent = mSonnet + '%';
+  if ($('#pricingModelOpusVal')) $('#pricingModelOpusVal').textContent = mOpus + '%';
 
   const totalQueries = users * qpu;
   const normalize = mixTotal > 0 ? 100 / mixTotal : 1;
@@ -5727,9 +5934,15 @@ function updatePricingCalc() {
   const costPerUser = totalMonthlyCost / (users || 1);
 
   const el = $('#pricingResults');
+  const warnings = [];
+  if (mixTotal !== 100) warnings.push('Query mix totals ' + mixTotal + '%');
+  if (mTotal !== 100) warnings.push('Model mix totals ' + mTotal + '%');
+
   el.innerHTML =
-    (mixTotal !== 100 ? '<div style="color:var(--danger);font-size:.55rem;margin-bottom:4px;">&#9888; Mix totals ' + mixTotal + '% (should be 100%)</div>' : '') +
+    (warnings.length ? '<div style="color:var(--danger);font-size:.55rem;margin-bottom:4px;">&#9888; ' + warnings.join('; ') + ' (should be 100%)</div>' : '') +
     '<div style="font-weight:700;color:var(--accent2);font-size:.68rem;margin-bottom:6px;">Monthly Cost Breakdown</div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.55rem;color:var(--text-dim);"><span>Blended input rate:</span><span>$' + blendedInput.toFixed(2) + ' / 1M tok</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.55rem;color:var(--text-dim);"><span>Blended output rate:</span><span>$' + blendedOutput.toFixed(2) + ' / 1M tok</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Total queries/mo:</span><span>' + totalQueries.toLocaleString() + '</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per Q&A query:</span><span>$' + costQA.toFixed(4) + '</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per tool query:</span><span>$' + costTool.toFixed(4) + '</span></div>' +
@@ -5737,7 +5950,7 @@ function updatePricingCalc() {
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per deep research:</span><span>$' + costDeep.toFixed(4) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Blended cost/query:</span><span><b>$' + weightedCostPerQuery.toFixed(4) + '</b></span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Cost/user/month:</span><span><b>' + fmtCost(costPerUser) + '</b></span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Cost/user/month:</span><span><b>$' + costPerUser.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</b></span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:4px 0;font-size:.72rem;font-weight:700;color:var(--accent);"><span>Total monthly:</span><span>' + fmtCost(totalMonthlyCost) + '</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Annual estimate:</span><span>' + fmtCost(totalMonthlyCost * 12) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
@@ -5759,10 +5972,15 @@ $('#aiPricingBtn').onclick = () => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('input', updatePricingCalc);
 });
-// Mix sliders auto-balance
-['pricingMixQA', 'pricingMixTool', 'pricingMixMulti', 'pricingMixDeep'].forEach(id => {
+// Query type mix sliders auto-balance
+QUERY_MIX_IDS.forEach(id => {
   const el = document.getElementById(id);
-  if (el) el.addEventListener('input', () => balanceMixSliders(id));
+  if (el) el.addEventListener('input', () => balanceSliderGroup(id, QUERY_MIX_IDS));
+});
+// Model mix sliders auto-balance
+MODEL_MIX_IDS.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => balanceSliderGroup(id, MODEL_MIX_IDS));
 });
 
 if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
@@ -6429,36 +6647,14 @@ function startRobotIdleLook() {
 setTimeout(startRobotIdleLook, 1000);
 
 // ── Robot customization: tie + scene ──
-const ROBOT_SCENES = {
-  office: {
-    bg: 'linear-gradient(180deg, #2a2a3a 0%, #1e1e2e 60%, #1a1a28 100%)',
-    overlay: ''
-  },
-  tropical: {
-    bg: 'linear-gradient(180deg, #1e90cc 0%, #20a8a0 25%, #2db88a 45%, #9dd66b 65%, #e8d44d 80%, #c2956a 95%)',
-    overlay: 'radial-gradient(circle at 85% 15%, #fff5 6px, transparent 6px), radial-gradient(circle at 75% 22%, rgba(255,255,255,.15) 3px, transparent 3px)'
-  },
-  volcano: {
-    bg: 'linear-gradient(180deg, #0d0400 0%, #2d1810 20%, #5D2E0C 40%, #BF360C 60%, #E65100 75%, #FF8F00 88%, #FFD600 100%)',
-    overlay: 'radial-gradient(ellipse at 50% 55%, rgba(255,100,0,.2) 0%, transparent 60%)'
-  },
-  forest: {
-    bg: 'linear-gradient(180deg, #7ec8a0 0%, #4da66a 20%, #338a50 40%, #266e3c 60%, #1a5430 80%, #0f3a20 100%)',
-    overlay: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,.08) 0%, transparent 40%), radial-gradient(circle at 70% 20%, rgba(255,255,255,.06) 0%, transparent 30%)'
-  },
-  city: {
-    bg: 'linear-gradient(180deg, #0a0a1a 0%, #0f1529 25%, #141e3e 45%, #1a2850 60%, #2a3a6a 75%, #3a3030 90%, #2a2020 100%)',
-    overlay: 'repeating-linear-gradient(90deg, rgba(255,200,50,.04) 0px, rgba(255,200,50,.04) 1px, transparent 1px, transparent 8px)'
-  }
-};
+const ROBOT_SCENE_NAMES = ['office', 'tropical', 'volcano', 'forest', 'city'];
 
 function setRobotScene(scene) {
   const bg = document.getElementById('robotBg');
   if (!bg) return;
-  const s = ROBOT_SCENES[scene] || ROBOT_SCENES.office;
-  bg.style.background = s.bg;
-  bg.style.backgroundImage = s.overlay || 'none';
-  bg.style.opacity = scene === 'office' ? '0' : '0.45';
+  // Remove all scene classes, add the selected one
+  ROBOT_SCENE_NAMES.forEach(s => bg.classList.remove('scene-' + s));
+  bg.classList.add('scene-' + (ROBOT_SCENE_NAMES.includes(scene) ? scene : 'office'));
   localStorage.setItem('ws_robotScene', scene);
 }
 
