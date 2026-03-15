@@ -459,6 +459,12 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .news-item .news-snippet { font-size: .72rem; color: var(--text-dim); line-height: 1.4; }
 .news-item .news-meta { font-size: .6rem; color: var(--text-dim); margin-top: 3px; display: flex; gap: 8px; }
 .news-item .news-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; background: rgba(99,102,241,.1); color: var(--accent); font-size: .6rem; font-weight: 600; }
+.news-item .news-open {
+  font-size: .6rem; font-weight: 600; color: var(--accent2);
+  text-decoration: none; padding: 1px 6px; border-radius: 3px;
+  border: 1px solid var(--border); transition: all .12s; margin-left: auto;
+}
+.news-item .news-open:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* Stock company search */
 .stock-search-results {
@@ -2858,6 +2864,16 @@ document.addEventListener('click', e => {
    NEWS & MARKET COVERAGE (Simulated)
    ═══════════════════════════════════════════ */
 const NEWS_SOURCES = ['Reuters', 'Bloomberg', 'CNBC', 'Financial Times', 'WSJ', 'MarketWatch', 'Barron\'s', 'Seeking Alpha'];
+const SOURCE_DOMAINS = {
+  'Reuters': 'reuters.com/business',
+  'Bloomberg': 'bloomberg.com/news/articles',
+  'CNBC': 'cnbc.com/2025',
+  'Financial Times': 'ft.com/content',
+  'WSJ': 'wsj.com/articles',
+  'MarketWatch': 'marketwatch.com/story',
+  "Barron's": 'barrons.com/articles',
+  'Seeking Alpha': 'seekingalpha.com/article'
+};
 const NEWS_TEMPLATES = [
   { title: '{company} Reports Strong Q{q} Earnings, Beats Estimates', snippet: '{company} posted quarterly revenue of ${rev}B, surpassing analyst expectations of ${exp}B. The stock moved {dir} {pct}% in after-hours trading.' },
   { title: '{company} Announces Strategic Partnership with {partner}', snippet: 'The deal is expected to generate ${val}B in combined revenue over the next three years, focusing on {sector} innovation.' },
@@ -2911,7 +2927,10 @@ function genNews(keyword) {
     });
     const hoursAgo = Math.floor(rand() * 72);
     const source = NEWS_SOURCES[Math.floor(rand() * NEWS_SOURCES.length)];
-    articles.push({ title, snippet, source, hoursAgo, tags: [company.ticker, company.sector] });
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').slice(0, 60);
+    const domain = SOURCE_DOMAINS[source] || 'reuters.com/business';
+    const url = 'https://' + domain + '/' + slug;
+    articles.push({ title, snippet, source, hoursAgo, tags: [company.ticker, company.sector], url });
   }
   return articles.sort((a, b) => a.hoursAgo - b.hoursAgo);
 }
@@ -2939,13 +2958,20 @@ function renderNewsFeed() {
     const div = document.createElement('div');
     div.className = 'news-item';
     const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? a.hoursAgo + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
+    const archiveUrl = 'https://archive.is/newest/' + encodeURIComponent(a.url);
     div.innerHTML =
       '<div class="news-source">' + a.source + '</div>' +
       '<div class="news-title">' + a.title + '</div>' +
       '<div class="news-snippet">' + a.snippet + '</div>' +
       '<div class="news-meta"><span>' + timeStr + '</span>' +
       a.tags.map(t => '<span class="news-tag">' + t + '</span>').join('') +
+      '<a class="news-open" href="' + archiveUrl + '" target="_blank" title="Open via archive.is (bypasses paywalls)">Open &#8599;</a>' +
       '</div>';
+    // Click anywhere on article to open via archive.is
+    div.onclick = (e) => {
+      if (e.target.closest('.news-open')) return; // let the link handle itself
+      window.open(archiveUrl, '_blank');
+    };
     feed.appendChild(div);
   });
 }
