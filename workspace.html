@@ -371,6 +371,35 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .sc-up { color: var(--success); }
 .sc-down { color: var(--danger); }
 .stat-card canvas { display: block; margin-top: 4px; }
+.stat-card .sc-compare-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--accent);
+  background: rgba(99,102,241,.12); color: var(--accent); font-size: 11px;
+  cursor: pointer; margin-left: 4px; vertical-align: middle; line-height: 1;
+  transition: background .15s, transform .15s;
+}
+.stat-card .sc-compare-btn:hover { background: var(--accent); color: #fff; transform: scale(1.15); }
+.stat-card .sc-compare-btn.active { background: var(--accent); color: #fff; }
+.stat-card .sc-header { display: flex; align-items: center; justify-content: space-between; }
+
+/* Compact card layout for "All" pane view */
+.stock-compact-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); align-items: center; }
+.stock-compact-row .stat-card { min-width: 0; flex: 0 0 auto; padding: 4px 8px; display: flex; align-items: center; gap: 8px; }
+.stock-compact-row .stat-card canvas { display: none; }
+.stock-compact-row .stat-card .sc-label { font-size: .62rem; }
+.stock-compact-row .stat-card .sc-value { font-size: .82rem; margin: 0; }
+.stock-compact-row .stat-card .sc-change { font-size: .62rem; }
+
+/* Graph calc expression inputs */
+.gc-expr-item { display: flex; align-items: center; gap: 3px; }
+.gc-expr-item input[type="text"] {
+  width: 140px; font-size: .72rem; padding: 3px 6px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--panel-inset); color: var(--text);
+  font-family: 'Courier New', monospace;
+}
+.gc-expr-item input[type="color"] { width: 20px; height: 20px; border: none; cursor: pointer; }
+.gc-expr-item .gc-del { font-size: 11px; cursor: pointer; color: var(--danger); opacity: .7; }
+.gc-expr-item .gc-del:hover { opacity: 1; }
 
 /* Toast */
 .toast {
@@ -566,6 +595,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div class="toggle-group" id="q4Tabs">
         <button class="active" data-q4="stocks">Stocks</button>
         <button data-q4="cmap">Concept Map</button>
+        <button data-q4="graphcalc">Graph Calc</button>
       </div>
       <div class="p-spacer"></div>
       <button class="p-btn" data-expand="q-map" title="Expand">&#x2922;</button>
@@ -585,8 +615,20 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <option value="1M" selected>1M</option>
             <option value="6M">6M</option>
             <option value="1Y">1Y</option>
+            <option value="3Y">3Y</option>
+            <option value="5Y">5Y</option>
           </select>
           <button id="stockRefresh">Refresh</button>
+        </div>
+        <!-- Comparison chart (big overlay) -->
+        <div id="stockCompareWrap" style="display:none;flex-direction:column;border-bottom:1px solid var(--border);min-height:0;">
+          <div style="display:flex;align-items:center;padding:6px 10px;gap:6px;background:var(--panel-inset);border-bottom:1px solid var(--border);">
+            <span style="font-size:.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;">Comparison Chart</span>
+            <span id="compareChips" style="display:flex;gap:4px;flex-wrap:wrap;margin-left:6px;"></span>
+            <div style="flex:1;"></div>
+            <button id="clearCompare" style="font-size:.68rem;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text-dim);cursor:pointer;">Clear</button>
+          </div>
+          <canvas id="compareCanvas" style="flex:1;min-height:120px;width:100%;"></canvas>
         </div>
         <div id="stockDash" style="padding:10px;overflow-y:auto;flex:1;display:flex;flex-wrap:wrap;gap:10px;align-content:flex-start;">
           <div style="width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px;">
@@ -643,6 +685,37 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
         </div>
       </div>
+      <!-- GRAPHING CALCULATOR VIEW -->
+      <div id="graphCalcView" style="display:none;flex-direction:column;flex:1;">
+        <div class="toolbar" style="flex-wrap:wrap;">
+          <div id="gcExprList" style="display:flex;gap:4px;flex-wrap:wrap;flex:1;min-width:0;"></div>
+          <div class="sep"></div>
+          <button id="gcAddExpr" title="Add expression" style="font-weight:700;">+ f(x)</button>
+          <div class="sep"></div>
+          <label style="font-size:.68rem;color:var(--text-dim);display:flex;align-items:center;gap:3px;">
+            x: <input type="number" id="gcXmin" value="-10" style="width:42px;font-size:.68rem;padding:2px 3px;border-radius:3px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);"> to
+            <input type="number" id="gcXmax" value="10" style="width:42px;font-size:.68rem;padding:2px 3px;border-radius:3px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+          </label>
+          <label style="font-size:.68rem;color:var(--text-dim);display:flex;align-items:center;gap:3px;">
+            y: <input type="number" id="gcYmin" value="-10" style="width:42px;font-size:.68rem;padding:2px 3px;border-radius:3px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);"> to
+            <input type="number" id="gcYmax" value="10" style="width:42px;font-size:.68rem;padding:2px 3px;border-radius:3px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+          </label>
+          <button id="gcRedraw" style="font-size:.68rem;">Draw</button>
+          <div class="sep"></div>
+          <select id="gcShadeMode" style="font-size:.68rem;">
+            <option value="none">No Shading</option>
+            <option value="above">Shade Above</option>
+            <option value="below">Shade Below</option>
+            <option value="between">Shade Between (2 curves)</option>
+            <option value="overlap">Shade Overlap</option>
+          </select>
+          <button id="gcExportPng" title="Export PNG" style="font-size:.68rem;">PNG</button>
+          <button id="gcExportSvg" title="Export SVG" style="font-size:.68rem;">SVG</button>
+        </div>
+        <div id="gcCanvasWrap" style="flex:1;position:relative;overflow:hidden;">
+          <canvas id="gcCanvas" style="width:100%;height:100%;"></canvas>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -668,7 +741,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <p style="margin-bottom:6px;"><b>Notepad</b> (top-left) &mdash; Rich text editor with formatting, colors, and auto-save.</p>
     <p style="margin-bottom:6px;"><b>Whiteboard</b> (top-right) &mdash; Draw with pen, shapes, text. Use <i>Size</i> and <i>Opacity</i> sliders to adjust.</p>
     <p style="margin-bottom:6px;"><b>Scratch Sheet</b> (bottom-left) &mdash; Click any cell to edit. Supports formulas: <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SUM(A1:A5)</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=AVG</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SPARK</code></p>
-    <p style="margin-bottom:6px;"><b>Analytics</b> (bottom-right) &mdash; Add stock tickers for simulated charts, or switch to Concept Map.</p>
+    <p style="margin-bottom:6px;"><b>Analytics</b> (bottom-right) &mdash; Stock charts with comparison view (click &#x27A4; to compare), Concept Map, or Graph Calculator with shading &amp; export.</p>
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
     <p style="font-size:.8rem;color:var(--text-dim);">Use the <b>pane tabs</b> in the header (All / Notes / Draw / Sheet / Map) to focus on one pane. Click the <b>expand arrow</b> in any pane header to maximize it. The <b>Media</b> button stores URLs and plays audio.</p>
     <button onclick="document.getElementById('helpOverlay').style.display='none'" style="margin-top:16px;padding:7px 20px;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600;font-size:.82rem;">Got it</button>
@@ -707,17 +780,21 @@ function applyScheme(idx) {
   document.body.classList.add(scheme);
   $('#schemeLabel').textContent = scheme.charAt(0).toUpperCase() + scheme.slice(1);
   LS('scheme', idx);
-  // Update whiteboard bg color
+  // Update whiteboard pen color to match scheme
   if (scheme === 'neon') $('#wbColor').value = '#ffffff';
   else if (scheme === 'muted') $('#wbColor').value = '#3a3020';
   else $('#wbColor').value = '#222222';
   updateNotepadSwatches();
+  // Repaint whiteboard background to match new scheme
+  setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); }, 50);
 }
 
 function applyDarkLight(isLight) {
   document.body.classList.toggle('light', isLight);
   LS('lightMode', isLight);
   updateNotepadSwatches();
+  // Repaint whiteboard background for new theme
+  setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); }, 50);
 }
 
 $('#schemeSlider').addEventListener('input', function() { applyScheme(+this.value); });
@@ -751,7 +828,7 @@ $$('[data-expand]').forEach(btn => {
     const was = p.classList.contains('expanded');
     $$('.pane').forEach(el => el.classList.remove('expanded'));
     if (!was) p.classList.add('expanded');
-    setTimeout(() => { resizeWB(); resizeCM(); }, 50);
+    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); }, 50);
   });
 });
 
@@ -765,7 +842,7 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
     if (pane !== 'all') {
       document.getElementById(pane).classList.add('expanded');
     }
-    setTimeout(() => { resizeWB(); resizeCM(); }, 50);
+    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); }, 50);
   });
 });
 
@@ -882,7 +959,7 @@ function wbDrawGrid() {
 }
 function wbSaveState() { wbHist.push(wbC.toDataURL()); if (wbHist.length > 50) wbHist.shift(); }
 
-window.addEventListener('resize', () => { resizeWB(); resizeCM(); });
+window.addEventListener('resize', () => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); });
 setTimeout(resizeWB, 100);
 
 $$('.wb-tool').forEach(btn => {
@@ -1534,21 +1611,18 @@ $('#ssAdd5Row').onclick = () => { for (let i = 0; i < 5; i++) { ssD.push(new Arr
 $('#ssAdd5Col').onclick = () => { for (let i = 0; i < 5; i++) { ssD.forEach(r => r.push('')); ssC++; } LS('sheet', ssD); ssRender(); toast('+5 cols'); };
 
 /* ═══════════════════════════════════════════
-   Q4 TAB SWITCHING (Stocks / Concept Map)
+   Q4 TAB SWITCHING (Stocks / Concept Map / Graph Calc)
    ═══════════════════════════════════════════ */
 $$('#q4Tabs button').forEach(btn => {
   btn.addEventListener('click', () => {
     $$('#q4Tabs button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const tab = btn.dataset.q4;
-    if (tab === 'stocks') {
-      $('#stocksView').style.display = 'flex';
-      $('#cmapView').style.display = 'none';
-    } else {
-      $('#stocksView').style.display = 'none';
-      $('#cmapView').style.display = 'flex';
-      setTimeout(resizeCM, 50);
-    }
+    $('#stocksView').style.display = tab === 'stocks' ? 'flex' : 'none';
+    $('#cmapView').style.display = tab === 'cmap' ? 'flex' : 'none';
+    $('#graphCalcView').style.display = tab === 'graphcalc' ? 'flex' : 'none';
+    if (tab === 'cmap') setTimeout(resizeCM, 50);
+    if (tab === 'graphcalc') setTimeout(resizeGC, 50);
   });
 });
 
@@ -1563,7 +1637,7 @@ function genStockData(ticker, range) {
   for (let i = 0; i < ticker.length; i++) seed = (seed * 31 + ticker.charCodeAt(i)) & 0x7fffffff;
   function rand() { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; }
 
-  const points = range === '1D' ? 78 : range === '5D' ? 390 : range === '1M' ? 22 : range === '6M' ? 130 : 252;
+  const points = range === '1D' ? 78 : range === '5D' ? 390 : range === '1M' ? 22 : range === '6M' ? 130 : range === '1Y' ? 252 : range === '3Y' ? 756 : 1260;
   const basePrice = 50 + rand() * 450;
   const volatility = 0.005 + rand() * 0.02;
   const trend = (rand() - 0.45) * 0.002;
@@ -1574,14 +1648,20 @@ function genStockData(ticker, range) {
   return data;
 }
 
+let compareTickers = LS('compareTickers') || [];
+const COMPARE_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+
 function renderStockDash() {
   const dash = $('#stockDash');
   if (!stockTickers.length) {
     dash.innerHTML = '<div style="width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px;">Add a ticker symbol above to start tracking stocks.<br>Data is simulated for demonstration.</div>';
+    renderCompareChart();
     return;
   }
   const range = $('#stockRange').value;
   const scheme = SCHEMES[+$('#schemeSlider').value];
+  // Check if we're in "All" pane mode (not expanded)
+  const isAllView = !document.getElementById('q-map').classList.contains('expanded');
   dash.innerHTML = '';
   stockTickers.forEach(ticker => {
     const data = genStockData(ticker, range);
@@ -1589,17 +1669,30 @@ function renderStockDash() {
     const prev = data[0];
     const change = ((current - prev) / prev * 100);
     const isUp = change >= 0;
+    const inCompare = compareTickers.includes(ticker);
 
     const card = document.createElement('div');
     card.className = 'stat-card';
     card.style.minWidth = '180px';
     card.style.flex = '1';
     card.innerHTML =
-      '<div class="sc-label">' + ticker + '</div>' +
+      '<div class="sc-header"><div class="sc-label">' + ticker + '</div>' +
+      '<span class="sc-compare-btn' + (inCompare ? ' active' : '') + '" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart">&#x27A4;</span></div>' +
       '<div class="sc-value">$' + current.toFixed(2) + '</div>' +
       '<div class="sc-change ' + (isUp ? 'sc-up' : 'sc-down') + '">' + (isUp ? '&#9650; +' : '&#9660; ') + change.toFixed(2) + '% (' + range + ')</div>' +
       '<canvas width="180" height="50"></canvas>';
     dash.appendChild(card);
+
+    // Compare button handler
+    card.querySelector('.sc-compare-btn').onclick = () => {
+      if (compareTickers.includes(ticker)) {
+        compareTickers = compareTickers.filter(t => t !== ticker);
+      } else {
+        compareTickers.push(ticker);
+      }
+      LS('compareTickers', compareTickers);
+      renderStockDash();
+    };
 
     // Draw sparkline chart
     const cvs = card.querySelector('canvas');
@@ -1608,7 +1701,6 @@ function renderStockDash() {
     const min = Math.min(...data), max = Math.max(...data);
     const rng = max - min || 1;
 
-    // Fill area
     ctx2.beginPath();
     data.forEach((v, i) => {
       const x = (i / (data.length - 1)) * w;
@@ -1619,21 +1711,111 @@ function renderStockDash() {
     ctx2.fillStyle = isUp ? 'rgba(74,153,99,.15)' : 'rgba(204,68,68,.15)';
     ctx2.fill();
 
-    // Line
     ctx2.beginPath();
     data.forEach((v, i) => {
       const x = (i / (data.length - 1)) * w;
       const y = h - ((v - min) / rng) * (h - 6) - 3;
       i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
     });
-    const lineColor = isUp
-      ? (scheme === 'neon' ? '#39ff14' : 'var(--success)')
-      : (scheme === 'neon' ? '#ff2a6d' : 'var(--danger)');
     ctx2.strokeStyle = isUp ? '#4a9' : '#c44';
     ctx2.lineWidth = 1.5;
     ctx2.stroke();
   });
+  renderCompareChart();
 }
+
+function renderCompareChart() {
+  const wrap = $('#stockCompareWrap');
+  const chipsEl = $('#compareChips');
+  if (!compareTickers.length) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'flex';
+  // Render compare chips
+  chipsEl.innerHTML = '';
+  compareTickers.forEach((t, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'ticker-chip';
+    chip.style.borderColor = COMPARE_COLORS[i % COMPARE_COLORS.length];
+    chip.style.color = COMPARE_COLORS[i % COMPARE_COLORS.length];
+    chip.style.background = COMPARE_COLORS[i % COMPARE_COLORS.length] + '22';
+    chip.innerHTML = t + ' <span class="tc-del">&times;</span>';
+    chip.querySelector('.tc-del').onclick = () => {
+      compareTickers.splice(i, 1);
+      LS('compareTickers', compareTickers);
+      renderStockDash();
+    };
+    chipsEl.appendChild(chip);
+  });
+  // Draw comparison chart on canvas
+  const cvs = $('#compareCanvas');
+  const rect = cvs.parentElement.getBoundingClientRect();
+  cvs.width = cvs.offsetWidth * (window.devicePixelRatio || 1);
+  cvs.height = Math.max(120, cvs.offsetHeight) * (window.devicePixelRatio || 1);
+  const ctx = cvs.getContext('2d');
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+  const w = cvs.offsetWidth, h = Math.max(120, cvs.offsetHeight);
+  ctx.clearRect(0, 0, w, h);
+  const range = $('#stockRange').value;
+  const pad = { top: 20, right: 10, bottom: 24, left: 50 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
+  // Normalize all to % change
+  const allSeries = compareTickers.map(t => {
+    const data = genStockData(t, range);
+    return data.map(v => ((v - data[0]) / data[0]) * 100);
+  });
+  let gMin = Infinity, gMax = -Infinity;
+  allSeries.forEach(s => { s.forEach(v => { if (v < gMin) gMin = v; if (v > gMax) gMax = v; }); });
+  const gRange = gMax - gMin || 1;
+  // Grid lines
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--border') || '#333';
+  ctx.lineWidth = 0.5;
+  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-dim') || '#888';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (plotH / 4) * i;
+    const val = gMax - (gRange / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+    ctx.fillText(val.toFixed(1) + '%', pad.left - 4, y + 3);
+  }
+  // Zero line
+  if (gMin < 0 && gMax > 0) {
+    const zeroY = pad.top + ((gMax - 0) / gRange) * plotH;
+    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--text-dim') || '#666';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(w - pad.right, zeroY); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // Draw each series
+  allSeries.forEach((series, si) => {
+    const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    series.forEach((v, i) => {
+      const x = pad.left + (i / (series.length - 1)) * plotW;
+      const y = pad.top + ((gMax - v) / gRange) * plotH;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // Label at end
+    const lastY = pad.top + ((gMax - series[series.length - 1]) / gRange) * plotH;
+    ctx.fillStyle = color;
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(compareTickers[si], w - pad.right + 3, lastY + 3);
+  });
+}
+
+$('#clearCompare').onclick = () => {
+  compareTickers = [];
+  LS('compareTickers', compareTickers);
+  renderStockDash();
+};
 
 $('#stockAdd').onclick = () => {
   const t = $('#stockInput').value.trim().toUpperCase();
@@ -1667,6 +1849,283 @@ function renderStockChips() {
 }
 renderStockChips();
 renderStockDash();
+
+/* ═══════════════════════════════════════════
+   GRAPHING CALCULATOR ENGINE
+   ═══════════════════════════════════════════ */
+const GC_COLORS = ['#6366f1','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+let gcExpressions = LS('gcExpressions') || [{ expr: 'sin(x)', color: GC_COLORS[0] }];
+
+function gcParse(expr, x) {
+  // Safe math expression evaluator
+  try {
+    const fn = expr
+      .replace(/\bsin\b/g, 'Math.sin')
+      .replace(/\bcos\b/g, 'Math.cos')
+      .replace(/\btan\b/g, 'Math.tan')
+      .replace(/\basin\b/g, 'Math.asin')
+      .replace(/\bacos\b/g, 'Math.acos')
+      .replace(/\batan\b/g, 'Math.atan')
+      .replace(/\babs\b/g, 'Math.abs')
+      .replace(/\bsqrt\b/g, 'Math.sqrt')
+      .replace(/\bcbrt\b/g, 'Math.cbrt')
+      .replace(/\blog\b/g, 'Math.log10')
+      .replace(/\bln\b/g, 'Math.log')
+      .replace(/\bexp\b/g, 'Math.exp')
+      .replace(/\bceil\b/g, 'Math.ceil')
+      .replace(/\bfloor\b/g, 'Math.floor')
+      .replace(/\bround\b/g, 'Math.round')
+      .replace(/\bsign\b/g, 'Math.sign')
+      .replace(/\bPI\b/gi, 'Math.PI')
+      .replace(/\be\b/g, 'Math.E')
+      .replace(/\^/g, '**');
+    return new Function('x', 'return ' + fn)(x);
+  } catch(e) { return NaN; }
+}
+
+function resizeGC() {
+  const cvs = $('#gcCanvas');
+  const wrap = $('#gcCanvasWrap');
+  if (!wrap || wrap.offsetWidth === 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  cvs.width = wrap.offsetWidth * dpr;
+  cvs.height = wrap.offsetHeight * dpr;
+  cvs.style.width = wrap.offsetWidth + 'px';
+  cvs.style.height = wrap.offsetHeight + 'px';
+  renderGC();
+}
+
+function renderGC() {
+  const cvs = $('#gcCanvas');
+  if (!cvs || cvs.width === 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  const ctx = cvs.getContext('2d');
+  const w = cvs.width / dpr, h = cvs.height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const xMin = parseFloat($('#gcXmin').value) || -10;
+  const xMax = parseFloat($('#gcXmax').value) || 10;
+  const yMin = parseFloat($('#gcYmin').value) || -10;
+  const yMax = parseFloat($('#gcYmax').value) || 10;
+  const xRange = xMax - xMin || 1;
+  const yRange = yMax - yMin || 1;
+
+  const toX = v => ((v - xMin) / xRange) * w;
+  const toY = v => h - ((v - yMin) / yRange) * h;
+  const borderColor = getComputedStyle(document.body).getPropertyValue('--border') || '#333';
+  const dimColor = getComputedStyle(document.body).getPropertyValue('--text-dim') || '#888';
+
+  // Grid
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 0.3;
+  ctx.fillStyle = dimColor;
+  ctx.font = '10px sans-serif';
+  const gridStep = (v) => { const mag = Math.pow(10, Math.floor(Math.log10(v))); const r = v / mag; return r <= 2 ? mag * 0.5 : r <= 5 ? mag : mag * 2; };
+  const xStep = gridStep(xRange / 8);
+  const yStep = gridStep(yRange / 8);
+  for (let gx = Math.ceil(xMin / xStep) * xStep; gx <= xMax; gx += xStep) {
+    const px = toX(gx);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillText(+gx.toFixed(6), px, toY(0) + 12 > h ? h - 2 : Math.max(10, toY(0) + 12));
+  }
+  for (let gy = Math.ceil(yMin / yStep) * yStep; gy <= yMax; gy += yStep) {
+    const py = toY(gy);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+    ctx.textAlign = 'right';
+    ctx.fillText(+gy.toFixed(6), toX(0) - 4 < 0 ? 30 : Math.min(w - 4, toX(0) - 4), py + 3);
+  }
+
+  // Axes
+  ctx.strokeStyle = dimColor;
+  ctx.lineWidth = 1;
+  if (yMin <= 0 && yMax >= 0) { ctx.beginPath(); ctx.moveTo(0, toY(0)); ctx.lineTo(w, toY(0)); ctx.stroke(); }
+  if (xMin <= 0 && xMax >= 0) { ctx.beginPath(); ctx.moveTo(toX(0), 0); ctx.lineTo(toX(0), h); ctx.stroke(); }
+
+  // Evaluate all expressions
+  const steps = Math.max(400, w * 2);
+  const allData = gcExpressions.map(e => {
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const x = xMin + (i / steps) * xRange;
+      const y = gcParse(e.expr, x);
+      pts.push({ x, y, px: toX(x), py: toY(y) });
+    }
+    return pts;
+  });
+
+  // Shading
+  const shadeMode = $('#gcShadeMode').value;
+  if (shadeMode === 'above' && allData.length >= 1) {
+    ctx.fillStyle = gcExpressions[0].color + '33';
+    ctx.beginPath();
+    allData[0].forEach((p, i) => { if (!isFinite(p.py)) return; i === 0 ? ctx.moveTo(p.px, p.py) : ctx.lineTo(p.px, p.py); });
+    ctx.lineTo(w, 0); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+  } else if (shadeMode === 'below' && allData.length >= 1) {
+    ctx.fillStyle = gcExpressions[0].color + '33';
+    ctx.beginPath();
+    allData[0].forEach((p, i) => { if (!isFinite(p.py)) return; i === 0 ? ctx.moveTo(p.px, p.py) : ctx.lineTo(p.px, p.py); });
+    ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath(); ctx.fill();
+  } else if ((shadeMode === 'between' || shadeMode === 'overlap') && allData.length >= 2) {
+    ctx.fillStyle = '#6366f144';
+    ctx.beginPath();
+    allData[0].forEach((p, i) => { if (!isFinite(p.py)) return; i === 0 ? ctx.moveTo(p.px, p.py) : ctx.lineTo(p.px, p.py); });
+    for (let i = allData[1].length - 1; i >= 0; i--) {
+      const p = allData[1][i];
+      if (!isFinite(p.py)) continue;
+      ctx.lineTo(p.px, p.py);
+    }
+    ctx.closePath(); ctx.fill();
+    if (shadeMode === 'overlap') {
+      // Highlight overlap region where curves cross
+      ctx.fillStyle = '#ef444444';
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i <= steps; i++) {
+        const y1 = allData[0][i].py, y2 = allData[1][i].py;
+        if (!isFinite(y1) || !isFinite(y2)) continue;
+        const px = allData[0][i].px;
+        const lower = Math.max(y1, y2); // screen coords inverted
+        if (!started) { ctx.moveTo(px, lower); started = true; } else { ctx.lineTo(px, lower); }
+      }
+      for (let i = steps; i >= 0; i--) {
+        const y1 = allData[0][i].py, y2 = allData[1][i].py;
+        if (!isFinite(y1) || !isFinite(y2)) continue;
+        const px = allData[0][i].px;
+        const upper = Math.min(y1, y2);
+        ctx.lineTo(px, upper);
+      }
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  // Draw curves
+  allData.forEach((pts, si) => {
+    ctx.strokeStyle = gcExpressions[si].color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let drawing = false;
+    pts.forEach(p => {
+      if (!isFinite(p.py) || p.py < -h * 2 || p.py > h * 3) { drawing = false; return; }
+      if (!drawing) { ctx.moveTo(p.px, p.py); drawing = true; } else { ctx.lineTo(p.px, p.py); }
+    });
+    ctx.stroke();
+    // Label
+    const lastValid = pts.filter(p => isFinite(p.py) && p.py >= 0 && p.py <= h).pop();
+    if (lastValid) {
+      ctx.fillStyle = gcExpressions[si].color;
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('f' + (si + 1), lastValid.px + 4, lastValid.py - 4);
+    }
+  });
+}
+
+function renderGCExprList() {
+  const el = $('#gcExprList');
+  el.innerHTML = '';
+  gcExpressions.forEach((e, i) => {
+    const item = document.createElement('div');
+    item.className = 'gc-expr-item';
+    item.innerHTML =
+      '<input type="color" value="' + e.color + '" />' +
+      '<input type="text" value="' + e.expr.replace(/"/g, '&quot;') + '" placeholder="e.g. x^2 + sin(x)" />' +
+      '<span class="gc-del">&times;</span>';
+    item.querySelector('input[type="color"]').oninput = function() {
+      gcExpressions[i].color = this.value;
+      LS('gcExpressions', gcExpressions);
+      renderGC();
+    };
+    item.querySelector('input[type="text"]').oninput = function() {
+      gcExpressions[i].expr = this.value;
+      LS('gcExpressions', gcExpressions);
+      renderGC();
+    };
+    item.querySelector('.gc-del').onclick = () => {
+      gcExpressions.splice(i, 1);
+      LS('gcExpressions', gcExpressions);
+      renderGCExprList();
+      renderGC();
+    };
+    el.appendChild(item);
+  });
+}
+
+$('#gcAddExpr').onclick = () => {
+  gcExpressions.push({ expr: '', color: GC_COLORS[gcExpressions.length % GC_COLORS.length] });
+  LS('gcExpressions', gcExpressions);
+  renderGCExprList();
+};
+
+$('#gcRedraw').onclick = () => { renderGC(); toast('Graph updated'); };
+['gcXmin','gcXmax','gcYmin','gcYmax'].forEach(id => {
+  $('#' + id).addEventListener('change', renderGC);
+});
+$('#gcShadeMode').onchange = renderGC;
+
+// Export PNG
+$('#gcExportPng').onclick = () => {
+  const cvs = $('#gcCanvas');
+  // Draw with white/dark background for clean export
+  const dpr = window.devicePixelRatio || 1;
+  const expCvs = document.createElement('canvas');
+  expCvs.width = cvs.width; expCvs.height = cvs.height;
+  const ectx = expCvs.getContext('2d');
+  const isLight = document.body.classList.contains('light');
+  ectx.fillStyle = isLight ? '#ffffff' : '#1a1a2e';
+  ectx.fillRect(0, 0, expCvs.width, expCvs.height);
+  ectx.drawImage(cvs, 0, 0);
+  const a = document.createElement('a');
+  a.download = 'graph-' + Date.now() + '.png';
+  a.href = expCvs.toDataURL('image/png');
+  a.click();
+  toast('PNG exported');
+};
+
+// Export SVG
+$('#gcExportSvg').onclick = () => {
+  const xMin = parseFloat($('#gcXmin').value) || -10;
+  const xMax = parseFloat($('#gcXmax').value) || 10;
+  const yMin = parseFloat($('#gcYmin').value) || -10;
+  const yMax = parseFloat($('#gcYmax').value) || 10;
+  const xRange = xMax - xMin || 1;
+  const yRange = yMax - yMin || 1;
+  const svgW = 800, svgH = 600;
+  const toSX = v => ((v - xMin) / xRange) * svgW;
+  const toSY = v => svgH - ((v - yMin) / yRange) * svgH;
+  const isLight = document.body.classList.contains('light');
+  let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + svgH + '" viewBox="0 0 ' + svgW + ' ' + svgH + '">\n';
+  svg += '<rect width="100%" height="100%" fill="' + (isLight ? '#fff' : '#1a1a2e') + '"/>\n';
+  // Axes
+  const axisColor = isLight ? '#999' : '#555';
+  if (yMin <= 0 && yMax >= 0) svg += '<line x1="0" y1="' + toSY(0) + '" x2="' + svgW + '" y2="' + toSY(0) + '" stroke="' + axisColor + '" stroke-width="1"/>\n';
+  if (xMin <= 0 && xMax >= 0) svg += '<line x1="' + toSX(0) + '" y1="0" x2="' + toSX(0) + '" y2="' + svgH + '" stroke="' + axisColor + '" stroke-width="1"/>\n';
+  // Curves
+  gcExpressions.forEach((e, si) => {
+    let d = '';
+    for (let i = 0; i <= 800; i++) {
+      const x = xMin + (i / 800) * xRange;
+      const y = gcParse(e.expr, x);
+      if (!isFinite(y)) continue;
+      const px = toSX(x), py = toSY(y);
+      if (py < -svgH || py > svgH * 2) continue;
+      d += (d === '' ? 'M' : 'L') + px.toFixed(2) + ',' + py.toFixed(2) + ' ';
+    }
+    svg += '<path d="' + d + '" fill="none" stroke="' + e.color + '" stroke-width="2"/>\n';
+  });
+  svg += '</svg>';
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const a = document.createElement('a');
+  a.download = 'graph-' + Date.now() + '.svg';
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  toast('SVG exported');
+};
+
+renderGCExprList();
+// Initial render when tab is shown
+setTimeout(() => { if ($('#graphCalcView').style.display === 'flex') resizeGC(); }, 100);
 
 
 </script>
