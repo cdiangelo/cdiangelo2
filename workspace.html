@@ -427,8 +427,8 @@ body.light .fun-btn { background: var(--accent); }
 /* Desk — full width of workstation, at bottom */
 .robot-desk { position: absolute; bottom: 0; left: 0; right: 0; height: 20px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 4px rgba(0,0,0,.3); }
 /* Monitors — in front of robot (z-index 5), positioned on desk */
-.robot-monitors { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); margin-left: -16px; display: flex; gap: 6px; z-index: 5; }
-.robot-monitor { width: 22px; height: 28px; background: #0a0a0a; border: 2px solid #333; border-radius: 2px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s, border-color 0.3s; }
+.robot-monitors { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); margin-left: -16px; display: flex; flex-direction: column; gap: 3px; z-index: 5; }
+.robot-monitor { width: 30px; height: 22px; background: #0a0a0a; border: 2px solid #333; border-radius: 2px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s, border-color 0.3s; }
 .robot-monitor.on { border-color: #555; box-shadow: inset 0 0 5px rgba(76,175,80,.4), 0 0 4px rgba(76,175,80,.2); }
 /* Robot body — behind monitors (z-index 4), centered slightly right of monitors */
 .robot-body { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); margin-left: 14px; text-align: center; z-index: 4; }
@@ -508,6 +508,7 @@ body.light .fun-btn { background: var(--accent); }
 .sleeping-mode .robot-carpet { display: none; }
 .sleeping-mode .robot-genie-hat { display: none; }
 .sleeping-mode .robot-arms { display: none; }
+.sleeping-mode .robot-eyes .eye { height: 1px; border-radius: 1px; width: 5px; background: #1a1a1a; box-shadow: none; }
 /* Zzz animation */
 .robot-zzz { display: none; position: absolute; z-index: 10; font-size: .7rem; color: rgba(255,255,255,.4); font-weight: 700; }
 .sleeping-mode .robot-zzz { display: block; animation: zzzFloat 2.5s ease-in-out infinite; }
@@ -515,6 +516,10 @@ body.light .fun-btn { background: var(--accent); }
   0% { opacity: .6; transform: translate(0, 0) scale(.8); }
   50% { opacity: .3; transform: translate(6px, -12px) scale(1); }
   100% { opacity: 0; transform: translate(10px, -22px) scale(1.2); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(60px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 /* ═══ EGYPTIAN DESERT SCENE ═══ */
@@ -1276,21 +1281,43 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 
 <!-- ═══ AUTH GATE ═══ -->
 <div id="authGate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:system-ui,-apple-system,sans-serif;">
-  <div id="authBox" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:40px;min-width:340px;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+  <div id="authBox" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:40px;min-width:340px;max-width:460px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);">
     <div style="font-size:2rem;margin-bottom:8px;">&#129302;</div>
-    <h2 style="color:var(--text);margin:0 0 6px;font-size:1.2rem;">Interactive Workspace</h2>
-    <p style="color:var(--text-dim);font-size:.78rem;margin:0 0 24px;">Select access mode to continue</p>
-    <div id="authModeSelect" style="display:flex;gap:12px;justify-content:center;margin-bottom:16px;">
-      <button id="authUserBtn" style="padding:12px 28px;border:1px solid var(--border);border-radius:10px;background:var(--panel-inset);color:var(--text);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;">&#128100; User</button>
-      <button id="authAdminBtn" style="padding:12px 28px;border:1px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.1);color:var(--accent2);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;">&#128272; Admin</button>
+    <h2 id="authTitle" style="color:var(--text);margin:0 0 6px;font-size:1.2rem;">Interactive Workspace</h2>
+    <p id="authSubtitle" style="color:var(--text-dim);font-size:.78rem;margin:0 0 24px;">Select your account to continue</p>
+
+    <!-- Step 1: User list + New User + Admin -->
+    <div id="authUserList" style="margin-bottom:12px;">
+      <div id="authUserListItems" style="max-height:220px;overflow-y:auto;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button id="authNewUserBtn" style="padding:10px 24px;border:1px solid var(--success, #10b981);border-radius:10px;background:rgba(16,185,129,.1);color:var(--success, #10b981);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;">+ New User</button>
+        <button id="authAdminBtn" style="padding:10px 24px;border:1px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.1);color:var(--accent2);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;">&#128272; Admin</button>
+      </div>
     </div>
+
+    <!-- Step 2: New user registration form -->
     <div id="authUserNameForm" style="display:none;margin-top:12px;">
       <input type="text" id="authUserName" placeholder="Enter your name" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:8px;box-sizing:border-box;" />
-      <input type="text" id="authUserContact" placeholder="Email or phone number" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:8px;box-sizing:border-box;" />
-      <div id="authContactError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;">Please enter a valid email or phone number</div>
-      <div id="authContactDupError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;">This email/phone is already registered</div>
-      <button id="authUserEnter" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--success, #10b981);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Enter Workspace</button>
+      <input type="email" id="authUserContact" placeholder="Email address" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:8px;box-sizing:border-box;" />
+      <div id="authContactError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;">Please enter a valid email address</div>
+      <div id="authContactDupError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;"></div>
+      <button id="authUserEnter" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--success, #10b981);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Send Verification Code</button>
+      <button id="authBackToList" style="width:100%;padding:8px;border:none;border-radius:8px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;margin-top:6px;">&#8592; Back to user list</button>
     </div>
+
+    <!-- Step 3: Email verification code entry -->
+    <div id="authVerifyForm" style="display:none;margin-top:12px;">
+      <p id="authVerifyMsg" style="color:var(--text-dim);font-size:.72rem;margin:0 0 12px;"></p>
+      <div style="display:flex;gap:6px;justify-content:center;margin-bottom:12px;">
+        <input type="text" id="authVerifyCode" maxlength="6" placeholder="000000" style="width:140px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:1.2rem;text-align:center;letter-spacing:6px;font-weight:700;box-sizing:border-box;" />
+      </div>
+      <div id="authVerifyError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;">Invalid verification code</div>
+      <button id="authVerifyBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Verify &amp; Enter</button>
+      <button id="authResendBtn" style="width:100%;padding:8px;border:none;border-radius:8px;background:none;color:var(--accent2);font-size:.7rem;cursor:pointer;margin-top:4px;">Resend code</button>
+      <button id="authBackFromVerify" style="width:100%;padding:6px;border:none;border-radius:8px;background:none;color:var(--text-dim);font-size:.68rem;cursor:pointer;">&#8592; Back</button>
+    </div>
+
+    <!-- Admin form -->
     <div id="authAdminForm" style="display:none;margin-top:12px;">
       <div style="position:relative;">
         <input type="password" id="authPassword" placeholder="Admin password" style="width:100%;padding:10px 14px;padding-right:40px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:10px;box-sizing:border-box;" />
@@ -1298,6 +1325,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
       <button id="authLoginBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Sign In</button>
       <div id="authError" style="color:var(--danger);font-size:.7rem;margin-top:6px;display:none;">Invalid password</div>
+      <button id="authBackFromAdmin" style="width:100%;padding:8px;border:none;border-radius:8px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;margin-top:6px;">&#8592; Back to user list</button>
     </div>
   </div>
 </div>
@@ -2033,94 +2061,299 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
   // If already authenticated as admin, skip gate
   if (wsIsAdmin) { gate.style.display = 'none'; return; }
 
-  // User mode: show name form
-  document.getElementById('authUserBtn').onclick = () => {
-    document.getElementById('authModeSelect').style.display = 'none';
-    document.getElementById('authUserNameForm').style.display = 'block';
-    document.getElementById('authUserName').focus();
-  };
-
-  // User name submit
-  function validateContact(val) {
-    // Email: basic pattern
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    // Phone: at least 10 digits (allows +, -, spaces, parens)
-    const phoneRe = /^[\+]?[\d\s\-\(\)]{10,}$/;
-    const digits = val.replace(/\D/g, '');
-    return emailRe.test(val) || (phoneRe.test(val) && digits.length >= 10);
+  // ---- Helpers ----
+  function validateEmail(val) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val);
   }
 
-  function isContactDuplicate(contact) {
-    const registered = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
+  function getRegistered() {
+    return JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
+  }
+
+  function isContactDuplicate(name, contact) {
+    const registered = getRegistered();
     const normalized = contact.toLowerCase().replace(/[\s\-\(\)]/g, '');
-    return registered[normalized] && registered[normalized] !== (wsUserName || '');
+    const existingName = registered[normalized];
+    if (existingName && existingName !== name) return 'email_taken';
+    for (const [regContact, regName] of Object.entries(registered)) {
+      if (regName === name && regContact !== normalized) return 'name_taken';
+    }
+    return false;
   }
 
   function registerContact(name, contact) {
-    const registered = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
+    const registered = getRegistered();
     const normalized = contact.toLowerCase().replace(/[\s\-\(\)]/g, '');
     registered[normalized] = name;
     localStorage.setItem('ws_registeredContacts', JSON.stringify(registered));
   }
 
-  function enterUserMode() {
-    const name = document.getElementById('authUserName').value.trim();
-    if (!name) { document.getElementById('authUserName').focus(); return; }
-    const contact = document.getElementById('authUserContact').value.trim();
-    // Validate contact
-    document.getElementById('authContactError').style.display = 'none';
-    document.getElementById('authContactDupError').style.display = 'none';
-    if (!contact || !validateContact(contact)) {
-      document.getElementById('authContactError').style.display = 'block';
-      document.getElementById('authUserContact').focus();
+  function maskEmail(email) {
+    const [user, domain] = email.split('@');
+    if (user.length <= 2) return user[0] + '***@' + domain;
+    return user[0] + '***' + user.slice(-1) + '@' + domain;
+  }
+
+  function generateCode() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  }
+
+  // ---- State ----
+  let pendingName = '';
+  let pendingEmail = '';
+  let pendingCode = '';
+  let isReturningUser = false;
+
+  // ---- Screen helpers ----
+  function hideAllScreens() {
+    document.getElementById('authUserList').style.display = 'none';
+    document.getElementById('authUserNameForm').style.display = 'none';
+    document.getElementById('authVerifyForm').style.display = 'none';
+    document.getElementById('authAdminForm').style.display = 'none';
+  }
+
+  function showScreen(id) {
+    hideAllScreens();
+    document.getElementById(id).style.display = 'block';
+  }
+
+  // ---- Build user list ----
+  function buildUserList() {
+    const registered = getRegistered();
+    const container = document.getElementById('authUserListItems');
+    // Get unique users: {name, email, cost, lastActive}
+    const userMap = {};
+    for (const [email, name] of Object.entries(registered)) {
+      if (!userMap[name]) userMap[name] = { name, email, cost: 0, requests: 0, lastActive: null };
+      // Grab usage data if available
+      const usage = JSON.parse(localStorage.getItem('ws_usage_' + name) || '{}');
+      userMap[name].cost = usage.cost || 0;
+      userMap[name].requests = usage.requests || 0;
+      userMap[name].lastActive = usage.lastActive || null;
+    }
+    // Also include admin usage
+    const adminUsage = JSON.parse(localStorage.getItem('ws_usage_admin') || '{}');
+    let totalCostAll = adminUsage.cost || 0;
+    const users = Object.values(userMap).sort((a, b) => {
+      if (b.lastActive && a.lastActive) return new Date(b.lastActive) - new Date(a.lastActive);
+      return b.lastActive ? 1 : -1;
+    });
+    users.forEach(u => { totalCostAll += u.cost; });
+
+    if (!users.length) {
+      container.innerHTML = '<div style="color:var(--text-dim);font-size:.72rem;padding:8px 0;">No previous users. Create a new account below.</div>';
       return;
     }
-    if (isContactDuplicate(contact)) {
-      document.getElementById('authContactDupError').style.display = 'block';
-      document.getElementById('authUserContact').focus();
+
+    let html = '';
+    users.forEach(u => {
+      const masked = maskEmail(u.email);
+      const costStr = u.cost > 0 ? '$' + u.cost.toFixed(4) : '';
+      const lastStr = u.lastActive ? new Date(u.lastActive).toLocaleDateString() : '';
+      html += '<button class="auth-user-item" data-name="' + u.name.replace(/"/g, '&quot;') + '" data-email="' + u.email + '" style="width:100%;display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:6px;border:1px solid var(--border);border-radius:10px;background:var(--panel-inset);color:var(--text);cursor:pointer;transition:all .15s;text-align:left;">' +
+        '<div style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.8rem;flex-shrink:0;">' + u.name.charAt(0).toUpperCase() + '</div>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-weight:600;font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + u.name + '</div>' +
+          '<div style="font-size:.62rem;color:var(--text-dim);">' + masked + (lastStr ? ' &middot; ' + lastStr : '') + '</div>' +
+        '</div>' +
+        (costStr ? '<div style="font-size:.62rem;color:var(--accent2);font-weight:600;flex-shrink:0;">' + costStr + '</div>' : '') +
+      '</button>';
+    });
+
+    // Total cost summary (including admin)
+    if (totalCostAll > 0) {
+      const userCostOnly = totalCostAll - (adminUsage.cost || 0);
+      html += '<div style="font-size:.6rem;color:var(--text-dim);padding:4px 8px;border-top:1px solid var(--border);margin-top:4px;display:flex;justify-content:space-between;">' +
+        '<span>Users total: $' + userCostOnly.toFixed(4) + '</span>' +
+        '<span>All (incl. admin): $' + totalCostAll.toFixed(4) + '</span>' +
+      '</div>';
+    }
+
+    container.innerHTML = html;
+
+    // Bind click events on user items
+    container.querySelectorAll('.auth-user-item').forEach(btn => {
+      btn.onmouseenter = () => { btn.style.borderColor = 'var(--accent)'; btn.style.background = 'rgba(59,130,246,.08)'; };
+      btn.onmouseleave = () => { btn.style.borderColor = 'var(--border)'; btn.style.background = 'var(--panel-inset)'; };
+      btn.onclick = () => {
+        pendingName = btn.dataset.name;
+        pendingEmail = btn.dataset.email;
+        isReturningUser = true;
+        startVerification();
+      };
+    });
+  }
+
+  // ---- Verification flow ----
+  function startVerification() {
+    pendingCode = generateCode();
+    const masked = maskEmail(pendingEmail);
+    document.getElementById('authTitle').textContent = 'Verify Your Identity';
+    document.getElementById('authSubtitle').textContent = 'Welcome back, ' + pendingName;
+    document.getElementById('authVerifyMsg').innerHTML = 'A verification code has been sent to <strong>' + masked + '</strong><br><span style="font-size:.6rem;color:var(--text-dim);">Check your email for the 6-digit code</span>';
+    document.getElementById('authVerifyCode').value = '';
+    document.getElementById('authVerifyError').style.display = 'none';
+    showScreen('authVerifyForm');
+    document.getElementById('authVerifyCode').focus();
+    // Simulate sending — show the code in a notification (no real email backend)
+    showVerificationNotification(pendingCode, pendingEmail);
+  }
+
+  function showVerificationNotification(code, email) {
+    // Create a floating notification simulating the email delivery
+    const notif = document.createElement('div');
+    notif.id = 'authCodeNotif';
+    notif.style.cssText = 'position:fixed;top:20px;right:20px;z-index:100000;background:#1a1a2e;border:1px solid #3b82f6;border-radius:12px;padding:16px 20px;box-shadow:0 8px 32px rgba(0,0,0,.6);max-width:320px;font-family:system-ui,-apple-system,sans-serif;animation:slideIn .3s ease;';
+    notif.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+      '<span style="font-size:1.2rem;">&#9993;</span>' +
+      '<span style="font-weight:600;color:#e2e8f0;font-size:.78rem;">Verification Email</span>' +
+      '<span style="margin-left:auto;font-size:.6rem;color:#64748b;">just now</span>' +
+    '</div>' +
+    '<div style="color:#94a3b8;font-size:.68rem;margin-bottom:6px;">To: ' + email + '</div>' +
+    '<div style="color:#e2e8f0;font-size:.75rem;margin-bottom:8px;">Your verification code is:</div>' +
+    '<div style="background:#0f172a;border-radius:8px;padding:12px;text-align:center;font-size:1.4rem;font-weight:700;letter-spacing:8px;color:#3b82f6;font-family:monospace;">' + code + '</div>' +
+    '<div style="color:#64748b;font-size:.58rem;margin-top:8px;">This is a simulated email. In production, this would be sent to your inbox.</div>' +
+    '<button onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#64748b;cursor:pointer;font-size:.9rem;">&times;</button>';
+    // Remove old notification if exists
+    const old = document.getElementById('authCodeNotif');
+    if (old) old.remove();
+    document.body.appendChild(notif);
+    // Auto-remove after 30s
+    setTimeout(() => { if (notif.parentElement) notif.remove(); }, 30000);
+  }
+
+  function verifyCode() {
+    const entered = document.getElementById('authVerifyCode').value.trim();
+    if (entered !== pendingCode) {
+      document.getElementById('authVerifyError').textContent = 'Invalid verification code. Please try again.';
+      document.getElementById('authVerifyError').style.display = 'block';
+      document.getElementById('authVerifyCode').value = '';
+      document.getElementById('authVerifyCode').focus();
       return;
     }
+    // Verified — enter workspace
+    const notif = document.getElementById('authCodeNotif');
+    if (notif) notif.remove();
+    registerContact(pendingName, pendingEmail);
+    completeUserLogin(pendingName, pendingEmail);
+  }
+
+  function completeUserLogin(name, email) {
     wsUserName = name;
     localStorage.setItem('ws_userName', name);
-    localStorage.setItem('ws_userContact', contact);
-    registerContact(name, contact);
+    localStorage.setItem('ws_userContact', email);
     gate.style.display = 'none';
-    // Keep Claude pane but hide admin-only elements
+    // Hide admin-only elements
     const pricingBtn = document.getElementById('aiPricingBtn');
     if (pricingBtn) pricingBtn.style.display = 'none';
     const pricingPanel = document.getElementById('aiPricingPanel');
     if (pricingPanel) pricingPanel.style.display = 'none';
-    // Hide real API key section, show locked version
     const apiSection = document.getElementById('aiApiKeySection');
     if (apiSection) apiSection.style.display = 'none';
     const lockedSection = document.getElementById('aiApiKeyLocked');
     if (lockedSection) lockedSection.style.display = 'block';
-    // Hide admin-only buttons
     const usageDashBtn = document.getElementById('aiUsageDashBtn');
     if (usageDashBtn) usageDashBtn.style.display = 'none';
     const accessReqBtn = document.getElementById('aiAccessReqBtn');
     if (accessReqBtn) accessReqBtn.style.display = 'none';
-    // Show user exit button and name
     showUserInfo();
-    // Activate genie mode for users
     setTimeout(activateGenieMode, 300);
   }
-  document.getElementById('authUserEnter').onclick = enterUserMode;
+
+  // ---- New user registration ----
+  function submitNewUser() {
+    const name = document.getElementById('authUserName').value.trim();
+    if (!name) { document.getElementById('authUserName').focus(); return; }
+    const email = document.getElementById('authUserContact').value.trim();
+    document.getElementById('authContactError').style.display = 'none';
+    document.getElementById('authContactDupError').style.display = 'none';
+    if (!email || !validateEmail(email)) {
+      document.getElementById('authContactError').style.display = 'block';
+      document.getElementById('authUserContact').focus();
+      return;
+    }
+    const dupCheck = isContactDuplicate(name, email);
+    if (dupCheck === 'email_taken') {
+      document.getElementById('authContactDupError').textContent = 'This email is already registered to another user';
+      document.getElementById('authContactDupError').style.display = 'block';
+      document.getElementById('authUserContact').focus();
+      return;
+    }
+    if (dupCheck === 'name_taken') {
+      document.getElementById('authContactDupError').textContent = 'This name is already registered with a different email';
+      document.getElementById('authContactDupError').style.display = 'block';
+      document.getElementById('authUserName').focus();
+      return;
+    }
+    pendingName = name;
+    pendingEmail = email;
+    isReturningUser = false;
+    startVerification();
+  }
+
+  // ---- Build initial user list ----
+  buildUserList();
+
+  // ---- Screen navigation ----
+  function showMainScreen() {
+    document.getElementById('authTitle').textContent = 'Interactive Workspace';
+    document.getElementById('authSubtitle').textContent = 'Select your account to continue';
+    buildUserList(); // Refresh list
+    showScreen('authUserList');
+  }
+
+  document.getElementById('authNewUserBtn').onclick = () => {
+    document.getElementById('authTitle').textContent = 'Create Account';
+    document.getElementById('authSubtitle').textContent = 'Enter your name and email to get started';
+    document.getElementById('authUserName').value = '';
+    document.getElementById('authUserContact').value = '';
+    document.getElementById('authContactError').style.display = 'none';
+    document.getElementById('authContactDupError').style.display = 'none';
+    showScreen('authUserNameForm');
+    document.getElementById('authUserName').focus();
+  };
+
+  document.getElementById('authBackToList').onclick = showMainScreen;
+  document.getElementById('authBackFromVerify').onclick = () => {
+    const notif = document.getElementById('authCodeNotif');
+    if (notif) notif.remove();
+    if (isReturningUser) showMainScreen();
+    else {
+      document.getElementById('authTitle').textContent = 'Create Account';
+      document.getElementById('authSubtitle').textContent = 'Enter your name and email to get started';
+      showScreen('authUserNameForm');
+    }
+  };
+  document.getElementById('authBackFromAdmin').onclick = showMainScreen;
+
+  // ---- Bind events ----
+  document.getElementById('authUserEnter').onclick = submitNewUser;
   document.getElementById('authUserName').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('authUserContact').focus();
   });
   document.getElementById('authUserContact').addEventListener('keydown', e => {
-    if (e.key === 'Enter') enterUserMode();
+    if (e.key === 'Enter') submitNewUser();
   });
+  document.getElementById('authVerifyBtn').onclick = verifyCode;
+  document.getElementById('authVerifyCode').addEventListener('keydown', e => {
+    if (e.key === 'Enter') verifyCode();
+  });
+  document.getElementById('authResendBtn').onclick = () => {
+    pendingCode = generateCode();
+    showVerificationNotification(pendingCode, pendingEmail);
+    document.getElementById('authVerifyError').style.display = 'none';
+    document.getElementById('authVerifyCode').value = '';
+    document.getElementById('authVerifyCode').focus();
+  };
 
-  // Admin mode: show password form
+  // Admin mode
   document.getElementById('authAdminBtn').onclick = () => {
-    document.getElementById('authModeSelect').style.display = 'none';
-    document.getElementById('authAdminForm').style.display = 'block';
+    document.getElementById('authTitle').textContent = 'Admin Login';
+    document.getElementById('authSubtitle').textContent = 'Enter admin password to continue';
+    showScreen('authAdminForm');
     document.getElementById('authPassword').focus();
   };
 
-  // Login
   function adminLogin() {
     const pw = document.getElementById('authPassword').value;
     if (pw === ADMIN_PASSWORD) {
