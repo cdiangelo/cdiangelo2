@@ -3897,7 +3897,13 @@ function wbAddLayer(type, content, opts) {
     zIndex: wbLayers.length + 10,
     label: opts.label || (type + ' ' + id),
     visible: true, locked: false,
-    content
+    content,
+    // Enriched metadata for bot spatial awareness
+    source: opts.source || 'user',
+    category: opts.category || type,
+    tags: opts.tags || [],
+    createdAt: Date.now(),
+    group: opts.group || null
   };
   wbLayers.push(layer);
   wbRenderLayers();
@@ -3947,10 +3953,11 @@ function wbRenderLayers() {
       const isResize = e.target === resH;
       const startX = e.clientX, startY = e.clientY;
       const origX = layer.x, origY = layer.y, origW = layer.w, origH = layer.h;
+      function snapToGrid(val) { const grid = 20, snap = 5; const r = val % grid; return Math.abs(r) < snap ? val - r : Math.abs(r - grid) < snap ? val - r + grid : val; }
       function onMove(ev) {
         const dx = ev.clientX - startX, dy = ev.clientY - startY;
         if (isResize) { layer.w = Math.max(40, origW + dx); layer.h = Math.max(30, origH + dy); }
-        else { layer.x = origX + dx; layer.y = origY + dy; }
+        else { layer.x = snapToGrid(origX + dx); layer.y = snapToGrid(origY + dy); }
         el.style.left = layer.x + 'px'; el.style.top = layer.y + 'px';
         el.style.width = layer.w + 'px'; el.style.height = layer.h + 'px';
       }
@@ -3973,11 +3980,14 @@ function wbRenderLayerList() {
   [...wbLayers].reverse().forEach(layer => {
     const div = document.createElement('div');
     div.style.cssText = 'display:flex;align-items:center;gap:4px;padding:3px 6px;border-bottom:1px solid var(--border);cursor:pointer;' + (wbSelectedLayer === layer.id ? 'background:rgba(59,130,246,.15);' : '');
-    const icon = layer.type === 'image' ? '&#128247;' : layer.type === 'chart' ? '&#128200;' : '&#128202;';
+    const catIcons = { image: '&#128247;', chart: '&#128200;', table: '&#128202;', shape: '&#9632;', text: '&#84;', card: '&#128196;', annotation: '&#128172;' };
+    const icon = catIcons[layer.category] || catIcons[layer.type] || '&#128200;';
+    const srcBadge = layer.source === 'bot' ? '<span style="font-size:.45rem;background:var(--accent);color:#fff;padding:0 3px;border-radius:2px;margin-left:2px;">BOT</span>' : '';
+    const groupBadge = layer.group ? '<span style="font-size:.45rem;background:var(--warning, #f59e0b);color:#000;padding:0 3px;border-radius:2px;margin-left:2px;">' + layer.group + '</span>' : '';
     div.innerHTML =
       '<input type="checkbox" ' + (layer.visible ? 'checked' : '') + ' style="margin:0;" title="Visible" />' +
       '<span style="font-size:.7rem;">' + icon + '</span>' +
-      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:.62rem;">' + layer.label + '</span>' +
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:.62rem;">' + layer.label + srcBadge + groupBadge + '</span>' +
       '<button class="ly-up" title="Move up" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.65rem;padding:0;">&#8593;</button>' +
       '<button class="ly-down" title="Move down" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.65rem;padding:0;">&#8595;</button>' +
       '<button class="ly-del" title="Delete" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:.7rem;padding:0;">&times;</button>';
@@ -8853,6 +8863,12 @@ function addToolStatus(toolName, input) {
     draw_chart_on_whiteboard: 'Drawing chart on whiteboard',
     annotate_whiteboard: 'Adding annotation to whiteboard',
     draw_summary_card: 'Drawing summary card on whiteboard',
+    // Whiteboard enhancement tools
+    draw_table: 'Drawing table on whiteboard',
+    align_layers: 'Aligning whiteboard layers',
+    group_layers: 'Grouping whiteboard layers',
+    ungroup_layers: 'Ungrouping whiteboard layers',
+    apply_whiteboard_template: 'Applying whiteboard template',
     // ADDED — Phase 7: Concept map tools
     add_concept_edge: 'Connecting concept map nodes',
     remove_concept_node: 'Removing concept map node',
@@ -8883,6 +8899,13 @@ function getWorkspaceContext() {
   if (gcExpressions.length) parts.push('Graph expressions: ' + gcExpressions.map(e => e.expr).join(', '));
   if (cmNodes.length) parts.push('Concept map nodes: ' + cmNodes.map(n => n.title).join(', '));
   if (newsTickerWatchlist.length) parts.push('News watchlist: ' + newsTickerWatchlist.join(', '));
+  // Whiteboard state for spatial awareness
+  if (wbLayers.length) {
+    const wbInfo = wbLayers.map(l => l.label + ' (' + (l.category || l.type) + ' at ' + l.x + ',' + l.y + ')').join(', ');
+    parts.push('Whiteboard (' + wbC.width + 'x' + wbC.height + '): ' + wbLayers.length + ' layers — ' + wbInfo);
+  } else {
+    parts.push('Whiteboard (' + wbC.width + 'x' + wbC.height + '): empty');
+  }
   // ADDED — Phase 4: Include agent memory in context
   const agentMem = window.getAgentMemory ? window.getAgentMemory().slice(0, 800) : '';
   if (agentMem) parts.push('Agent Memory: ' + agentMem);
@@ -8906,6 +8929,20 @@ SUPPORTED FORMULAS for the sheet: =SUM, =AVG, =MIN, =MAX, =COUNT, =MEDIAN, =PROD
 TEMPLATES you can scaffold: stock_comparison_table, earnings_tracker, portfolio_summary, scenario_model, news_sentiment_board, macro_dashboard.
 
 MEME RULES: When creating memes, keep text under 8 words per line. Top text = setup, bottom text = punchline. Match the template energy (e.g. stonks = irrationally bullish). Use specific context like ticker symbols, prices, or events — generic memes are boring. Available templates: drake, stonks, this_is_fine, galaxy_brain, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been, distracted_boyfriend, gru_plan, hide_the_pain.
+
+WHITEBOARD RULES:
+1. ALWAYS call get_draw_pane_state before drawing — know what's already there, canvas size, and free space before placing anything.
+2. CLASSIFY your task mode before starting:
+   - SKETCH: Quick diagrams, markup, freeform. Use draw_shape, add_text_overlay, annotate_whiteboard. Favor speed, don't over-style.
+   - CHART: Data visualization. Use draw_chart_on_whiteboard. Read data from sheet first, pick the right chart type, size generously.
+   - EXECUTIVE: Polished presentations and professional visuals. Call apply_whiteboard_template FIRST to set layout, then fill regions with draw_summary_card, draw_table, draw_chart_on_whiteboard. Use consistent accent colors. Call align_layers at the end.
+   - ORGANIZE: Cleanup existing content. Read state, use align_layers, group related items, reposition for clean spacing.
+   - REVIEW: Audit for clarity. Read state, analyze density/overlap/readability, report findings and apply improvements.
+3. SIZE AWARENESS: Canvas is typically ~800x500px. Use freeRegions from get_draw_pane_state to avoid overlap.
+4. GROUP related items using group_layers after building composite visuals.
+5. LABEL every layer clearly — users should understand the layers panel at a glance.
+6. For data tables: ALWAYS use draw_table instead of manual draw_shape grids.
+7. For executive/polished visuals: apply a template first, use consistent colors (#3b82f6 accent default), align when done.
 
 PRICING ANALYSIS RULES:
 When asked about pricing, costs, or business modeling:

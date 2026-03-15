@@ -62,6 +62,13 @@ export const toolDefinitions = [
   { name: 'annotate_whiteboard', description: 'Add a callout annotation with an arrow pointing to a specific canvas coordinate.', input_schema: { type: 'object', properties: { text: { type: 'string', description: 'Annotation content' }, targetX: { type: 'number', description: 'Arrow tip X' }, targetY: { type: 'number', description: 'Arrow tip Y' }, labelX: { type: 'number', description: 'Text box X' }, labelY: { type: 'number', description: 'Text box Y' }, arrowColor: { type: 'string' }, boxColor: { type: 'string', description: 'Text box background' }, textColor: { type: 'string' }, fontSize: { type: 'number', description: '12-24' }, layerName: { type: 'string' } }, required: ['text', 'targetX', 'targetY', 'labelX', 'labelY'] } },
   { name: 'draw_summary_card', description: 'Render a formatted summary card (title + bullet items) as a styled rectangle on the whiteboard.', input_schema: { type: 'object', properties: { title: { type: 'string' }, items: { type: 'array', items: { type: 'string' }, description: 'Bullet lines or Key: Value pairs' }, x: { type: 'number' }, y: { type: 'number' }, width: { type: 'number' }, style: { type: 'string', enum: ['dark', 'light', 'accent'] }, accentColor: { type: 'string', description: 'Header bar color' }, layerName: { type: 'string' } }, required: ['title', 'items', 'x', 'y', 'width'] } },
 
+  // WHITEBOARD ENHANCEMENT TOOLS
+  { name: 'draw_table', description: 'Render a formatted data table on the whiteboard with headers, rows, and optional styling.', input_schema: { type: 'object', properties: { headers: { type: 'array', items: { type: 'string' }, description: 'Column headers' }, rows: { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: 'Row data (array of arrays)' }, x: { type: 'number' }, y: { type: 'number' }, width: { type: 'number' }, style: { type: 'string', enum: ['dark', 'light', 'accent'], description: 'Color scheme' }, headerColor: { type: 'string', description: 'Header bar color (default #3b82f6)' }, layerName: { type: 'string' } }, required: ['headers', 'rows', 'x', 'y'] } },
+  { name: 'align_layers', description: 'Align or distribute whiteboard layers. Use after building multi-element visuals for clean professional layouts.', input_schema: { type: 'object', properties: { layerIds: { type: 'array', items: { type: 'number' }, description: 'Layer IDs to align. Omit for all layers.' }, alignment: { type: 'string', enum: ['left', 'center', 'right', 'top', 'middle', 'bottom', 'distribute-h', 'distribute-v'], description: 'Alignment type' } }, required: ['alignment'] } },
+  { name: 'group_layers', description: 'Group whiteboard layers under a name so they move together.', input_schema: { type: 'object', properties: { layerIds: { type: 'array', items: { type: 'number' }, description: 'Layer IDs to group' }, groupName: { type: 'string', description: 'Group name shown in layers panel' } }, required: ['layerIds', 'groupName'] } },
+  { name: 'ungroup_layers', description: 'Remove group assignment from layers.', input_schema: { type: 'object', properties: { groupName: { type: 'string', description: 'Group name to dissolve' } }, required: ['groupName'] } },
+  { name: 'apply_whiteboard_template', description: 'Apply a layout template to the whiteboard. Returns region coordinates for placing content. Call this FIRST for executive/polished visuals.', input_schema: { type: 'object', properties: { template: { type: 'string', enum: ['dashboard', 'presentation', 'comparison', 'hierarchy', 'timeline'], description: 'Layout template' }, title: { type: 'string', description: 'Main title for the template' } }, required: ['template'] } },
+
   // CONCEPT MAP TOOLS (Phase 7)
   { name: 'add_concept_edge', description: 'Connect two existing concept map nodes with a labeled directed edge.', input_schema: { type: 'object', properties: { sourceLabel: { type: 'string', description: 'Exact label of source node' }, targetLabel: { type: 'string', description: 'Exact label of target node' }, edgeLabel: { type: 'string', description: 'Optional relationship label' }, edgeStyle: { type: 'string', enum: ['solid', 'dashed', 'dotted'], description: 'Line style' }, color: { type: 'string', description: 'Edge color' }, directed: { type: 'boolean', description: 'true = arrow, false = plain line' } }, required: ['sourceLabel', 'targetLabel'] } },
   { name: 'remove_concept_node', description: 'Remove a concept map node and optionally its connected edges.', input_schema: { type: 'object', properties: { label: { type: 'string', description: 'Exact label of node to remove' }, removeOrphanedEdges: { type: 'boolean', description: 'Also remove connected edges' } }, required: ['label'] } },
@@ -506,13 +513,42 @@ export const toolHandlers = {
 
   // WHITEBOARD TOOLS — Phase 6
   get_draw_pane_state: async () => {
-    // ADDED — Phase 6: Read whiteboard state
+    // Enhanced whiteboard state with spatial awareness
+    const layers = wbLayers.map(l => ({
+      id: l.id, type: l.type, label: l.label,
+      x: l.x, y: l.y, w: l.w, h: l.h,
+      category: l.category || l.type,
+      source: l.source || 'user',
+      group: l.group || null,
+      visible: l.visible
+    }));
+    // Compute occupied vs free regions
+    const cw = wbC.width, ch = wbC.height;
+    const occupied = layers.filter(l => l.visible).map(l => ({ x: l.x, y: l.y, w: l.w, h: l.h }));
+    // Find largest free rectangle (simplified: check top/bottom/left/right margins)
+    const usedMinX = occupied.length ? Math.min(...occupied.map(r => r.x)) : cw;
+    const usedMaxX = occupied.length ? Math.max(...occupied.map(r => r.x + r.w)) : 0;
+    const usedMinY = occupied.length ? Math.min(...occupied.map(r => r.y)) : ch;
+    const usedMaxY = occupied.length ? Math.max(...occupied.map(r => r.y + r.h)) : 0;
+    // Get multi-page info
+    const pages = (typeof wbPages !== 'undefined' && wbPages) ? wbPages.map(p => ({ id: p.id, title: p.title })) : [];
+    const activePageId = typeof wbActivePageId !== 'undefined' ? wbActivePageId : null;
+
     return JSON.stringify({
       layerCount: wbLayers.length,
-      layers: wbLayers.map(l => ({ id: l.id, type: l.type, label: l.label })),
-      canvasWidth: wbC.width,
-      canvasHeight: wbC.height,
-      isEmpty: wbLayers.length === 0 && wbX.getImageData(0, 0, wbC.width, wbC.height).data.every(v => v === 0)
+      layers,
+      canvasWidth: cw,
+      canvasHeight: ch,
+      isEmpty: wbLayers.length === 0,
+      freeRegions: {
+        right: { x: usedMaxX + 20, y: 0, w: cw - usedMaxX - 20, h: ch },
+        bottom: { x: 0, y: usedMaxY + 20, w: cw, h: ch - usedMaxY - 20 },
+        left: { x: 0, y: 0, w: Math.max(0, usedMinX - 20), h: ch },
+        top: { x: 0, y: 0, w: cw, h: Math.max(0, usedMinY - 20) }
+      },
+      groups: [...new Set(wbLayers.filter(l => l.group).map(l => l.group))],
+      pages,
+      activePageId
     });
   },
 
@@ -577,7 +613,7 @@ export const toolHandlers = {
       wbX.fillText(input.label, cx, cy);
     }
     wbX.restore();
-    wbAddLayer('chart', null, { label: input.layerName || 'Shape', x, y, w, h });
+    wbAddLayer('chart', null, { label: input.layerName || 'Shape', x, y, w, h, source: 'bot', category: 'shape' });
     toast('Drew ' + input.shape);
     return JSON.stringify({ success: true, shape: input.shape });
   },
@@ -621,7 +657,7 @@ export const toolHandlers = {
     wbSaveState();
     wbX.drawImage(offscreen, input.x || 0, input.y || 0, cw, ch);
     chart.destroy();
-    wbAddLayer('chart', null, { label: input.layerName || 'Chart', x: input.x || 0, y: input.y || 0, w: cw, h: ch });
+    wbAddLayer('chart', null, { label: input.layerName || 'Chart', x: input.x || 0, y: input.y || 0, w: cw, h: ch, source: 'bot', category: 'chart' });
     toast('Chart drawn on whiteboard');
     return JSON.stringify({ success: true, chartType: input.chartType });
   },
@@ -673,7 +709,7 @@ export const toolHandlers = {
     wbX.fillText(input.text, lx, ly);
     wbX.restore();
 
-    wbAddLayer('chart', null, { label: input.layerName || 'Annotation', x: Math.min(lx, tx) - 20, y: Math.min(ly, ty) - 30, w: Math.abs(tx - lx) + 40, h: Math.abs(ty - ly) + 60 });
+    wbAddLayer('chart', null, { label: input.layerName || 'Annotation', x: Math.min(lx, tx) - 20, y: Math.min(ly, ty) - 30, w: Math.abs(tx - lx) + 40, h: Math.abs(ty - ly) + 60, source: 'bot', category: 'annotation' });
     toast('Annotation added');
     return JSON.stringify({ success: true });
   },
@@ -728,9 +764,202 @@ export const toolHandlers = {
     });
     wbX.restore();
 
-    wbAddLayer('chart', null, { label: input.layerName || 'Summary Card', x, y, w, h });
+    wbAddLayer('chart', null, { label: input.layerName || 'Summary Card', x, y, w, h, source: 'bot', category: 'card' });
     toast('Summary card drawn');
     return JSON.stringify({ success: true, items: items.length });
+  },
+
+  // WHITEBOARD ENHANCEMENT TOOLS
+  draw_table: async (input) => {
+    wbSaveState();
+    const headers = input.headers || [];
+    const rows = input.rows || [];
+    const x = input.x || 0, y = input.y || 0;
+    const w = input.width || Math.max(300, headers.length * 100);
+    const rowH = 28, headerH = 32, padding = 8;
+    const h = headerH + rows.length * rowH + padding;
+    const colW = w / headers.length;
+    const accent = input.headerColor || '#3b82f6';
+    const style = input.style || 'dark';
+    const bg = style === 'light' ? '#f0f0f0' : style === 'accent' ? accent + '22' : '#1a1a2e';
+    const fg = style === 'light' ? '#1a1a2e' : '#e2e8f0';
+    const altRow = style === 'light' ? 'rgba(0,0,0,.04)' : 'rgba(255,255,255,.04)';
+
+    wbX.save();
+    // Table background
+    wbX.fillStyle = bg;
+    wbX.beginPath(); wbX.roundRect(x, y, w, h, 6); wbX.fill();
+    // Header bar
+    wbX.fillStyle = accent;
+    wbX.beginPath(); wbX.roundRect(x, y, w, headerH, [6, 6, 0, 0]); wbX.fill();
+    // Header text
+    wbX.fillStyle = '#ffffff';
+    wbX.font = 'bold 12px system-ui';
+    wbX.textAlign = 'left'; wbX.textBaseline = 'middle';
+    headers.forEach((hdr, ci) => {
+      wbX.fillText(hdr, x + ci * colW + 8, y + headerH / 2);
+    });
+    // Column dividers
+    wbX.strokeStyle = 'rgba(255,255,255,.15)'; wbX.lineWidth = 0.5;
+    for (let ci = 1; ci < headers.length; ci++) {
+      wbX.beginPath(); wbX.moveTo(x + ci * colW, y); wbX.lineTo(x + ci * colW, y + h); wbX.stroke();
+    }
+    // Data rows
+    wbX.font = '11px system-ui'; wbX.fillStyle = fg;
+    rows.forEach((row, ri) => {
+      const ry = y + headerH + ri * rowH;
+      // Alternating row background
+      if (ri % 2 === 1) { wbX.fillStyle = altRow; wbX.fillRect(x, ry, w, rowH); wbX.fillStyle = fg; }
+      // Row divider
+      wbX.strokeStyle = 'rgba(255,255,255,.08)'; wbX.beginPath(); wbX.moveTo(x, ry); wbX.lineTo(x + w, ry); wbX.stroke();
+      // Cell text
+      row.forEach((cell, ci) => {
+        wbX.fillStyle = fg;
+        wbX.fillText(String(cell || ''), x + ci * colW + 8, ry + rowH / 2);
+      });
+    });
+    wbX.restore();
+
+    wbAddLayer('chart', null, { label: input.layerName || 'Table', x, y, w, h, source: 'bot', category: 'table' });
+    toast('Table drawn on whiteboard');
+    return JSON.stringify({ success: true, headers: headers.length, rows: rows.length });
+  },
+
+  align_layers: async (input) => {
+    const ids = input.layerIds;
+    const layers = ids ? wbLayers.filter(l => ids.includes(l.id)) : wbLayers.slice();
+    if (layers.length < 2) return JSON.stringify({ error: 'Need at least 2 layers to align' });
+
+    const align = input.alignment;
+    if (align === 'left') { const minX = Math.min(...layers.map(l => l.x)); layers.forEach(l => l.x = minX); }
+    else if (align === 'right') { const maxR = Math.max(...layers.map(l => l.x + l.w)); layers.forEach(l => l.x = maxR - l.w); }
+    else if (align === 'center') { const avgCx = layers.reduce((s, l) => s + l.x + l.w / 2, 0) / layers.length; layers.forEach(l => l.x = avgCx - l.w / 2); }
+    else if (align === 'top') { const minY = Math.min(...layers.map(l => l.y)); layers.forEach(l => l.y = minY); }
+    else if (align === 'bottom') { const maxB = Math.max(...layers.map(l => l.y + l.h)); layers.forEach(l => l.y = maxB - l.h); }
+    else if (align === 'middle') { const avgCy = layers.reduce((s, l) => s + l.y + l.h / 2, 0) / layers.length; layers.forEach(l => l.y = avgCy - l.h / 2); }
+    else if (align === 'distribute-h') {
+      layers.sort((a, b) => a.x - b.x);
+      const minX = layers[0].x, maxX = layers[layers.length - 1].x;
+      const step = (maxX - minX) / (layers.length - 1);
+      layers.forEach((l, i) => l.x = minX + i * step);
+    } else if (align === 'distribute-v') {
+      layers.sort((a, b) => a.y - b.y);
+      const minY = layers[0].y, maxY = layers[layers.length - 1].y;
+      const step = (maxY - minY) / (layers.length - 1);
+      layers.forEach((l, i) => l.y = minY + i * step);
+    }
+
+    wbRenderLayers(); wbRenderLayerList();
+    toast('Layers aligned: ' + align);
+    return JSON.stringify({ success: true, alignment: align, layersAffected: layers.length });
+  },
+
+  group_layers: async (input) => {
+    const ids = input.layerIds || [];
+    const name = input.groupName;
+    let count = 0;
+    wbLayers.forEach(l => { if (ids.includes(l.id)) { l.group = name; count++; } });
+    wbRenderLayerList();
+    toast('Grouped ' + count + ' layers as "' + name + '"');
+    return JSON.stringify({ success: true, groupName: name, layersGrouped: count });
+  },
+
+  ungroup_layers: async (input) => {
+    const name = input.groupName;
+    let count = 0;
+    wbLayers.forEach(l => { if (l.group === name) { l.group = null; count++; } });
+    wbRenderLayerList();
+    toast('Ungrouped "' + name + '" (' + count + ' layers)');
+    return JSON.stringify({ success: true, groupName: name, layersUngrouped: count });
+  },
+
+  apply_whiteboard_template: async (input) => {
+    const cw = wbC.width, ch = wbC.height;
+    const pad = 20, gap = 16;
+    const title = input.title || 'Untitled';
+    const template = input.template;
+    let regions = {};
+
+    wbSaveState();
+    wbX.save();
+
+    // Draw template title bar
+    const titleH = 40;
+    wbX.fillStyle = '#1e293b';
+    wbX.fillRect(0, 0, cw, titleH);
+    wbX.fillStyle = '#3b82f6';
+    wbX.fillRect(0, titleH - 3, cw, 3);
+    wbX.fillStyle = '#ffffff';
+    wbX.font = 'bold 16px system-ui';
+    wbX.textAlign = 'left'; wbX.textBaseline = 'middle';
+    wbX.fillText(title, pad, titleH / 2);
+
+    const contentY = titleH + gap;
+    const contentH = ch - contentY - pad;
+    const contentW = cw - pad * 2;
+
+    if (template === 'dashboard') {
+      // 2x2 grid
+      const halfW = (contentW - gap) / 2, halfH = (contentH - gap) / 2;
+      regions = {
+        topLeft: { x: pad, y: contentY, w: halfW, h: halfH },
+        topRight: { x: pad + halfW + gap, y: contentY, w: halfW, h: halfH },
+        bottomLeft: { x: pad, y: contentY + halfH + gap, w: halfW, h: halfH },
+        bottomRight: { x: pad + halfW + gap, y: contentY + halfH + gap, w: halfW, h: halfH }
+      };
+    } else if (template === 'presentation') {
+      // Large content + footer
+      const footerH = 50;
+      regions = {
+        content: { x: pad, y: contentY, w: contentW, h: contentH - footerH - gap },
+        footer: { x: pad, y: ch - pad - footerH, w: contentW, h: footerH }
+      };
+    } else if (template === 'comparison') {
+      // Side-by-side panels
+      const halfW = (contentW - gap) / 2;
+      regions = {
+        left: { x: pad, y: contentY, w: halfW, h: contentH },
+        right: { x: pad + halfW + gap, y: contentY, w: halfW, h: contentH }
+      };
+    } else if (template === 'hierarchy') {
+      // Top row (1) + middle row (2-3) + bottom row
+      const topH = contentH * 0.25, midH = contentH * 0.35, botH = contentH * 0.3;
+      const thirdW = (contentW - gap * 2) / 3;
+      regions = {
+        top: { x: pad + contentW / 3, y: contentY, w: contentW / 3, h: topH },
+        midLeft: { x: pad, y: contentY + topH + gap, w: thirdW, h: midH },
+        midCenter: { x: pad + thirdW + gap, y: contentY + topH + gap, w: thirdW, h: midH },
+        midRight: { x: pad + thirdW * 2 + gap * 2, y: contentY + topH + gap, w: thirdW, h: midH }
+      };
+    } else if (template === 'timeline') {
+      // Horizontal flow with milestones
+      const laneH = contentH * 0.6;
+      const laneY = contentY + (contentH - laneH) / 2;
+      // Draw timeline line
+      wbX.strokeStyle = '#3b82f6'; wbX.lineWidth = 3;
+      wbX.beginPath(); wbX.moveTo(pad, laneY + laneH / 2); wbX.lineTo(cw - pad, laneY + laneH / 2); wbX.stroke();
+      // 5 milestone slots
+      const slots = 5;
+      const slotW = (contentW - gap * (slots - 1)) / slots;
+      regions = {};
+      for (let i = 0; i < slots; i++) {
+        regions['slot' + (i + 1)] = { x: pad + i * (slotW + gap), y: laneY, w: slotW, h: laneH };
+        // Draw milestone dot
+        wbX.beginPath();
+        wbX.arc(pad + i * (slotW + gap) + slotW / 2, laneY + laneH / 2, 6, 0, Math.PI * 2);
+        wbX.fillStyle = '#3b82f6'; wbX.fill();
+      }
+    }
+
+    // Draw region outlines (subtle guides)
+    wbX.strokeStyle = 'rgba(59,130,246,.2)'; wbX.lineWidth = 1; wbX.setLineDash([4, 4]);
+    Object.values(regions).forEach(r => { wbX.strokeRect(r.x, r.y, r.w, r.h); });
+    wbX.setLineDash([]);
+    wbX.restore();
+
+    wbAddLayer('chart', null, { label: input.layerName || 'Template: ' + template, x: 0, y: 0, w: cw, h: ch, source: 'bot', category: 'shape' });
+    toast('Template applied: ' + template);
+    return JSON.stringify({ success: true, template, regions, canvasWidth: cw, canvasHeight: ch });
   },
 
   // CONCEPT MAP TOOLS — Phase 7
