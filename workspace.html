@@ -401,6 +401,24 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .gc-expr-item .gc-del { font-size: 11px; cursor: pointer; color: var(--danger); opacity: .7; }
 .gc-expr-item .gc-del:hover { opacity: 1; }
 
+/* Workspace list */
+.ws-item {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+  border-radius: 5px; border: 1px solid var(--border); margin-bottom: 4px;
+  background: var(--panel-inset); cursor: pointer; transition: background .15s;
+}
+.ws-item:hover { background: var(--panel); }
+.ws-item.active { border-color: var(--accent); background: rgba(99,102,241,.1); }
+.ws-item .ws-name { flex: 1; font-size: .78rem; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-item .ws-date { font-size: .62rem; color: var(--text-dim); white-space: nowrap; }
+.ws-item .ws-actions { display: flex; gap: 3px; }
+.ws-item .ws-actions button {
+  padding: 1px 5px; font-size: .62rem; border-radius: 3px; border: 1px solid var(--border);
+  background: var(--panel-inset); color: var(--text-dim); cursor: pointer;
+}
+.ws-item .ws-actions button:hover { color: var(--text); border-color: var(--accent); }
+.ws-item .ws-merge-check { width: 14px; height: 14px; accent-color: var(--accent); }
+
 /* Toast */
 .toast {
   position: fixed; bottom: 16px; left: 50%;
@@ -466,6 +484,21 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
           <audio id="audioEl" preload="none"></audio>
         </div>
+      </div>
+    </div>
+    <div class="fun-btn-wrap">
+      <button class="fun-btn" id="wsToggle">&#128190; Workspaces</button>
+      <div class="fun-panel" id="wsPanel" style="min-width:320px;">
+        <h3 style="margin-bottom:8px;">Workspaces</h3>
+        <div style="display:flex;gap:4px;margin-bottom:8px;">
+          <button class="btn-sm btn-add" id="wsNew">+ New</button>
+          <button class="btn-sm" id="wsMergeBtn" style="background:var(--accent);color:#fff;">Merge</button>
+          <div style="flex:1;"></div>
+          <button class="btn-sm" id="wsImport" style="background:var(--panel-inset);color:var(--text);border:1px solid var(--border);">Import</button>
+          <button class="btn-sm" id="wsExport" style="background:var(--panel-inset);color:var(--text);border:1px solid var(--border);">Export</button>
+        </div>
+        <div id="wsList" style="max-height:250px;overflow-y:auto;"></div>
+        <input type="file" id="wsImportFile" accept=".json" style="display:none;" />
       </div>
     </div>
     <button class="fs-btn" id="helpBtn" title="Help" style="font-size:1rem;">?</button>
@@ -691,6 +724,24 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <div id="gcExprList" style="display:flex;gap:4px;flex-wrap:wrap;flex:1;min-width:0;"></div>
           <div class="sep"></div>
           <button id="gcAddExpr" title="Add expression" style="font-weight:700;">+ f(x)</button>
+          <select id="gcExamples" style="font-size:.68rem;">
+            <option value="">Examples...</option>
+            <option value="sin(x)">sin(x)</option>
+            <option value="cos(x)">cos(x)</option>
+            <option value="tan(x)">tan(x)</option>
+            <option value="x^2">x² — Parabola</option>
+            <option value="x^3 - 3*x">x³ - 3x — Cubic</option>
+            <option value="1/x">1/x — Hyperbola</option>
+            <option value="sqrt(abs(x))">√|x|</option>
+            <option value="exp(-x^2)">e^(-x²) — Gaussian</option>
+            <option value="sin(x)/x">sin(x)/x — Sinc</option>
+            <option value="abs(sin(x))*exp(-0.1*x)">Damped |sin(x)|</option>
+            <option value="floor(x)">⌊x⌋ — Step</option>
+            <option value="log(abs(x))">log|x|</option>
+            <option value="2*sin(x)+sin(2*x)">Harmonic: 2sin(x)+sin(2x)</option>
+            <option value="x*sin(1/x)">x·sin(1/x) — Oscillating</option>
+            <option value="(x^2-1)/(x^2+1)">Rational: (x²-1)/(x²+1)</option>
+          </select>
           <div class="sep"></div>
           <label style="font-size:.68rem;color:var(--text-dim);display:flex;align-items:center;gap:3px;">
             x: <input type="number" id="gcXmin" value="-10" style="width:42px;font-size:.68rem;padding:2px 3px;border-radius:3px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);"> to
@@ -785,16 +836,12 @@ function applyScheme(idx) {
   else if (scheme === 'muted') $('#wbColor').value = '#3a3020';
   else $('#wbColor').value = '#222222';
   updateNotepadSwatches();
-  // Repaint whiteboard background to match new scheme
-  setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); }, 50);
 }
 
 function applyDarkLight(isLight) {
   document.body.classList.toggle('light', isLight);
   LS('lightMode', isLight);
   updateNotepadSwatches();
-  // Repaint whiteboard background for new theme
-  setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); }, 50);
 }
 
 $('#schemeSlider').addEventListener('input', function() { applyScheme(+this.value); });
@@ -939,15 +986,13 @@ function resizeWB() {
   if (!w) return;
   const cw = w.clientWidth, ch = w.clientHeight;
   if (cw === 0 || ch === 0) return;
-  const img = wbX.getImageData(0, 0, wbC.width, wbC.height);
+  const tmp = document.createElement('canvas');
+  tmp.width = wbC.width; tmp.height = wbC.height;
+  tmp.getContext('2d').drawImage(wbC, 0, 0);
   wbC.width = cw; wbC.height = ch;
-  wbFillBg();
-  wbX.putImageData(img, 0, 0);
+  // Canvas is transparent; CSS background on .wb-wrap handles the bg color
+  wbX.drawImage(tmp, 0, 0);
   if (wbShowGrid) wbDrawGrid();
-}
-function wbFillBg() {
-  wbX.fillStyle = getComputedStyle($('#wbWrap')).backgroundColor;
-  wbX.fillRect(0, 0, wbC.width, wbC.height);
 }
 function wbDrawGrid() {
   wbX.save();
@@ -976,7 +1021,7 @@ $('#wbGrid').onclick = function() {
   // Redraw
   if (wbHist.length) {
     const img = new Image();
-    img.onload = () => { wbFillBg(); wbX.drawImage(img, 0, 0); if (wbShowGrid) wbDrawGrid(); };
+    img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); if (wbShowGrid) wbDrawGrid(); };
     img.src = wbHist[wbHist.length - 1];
   }
 };
@@ -1009,9 +1054,11 @@ wbC.addEventListener('mousemove', e => {
     wbX.lineTo(x, y); wbX.stroke();
     wbX.globalAlpha = 1;
   } else if (wbTool === 'eraser') {
-    wbX.lineWidth = sz * 3; wbX.strokeStyle = '#ffffff';
+    wbX.globalCompositeOperation = 'destination-out';
+    wbX.lineWidth = sz * 3; wbX.strokeStyle = 'rgba(0,0,0,1)';
     wbX.lineCap = 'round'; wbX.lineJoin = 'round';
     wbX.lineTo(x, y); wbX.stroke();
+    wbX.globalCompositeOperation = 'source-over';
   }
 });
 wbC.addEventListener('mouseup', e => {
@@ -1045,8 +1092,16 @@ $('#wbUndo').onclick = () => {
   img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
   img.src = wbHist.pop();
 };
-$('#wbClear').onclick = () => { wbSaveState(); wbFillBg(); if (wbShowGrid) wbDrawGrid(); };
-$('#wbSave').onclick = () => { const a = document.createElement('a'); a.download = 'whiteboard.png'; a.href = wbC.toDataURL(); a.click(); toast('Exported'); };
+$('#wbClear').onclick = () => { wbSaveState(); wbX.clearRect(0, 0, wbC.width, wbC.height); if (wbShowGrid) wbDrawGrid(); };
+$('#wbSave').onclick = () => {
+  const expCvs = document.createElement('canvas');
+  expCvs.width = wbC.width; expCvs.height = wbC.height;
+  const ectx = expCvs.getContext('2d');
+  ectx.fillStyle = getComputedStyle($('#wbWrap')).backgroundColor;
+  ectx.fillRect(0, 0, expCvs.width, expCvs.height);
+  ectx.drawImage(wbC, 0, 0);
+  const a = document.createElement('a'); a.download = 'whiteboard.png'; a.href = expCvs.toDataURL(); a.click(); toast('Exported');
+};
 
 /* ═══════════════════════════════════════════
    SPREADSHEET
@@ -2058,6 +2113,16 @@ $('#gcAddExpr').onclick = () => {
   renderGCExprList();
 };
 
+$('#gcExamples').onchange = function() {
+  if (!this.value) return;
+  gcExpressions.push({ expr: this.value, color: GC_COLORS[gcExpressions.length % GC_COLORS.length] });
+  LS('gcExpressions', gcExpressions);
+  renderGCExprList();
+  renderGC();
+  this.value = '';
+  toast('Added: ' + gcExpressions[gcExpressions.length - 1].expr);
+};
+
 $('#gcRedraw').onclick = () => { renderGC(); toast('Graph updated'); };
 ['gcXmin','gcXmax','gcYmin','gcYmax'].forEach(id => {
   $('#' + id).addEventListener('change', renderGC);
@@ -2126,6 +2191,347 @@ $('#gcExportSvg').onclick = () => {
 renderGCExprList();
 // Initial render when tab is shown
 setTimeout(() => { if ($('#graphCalcView').style.display === 'flex') resizeGC(); }, 100);
+
+/* ═══════════════════════════════════════════
+   WORKSPACE MANAGER (Local Persistence)
+   ═══════════════════════════════════════════ */
+
+function genId() { return Math.random().toString(36).slice(2, 10); }
+
+function serializeState() {
+  return {
+    notepad: np.innerHTML,
+    stockTickers: stockTickers.slice(),
+    compareTickers: compareTickers.slice(),
+    stockRange: $('#stockRange').value,
+    sheet: JSON.parse(JSON.stringify(ssD)),
+    sheetColNames: ssColNames.slice(),
+    wbCanvas: wbC.toDataURL(),
+    cmNodes: JSON.parse(JSON.stringify(cmNodes)),
+    cmEdges: JSON.parse(JSON.stringify(cmEdges)),
+    cmNID: cmNID,
+    gcExpressions: JSON.parse(JSON.stringify(gcExpressions)),
+    gcBounds: {
+      xMin: $('#gcXmin').value, xMax: $('#gcXmax').value,
+      yMin: $('#gcYmin').value, yMax: $('#gcYmax').value
+    },
+    gcShadeMode: $('#gcShadeMode').value,
+    urls: urls.slice(),
+    scheme: +$('#schemeSlider').value,
+    lightMode: $('#toggleDark').checked
+  };
+}
+
+function deserializeState(s) {
+  if (!s) return;
+  // Notepad
+  if (s.notepad !== undefined) { np.innerHTML = s.notepad; npUpdateWords(); }
+  // Stocks
+  if (s.stockTickers) { stockTickers = s.stockTickers.slice(); LS('stockTickers', stockTickers); }
+  if (s.compareTickers) { compareTickers = s.compareTickers.slice(); LS('compareTickers', compareTickers); }
+  if (s.stockRange) { $('#stockRange').value = s.stockRange; }
+  renderStockChips();
+  renderStockDash();
+  // Sheet
+  if (s.sheet) { ssD = JSON.parse(JSON.stringify(s.sheet)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; LS('sheet', ssD); ssRender(); }
+  if (s.sheetColNames) { ssColNames = s.sheetColNames.slice(); LS('sheetColNames', ssColNames); }
+  // Whiteboard
+  if (s.wbCanvas) {
+    const img = new Image();
+    img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
+    img.src = s.wbCanvas;
+  }
+  // Concept map
+  if (s.cmNodes) { cmNodes = JSON.parse(JSON.stringify(s.cmNodes)); }
+  if (s.cmEdges) { cmEdges = JSON.parse(JSON.stringify(s.cmEdges)); }
+  if (s.cmNID) { cmNID = s.cmNID; }
+  cmSave(); if (typeof cmRender === 'function') cmRender();
+  // Graph calc
+  if (s.gcExpressions) { gcExpressions = JSON.parse(JSON.stringify(s.gcExpressions)); LS('gcExpressions', gcExpressions); renderGCExprList(); }
+  if (s.gcBounds) {
+    $('#gcXmin').value = s.gcBounds.xMin; $('#gcXmax').value = s.gcBounds.xMax;
+    $('#gcYmin').value = s.gcBounds.yMin; $('#gcYmax').value = s.gcBounds.yMax;
+  }
+  if (s.gcShadeMode) { $('#gcShadeMode').value = s.gcShadeMode; }
+  if ($('#graphCalcView').style.display === 'flex') { resizeGC(); } else { renderGC(); }
+  // URLs
+  if (s.urls) { urls = s.urls.slice(); LS('urls', urls); renderUrls(); }
+  // Theme
+  if (s.scheme !== undefined) { $('#schemeSlider').value = s.scheme; applyScheme(s.scheme); }
+  if (s.lightMode !== undefined) { $('#toggleDark').checked = s.lightMode; applyDarkLight(s.lightMode); }
+}
+
+// Workspace index
+let wsIndex = LS('workspaces') || [];
+let wsActiveId = LS('activeWorkspace') || null;
+
+// Auto-create a default workspace if none exist
+if (!wsIndex.length) {
+  const id = genId();
+  wsIndex.push({ id, name: 'Default', createdAt: Date.now(), updatedAt: Date.now() });
+  wsActiveId = id;
+  LS('workspaces', wsIndex);
+  LS('activeWorkspace', wsActiveId);
+  // Save current state as the default workspace
+  LS('workspace_' + id, serializeState());
+}
+
+function saveActiveWorkspace() {
+  if (!wsActiveId) return;
+  const ws = wsIndex.find(w => w.id === wsActiveId);
+  if (ws) { ws.updatedAt = Date.now(); LS('workspaces', wsIndex); }
+  LS('workspace_' + wsActiveId, serializeState());
+}
+
+// Auto-save debounce
+let wsAutoSaveTimer = null;
+function wsAutoSave() {
+  clearTimeout(wsAutoSaveTimer);
+  wsAutoSaveTimer = setTimeout(saveActiveWorkspace, 2000);
+}
+
+// Hook into existing state changes via MutationObserver on notepad + periodic
+const wsObserver = new MutationObserver(wsAutoSave);
+wsObserver.observe(np, { childList: true, subtree: true, characterData: true });
+// Override LS to trigger auto-save on any state write
+const _origLS = LS;
+// Intercept writes to trigger auto-save (lightweight - just sets the debounce timer)
+const lsWriteKeys = ['stockTickers','compareTickers','sheet','sheetColNames','cmap','gcExpressions','urls','notepad'];
+const _origSetItem = localStorage.setItem.bind(localStorage);
+localStorage.setItem = function(k, v) {
+  _origSetItem(k, v);
+  if (lsWriteKeys.some(key => k === 'ws_' + key)) wsAutoSave();
+};
+
+function switchWorkspace(id) {
+  // Save current first
+  saveActiveWorkspace();
+  // Load new
+  wsActiveId = id;
+  LS('activeWorkspace', id);
+  const blob = LS('workspace_' + id);
+  if (blob) deserializeState(blob);
+  renderWSList();
+  toast('Switched workspace');
+}
+
+function renderWSList() {
+  const el = $('#wsList');
+  el.innerHTML = '';
+  if (!wsIndex.length) {
+    el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-dim);font-size:.75rem;">No workspaces yet.</div>';
+    return;
+  }
+  wsIndex.forEach(ws => {
+    const div = document.createElement('div');
+    div.className = 'ws-item' + (ws.id === wsActiveId ? ' active' : '');
+    const date = new Date(ws.updatedAt);
+    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    div.innerHTML =
+      '<input type="checkbox" class="ws-merge-check" data-id="' + ws.id + '" />' +
+      '<span class="ws-name" title="' + ws.name + '">' + ws.name + '</span>' +
+      '<span class="ws-date">' + dateStr + '</span>' +
+      '<div class="ws-actions">' +
+        '<button class="ws-rename" title="Rename">&#9998;</button>' +
+        '<button class="ws-dup" title="Duplicate">&#10697;</button>' +
+        '<button class="ws-del" title="Delete" style="color:var(--danger);">&times;</button>' +
+      '</div>';
+    // Click to switch (but not on buttons/checkboxes)
+    div.addEventListener('click', e => {
+      if (e.target.closest('.ws-actions') || e.target.closest('.ws-merge-check')) return;
+      if (ws.id !== wsActiveId) switchWorkspace(ws.id);
+    });
+    div.querySelector('.ws-rename').onclick = () => {
+      const name = prompt('Rename workspace:', ws.name);
+      if (name && name.trim()) {
+        ws.name = name.trim();
+        ws.updatedAt = Date.now();
+        LS('workspaces', wsIndex);
+        renderWSList();
+        toast('Renamed');
+      }
+    };
+    div.querySelector('.ws-dup').onclick = () => {
+      const newId = genId();
+      const blob = ws.id === wsActiveId ? serializeState() : LS('workspace_' + ws.id);
+      wsIndex.push({ id: newId, name: ws.name + ' (Copy)', createdAt: Date.now(), updatedAt: Date.now() });
+      LS('workspaces', wsIndex);
+      LS('workspace_' + newId, blob);
+      renderWSList();
+      toast('Duplicated');
+    };
+    div.querySelector('.ws-del').onclick = () => {
+      if (wsIndex.length <= 1) { toast('Cannot delete last workspace'); return; }
+      if (!confirm('Delete "' + ws.name + '"?')) return;
+      wsIndex = wsIndex.filter(w => w.id !== ws.id);
+      LS('workspaces', wsIndex);
+      try { localStorage.removeItem('ws_workspace_' + ws.id); } catch(e) {}
+      if (ws.id === wsActiveId) {
+        wsActiveId = wsIndex[0].id;
+        LS('activeWorkspace', wsActiveId);
+        const blob = LS('workspace_' + wsActiveId);
+        if (blob) deserializeState(blob);
+      }
+      renderWSList();
+      toast('Deleted');
+    };
+    el.appendChild(div);
+  });
+}
+
+// Panel toggle
+$('#wsToggle').onclick = e => { e.stopPropagation(); $('#wsPanel').classList.toggle('open'); if ($('#wsPanel').classList.contains('open')) renderWSList(); };
+document.addEventListener('click', e => { if (!e.target.closest('.fun-btn-wrap') || e.target.closest('#funPanel')) { /* handled by funPanel handler */ } if (!e.target.closest('[id=wsToggle]') && !e.target.closest('#wsPanel')) $('#wsPanel').classList.remove('open'); });
+
+// New workspace
+$('#wsNew').onclick = () => {
+  saveActiveWorkspace();
+  const id = genId();
+  const name = prompt('Workspace name:', 'Workspace ' + (wsIndex.length + 1));
+  if (!name) return;
+  wsIndex.push({ id, name: name.trim(), createdAt: Date.now(), updatedAt: Date.now() });
+  wsActiveId = id;
+  LS('workspaces', wsIndex);
+  LS('activeWorkspace', id);
+  // Clear all state for new workspace
+  np.innerHTML = ''; npUpdateWords();
+  stockTickers = []; compareTickers = []; LS('stockTickers', []); LS('compareTickers', []);
+  renderStockChips(); renderStockDash();
+  for (let r = 0; r < ssR; r++) for (let c = 0; c < ssC; c++) ssD[r][c] = '';
+  LS('sheet', ssD); ssRender();
+  wbX.clearRect(0, 0, wbC.width, wbC.height); wbHist = [];
+  cmNodes = []; cmEdges = []; cmNID = 1; cmSave(); cmRender();
+  gcExpressions = [{ expr: 'sin(x)', color: GC_COLORS[0] }]; LS('gcExpressions', gcExpressions); renderGCExprList(); renderGC();
+  urls = []; LS('urls', []); renderUrls();
+  saveActiveWorkspace();
+  renderWSList();
+  toast('Created: ' + name.trim());
+};
+
+// Merge
+$('#wsMergeBtn').onclick = () => {
+  const checked = [...$$('#wsList .ws-merge-check:checked')].map(cb => cb.dataset.id);
+  if (checked.length < 2) { toast('Select 2+ workspaces to merge'); return; }
+  const names = [];
+  // Load blobs
+  const blobs = checked.map(id => {
+    const ws = wsIndex.find(w => w.id === id);
+    names.push(ws ? ws.name : id);
+    return id === wsActiveId ? serializeState() : LS('workspace_' + id);
+  }).filter(Boolean);
+  if (blobs.length < 2) { toast('Could not load workspaces'); return; }
+
+  // Base = deep copy of first
+  const merged = JSON.parse(JSON.stringify(blobs[0]));
+
+  for (let i = 1; i < blobs.length; i++) {
+    const src = blobs[i];
+    // Stock tickers: union
+    if (src.stockTickers) src.stockTickers.forEach(t => { if (!merged.stockTickers.includes(t)) merged.stockTickers.push(t); });
+    if (src.compareTickers) src.compareTickers.forEach(t => { if (!merged.compareTickers.includes(t)) merged.compareTickers.push(t); });
+    // Sheet: gap-fill
+    if (src.sheet) {
+      const maxR = Math.max(merged.sheet.length, src.sheet.length);
+      const maxC = Math.max(merged.sheet[0] ? merged.sheet[0].length : 0, src.sheet[0] ? src.sheet[0].length : 0);
+      while (merged.sheet.length < maxR) merged.sheet.push(new Array(maxC).fill(''));
+      for (let r = 0; r < src.sheet.length; r++) {
+        while (merged.sheet[r].length < maxC) merged.sheet[r].push('');
+        for (let c = 0; c < src.sheet[r].length; c++) {
+          if (!merged.sheet[r][c] && src.sheet[r][c]) merged.sheet[r][c] = src.sheet[r][c];
+        }
+      }
+    }
+    // Concept map: dedup by title
+    if (src.cmNodes) {
+      const existingTitles = new Set(merged.cmNodes.map(n => n.title));
+      const idMap = {};
+      src.cmNodes.forEach(n => {
+        const existing = merged.cmNodes.find(m => m.title === n.title);
+        if (existing) {
+          idMap[n.id] = existing.id;
+        } else {
+          const newId = merged.cmNID++;
+          idMap[n.id] = newId;
+          merged.cmNodes.push({ ...n, id: newId });
+        }
+      });
+      if (src.cmEdges) {
+        src.cmEdges.forEach(e => {
+          const from = idMap[e.from] || e.from;
+          const to = idMap[e.to] || e.to;
+          if (!merged.cmEdges.some(me => me.from === from && me.to === to)) {
+            merged.cmEdges.push({ ...e, from, to });
+          }
+        });
+      }
+    }
+    // GC expressions: append non-duplicates
+    if (src.gcExpressions) {
+      src.gcExpressions.forEach(e => {
+        if (!merged.gcExpressions.some(me => me.expr === e.expr)) merged.gcExpressions.push(e);
+      });
+    }
+    // URLs: union
+    if (src.urls) src.urls.forEach(u => { if (!merged.urls.includes(u)) merged.urls.push(u); });
+    // Notepad: concatenate
+    if (src.notepad && src.notepad.trim()) {
+      merged.notepad += '<hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">' + src.notepad;
+    }
+    // Whiteboard: keep base (can't merge pixels)
+  }
+
+  // Save as new workspace
+  const mergedName = 'Merged — ' + names.join(' + ');
+  const newId = genId();
+  wsIndex.push({ id: newId, name: mergedName, createdAt: Date.now(), updatedAt: Date.now() });
+  LS('workspaces', wsIndex);
+  LS('workspace_' + newId, merged);
+  // Switch to merged
+  saveActiveWorkspace();
+  wsActiveId = newId;
+  LS('activeWorkspace', newId);
+  deserializeState(merged);
+  renderWSList();
+  toast('Merged ' + names.length + ' workspaces');
+};
+
+// Import
+$('#wsImport').onclick = () => $('#wsImportFile').click();
+$('#wsImportFile').onchange = function() {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const blob = JSON.parse(e.target.result);
+      const id = genId();
+      const name = file.name.replace(/\.json$/i, '');
+      wsIndex.push({ id, name, createdAt: Date.now(), updatedAt: Date.now() });
+      LS('workspaces', wsIndex);
+      LS('workspace_' + id, blob);
+      renderWSList();
+      toast('Imported: ' + name);
+    } catch(err) { toast('Invalid JSON file'); }
+  };
+  reader.readAsText(file);
+  this.value = '';
+};
+
+// Export
+$('#wsExport').onclick = () => {
+  const blob = serializeState();
+  const ws = wsIndex.find(w => w.id === wsActiveId);
+  const name = ws ? ws.name : 'workspace';
+  const json = JSON.stringify(blob, null, 2);
+  const b = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.download = name.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+  a.href = URL.createObjectURL(b);
+  a.click();
+  toast('Exported: ' + name);
+};
+
+renderWSList();
 
 
 </script>
