@@ -392,7 +392,6 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 
 /* Expanded pane: bigger charts */
 .pane.expanded .stat-card { min-width: 220px; }
-.pane.expanded .stat-card canvas { width: 100%; height: 80px; }
 .pane.expanded #stockCompareWrap { min-height: 250px; flex: 0 0 40%; }
 .pane.expanded #stockDash { flex: 1; }
 
@@ -1959,7 +1958,7 @@ function renderStockDash() {
       '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">&#128240;</span></div>' +
       '<div class="sc-value">$' + current.toFixed(2) + '</div>' +
       '<div class="sc-change ' + (isUp ? 'sc-up' : 'sc-down') + '">' + (isUp ? '&#9650; +' : '&#9660; ') + change.toFixed(2) + '% (' + range + ')</div>' +
-      '<canvas width="180" height="50"></canvas>';
+      '<canvas></canvas>';
     dash.appendChild(card);
 
     // Compare button handler
@@ -1978,10 +1977,17 @@ function renderStockDash() {
       pushTickerToNews(ticker);
     };
 
-    // Draw sparkline chart
+    // Draw sparkline chart (DPR-aware for crisp rendering)
     const cvs = card.querySelector('canvas');
+    const isExpanded = document.getElementById('q-map').classList.contains('expanded');
+    const dpr = window.devicePixelRatio || 1;
+    const dispW = isExpanded ? Math.min(card.offsetWidth - 20, 400) : 180;
+    const dispH = isExpanded ? 80 : 50;
+    cvs.width = dispW * dpr; cvs.height = dispH * dpr;
+    cvs.style.width = dispW + 'px'; cvs.style.height = dispH + 'px';
     const ctx2 = cvs.getContext('2d');
-    const w = cvs.width, h = cvs.height;
+    ctx2.scale(dpr, dpr);
+    const w = dispW, h = dispH;
     const min = Math.min(...data), max = Math.max(...data);
     const rng = max - min || 1;
 
