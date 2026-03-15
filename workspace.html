@@ -238,11 +238,11 @@ body.light .fun-btn { background: var(--accent); }
   font-size: 14px; padding: 2px 5px; border-radius: 3px;
 }
 .p-btn:hover { color: var(--accent2); background: rgba(255,255,255,.05); }
-.p-body { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; }
+.p-body { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; background: var(--panel); }
 
 /* ═══ TOOLBAR (shared) ═══ */
 .toolbar {
-  display: flex; gap: 3px; padding: 5px 8px; background: var(--bg);
+  display: flex; gap: 3px; padding: 5px 8px; background: var(--panel-inset);
   border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; flex-shrink: 0;
 }
 .toolbar button, .toolbar .tbtn {
@@ -638,7 +638,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
       </div>
     </div>
-    <button class="fs-btn" id="logoutBtn" title="Lock workspace" style="font-size:.7rem;color:var(--text-dim);display:none;">&#128274;</button>
+    <button class="fs-btn" id="logoutBtn" title="Exit admin mode — return to guest/user view" style="font-size:.65rem;color:var(--danger);display:none;border:1px solid var(--danger);border-radius:4px;padding:2px 8px;">&#128274; Logout</button>
     <button class="fs-btn" id="helpBtn" title="Help" style="font-size:1rem;">?</button>
     <button class="fs-btn" id="fsBtn" title="Fullscreen">&#x26F6;</button>
   </div>
@@ -706,6 +706,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
       <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
+      <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
       <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
       <button class="p-btn" data-expand="q-claude" title="Expand">&#x2922;</button>
     </div>
@@ -714,6 +715,38 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div id="aiCostPanel" style="display:none;position:absolute;top:0;right:4px;z-index:80;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:10px 14px;font-size:.65rem;min-width:220px;">
         <div style="font-weight:700;color:var(--accent2);margin-bottom:6px;">API Usage This Session</div>
         <div id="aiCostDetails"></div>
+      </div>
+      <!-- Pricing calculator panel -->
+      <div id="aiPricingPanel" style="display:none;position:absolute;top:0;left:4px;right:4px;z-index:80;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:12px 14px;font-size:.65rem;overflow-y:auto;max-height:90%;">
+        <div style="font-weight:700;color:var(--accent2);margin-bottom:8px;">&#128176; Pricing Calculator</div>
+        <div style="display:flex;flex-direction:column;gap:8px;" id="pricingCalcBody">
+          <div>
+            <label style="font-size:.58rem;color:var(--text-dim);">Model</label>
+            <select id="pricingModel" style="width:100%;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
+              <option value="claude-sonnet-4-6">Sonnet 4.6 ($3 / $15 per 1M)</option>
+              <option value="claude-haiku-4-5-20251001">Haiku 4.5 ($1 / $5 per 1M)</option>
+              <option value="claude-opus-4-6">Opus 4.6 ($15 / $75 per 1M)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.58rem;color:var(--text-dim);">Estimated Users: <b id="pricingUsersVal">100</b></label>
+            <input type="range" id="pricingUsers" min="1" max="10000" value="100" style="width:100%;" />
+          </div>
+          <div>
+            <label style="font-size:.58rem;color:var(--text-dim);">Queries per User / Month: <b id="pricingQpuVal">20</b></label>
+            <input type="range" id="pricingQpu" min="1" max="500" value="20" style="width:100%;" />
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:6px;">
+            <label style="font-size:.58rem;color:var(--text-dim);">Query Type Mix (must total 100%):</label>
+            <div style="display:flex;flex-direction:column;gap:3px;margin-top:3px;">
+              <div style="display:flex;align-items:center;gap:4px;"><span style="flex:0 0 90px;font-size:.58rem;">Simple Q&A</span><input type="range" id="pricingMixQA" min="0" max="100" value="40" style="flex:1;" /><span id="pricingMixQAVal" style="font-size:.58rem;width:30px;text-align:right;">40%</span></div>
+              <div style="display:flex;align-items:center;gap:4px;"><span style="flex:0 0 90px;font-size:.58rem;">1 Tool Call</span><input type="range" id="pricingMixTool" min="0" max="100" value="30" style="flex:1;" /><span id="pricingMixToolVal" style="font-size:.58rem;width:30px;text-align:right;">30%</span></div>
+              <div style="display:flex;align-items:center;gap:4px;"><span style="flex:0 0 90px;font-size:.58rem;">Multi-Tool</span><input type="range" id="pricingMixMulti" min="0" max="100" value="20" style="flex:1;" /><span id="pricingMixMultiVal" style="font-size:.58rem;width:30px;text-align:right;">20%</span></div>
+              <div style="display:flex;align-items:center;gap:4px;"><span style="flex:0 0 90px;font-size:.58rem;">Deep Research</span><input type="range" id="pricingMixDeep" min="0" max="100" value="10" style="flex:1;" /><span id="pricingMixDeepVal" style="font-size:.58rem;width:30px;text-align:right;">10%</span></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:8px;" id="pricingResults"></div>
+        </div>
       </div>
       <div class="ai-msgs" id="aiMsgs"></div>
       <div class="ai-input-row">
@@ -1028,15 +1061,22 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
     <div class="p-body">
       <div class="toolbar">
+        <select id="newsMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+          <option value="quick">Quick</option>
+          <option value="verified">Verified</option>
+        </select>
         <input type="text" id="newsSearch" placeholder="Search news by keyword or ticker..." style="flex:1;min-width:120px;" />
         <button id="newsSearchBtn">Search</button>
+        <button id="newsDeepResearch" title="Deep Research — Claude scans multiple sources and generates a PDF report" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.62rem;font-weight:600;">&#128269; Deep Research</button>
         <div class="sep"></div>
         <span id="newsTickerChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
       </div>
       <div id="newsFeed" style="flex:1;overflow-y:auto;padding:10px;">
         <div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">
           Search for keywords or push stocks from the Stocks panel to see related news &amp; market coverage.<br>
-          Data is simulated for demonstration.
+          <b>Quick</b>: Simulated headlines with links to real source sections.<br>
+          <b>Verified</b>: Fetches real articles from Google News RSS.<br>
+          <b>Deep Research</b>: Claude agent scans sources and generates a PDF report.
         </div>
       </div>
       <!-- Inline article viewer (archive.is sub-browser) -->
@@ -4824,48 +4864,251 @@ function genNews(keyword) {
 let newsTickerWatchlist = LS('newsTickers') || [];
 
 function renderNewsFeed() {
+  const mode = $('#newsMode').value;
+  if (mode === 'verified') { renderVerifiedNewsFeed(); return; }
+  renderQuickNewsFeed();
+}
+
+function renderQuickNewsFeed() {
   const feed = $('#newsFeed');
   const query = $('#newsSearch').value.trim();
   const allKeywords = [...new Set([...newsTickerWatchlist, ...(query ? [query] : [])])];
 
   if (!allKeywords.length) {
-    feed.innerHTML = '<div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">Search for keywords or push stocks from the Stocks panel to see related news & market coverage.<br>Data is simulated for demonstration.</div>';
+    feed.innerHTML = '<div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">Search for keywords or push stocks from the Stocks panel to see related news &amp; market coverage.<br><b>Quick mode</b>: Simulated headlines linked to real source sections.</div>';
     return;
   }
 
   let allArticles = [];
-  allKeywords.forEach(kw => {
-    allArticles = allArticles.concat(genNews(kw));
-  });
+  allKeywords.forEach(kw => { allArticles = allArticles.concat(genNews(kw)); });
   allArticles.sort((a, b) => a.hoursAgo - b.hoursAgo);
 
-  feed.innerHTML = '';
+  feed.innerHTML = '<div style="font-size:.58rem;color:var(--text-dim);padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;">&#9888; Quick mode — simulated headlines, real source links. Switch to <b>Verified</b> for real articles.</div>';
   allArticles.forEach(a => {
     const div = document.createElement('div');
     div.className = 'news-item';
     const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? a.hoursAgo + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
-    const archiveUrl = 'https://webcache.googleusercontent.com/search?q=cache:' + encodeURIComponent(a.directUrl || a.url);
     div.innerHTML =
-      '<div class="news-source">' + a.source + '</div>' +
+      '<div class="news-source">' + a.source + ' <span style="font-size:.5rem;opacity:.6;">SIMULATED</span></div>' +
       '<div class="news-title">' + a.title + '</div>' +
       '<div class="news-snippet">' + a.snippet + '</div>' +
       '<div class="news-meta"><span>' + timeStr + '</span>' +
       a.tags.map(t => '<span class="news-tag">' + t + '</span>').join('') +
       '<span class="news-direct" data-action="source" style="font-size:.6rem;color:var(--text-dim);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Source</span>' +
       '<span class="news-search" data-action="search" style="font-size:.6rem;color:var(--accent2);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Search</span>' +
-      '<span class="news-open" data-action="archive" style="font-size:.6rem;color:var(--accent);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Archive</span>' +
       '</div>';
-    // All links open in the inline viewer within the news pane
     div.onclick = (e) => {
       const action = e.target.dataset?.action;
-      if (action === 'source') { openNewsViewer(a.title, a.directUrl || a.url, archiveUrl); return; }
-      if (action === 'search') { openNewsViewer(a.title, a.url, archiveUrl); return; }
-      if (action === 'archive') { openNewsViewer(a.title, a.url, archiveUrl); return; }
-      openNewsViewer(a.title, a.url, archiveUrl);
+      if (action === 'source') { openNewsViewer(a.title, a.directUrl || a.url, a.url); return; }
+      if (action === 'search') { openNewsViewer(a.title, a.url, a.url); return; }
+      openNewsViewer(a.title, a.url, a.url);
     };
     feed.appendChild(div);
   });
 }
+
+// ── Verified news via Google News RSS (CORS proxy: api.allorigins.win) ──
+async function renderVerifiedNewsFeed() {
+  const feed = $('#newsFeed');
+  const query = $('#newsSearch').value.trim();
+  const allKeywords = [...new Set([...newsTickerWatchlist, ...(query ? [query] : [])])];
+
+  if (!allKeywords.length) {
+    feed.innerHTML = '<div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">Enter a keyword or add tickers to fetch <b>real articles</b> from Google News RSS.</div>';
+    return;
+  }
+
+  feed.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:.75rem;">Fetching verified articles...</div>';
+
+  const allArticles = [];
+  for (const kw of allKeywords) {
+    try {
+      const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(kw) + '&hl=en-US&gl=US&ceid=US:en';
+      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl);
+      const resp = await fetch(proxyUrl);
+      if (!resp.ok) throw new Error('Fetch failed: ' + resp.status);
+      const xmlText = await resp.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlText, 'text/xml');
+      const items = doc.querySelectorAll('item');
+      items.forEach((item, idx) => {
+        if (idx >= 10) return;
+        const title = item.querySelector('title')?.textContent || 'No title';
+        const link = item.querySelector('link')?.textContent || '#';
+        const pubDate = item.querySelector('pubDate')?.textContent || '';
+        const source = item.querySelector('source')?.textContent || 'Unknown';
+        const desc = item.querySelector('description')?.textContent || '';
+        // Extract plain text snippet from HTML description
+        const descDoc = parser.parseFromString(desc, 'text/html');
+        const snippet = descDoc.body?.textContent?.trim().substring(0, 200) || '';
+        const hoursAgo = pubDate ? Math.max(0, (Date.now() - new Date(pubDate).getTime()) / 3600000) : 0;
+        allArticles.push({ title, url: link, directUrl: link, source, snippet, hoursAgo, tags: [kw.toUpperCase()], verified: true });
+      });
+    } catch (err) {
+      allArticles.push({ title: 'Failed to fetch news for "' + kw + '"', url: '#', directUrl: '#', source: 'Error', snippet: err.message, hoursAgo: 0, tags: [kw], verified: false });
+    }
+  }
+
+  allArticles.sort((a, b) => a.hoursAgo - b.hoursAgo);
+
+  feed.innerHTML = '<div style="font-size:.58rem;color:var(--success);padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;">&#10003; Verified mode — ' + allArticles.filter(a => a.verified).length + ' real articles from Google News RSS</div>';
+  allArticles.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'news-item';
+    const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? Math.floor(a.hoursAgo) + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
+    div.innerHTML =
+      '<div class="news-source">' + a.source + (a.verified ? ' <span style="color:var(--success);font-size:.5rem;">&#10003; VERIFIED</span>' : '') + '</div>' +
+      '<div class="news-title">' + a.title + '</div>' +
+      (a.snippet ? '<div class="news-snippet">' + a.snippet + '</div>' : '') +
+      '<div class="news-meta"><span>' + timeStr + '</span>' +
+      a.tags.map(t => '<span class="news-tag">' + t + '</span>').join('') +
+      '<span class="news-action" data-action="read" style="font-size:.6rem;color:var(--accent2);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Read</span>' +
+      '</div>';
+    div.onclick = (e) => {
+      openNewsViewer(a.title, a.url, a.url);
+    };
+    feed.appendChild(div);
+  });
+}
+
+// ── Deep Research — Claude multi-source scan → PDF ──
+async function runDeepResearch() {
+  const query = $('#newsSearch').value.trim();
+  if (!query) { toast('Enter a research topic first'); return; }
+  if (!aiKey) { toast('Set your API key to use Deep Research'); return; }
+
+  const feed = $('#newsFeed');
+  feed.innerHTML = '<div style="text-align:center;padding:30px;color:var(--accent2);font-size:.75rem;">&#128269; Deep Research in progress...<br><span style="font-size:.62rem;color:var(--text-dim);">Claude is analyzing multiple sources for: <b>' + query + '</b></span><div id="researchProgress" style="margin-top:10px;font-size:.6rem;color:var(--text-dim);"></div></div>';
+
+  const progressEl = $('#researchProgress');
+
+  try {
+    // Step 1: Fetch verified articles for context
+    progressEl.textContent = 'Step 1/3: Fetching real articles from Google News...';
+    const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=en-US&gl=US&ceid=US:en';
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl);
+    let articleContext = '';
+    try {
+      const resp = await fetch(proxyUrl);
+      const xmlText = await resp.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlText, 'text/xml');
+      const items = doc.querySelectorAll('item');
+      const articles = [];
+      items.forEach((item, idx) => {
+        if (idx >= 15) return;
+        const title = item.querySelector('title')?.textContent || '';
+        const source = item.querySelector('source')?.textContent || '';
+        const pubDate = item.querySelector('pubDate')?.textContent || '';
+        const link = item.querySelector('link')?.textContent || '';
+        articles.push({ title, source, pubDate, link });
+      });
+      articleContext = articles.map((a, i) => (i + 1) + '. [' + a.source + '] "' + a.title + '" (' + a.pubDate + ') — ' + a.link).join('\n');
+    } catch (e) {
+      articleContext = '(Failed to fetch articles: ' + e.message + ')';
+    }
+
+    // Step 2: Send to Claude for deep analysis
+    progressEl.textContent = 'Step 2/3: Claude is analyzing and synthesizing findings...';
+    const model = $('#aiModel').value;
+    const researchPrompt = `You are conducting deep research on the topic: "${query}"
+
+Here are real, verified articles from Google News on this topic:
+${articleContext}
+
+Based on these real sources, produce a comprehensive research report with:
+
+1. **Executive Summary** (2-3 sentences)
+2. **Key Findings** (5-8 bullet points with specific data/claims from the articles)
+3. **Source Analysis** — for each source, note what unique angle or data it provides
+4. **Sentiment & Market Impact** — overall market sentiment and potential implications
+5. **Key Risks & Contrarian Views** — any warnings, downsides, or opposing perspectives
+6. **Conclusion & Outlook** — synthesize into a forward-looking perspective
+
+Format this as a polished research report. Cite specific sources by name. Use real data from the articles. Keep it professional and analytical.`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': aiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({ model, max_tokens: 4096, messages: [{ role: 'user', content: researchPrompt }] })
+    });
+
+    if (!resp.ok) throw new Error('API error: ' + resp.status);
+    const result = await resp.json();
+    aiSessionTokensIn += result.usage?.input_tokens || 0;
+    aiSessionTokensOut += result.usage?.output_tokens || 0;
+    aiSessionRequests++;
+
+    const reportText = (result.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+
+    // Step 3: Display and offer PDF download
+    progressEl.textContent = 'Step 3/3: Rendering report...';
+
+    feed.innerHTML = '';
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px;';
+    header.innerHTML = '<span style="font-size:.72rem;font-weight:700;color:var(--accent2);">&#128269; Deep Research Report: ' + query + '</span>' +
+      '<div style="display:flex;gap:4px;">' +
+      '<button id="researchPdf" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.6rem;font-weight:600;">&#128196; Download PDF</button>' +
+      '<button id="researchToNote" style="padding:3px 8px;border:1px solid var(--accent2);border-radius:4px;background:none;color:var(--accent2);cursor:pointer;font-size:.6rem;">&#128221; To Notepad</button>' +
+      '<button id="researchBack" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">Back</button>' +
+      '</div>';
+    feed.appendChild(header);
+
+    const reportDiv = document.createElement('div');
+    reportDiv.id = 'researchReport';
+    reportDiv.style.cssText = 'font-size:.72rem;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word;';
+    // Simple markdown-like rendering
+    let html = reportText
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/^## (.+)$/gm, '<h3 style="font-size:.82rem;color:var(--accent2);margin:12px 0 4px;">$1</h3>')
+      .replace(/^# (.+)$/gm, '<h2 style="font-size:.92rem;color:var(--accent);margin:14px 0 6px;">$1</h2>')
+      .replace(/^- (.+)$/gm, '<div style="padding-left:12px;">&#8226; $1</div>')
+      .replace(/^\d+\. (.+)$/gm, '<div style="padding-left:12px;">$&</div>');
+    reportDiv.innerHTML = html;
+    feed.appendChild(reportDiv);
+
+    // Sources list
+    const sourcesDiv = document.createElement('div');
+    sourcesDiv.style.cssText = 'margin-top:12px;padding-top:8px;border-top:1px solid var(--border);font-size:.6rem;color:var(--text-dim);';
+    sourcesDiv.innerHTML = '<b>Sources fetched via Google News RSS:</b><br>' + articleContext.replace(/\n/g, '<br>');
+    feed.appendChild(sourcesDiv);
+
+    // PDF download
+    document.getElementById('researchPdf').onclick = () => {
+      const printWin = window.open('', '_blank');
+      printWin.document.write('<html><head><title>Research Report: ' + query + '</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:20px;line-height:1.7;color:#222;}h1{font-size:1.4em;border-bottom:2px solid #333;padding-bottom:8px;}h2{font-size:1.1em;color:#444;margin-top:20px;}h3{font-size:1em;color:#555;}b{font-weight:700;}.sources{margin-top:30px;padding-top:12px;border-top:1px solid #ccc;font-size:.85em;color:#666;}</style></head><body>');
+      printWin.document.write('<h1>Deep Research Report: ' + query + '</h1>');
+      printWin.document.write('<p style="color:#888;font-size:.85em;">Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' via Workspace Agent</p>');
+      printWin.document.write(html.replace(/color:var\(--[^)]+\)/g, 'color:#333'));
+      printWin.document.write('<div class="sources"><b>Sources (Google News RSS):</b><br>' + articleContext.replace(/\n/g, '<br>') + '</div>');
+      printWin.document.write('</body></html>');
+      printWin.document.close();
+      setTimeout(() => printWin.print(), 500);
+    };
+
+    // Copy to notepad
+    document.getElementById('researchToNote').onclick = () => {
+      npSaveCurrentPage();
+      np.innerHTML += '<br><hr><h2>Research Report: ' + query + '</h2><p style="color:#888;font-size:.85em;">' + new Date().toLocaleDateString() + '</p>' + html;
+      npSaveCurrentPage();
+      toast('Report added to notepad');
+    };
+
+    // Back button
+    document.getElementById('researchBack').onclick = () => renderNewsFeed();
+
+  } catch (err) {
+    feed.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger);font-size:.75rem;">Research failed: ' + err.message + '</div>';
+  }
+}
+
+$('#newsDeepResearch').onclick = runDeepResearch;
 
 // Inline article viewer
 let newsViewerState = { directUrl: '', archiveUrl: '' };
@@ -4939,7 +5182,7 @@ let aiSessionRequests = 0;
 
 const MODEL_RATES = {
   'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
-  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
+  'claude-haiku-4-5-20251001': { input: 1.00, output: 5.00 },
   'claude-opus-4-6': { input: 15.00, output: 75.00 }
 };
 
@@ -4963,19 +5206,101 @@ function updateCostPanel() {
     '<div style="display:flex;justify-content:space-between;margin:3px 0;color:var(--text-dim);"><span>Rate:</span><span>$' + rates.input.toFixed(2) + '/1M in, $' + rates.output.toFixed(2) + '/1M out</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:3px 0;font-weight:700;color:var(--accent2);"><span>Session cost:</span><span>~$' + cost.toFixed(4) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-    '<div style="color:var(--text-dim);font-size:.58rem;">Per-task estimates (' + model.split('-').slice(1,2).join('') + '):</div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Simple Q&A</span><span>~$' + (1500/1e6*rates.input + 300/1e6*rates.output).toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>1 tool call</span><span>~$' + (3000/1e6*rates.input + 800/1e6*rates.output).toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Multi-tool</span><span>~$' + (8000/1e6*rates.input + 2000/1e6*rates.output).toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Build thesis</span><span>~$' + (12000/1e6*rates.input + 3000/1e6*rates.output).toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Idle:</span><span>$0.00/hr</span></div>';
+    '<div style="color:var(--text-dim);font-size:.58rem;">Per-task estimates (incl ~5K base from 28 tools + system prompt):</div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Simple Q&A (1 call)</span><span>~$' + (8000/1e6*rates.input + 500/1e6*rates.output).toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>1 tool call (2 calls)</span><span>~$' + (18000/1e6*rates.input + 1500/1e6*rates.output).toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Multi-tool (3-4 calls)</span><span>~$' + (35000/1e6*rates.input + 3000/1e6*rates.output).toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Build thesis (5+ calls)</span><span>~$' + (55000/1e6*rates.input + 5000/1e6*rates.output).toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;color:var(--text-dim);font-size:.58rem;"><span>Idle:</span><span>$0.00/hr</span></div>' +
+    '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
+    '<div style="color:var(--text-dim);font-size:.55rem;">Avg cost/req: ~$' + (aiSessionRequests ? (cost / aiSessionRequests).toFixed(4) : '0.00') + '</div>';
 }
 
 $('#aiCostBtn').onclick = () => {
   const panel = $('#aiCostPanel');
+  $('#aiPricingPanel').style.display = 'none';
   if (panel.style.display === 'none') { updateCostPanel(); panel.style.display = 'block'; }
   else panel.style.display = 'none';
 };
+
+// ── Pricing calculator ──
+const PRICING_TOKEN_PROFILES = {
+  qa:    { inputTokens: 8000, outputTokens: 500, calls: 1 },
+  tool:  { inputTokens: 18000, outputTokens: 1500, calls: 2 },
+  multi: { inputTokens: 35000, outputTokens: 3000, calls: 4 },
+  deep:  { inputTokens: 55000, outputTokens: 5000, calls: 6 }
+};
+
+function updatePricingCalc() {
+  const model = $('#pricingModel').value;
+  const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
+  const users = +$('#pricingUsers').value;
+  const qpu = +$('#pricingQpu').value;
+  const mixQA = +$('#pricingMixQA').value;
+  const mixTool = +$('#pricingMixTool').value;
+  const mixMulti = +$('#pricingMixMulti').value;
+  const mixDeep = +$('#pricingMixDeep').value;
+  const mixTotal = mixQA + mixTool + mixMulti + mixDeep;
+
+  // Update labels
+  $('#pricingUsersVal').textContent = users.toLocaleString();
+  $('#pricingQpuVal').textContent = qpu;
+  $('#pricingMixQAVal').textContent = mixQA + '%';
+  $('#pricingMixToolVal').textContent = mixTool + '%';
+  $('#pricingMixMultiVal').textContent = mixMulti + '%';
+  $('#pricingMixDeepVal').textContent = mixDeep + '%';
+
+  const totalQueries = users * qpu;
+  const normalize = mixTotal > 0 ? 100 / mixTotal : 1;
+
+  // Calculate cost per query type
+  function queryCost(profile) {
+    const p = PRICING_TOKEN_PROFILES[profile];
+    return (p.inputTokens / 1e6 * rates.input) + (p.outputTokens / 1e6 * rates.output);
+  }
+
+  const costQA = queryCost('qa');
+  const costTool = queryCost('tool');
+  const costMulti = queryCost('multi');
+  const costDeep = queryCost('deep');
+
+  const weightedCostPerQuery = (costQA * mixQA + costTool * mixTool + costMulti * mixMulti + costDeep * mixDeep) * normalize / 100;
+  const totalMonthlyCost = weightedCostPerQuery * totalQueries;
+  const costPerUser = totalMonthlyCost / (users || 1);
+
+  const el = $('#pricingResults');
+  el.innerHTML =
+    (mixTotal !== 100 ? '<div style="color:var(--danger);font-size:.55rem;margin-bottom:4px;">&#9888; Mix totals ' + mixTotal + '% (should be 100%)</div>' : '') +
+    '<div style="font-weight:700;color:var(--accent2);font-size:.68rem;margin-bottom:6px;">Monthly Cost Breakdown</div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Total queries/mo:</span><span>' + totalQueries.toLocaleString() + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per Q&A query:</span><span>$' + costQA.toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per tool query:</span><span>$' + costTool.toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per multi-tool:</span><span>$' + costMulti.toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per deep research:</span><span>$' + costDeep.toFixed(4) + '</span></div>' +
+    '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Blended cost/query:</span><span><b>$' + weightedCostPerQuery.toFixed(4) + '</b></span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Cost/user/month:</span><span><b>$' + costPerUser.toFixed(2) + '</b></span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:4px 0;font-size:.72rem;font-weight:700;color:var(--accent);"><span>Total monthly:</span><span>$' + totalMonthlyCost.toFixed(2) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Annual estimate:</span><span>$' + (totalMonthlyCost * 12).toFixed(2) + '</span></div>' +
+    '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
+    '<div style="font-size:.55rem;color:var(--text-dim);">Fixed pricing suggestions:</div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>Break-even /user/mo:</span><span>$' + costPerUser.toFixed(2) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>2x margin /user/mo:</span><span>$' + (costPerUser * 2).toFixed(2) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin /user/mo:</span><span>$' + (costPerUser * 3).toFixed(2) + '</span></div>';
+}
+
+$('#aiPricingBtn').onclick = () => {
+  const panel = $('#aiPricingPanel');
+  $('#aiCostPanel').style.display = 'none';
+  if (panel.style.display === 'none') { updatePricingCalc(); panel.style.display = 'block'; }
+  else panel.style.display = 'none';
+};
+
+// Bind pricing sliders
+['pricingModel', 'pricingUsers', 'pricingQpu', 'pricingMixQA', 'pricingMixTool', 'pricingMixMulti', 'pricingMixDeep'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updatePricingCalc);
+});
 
 if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
 
@@ -5119,7 +5444,10 @@ const AGENT_TOOLS = [
 
   // IMAGE/MEME TOOLS
   { name: 'search_image', description: 'Search for images by query. Returns URLs that can be added to draw pane.', input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
-  { name: 'create_meme', description: 'Generate a finished meme image via imgflip API with text baked in. Returns the image URL and adds it to the draw pane. Keep text SHORT (under 8 words per line).', input_schema: { type: 'object', properties: { template_name: { type: 'string', description: 'Meme template: drake, stonks, this_is_fine, galaxy_brain, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been, distracted_boyfriend, gru_plan, hide_the_pain' }, top_text: { type: 'string', description: 'Top text (setup). Keep under 8 words.' }, bottom_text: { type: 'string', description: 'Bottom text (punchline). Keep under 8 words.' } }, required: ['template_name', 'top_text', 'bottom_text'] } }
+  { name: 'create_meme', description: 'Generate a finished meme image via imgflip API with text baked in. Returns the image URL and adds it to the draw pane. Keep text SHORT (under 8 words per line).', input_schema: { type: 'object', properties: { template_name: { type: 'string', description: 'Meme template: drake, stonks, this_is_fine, galaxy_brain, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been, distracted_boyfriend, gru_plan, hide_the_pain' }, top_text: { type: 'string', description: 'Top text (setup). Keep under 8 words.' }, bottom_text: { type: 'string', description: 'Bottom text (punchline). Keep under 8 words.' } }, required: ['template_name', 'top_text', 'bottom_text'] } },
+
+  // RESEARCH TOOLS
+  { name: 'deep_research', description: 'Trigger a deep research scan on a topic. Fetches real articles from Google News, then you can analyze them. Returns article list for your synthesis.', input_schema: { type: 'object', properties: { topic: { type: 'string', description: 'Research topic or query' } }, required: ['topic'] } }
 ];
 
 // ── Tool execution dispatcher ──
@@ -5403,6 +5731,32 @@ async function executeAgentTool(name, input) {
           return JSON.stringify({ error: memeData.error_message || 'imgflip API failed' });
         } catch (err) {
           return JSON.stringify({ error: 'imgflip API error: ' + err.message });
+        }
+      }
+
+      case 'deep_research': {
+        try {
+          const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(input.topic) + '&hl=en-US&gl=US&ceid=US:en';
+          const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl);
+          const resp = await fetch(proxyUrl);
+          const xmlText = await resp.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(xmlText, 'text/xml');
+          const items = doc.querySelectorAll('item');
+          const articles = [];
+          items.forEach((item, idx) => {
+            if (idx >= 15) return;
+            articles.push({
+              title: item.querySelector('title')?.textContent || '',
+              source: item.querySelector('source')?.textContent || '',
+              date: item.querySelector('pubDate')?.textContent || '',
+              link: item.querySelector('link')?.textContent || ''
+            });
+          });
+          toast('Deep research: fetched ' + articles.length + ' articles');
+          return JSON.stringify({ topic: input.topic, articles_found: articles.length, articles, instruction: 'Analyze these real articles and synthesize findings. Write a structured report to the notepad using write_note.' });
+        } catch (err) {
+          return JSON.stringify({ error: 'Research fetch failed: ' + err.message });
         }
       }
 
