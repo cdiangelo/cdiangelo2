@@ -396,10 +396,10 @@ body.light .fun-btn { background: var(--accent); }
 }
 .scene-office ~ .robot-glass::before { background: none; }
 .scene-office ~ .robot-glass::after { background: none; }
-/* CSS-only potted plants */
-.robot-plant { position: absolute; bottom: 0; z-index: 5; width: 18px; height: 30px; }
-.robot-plant-l { left: 15%; }
-.robot-plant-r { right: 15%; }
+/* CSS-only potted plants — scale with scene, clamp horizontal position */
+.robot-plant { position: absolute; bottom: 0; z-index: 5; width: 18px; height: 30px; transform-origin: bottom center; }
+.robot-plant-l { left: clamp(10px, 15%, 80px); }
+.robot-plant-r { right: clamp(10px, 15%, 80px); }
 .plant-pot { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 11px; height: 8px; background: linear-gradient(180deg, #8D6E63, #6D4C41); border-radius: 1px 1px 3px 3px; clip-path: polygon(5% 0, 95% 0, 80% 100%, 20% 100%); }
 .plant-stem { position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%); width: 1.5px; height: 13px; background: #4CAF50; border-radius: 1px; }
 .plant-leaf { position: absolute; width: 7px; height: 4px; border-radius: 50%; background: #66BB6A; }
@@ -7806,7 +7806,13 @@ if (robotSceneSel) {
   const defaultH = 140;
   let dragging = false, startY = 0, startH = defaultH;
   const savedH = +localStorage.getItem('ws_robotSceneH');
-  if (savedH > 0) { scene.style.height = savedH + 'px'; }
+  if (savedH > 0) {
+    scene.style.height = savedH + 'px';
+    const scale = savedH / defaultH;
+    const ws = scene.querySelector('.robot-workstation');
+    if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
+    scene.querySelectorAll('.robot-plant').forEach(p => { p.style.transform = 'scale(' + scale + ')'; });
+  }
   handle.addEventListener('mousedown', e => {
     e.preventDefault();
     dragging = true; startY = e.clientY; startH = scene.offsetHeight;
@@ -7823,6 +7829,10 @@ if (robotSceneSel) {
     const scale = newH / defaultH;
     const ws = scene.querySelector('.robot-workstation');
     if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
+    // Scale plants proportionally
+    scene.querySelectorAll('.robot-plant').forEach(p => {
+      p.style.transform = 'scale(' + scale + ')';
+    });
   });
   document.addEventListener('mouseup', () => {
     if (!dragging) return;
