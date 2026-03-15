@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Interactive Workspace</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 /* ═══ COLOR SCHEME ENGINE ═══ */
 :root {
@@ -198,7 +197,9 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
   overflow: hidden; position: relative; min-width: 0; min-height: 0;
 }
 .pane.expanded {
-  position: fixed; top: 44px; left: 0; right: 0; bottom: 0; z-index: 150;
+  position: fixed !important; top: 44px !important; left: 0 !important;
+  right: 0 !important; bottom: 0 !important; z-index: 150;
+  width: 100vw !important; height: calc(100vh - 44px) !important;
 }
 
 /* Pane header */
@@ -412,7 +413,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <span class="toggle-track"></span>
     </label>
     <div class="fun-btn-wrap">
-      <button class="fun-btn" id="funToggle">&#9733; Fun</button>
+      <button class="fun-btn" id="funToggle">&#9733; Media</button>
       <div class="fun-panel" id="funPanel">
         <h3>URL Collection &amp; Media</h3>
         <div class="fun-section">
@@ -538,8 +539,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <span class="cell-ref" id="ssCellRef">A1</span>
         <input type="text" id="ssFormula" placeholder="Value or formula: =SUM(A1:A5)  =AVG  =IF(A1>5,yes,no)  =SPARK(B2:B13)" />
         <div class="sep"></div>
-        <button id="ssAddRow">+Row</button>
-        <button id="ssAddCol">+Col</button>
+        <button id="ssAddRow" title="Add row">+Row</button>
+        <button id="ssAddCol" title="Add column">+Col</button>
+        <button id="ssAdd5Row" title="Add 5 rows">+5R</button>
+        <button id="ssAdd5Col" title="Add 5 columns">+5C</button>
         <button id="ssSortA">&#8593;</button>
         <button id="ssSortD">&#8595;</button>
         <button id="ssHeat" title="Heat map">Heat</button>
@@ -552,56 +555,88 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
   </div>
 
-  <!-- PANE 4: CONCEPT MAP -->
+  <!-- PANE 4: MAP / STOCKS -->
   <div class="pane" id="q-map" style="grid-column:3;grid-row:3;">
     <div class="p-head">
-      <span class="p-title"><span class="p-icon">&#128736;</span> Concept Map</span>
+      <span class="p-title"><span class="p-icon">&#128200;</span> Analytics</span>
+      <div class="p-spacer"></div>
+      <div class="toggle-group" id="q4Tabs">
+        <button class="active" data-q4="stocks">Stocks</button>
+        <button data-q4="cmap">Concept Map</button>
+      </div>
       <div class="p-spacer"></div>
       <button class="p-btn" data-expand="q-map" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body">
-      <div class="toolbar">
-        <button class="cm-tool active" data-tool="select">Select</button>
-        <button class="cm-tool" data-tool="addNode">+Node</button>
-        <button class="cm-tool" data-tool="connect">Link</button>
-        <button class="cm-tool" data-tool="delete">Del</button>
-        <div class="sep"></div>
-        <select id="cmTemplate">
-          <option value="">Template...</option>
-          <option value="roadmap">Roadmap</option>
-          <option value="decision">Decision Tree</option>
-          <option value="flowchart">Flowchart</option>
-          <option value="mindmap">Mind Map</option>
-        </select>
-        <select id="cmShape">
-          <option value="rounded">Rounded</option>
-          <option value="rect">Rectangle</option>
-          <option value="diamond">Diamond</option>
-          <option value="circle">Circle</option>
-          <option value="hexagon">Hexagon</option>
-        </select>
-        <input type="color" id="cmColor" value="#6366f1" />
-        <div class="sep"></div>
-        <button id="cmLayout">Layout</button>
-        <button id="cmExport">PNG</button>
-        <button id="cmClear">Clear</button>
+      <!-- STOCKS VIEW -->
+      <div id="stocksView" style="display:flex;flex-direction:column;flex:1;">
+        <div class="toolbar">
+          <input type="text" id="stockInput" placeholder="Ticker (e.g. AAPL)" style="max-width:100px;" />
+          <button id="stockAdd">+Add</button>
+          <div class="sep"></div>
+          <span id="stockChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
+          <div class="p-spacer" style="flex:1;"></div>
+          <select id="stockRange">
+            <option value="1D">1D</option>
+            <option value="5D">5D</option>
+            <option value="1M" selected>1M</option>
+            <option value="6M">6M</option>
+            <option value="1Y">1Y</option>
+          </select>
+          <button id="stockRefresh">Refresh</button>
+        </div>
+        <div id="stockDash" style="padding:10px;overflow-y:auto;flex:1;display:flex;flex-wrap:wrap;gap:10px;align-content:flex-start;">
+          <div style="width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px;">
+            Add a ticker symbol above to start tracking stocks.<br>
+            Data is simulated for demonstration.
+          </div>
+        </div>
       </div>
-      <div class="cm-wrap" id="cmWrap">
-        <canvas id="cmCanvas"></canvas>
-        <div class="node-editor" id="nodeEd">
-          <input type="text" id="neTitle" placeholder="Title" />
-          <textarea id="neDesc" placeholder="Description"></textarea>
-          <select id="neShape">
+      <!-- CONCEPT MAP VIEW -->
+      <div id="cmapView" style="display:none;flex-direction:column;flex:1;">
+        <div class="toolbar">
+          <button class="cm-tool active" data-tool="select">Select</button>
+          <button class="cm-tool" data-tool="addNode">+Node</button>
+          <button class="cm-tool" data-tool="connect">Link</button>
+          <button class="cm-tool" data-tool="delete">Del</button>
+          <div class="sep"></div>
+          <select id="cmTemplate">
+            <option value="">Template...</option>
+            <option value="roadmap">Roadmap</option>
+            <option value="decision">Decision Tree</option>
+            <option value="flowchart">Flowchart</option>
+            <option value="mindmap">Mind Map</option>
+          </select>
+          <select id="cmShape">
             <option value="rounded">Rounded</option>
             <option value="rect">Rectangle</option>
             <option value="diamond">Diamond</option>
             <option value="circle">Circle</option>
             <option value="hexagon">Hexagon</option>
           </select>
-          <input type="color" id="neColor" value="#6366f1" style="height:24px;" />
-          <div class="ne-btns">
-            <button style="background:var(--accent)" id="neSave">Save</button>
-            <button style="background:var(--danger)" id="neCancel">Cancel</button>
+          <input type="color" id="cmColor" value="#6366f1" />
+          <div class="sep"></div>
+          <button id="cmLayout">Layout</button>
+          <button id="cmExport">PNG</button>
+          <button id="cmClear">Clear</button>
+        </div>
+        <div class="cm-wrap" id="cmWrap">
+          <canvas id="cmCanvas"></canvas>
+          <div class="node-editor" id="nodeEd">
+            <input type="text" id="neTitle" placeholder="Title" />
+            <textarea id="neDesc" placeholder="Description"></textarea>
+            <select id="neShape">
+              <option value="rounded">Rounded</option>
+              <option value="rect">Rectangle</option>
+              <option value="diamond">Diamond</option>
+              <option value="circle">Circle</option>
+              <option value="hexagon">Hexagon</option>
+            </select>
+            <input type="color" id="neColor" value="#6366f1" style="height:24px;" />
+            <div class="ne-btns">
+              <button style="background:var(--accent)" id="neSave">Save</button>
+              <button style="background:var(--danger)" id="neCancel">Cancel</button>
+            </div>
           </div>
         </div>
       </div>
@@ -626,12 +661,13 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 
 <div class="toast" id="toast"></div>
 <script>
+document.addEventListener('DOMContentLoaded', function() {
 /* ═══════════════════════════════════════════
    CORE UTILS
    ═══════════════════════════════════════════ */
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
-const LS = (k, v) => v === undefined ? JSON.parse(localStorage.getItem('ws_'+k)||'null') : localStorage.setItem('ws_'+k, JSON.stringify(v));
+const LS = (k, v) => { try { return v === undefined ? JSON.parse(localStorage.getItem('ws_'+k)||'null') : localStorage.setItem('ws_'+k, JSON.stringify(v)); } catch(e) { return null; } };
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 1800);
@@ -1461,6 +1497,148 @@ setTimeout(cmRender, 150);
   });
 })();
 
+/* ═══════════════════════════════════════════
+   SPREADSHEET BULK ADD
+   ═══════════════════════════════════════════ */
+$('#ssAdd5Row').onclick = () => { for (let i = 0; i < 5; i++) { ssD.push(new Array(ssC).fill('')); ssR++; } LS('sheet', ssD); ssRender(); toast('+5 rows'); };
+$('#ssAdd5Col').onclick = () => { for (let i = 0; i < 5; i++) { ssD.forEach(r => r.push('')); ssC++; } LS('sheet', ssD); ssRender(); toast('+5 cols'); };
+
+/* ═══════════════════════════════════════════
+   Q4 TAB SWITCHING (Stocks / Concept Map)
+   ═══════════════════════════════════════════ */
+$$('#q4Tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('#q4Tabs button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.q4;
+    if (tab === 'stocks') {
+      $('#stocksView').style.display = '';
+      $('#cmapView').style.display = 'none';
+    } else {
+      $('#stocksView').style.display = 'none';
+      $('#cmapView').style.display = 'flex';
+      setTimeout(resizeCM, 50);
+    }
+  });
+});
+
+/* ═══════════════════════════════════════════
+   STOCK MARKET ANALYTICS (Simulated)
+   ═══════════════════════════════════════════ */
+let stockTickers = LS('stockTickers') || [];
+
+function genStockData(ticker, range) {
+  // Deterministic seed from ticker name
+  let seed = 0;
+  for (let i = 0; i < ticker.length; i++) seed = (seed * 31 + ticker.charCodeAt(i)) & 0x7fffffff;
+  function rand() { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; }
+
+  const points = range === '1D' ? 78 : range === '5D' ? 390 : range === '1M' ? 22 : range === '6M' ? 130 : 252;
+  const basePrice = 50 + rand() * 450;
+  const volatility = 0.005 + rand() * 0.02;
+  const trend = (rand() - 0.45) * 0.002;
+  const data = [basePrice];
+  for (let i = 1; i < points; i++) {
+    data.push(Math.max(1, data[i-1] * (1 + trend + (rand() - 0.5) * volatility * 2)));
+  }
+  return data;
+}
+
+function renderStockDash() {
+  const dash = $('#stockDash');
+  if (!stockTickers.length) {
+    dash.innerHTML = '<div style="width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px;">Add a ticker symbol above to start tracking stocks.<br>Data is simulated for demonstration.</div>';
+    return;
+  }
+  const range = $('#stockRange').value;
+  const scheme = SCHEMES[+$('#schemeSlider').value];
+  dash.innerHTML = '';
+  stockTickers.forEach(ticker => {
+    const data = genStockData(ticker, range);
+    const current = data[data.length - 1];
+    const prev = data[0];
+    const change = ((current - prev) / prev * 100);
+    const isUp = change >= 0;
+
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.style.minWidth = '180px';
+    card.style.flex = '1';
+    card.innerHTML =
+      '<div class="sc-label">' + ticker + '</div>' +
+      '<div class="sc-value">$' + current.toFixed(2) + '</div>' +
+      '<div class="sc-change ' + (isUp ? 'sc-up' : 'sc-down') + '">' + (isUp ? '&#9650; +' : '&#9660; ') + change.toFixed(2) + '% (' + range + ')</div>' +
+      '<canvas width="180" height="50"></canvas>';
+    dash.appendChild(card);
+
+    // Draw sparkline chart
+    const cvs = card.querySelector('canvas');
+    const ctx2 = cvs.getContext('2d');
+    const w = cvs.width, h = cvs.height;
+    const min = Math.min(...data), max = Math.max(...data);
+    const rng = max - min || 1;
+
+    // Fill area
+    ctx2.beginPath();
+    data.forEach((v, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - ((v - min) / rng) * (h - 6) - 3;
+      i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+    });
+    ctx2.lineTo(w, h); ctx2.lineTo(0, h); ctx2.closePath();
+    ctx2.fillStyle = isUp ? 'rgba(74,153,99,.15)' : 'rgba(204,68,68,.15)';
+    ctx2.fill();
+
+    // Line
+    ctx2.beginPath();
+    data.forEach((v, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - ((v - min) / rng) * (h - 6) - 3;
+      i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+    });
+    const lineColor = isUp
+      ? (scheme === 'neon' ? '#39ff14' : 'var(--success)')
+      : (scheme === 'neon' ? '#ff2a6d' : 'var(--danger)');
+    ctx2.strokeStyle = isUp ? '#4a9' : '#c44';
+    ctx2.lineWidth = 1.5;
+    ctx2.stroke();
+  });
+}
+
+$('#stockAdd').onclick = () => {
+  const t = $('#stockInput').value.trim().toUpperCase();
+  if (!t || stockTickers.includes(t)) return;
+  stockTickers.push(t);
+  LS('stockTickers', stockTickers);
+  $('#stockInput').value = '';
+  renderStockChips();
+  renderStockDash();
+  toast(t + ' added');
+};
+$('#stockInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#stockAdd').click(); });
+$('#stockRange').onchange = () => renderStockDash();
+$('#stockRefresh').onclick = () => { renderStockDash(); toast('Refreshed'); };
+
+function renderStockChips() {
+  const el = $('#stockChips');
+  el.innerHTML = '';
+  stockTickers.forEach((t, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'ticker-chip';
+    chip.innerHTML = t + ' <span class="tc-del">&times;</span>';
+    chip.querySelector('.tc-del').onclick = () => {
+      stockTickers.splice(i, 1);
+      LS('stockTickers', stockTickers);
+      renderStockChips();
+      renderStockDash();
+    };
+    el.appendChild(chip);
+  });
+}
+renderStockChips();
+renderStockDash();
+
+}); /* end DOMContentLoaded */
 </script>
 </body>
 </html>
