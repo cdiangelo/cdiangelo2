@@ -244,7 +244,18 @@ body.light .fun-btn { background: var(--accent); }
   filter: brightness(0.85);
 }
 .p-title { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text); }
-.p-title .p-icon { margin-right: 3px; }
+.p-title .p-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 5px; margin-right: 6px;
+  font-size: 11px; font-style: normal; font-weight: 700; line-height: 1;
+  vertical-align: middle; flex-shrink: 0;
+}
+.p-icon.ic-notes { background: linear-gradient(135deg, #5050dd, #7070ff); color: #fff; }
+.p-icon.ic-claude { background: linear-gradient(135deg, #1ab0c0, #0e8a96); color: #fff; }
+.p-icon.ic-draw { background: linear-gradient(135deg, #e64a19, #ff6e40); color: #fff; }
+.p-icon.ic-sheet { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+.p-icon.ic-analytics { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; }
+.p-icon.ic-news { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; }
 .p-spacer { flex: 1; }
 .p-btn {
   background: none; border: none; color: var(--text-dim); cursor: pointer;
@@ -1309,7 +1320,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <!-- PANE 1: NOTEPAD (top left) -->
   <div class="pane" id="q-notepad" style="grid-column:1;grid-row:1;">
     <div class="p-head">
-      <span class="p-title"><span class="p-icon">&#128221;</span> Notepad</span>
+      <span class="p-title"><span class="p-icon ic-notes">N</span> Notepad</span>
       <div class="p-spacer"></div>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-notepad" title="Expand">&#x2922;</button>
@@ -1359,7 +1370,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <!-- PANE 2: CLAUDE AGENT (top center) -->
   <div class="pane" id="q-claude" style="grid-column:3;grid-row:1;">
     <div class="p-head">
-      <span class="p-title"><span class="p-icon">&#129302;</span> Claude Agent</span>
+      <span class="p-title"><span class="p-icon ic-claude">C</span> Claude Agent</span>
       <div class="p-spacer"></div>
       <select id="aiModel" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
@@ -1522,7 +1533,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <!-- PANE 3: WHITEBOARD (bottom left) -->
   <div class="pane" id="q-whiteboard" style="grid-column:1;grid-row:3;">
     <div class="p-head">
-      <span class="p-title"><span class="p-icon">&#127912;</span> Whiteboard</span>
+      <span class="p-title"><span class="p-icon ic-draw">W</span> Whiteboard</span>
       <div class="p-spacer"></div>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-whiteboard" title="Expand">&#x2922;</button>
@@ -1592,7 +1603,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <!-- PANE 4: SPREADSHEET (top right) -->
   <div class="pane" id="q-sheet" style="grid-column:5;grid-row:1;">
     <div class="p-head">
-      <span class="p-title"><span class="p-icon">&#128202;</span> Scratch Sheet</span>
+      <span class="p-title"><span class="p-icon ic-sheet">S</span> Scratch Sheet</span>
       <div class="p-spacer"></div>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-sheet" title="Expand">&#x2922;</button>
@@ -1629,7 +1640,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <div class="pane" id="q-map" style="grid-column:3;grid-row:3;">
 
     <div class="p-head">
-      <span class="p-title"><span class="p-icon">&#128200;</span> Analytics</span>
+      <span class="p-title"><span class="p-icon ic-analytics">A</span> Analytics</span>
       <div class="p-spacer"></div>
       <div class="toggle-group" id="q4Tabs">
         <button class="active" data-q4="stocks">Stocks</button>
@@ -1820,7 +1831,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <!-- PANE 5: NEWS & MARKET COVERAGE -->
   <div class="pane" id="q-news" style="grid-column:5;grid-row:3;">
     <div class="p-head">
-      <span class="p-title"><span class="p-icon">&#128240;</span> News &amp; Markets</span>
+      <span class="p-title"><span class="p-icon ic-news">M</span> News &amp; Markets</span>
       <div class="p-spacer"></div>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-news" title="Expand">&#x2922;</button>
