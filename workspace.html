@@ -129,11 +129,14 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .fun-btn-wrap { position: relative; }
 .fun-btn {
   padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
-  background: linear-gradient(135deg, #5b5fc7, #7b83eb);
-  color: #fff; font-weight: 600; font-size: .75rem; cursor: pointer;
-  transition: transform .15s, box-shadow .15s;
+  background: var(--accent); color: #fff; font-weight: 600; font-size: .75rem;
+  cursor: pointer; transition: transform .15s, box-shadow .15s, background .2s;
 }
-.fun-btn:hover { transform: scale(1.05); box-shadow: 0 0 12px rgba(91,95,199,.4); }
+body.neon .fun-btn { background: linear-gradient(135deg, #5b5fc7, #7b83eb); }
+body.muted .fun-btn { background: var(--accent); }
+body.crisp .fun-btn { background: #444; }
+body.light .fun-btn { background: var(--accent); }
+.fun-btn:hover { transform: scale(1.05); box-shadow: 0 0 12px rgba(var(--accent),.3); }
 .fun-btn:active { transform: scale(.97); }
 
 .fun-panel {
@@ -144,40 +147,33 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .fun-panel.open { display: block; }
 .fun-panel h3 { font-size: .78rem; color: var(--accent2); margin-bottom: 8px; font-weight: 600; }
 /* AI Agent panel */
-#aiPanel {
-  display: none; position: fixed; bottom: 12px; right: 12px; width: 380px; height: 520px;
-  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-  box-shadow: 0 8px 40px rgba(0,0,0,.45); z-index: 9500; flex-direction: column;
-  font-size: .78rem; overflow: hidden; resize: both; min-width: 300px; min-height: 300px;
+/* Claude Agent Pane */
+#q-claude .ai-msgs {
+  flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
 }
-#aiPanel.open { display: flex; }
-#aiPanel .ai-head {
-  padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex;
-  align-items: center; gap: 8px; background: var(--panel-inset); flex-shrink: 0;
-}
-#aiPanel .ai-head span { font-weight: 700; color: var(--accent2); font-size: .8rem; }
-#aiPanel .ai-msgs {
-  flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
-}
-#aiPanel .ai-msg {
+#q-claude .ai-msg {
   padding: 8px 10px; border-radius: 8px; max-width: 92%; line-height: 1.4;
-  white-space: pre-wrap; word-break: break-word; font-size: .74rem;
+  white-space: pre-wrap; word-break: break-word; font-size: .72rem;
 }
-#aiPanel .ai-msg.user { align-self: flex-end; background: rgba(59,130,246,.15); color: var(--text); }
-#aiPanel .ai-msg.assistant { align-self: flex-start; background: var(--panel-inset); color: var(--text); }
-#aiPanel .ai-msg.system { align-self: center; color: var(--text-dim); font-size: .65rem; font-style: italic; }
-#aiPanel .ai-input-row {
-  padding: 8px 12px; border-top: 1px solid var(--border); display: flex; gap: 6px;
+#q-claude .ai-msg.user { align-self: flex-end; background: rgba(59,130,246,.15); color: var(--text); }
+#q-claude .ai-msg.assistant { align-self: flex-start; background: var(--panel-inset); color: var(--text); }
+#q-claude .ai-msg.system { align-self: center; color: var(--text-dim); font-size: .62rem; font-style: italic; }
+#q-claude .ai-msg.tool-status {
+  align-self: center; color: var(--accent2); font-size: .6rem;
+  font-style: italic; background: none; padding: 2px 8px; opacity: .85;
+}
+#q-claude .ai-input-row {
+  padding: 6px 10px; border-top: 1px solid var(--border); display: flex; gap: 6px;
   background: var(--panel-inset); flex-shrink: 0;
 }
-#aiPanel .ai-input-row textarea {
-  flex: 1; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--bg); color: var(--text); font-size: .74rem; resize: none;
-  font-family: inherit; min-height: 36px; max-height: 100px;
+#q-claude .ai-input-row textarea {
+  flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: .72rem; resize: none;
+  font-family: inherit; min-height: 32px; max-height: 100px;
 }
-#aiPanel .ai-input-row button {
-  padding: 6px 12px; border: none; border-radius: 6px; background: rgba(59,130,246,.7);
-  color: #fff; cursor: pointer; font-weight: 600; font-size: .74rem; align-self: flex-end;
+#q-claude .ai-input-row button {
+  padding: 5px 12px; border: none; border-radius: 6px; background: rgba(59,130,246,.7);
+  color: #fff; cursor: pointer; font-weight: 600; font-size: .72rem; align-self: flex-end;
 }
 /* Video player PIP overlay */
 #funVideoWrap { border-radius: 12px; overflow: hidden; }
@@ -528,6 +524,25 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <script src="https://apis.google.com/js/api.js" async defer></script>
 </head>
 <body class="neon">
+
+<!-- ═══ AUTH GATE ═══ -->
+<div id="authGate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:system-ui,-apple-system,sans-serif;">
+  <div id="authBox" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:40px;min-width:340px;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="font-size:2rem;margin-bottom:8px;">&#129302;</div>
+    <h2 style="color:var(--text);margin:0 0 6px;font-size:1.2rem;">Interactive Workspace</h2>
+    <p style="color:var(--text-dim);font-size:.78rem;margin:0 0 24px;">Select access mode to continue</p>
+    <div id="authModeSelect" style="display:flex;gap:12px;justify-content:center;margin-bottom:16px;">
+      <button id="authUserBtn" style="padding:12px 28px;border:1px solid var(--border);border-radius:10px;background:var(--panel-inset);color:var(--text);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;">&#128100; User</button>
+      <button id="authAdminBtn" style="padding:12px 28px;border:1px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.1);color:var(--accent2);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;">&#128272; Admin</button>
+    </div>
+    <div id="authAdminForm" style="display:none;margin-top:12px;">
+      <input type="password" id="authPassword" placeholder="Admin password" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:10px;box-sizing:border-box;" />
+      <button id="authLoginBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Sign In</button>
+      <div id="authError" style="color:var(--danger);font-size:.7rem;margin-top:6px;display:none;">Invalid password</div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ HEADER ═══ -->
 <div class="header">
   <h1>Interactive <span>Workspace</span></h1>
@@ -537,8 +552,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div class="nav-group-btns">
         <button class="active" data-pane="all">All</button>
         <button data-pane="q-notepad">Notes</button>
-        <button data-pane="q-whiteboard">Draw</button>
+        <button data-pane="q-claude">Claude</button>
         <button data-pane="q-sheet">Sheet</button>
+        <button data-pane="q-whiteboard">Draw</button>
         <button data-pane="q-map">Analytics</button>
         <button data-pane="q-news">News</button>
       </div>
@@ -596,7 +612,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
       </div>
     </div>
-    <button class="fun-btn" id="aiToggle" title="Claude AI Agent" style="padding:5px 10px;">&#129302; Claude</button>
+    <button class="fs-btn" id="logoutBtn" title="Lock workspace" style="font-size:.7rem;color:var(--text-dim);display:none;">&#128274;</button>
     <button class="fs-btn" id="helpBtn" title="Help" style="font-size:1rem;">?</button>
     <button class="fs-btn" id="fsBtn" title="Fullscreen">&#x26F6;</button>
   </div>
@@ -605,8 +621,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <!-- ═══ WORKSPACE ═══ -->
 <div class="workspace" id="workspace">
 
-  <!-- PANE 1: NOTEPAD -->
-  <div class="pane" id="q-notepad" style="grid-column:1/span 3;grid-row:1;">
+  <!-- PANE 1: NOTEPAD (top left) -->
+  <div class="pane" id="q-notepad" style="grid-column:1;grid-row:1;">
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#128221;</span> Notepad</span>
       <div class="p-spacer"></div>
@@ -649,11 +665,43 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
   </div>
 
-  <!-- DIVIDER H (between Notes and Draw in top row) -->
-  <div class="divider-h" id="divH" style="grid-column:4;"></div>
+  <!-- DIVIDER H (between Notes and Claude in top row) -->
+  <div class="divider-h" style="grid-column:2;grid-row:1;"></div>
 
-  <!-- PANE 2: WHITEBOARD -->
-  <div class="pane" id="q-whiteboard" style="grid-column:5;grid-row:1;">
+  <!-- PANE 2: CLAUDE AGENT (top center) -->
+  <div class="pane" id="q-claude" style="grid-column:3;grid-row:1;">
+    <div class="p-head">
+      <span class="p-title"><span class="p-icon">&#129302;</span> Claude Agent</span>
+      <div class="p-spacer"></div>
+      <select id="aiModel" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+        <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+        <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+        <option value="claude-opus-4-6">Opus 4.6</option>
+      </select>
+      <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
+      <button class="p-btn" data-expand="q-claude" title="Expand">&#x2922;</button>
+    </div>
+    <div class="p-body" style="display:flex;flex-direction:column;">
+      <div class="ai-msgs" id="aiMsgs"></div>
+      <div class="ai-input-row">
+        <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="2"></textarea>
+        <button id="aiSend">Send</button>
+      </div>
+      <div style="padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
+        <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
+          <input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
+          <button id="aiKeySave" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Save</button>
+        </div>
+        <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Key stored locally. Never sent anywhere except api.anthropic.com.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DIVIDER H (between Claude and Sheet in top row) -->
+  <div class="divider-h" id="divH" style="grid-column:4;grid-row:1;"></div>
+
+  <!-- PANE 3: WHITEBOARD (bottom left) -->
+  <div class="pane" id="q-whiteboard" style="grid-column:1;grid-row:3;">
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#127912;</span> Whiteboard</span>
       <div class="p-spacer"></div>
@@ -715,8 +763,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <!-- DIVIDER V -->
   <div class="divider-v" id="divV"></div>
 
-  <!-- PANE 3: SPREADSHEET -->
-  <div class="pane" id="q-sheet" style="grid-column:1;grid-row:3;">
+  <!-- PANE 4: SPREADSHEET (top right) -->
+  <div class="pane" id="q-sheet" style="grid-column:5;grid-row:1;">
     <div class="p-head">
       <span class="p-title"><span class="p-icon">&#128202;</span> Scratch Sheet</span>
       <div class="p-spacer"></div>
@@ -1003,6 +1051,61 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <div class="toast" id="toast"></div>
 <script>
 /* ═══════════════════════════════════════════
+   AUTH GATE
+   ═══════════════════════════════════════════ */
+let wsIsAdmin = localStorage.getItem('ws_adminSession') === 'true';
+const ADMIN_PASSWORD = 'workspace2024'; // In production, validate server-side
+
+(function initAuthGate() {
+  const gate = document.getElementById('authGate');
+  if (!gate) return;
+
+  // If already authenticated as admin, skip gate
+  if (wsIsAdmin) { gate.style.display = 'none'; return; }
+
+  // User mode: hide Claude pane, enter workspace
+  document.getElementById('authUserBtn').onclick = () => {
+    gate.style.display = 'none';
+    const claudePane = document.getElementById('q-claude');
+    if (claudePane) claudePane.remove();
+    // Also remove Claude from tab bar
+    const claudeTab = document.querySelector('[data-pane="q-claude"]');
+    if (claudeTab) claudeTab.remove();
+  };
+
+  // Admin mode: show password form
+  document.getElementById('authAdminBtn').onclick = () => {
+    document.getElementById('authModeSelect').style.display = 'none';
+    document.getElementById('authAdminForm').style.display = 'block';
+    document.getElementById('authPassword').focus();
+  };
+
+  // Login
+  function adminLogin() {
+    const pw = document.getElementById('authPassword').value;
+    if (pw === ADMIN_PASSWORD) {
+      wsIsAdmin = true;
+      localStorage.setItem('ws_adminSession', 'true');
+      gate.style.display = 'none';
+    } else {
+      document.getElementById('authError').style.display = 'block';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('authPassword').focus();
+    }
+  }
+  document.getElementById('authLoginBtn').onclick = adminLogin;
+  document.getElementById('authPassword').addEventListener('keydown', e => {
+    if (e.key === 'Enter') adminLogin();
+  });
+})();
+
+// Show logout button if admin
+if (wsIsAdmin) {
+  const lb = document.getElementById('logoutBtn');
+  if (lb) { lb.style.display = 'inline-block'; lb.onclick = () => { localStorage.removeItem('ws_adminSession'); location.reload(); }; }
+}
+
+/* ═══════════════════════════════════════════
    CORE UTILS
    ═══════════════════════════════════════════ */
 const $ = s => document.querySelector(s);
@@ -1038,6 +1141,8 @@ function applyScheme(idx) {
   else if (scheme === 'muted') $('#wbColor').value = '#3a3020';
   else $('#wbColor').value = '#222222';
   updateNotepadSwatches();
+  // Re-render charts to match scheme
+  if (typeof renderStockDash === 'function') try { renderStockDash(); } catch(e) {}
 }
 
 function applyDarkLight(isLight) {
@@ -2790,7 +2895,7 @@ function renderStockDash() {
       pushTickerToNews(ticker);
     };
 
-    // Draw sparkline chart (DPR-aware for crisp rendering)
+    // Draw sparkline chart (DPR-aware, with hover tooltip)
     const cvs = card.querySelector('canvas');
     const isExpanded = document.getElementById('q-map').classList.contains('expanded');
     const dpr = window.devicePixelRatio || 1;
@@ -2798,31 +2903,68 @@ function renderStockDash() {
     const dispH = isExpanded ? 80 : 50;
     cvs.width = dispW * dpr; cvs.height = dispH * dpr;
     cvs.style.width = dispW + 'px'; cvs.style.height = dispH + 'px';
+    cvs.style.cursor = 'crosshair';
     const ctx2 = cvs.getContext('2d');
     ctx2.scale(dpr, dpr);
     const w = dispW, h = dispH;
     const min = Math.min(...data), max = Math.max(...data);
     const rng = max - min || 1;
+    const lineColor = isUp ? '#4a9963' : '#cc4444';
+    const fillColor = isUp ? 'rgba(74,153,99,.12)' : 'rgba(204,68,68,.12)';
 
-    ctx2.beginPath();
-    data.forEach((v, i) => {
-      const x = (i / (data.length - 1)) * w;
-      const y = h - ((v - min) / rng) * (h - 6) - 3;
-      i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+    function drawSparkline(hoverIdx) {
+      ctx2.save(); ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx2.clearRect(0, 0, w, h);
+      // Fill area
+      ctx2.beginPath();
+      data.forEach((v, i) => {
+        const x = (i / (data.length - 1)) * w;
+        const y = h - ((v - min) / rng) * (h - 8) - 4;
+        i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+      });
+      ctx2.lineTo(w, h); ctx2.lineTo(0, h); ctx2.closePath();
+      ctx2.fillStyle = fillColor; ctx2.fill();
+      // Line
+      ctx2.beginPath();
+      data.forEach((v, i) => {
+        const x = (i / (data.length - 1)) * w;
+        const y = h - ((v - min) / rng) * (h - 8) - 4;
+        i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+      });
+      ctx2.strokeStyle = lineColor; ctx2.lineWidth = 1.5; ctx2.stroke();
+      // Hover crosshair + dot + value
+      if (hoverIdx >= 0 && hoverIdx < data.length) {
+        const hx = (hoverIdx / (data.length - 1)) * w;
+        const hv = data[hoverIdx];
+        const hy = h - ((hv - min) / rng) * (h - 8) - 4;
+        // Vertical line
+        ctx2.beginPath(); ctx2.moveTo(hx, 0); ctx2.lineTo(hx, h);
+        ctx2.strokeStyle = 'var(--text-dim)'; ctx2.lineWidth = 0.5; ctx2.setLineDash([2, 2]); ctx2.stroke(); ctx2.setLineDash([]);
+        // Dot
+        ctx2.beginPath(); ctx2.arc(hx, hy, 3, 0, Math.PI * 2);
+        ctx2.fillStyle = lineColor; ctx2.fill();
+        ctx2.strokeStyle = '#fff'; ctx2.lineWidth = 1; ctx2.stroke();
+        // Value label
+        const label = '$' + hv.toFixed(2);
+        ctx2.font = 'bold 9px system-ui';
+        const tw = ctx2.measureText(label).width;
+        const lx = hx + 6 + tw > w ? hx - tw - 8 : hx + 6;
+        ctx2.fillStyle = 'rgba(0,0,0,.7)';
+        ctx2.fillRect(lx - 2, hy - 12, tw + 4, 14);
+        ctx2.fillStyle = '#fff'; ctx2.textAlign = 'left';
+        ctx2.fillText(label, lx, hy - 1);
+      }
+      ctx2.restore();
+    }
+    drawSparkline(-1);
+    // Hover events
+    cvs.addEventListener('mousemove', e => {
+      const rect = cvs.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const idx = Math.round((mx / rect.width) * (data.length - 1));
+      drawSparkline(Math.max(0, Math.min(idx, data.length - 1)));
     });
-    ctx2.lineTo(w, h); ctx2.lineTo(0, h); ctx2.closePath();
-    ctx2.fillStyle = isUp ? 'rgba(74,153,99,.15)' : 'rgba(204,68,68,.15)';
-    ctx2.fill();
-
-    ctx2.beginPath();
-    data.forEach((v, i) => {
-      const x = (i / (data.length - 1)) * w;
-      const y = h - ((v - min) / rng) * (h - 6) - 3;
-      i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
-    });
-    ctx2.strokeStyle = isUp ? '#4a9' : '#c44';
-    ctx2.lineWidth = 1.5;
-    ctx2.stroke();
+    cvs.addEventListener('mouseleave', () => drawSparkline(-1));
   });
   renderCompareChart();
 }
@@ -2894,24 +3036,59 @@ function renderCompareChart() {
     ctx.setLineDash([]);
   }
   // Draw each series
-  allSeries.forEach((series, si) => {
-    const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    series.forEach((v, i) => {
-      const x = pad.left + (i / (series.length - 1)) * plotW;
-      const y = pad.top + ((gMax - v) / gRange) * plotH;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  function drawCompareSeries(hoverIdx) {
+    // Clear plot area and redraw grid
+    ctx.clearRect(pad.left, pad.top, plotW, plotH);
+    // Redraw grid lines
+    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--border') || '#333';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (plotH / 4) * i;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+    }
+    allSeries.forEach((series, si) => {
+      const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
+      ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath();
+      series.forEach((v, i) => {
+        const x = pad.left + (i / (series.length - 1)) * plotW;
+        const y = pad.top + ((gMax - v) / gRange) * plotH;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      // Label at end
+      const lastY = pad.top + ((gMax - series[series.length - 1]) / gRange) * plotH;
+      ctx.fillStyle = color; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(compareTickers[si], w - pad.right + 3, lastY + 3);
     });
-    ctx.stroke();
-    // Label at end
-    const lastY = pad.top + ((gMax - series[series.length - 1]) / gRange) * plotH;
-    ctx.fillStyle = color;
-    ctx.font = 'bold 10px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(compareTickers[si], w - pad.right + 3, lastY + 3);
+    // Hover crosshair
+    if (hoverIdx >= 0 && allSeries.length && hoverIdx < allSeries[0].length) {
+      const hx = pad.left + (hoverIdx / (allSeries[0].length - 1)) * plotW;
+      ctx.beginPath(); ctx.moveTo(hx, pad.top); ctx.lineTo(hx, pad.top + plotH);
+      ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+      // Value dots + labels
+      allSeries.forEach((series, si) => {
+        const v = series[hoverIdx];
+        const hy = pad.top + ((gMax - v) / gRange) * plotH;
+        const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
+        ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.fill();
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+        const label = compareTickers[si] + ': ' + v.toFixed(1) + '%';
+        ctx.font = '9px system-ui'; ctx.fillStyle = color; ctx.textAlign = 'left';
+        ctx.fillText(label, hx + 8, hy + 3 + si * 12);
+      });
+    }
+  }
+  drawCompareSeries(-1);
+  cvs.style.cursor = 'crosshair';
+  cvs.addEventListener('mousemove', e => {
+    const rect = cvs.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width * w;
+    const dataIdx = Math.round(((mx - pad.left) / plotW) * ((allSeries[0] || []).length - 1));
+    drawCompareSeries(Math.max(0, Math.min(dataIdx, (allSeries[0] || []).length - 1)));
   });
+  cvs.addEventListener('mouseleave', () => drawCompareSeries(-1));
 }
 
 $('#clearCompare').onclick = () => {
@@ -4387,143 +4564,474 @@ renderNewsChips();
 renderNewsFeed();
 
 /* ═══════════════════════════════════════════
-   CLAUDE AI AGENT
+   CLAUDE AI AGENT — NATIVE WORKSPACE TOOLS
    ═══════════════════════════════════════════ */
-(function() {
-  // Create panel DOM
-  const panel = document.createElement('div');
-  panel.id = 'aiPanel';
-  panel.innerHTML =
-    '<div class="ai-head">' +
-      '<span>&#129302; Claude Agent</span>' +
-      '<div style="flex:1;"></div>' +
-      '<select id="aiModel" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">' +
-        '<option value="claude-sonnet-4-6">Sonnet 4.6</option>' +
-        '<option value="claude-haiku-4-5-20251001">Haiku 4.5</option>' +
-        '<option value="claude-opus-4-6">Opus 4.6</option>' +
-      '</select>' +
-      '<button id="aiClear" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;" title="Clear chat">&#128465;</button>' +
-      '<button id="aiClose" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;">&times;</button>' +
-    '</div>' +
-    '<div class="ai-msgs" id="aiMsgs"></div>' +
-    '<div class="ai-input-row">' +
-      '<textarea id="aiInput" placeholder="Ask Claude about your workspace, data, formulas..." rows="2"></textarea>' +
-      '<button id="aiSend">Send</button>' +
-    '</div>' +
-    '<div style="padding:4px 12px 8px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">' +
-      '<div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">' +
-        '<input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />' +
-        '<button id="aiKeySave" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Save</button>' +
-      '</div>' +
-      '<div style="font-size:.58rem;color:var(--text-dim);margin-top:3px;">Key stored locally. Never sent anywhere except api.anthropic.com.</div>' +
-    '</div>';
-  document.body.appendChild(panel);
 
-  let aiKey = localStorage.getItem('ws_aiApiKey') || '';
-  let aiMessages = [];
-  let aiStreaming = false;
+let aiKey = localStorage.getItem('ws_aiApiKey') || '';
+let aiMessages = [];
+let aiStreaming = false;
 
-  if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
+if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
 
-  $('#aiKeySave').onclick = () => {
-    const v = $('#aiApiKey').value.trim();
-    if (!v || v.startsWith('••')) return;
-    aiKey = v;
-    localStorage.setItem('ws_aiApiKey', v);
-    $('#aiApiKey').value = '••••••••••' + v.slice(-4);
-    addAiMsg('system', 'API key saved. Claude is ready.');
+$('#aiKeySave').onclick = () => {
+  const v = $('#aiApiKey').value.trim();
+  if (!v || v.startsWith('••')) return;
+  aiKey = v;
+  localStorage.setItem('ws_aiApiKey', v);
+  $('#aiApiKey').value = '••••••••••' + v.slice(-4);
+  addAiMsg('system', 'API key saved. Claude is ready.');
+};
+
+$('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
+
+function addAiMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = 'ai-msg ' + role;
+  div.textContent = text;
+  $('#aiMsgs').appendChild(div);
+  $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+  return div;
+}
+
+function addToolStatus(toolName, input) {
+  const labels = {
+    write_cells: 'Writing ' + ((input && input.cells) ? input.cells.length : '') + ' cells to sheet',
+    clear_range: 'Clearing range ' + (input && input.range),
+    create_table: 'Creating table at ' + (input && input.anchor),
+    write_note: (input && input.append) ? 'Appending to notepad' : 'Writing to notepad',
+    update_graph: 'Updating graph expressions',
+    add_stock: 'Adding ' + (input && input.ticker) + ' to watchlist',
+    remove_stock: 'Removing ' + (input && input.ticker) + ' from watchlist',
+    set_comparison: 'Setting comparison chart',
+    add_news_ticker: 'Adding ' + (input && input.ticker) + ' to news feed',
+    add_concept_node: 'Adding concept map node',
+    write_to_draw_pane: 'Adding image to draw pane',
+    add_text_overlay: 'Drawing text overlay',
+    clear_draw_pane: 'Clearing draw pane',
+    show_toast: 'Showing notification',
+    get_sheet_range: 'Reading sheet ' + (input && input.range),
+    get_note: 'Reading notepad',
+    get_graph_state: 'Reading graph state',
+    get_watchlist: 'Reading watchlist',
+    get_stock_data: 'Fetching ' + (input && input.ticker) + ' stock data',
+    get_stock_fundamentals: 'Fetching ' + (input && input.ticker) + ' fundamentals',
+    get_news: 'Fetching news for ' + (input && input.keyword),
+    get_concept_map: 'Reading concept map',
+    run_scenario: 'Running scenario analysis',
+    build_thesis: 'Building investment thesis',
+    sentiment_summary: 'Analyzing sentiment',
+    create_template: 'Creating ' + (input && input.type) + ' template',
+    search_image: 'Searching images for ' + (input && input.query),
+    create_meme: 'Creating meme'
   };
+  const div = document.createElement('div');
+  div.className = 'ai-msg tool-status';
+  div.textContent = '\u2699 ' + (labels[toolName] || toolName) + '...';
+  $('#aiMsgs').appendChild(div);
+  $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+  return div;
+}
 
-  // Toggle
-  $('#aiToggle').onclick = () => {
-    panel.classList.toggle('open');
-    if (panel.classList.contains('open') && !$('#aiMsgs').children.length) {
-      addAiMsg('system', 'Claude can read your workspace data and help with formulas, analysis, and writing. Set your API key below to start.');
-    }
-  };
-  $('#aiClose').onclick = () => panel.classList.remove('open');
-  $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
+// ── Workspace context builder ──
+function getWorkspaceContext() {
+  const ws = wsIndex.find(w => w.id === wsActiveId);
+  const parts = ['Workspace: ' + (ws ? ws.name : 'Default')];
+  const nonEmpty = [];
+  for (let r = 0; r < ssR; r++)
+    for (let c = 0; c < ssC; c++)
+      if (ssD[r][c]) nonEmpty.push(colN(c) + (r + 1) + '=' + ssD[r][c]);
+  if (nonEmpty.length) parts.push('Sheet cells: ' + nonEmpty.slice(0, 80).join(', ') + (nonEmpty.length > 80 ? ' ... (' + nonEmpty.length + ' total)' : ''));
+  if (stockTickers.length) parts.push('Tracked stocks: ' + stockTickers.join(', '));
+  if (compareTickers.length) parts.push('Comparison chart: ' + compareTickers.join(', '));
+  const noteText = np.innerText.trim();
+  if (noteText) parts.push('Notepad excerpt: ' + noteText.substring(0, 500) + (noteText.length > 500 ? '...' : ''));
+  if (gcExpressions.length) parts.push('Graph expressions: ' + gcExpressions.map(e => e.expr).join(', '));
+  if (cmNodes.length) parts.push('Concept map nodes: ' + cmNodes.map(n => n.title).join(', '));
+  if (newsTickerWatchlist.length) parts.push('News watchlist: ' + newsTickerWatchlist.join(', '));
+  return parts.join('\n');
+}
 
-  function addAiMsg(role, text) {
-    const div = document.createElement('div');
-    div.className = 'ai-msg ' + role;
-    div.textContent = text;
-    $('#aiMsgs').appendChild(div);
-    $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
-    return div;
-  }
+// ── System prompt ──
+const AI_SYSTEM_PROMPT = `You are a native workspace analyst and creative co-pilot embedded directly inside this interactive workspace app. You are NOT a sidebar chatbot. You live inside the workspace and interact with it the way a power user would — reading state, writing data, building views, running analysis, and generating memes when the moment calls for it.
 
-  // Build workspace context for Claude
-  function getWorkspaceContext() {
-    const ws = wsIndex.find(w => w.id === wsActiveId);
-    const parts = ['Workspace: ' + (ws ? ws.name : 'Default')];
+You have tools that read and write to every pane: the spreadsheet, notepad, graph calculator, draw/whiteboard, stock watchlist, news feed, and concept map.
 
-    // Sheet data summary
-    const nonEmpty = [];
-    for (let r = 0; r < ssR; r++) {
-      for (let c = 0; c < ssC; c++) {
-        if (ssD[r][c]) nonEmpty.push(colN(c) + (r + 1) + '=' + ssD[r][c]);
+BEHAVIORAL RULES:
+1. ALWAYS READ BEFORE WRITING — Before writing to the sheet, call get_sheet_range() to understand current state and avoid overwriting existing work unless explicitly asked to.
+2. WRITE RESULTS TO THE WORKSPACE — Do not just answer in chat. When you run analysis, build a table. When you model scenarios, push curves to the graph. When you form a thesis, write it to the notepad. The workspace IS the output.
+3. SHOW YOUR REASONING — When building a thesis or running analysis, narrate your steps briefly in chat so the user understands what you're doing, then deliver the result into the workspace.
+4. CITE YOUR INPUTS — When forming a thesis or sentiment summary, reference the data sources, dates, and price events you drew from.
+5. BE CONCISE in chat. Let the workspace do the talking.
+
+SUPPORTED FORMULAS for the sheet: =SUM, =AVG, =MIN, =MAX, =COUNT, =MEDIAN, =PRODUCT, =SUMIF, =COUNTIF, =VLOOKUP, =IF, =LEN, =UPPER, =LOWER, =TRIM, =LEFT, =RIGHT, =MID, =SUBSTITUTE, =CONCAT, =TEXT, =ROUND, =ABS, =SPARK, & concatenation, cell arithmetic (=A1+B1*2).
+
+TEMPLATES you can scaffold: stock_comparison_table, earnings_tracker, portfolio_summary, scenario_model, news_sentiment_board, macro_dashboard.`;
+
+// ── Tool definitions for Anthropic API ──
+const AGENT_TOOLS = [
+  // READ TOOLS
+  { name: 'get_sheet_range', description: 'Read current cell values from the spreadsheet. Returns cell refs and their values.', input_schema: { type: 'object', properties: { range: { type: 'string', description: 'Cell range like "A1:C10" or "A1:Z50" for full sheet' } }, required: ['range'] } },
+  { name: 'get_note', description: 'Read the current notepad content.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_graph_state', description: 'Get currently active graph expressions and their colors.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_watchlist', description: 'Get tracked stocks, comparison chart tickers, and news watchlist.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_stock_data', description: 'Get OHLCV price data for a stock ticker over a time range.', input_schema: { type: 'object', properties: { ticker: { type: 'string', description: 'Stock ticker symbol (e.g. AAPL)' }, range: { type: 'string', enum: ['1D', '5D', '1M', '6M', '1Y', '3Y', '5Y'], description: 'Time range' } }, required: ['ticker'] } },
+  { name: 'get_stock_fundamentals', description: 'Get fundamental metrics for a stock: price, market cap, PE, growth, sector.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
+  { name: 'get_news', description: 'Get news articles for a keyword/ticker. Returns titles, snippets, sources, sentiment.', input_schema: { type: 'object', properties: { keyword: { type: 'string' }, limit: { type: 'number', description: 'Max articles to return (default 5)' } }, required: ['keyword'] } },
+  { name: 'get_concept_map', description: 'Get concept map nodes and edges.', input_schema: { type: 'object', properties: {} } },
+
+  // WRITE TOOLS
+  { name: 'write_cells', description: 'Write values or formulas to specific spreadsheet cells. Use cell references like A1, B2, etc.', input_schema: { type: 'object', properties: { cells: { type: 'array', items: { type: 'object', properties: { ref: { type: 'string', description: 'Cell reference (e.g. A1, B2)' }, value: { type: 'string', description: 'Value or formula (e.g. "Hello", "42", "=SUM(A1:A5)")' } }, required: ['ref', 'value'] } } }, required: ['cells'] } },
+  { name: 'clear_range', description: 'Clear all cells in a range.', input_schema: { type: 'object', properties: { range: { type: 'string', description: 'Range to clear (e.g. A1:C10)' } }, required: ['range'] } },
+  { name: 'create_table', description: 'Create a formatted table in the sheet starting at anchor cell with headers and rows of data.', input_schema: { type: 'object', properties: { anchor: { type: 'string', description: 'Top-left cell (e.g. A1)' }, headers: { type: 'array', items: { type: 'string' } }, rows: { type: 'array', items: { type: 'array', items: { type: 'string' } } } }, required: ['anchor', 'headers', 'rows'] } },
+  { name: 'write_note', description: 'Write content to the notepad. Can append or replace.', input_schema: { type: 'object', properties: { content: { type: 'string', description: 'Text content to write (supports HTML)' }, append: { type: 'boolean', description: 'If true, append to existing content instead of replacing' } }, required: ['content'] } },
+  { name: 'update_graph', description: 'Set graph calculator expressions. Replaces all current expressions.', input_schema: { type: 'object', properties: { expressions: { type: 'array', items: { type: 'string' }, description: 'Math expressions like "sin(x)", "x^2", "2*cos(x)+1"' } }, required: ['expressions'] } },
+  { name: 'add_stock', description: 'Add a stock ticker to the watchlist/dashboard.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
+  { name: 'remove_stock', description: 'Remove a stock ticker from the watchlist.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
+  { name: 'set_comparison', description: 'Set the comparison chart to show specific tickers.', input_schema: { type: 'object', properties: { tickers: { type: 'array', items: { type: 'string' } } }, required: ['tickers'] } },
+  { name: 'add_news_ticker', description: 'Add a ticker to the news watchlist feed.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
+  { name: 'add_concept_node', description: 'Add a node to the concept map.', input_schema: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' } }, required: ['title'] } },
+  { name: 'write_to_draw_pane', description: 'Add an image to the whiteboard/draw pane as a layer.', input_schema: { type: 'object', properties: { image_url: { type: 'string', description: 'URL of the image' }, label: { type: 'string' } }, required: ['image_url'] } },
+  { name: 'add_text_overlay', description: 'Draw text on the whiteboard canvas.', input_schema: { type: 'object', properties: { text: { type: 'string' }, position: { type: 'string', enum: ['top', 'center', 'bottom'], description: 'Vertical position' }, size: { type: 'number', description: 'Font size in pixels (default 24)' } }, required: ['text'] } },
+  { name: 'clear_draw_pane', description: 'Clear the whiteboard canvas and all layers.', input_schema: { type: 'object', properties: {} } },
+  { name: 'show_toast', description: 'Show a brief notification toast to the user.', input_schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] } },
+
+  // ANALYSIS TOOLS
+  { name: 'run_scenario', description: 'Run bull/base/bear scenario projections for a stock. Returns projected price arrays for graphing or tables.', input_schema: { type: 'object', properties: { ticker: { type: 'string' }, scenarios: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, growth_rate: { type: 'number', description: 'Annual growth rate as decimal (e.g. 0.15 for 15%)' } }, required: ['name', 'growth_rate'] } } }, required: ['ticker', 'scenarios'] } },
+  { name: 'build_thesis', description: 'Synthesize price data, fundamentals, and news into a written investment thesis for a ticker.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
+  { name: 'sentiment_summary', description: 'Analyze recent news articles for a keyword and produce a scored sentiment summary.', input_schema: { type: 'object', properties: { keyword: { type: 'string' } }, required: ['keyword'] } },
+  { name: 'create_template', description: 'Scaffold a standard layout template into the sheet.', input_schema: { type: 'object', properties: { type: { type: 'string', enum: ['stock_comparison_table', 'earnings_tracker', 'portfolio_summary', 'scenario_model', 'news_sentiment_board', 'macro_dashboard'] }, anchor_cell: { type: 'string', description: 'Top-left cell to start template (default A1)' } }, required: ['type'] } },
+
+  // IMAGE/MEME TOOLS
+  { name: 'search_image', description: 'Search for images by query. Returns URLs that can be added to draw pane.', input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
+  { name: 'create_meme', description: 'Create a meme with top and bottom text overlaid on a template image, rendered to the draw pane.', input_schema: { type: 'object', properties: { template_name: { type: 'string', description: 'Meme template: stonks, this_is_fine, galaxy_brain, drake, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been' }, top_text: { type: 'string' }, bottom_text: { type: 'string' } }, required: ['template_name', 'top_text', 'bottom_text'] } }
+];
+
+// ── Tool execution dispatcher ──
+function executeAgentTool(name, input) {
+  try {
+    switch (name) {
+      // READ TOOLS
+      case 'get_sheet_range': {
+        const parts = input.range.split(':');
+        const s = parseRef(parts[0]), e = parts[1] ? parseRef(parts[1]) : s;
+        if (!s) return JSON.stringify({ error: 'Invalid range' });
+        const endR = e ? e.row : s.row, endC = e ? e.col : s.col;
+        const cells = [];
+        for (let r = s.row; r <= Math.min(endR, ssR - 1); r++)
+          for (let c = s.col; c <= Math.min(endC, ssC - 1); c++) {
+            const raw = ssD[r][c] || '';
+            const val = (typeof raw === 'string' && raw.startsWith('=')) ? evalF(raw) : raw;
+            if (raw !== '') cells.push({ ref: colN(c) + (r + 1), raw, value: String(val) });
+          }
+        return JSON.stringify({ cells, total: cells.length });
       }
+      case 'get_note': return JSON.stringify({ content: np.innerText.trim() });
+      case 'get_graph_state': return JSON.stringify({ expressions: gcExpressions.map(e => ({ expr: e.expr, color: e.color })) });
+      case 'get_watchlist': return JSON.stringify({ stocks: stockTickers, comparison: compareTickers, news: newsTickerWatchlist });
+      case 'get_stock_data': {
+        const data = genStockData(input.ticker.toUpperCase(), input.range || '1M');
+        // Summarize: return last 20 data points + stats
+        const recent = data.slice(-20).map(d => ({ date: d.date, open: d.open.toFixed(2), high: d.high.toFixed(2), low: d.low.toFixed(2), close: d.close.toFixed(2), vol: d.vol }));
+        const closes = data.map(d => d.close);
+        const stats = { current: closes[closes.length - 1].toFixed(2), high: Math.max(...closes).toFixed(2), low: Math.min(...closes).toFixed(2), change_pct: (((closes[closes.length - 1] - closes[0]) / closes[0]) * 100).toFixed(2) + '%', data_points: data.length };
+        return JSON.stringify({ ticker: input.ticker.toUpperCase(), range: input.range || '1M', stats, recent });
+      }
+      case 'get_stock_fundamentals': {
+        const t = input.ticker.toUpperCase();
+        const company = COMPANY_DB.find(c => c.ticker === t);
+        const metrics = getCompanyMetrics(t);
+        return JSON.stringify({ ticker: t, name: company ? company.name : t, sector: company ? company.sector : 'Unknown', ...metrics });
+      }
+      case 'get_news': {
+        const articles = genNews(input.keyword).slice(0, input.limit || 5);
+        return JSON.stringify(articles.map(a => ({ title: a.title, snippet: a.snippet, source: a.source, hours_ago: a.hoursAgo, tags: a.tags })));
+      }
+      case 'get_concept_map': return JSON.stringify({ nodes: cmNodes.map(n => ({ id: n.id, title: n.title, desc: n.desc })), edges: cmEdges.map(e => ({ from: e.from, to: e.to })) });
+
+      // WRITE TOOLS
+      case 'write_cells': {
+        let count = 0;
+        (input.cells || []).forEach(c => {
+          const ref = parseRef(c.ref);
+          if (ref) {
+            while (ref.row >= ssR) { ssD.push(new Array(ssC).fill('')); ssR++; }
+            while (ref.col >= ssC) { ssD.forEach(r => r.push('')); ssC++; }
+            ssD[ref.row][ref.col] = c.value;
+            count++;
+          }
+        });
+        LS('sheet', ssD); ssRender();
+        toast('Wrote ' + count + ' cells');
+        return JSON.stringify({ success: true, count });
+      }
+      case 'clear_range': {
+        const parts = input.range.split(':');
+        const s = parseRef(parts[0]), e = parts[1] ? parseRef(parts[1]) : s;
+        if (!s || !e) return JSON.stringify({ error: 'Invalid range' });
+        let count = 0;
+        for (let r = s.row; r <= Math.min(e.row, ssR - 1); r++)
+          for (let c = s.col; c <= Math.min(e.col, ssC - 1); c++) { ssD[r][c] = ''; count++; }
+        LS('sheet', ssD); ssRender();
+        toast('Cleared ' + count + ' cells');
+        return JSON.stringify({ success: true, cleared: count });
+      }
+      case 'create_table': {
+        const anchor = parseRef(input.anchor || 'A1');
+        if (!anchor) return JSON.stringify({ error: 'Invalid anchor' });
+        const headers = input.headers || [];
+        const rows = input.rows || [];
+        // Ensure sheet is big enough
+        const needR = anchor.row + 1 + rows.length;
+        const needC = anchor.col + headers.length;
+        while (ssR < needR) { ssD.push(new Array(ssC).fill('')); ssR++; }
+        while (ssC < needC) { ssD.forEach(r => r.push('')); ssC++; }
+        // Write headers
+        headers.forEach((h, i) => { ssD[anchor.row][anchor.col + i] = h; });
+        // Write rows
+        rows.forEach((row, ri) => {
+          row.forEach((val, ci) => { ssD[anchor.row + 1 + ri][anchor.col + ci] = String(val); });
+        });
+        LS('sheet', ssD); ssRender();
+        toast('Created table: ' + headers.length + ' cols, ' + rows.length + ' rows');
+        return JSON.stringify({ success: true, headers: headers.length, rows: rows.length });
+      }
+      case 'write_note': {
+        if (input.append) {
+          np.innerHTML += (np.innerHTML ? '<br>' : '') + input.content;
+        } else {
+          np.innerHTML = input.content;
+        }
+        LS('notepad', np.innerHTML);
+        toast(input.append ? 'Appended to notepad' : 'Updated notepad');
+        return JSON.stringify({ success: true });
+      }
+      case 'update_graph': {
+        const GC_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4', '#f97316'];
+        gcExpressions = (input.expressions || []).map((expr, i) => ({ expr, color: GC_COLORS[i % GC_COLORS.length] }));
+        LS('gcExpressions', gcExpressions);
+        if (typeof renderGCExprList === 'function') renderGCExprList();
+        if (typeof renderGC === 'function') renderGC();
+        toast('Updated graph: ' + gcExpressions.length + ' expressions');
+        return JSON.stringify({ success: true, count: gcExpressions.length });
+      }
+      case 'add_stock': {
+        const t = input.ticker.toUpperCase();
+        if (!stockTickers.includes(t)) { stockTickers.push(t); LS('stockTickers', stockTickers); }
+        if (typeof renderStockDash === 'function') renderStockDash();
+        if (typeof renderStockChips === 'function') renderStockChips();
+        toast('Added ' + t);
+        return JSON.stringify({ success: true, ticker: t });
+      }
+      case 'remove_stock': {
+        const t = input.ticker.toUpperCase();
+        const i = stockTickers.indexOf(t);
+        if (i >= 0) { stockTickers.splice(i, 1); LS('stockTickers', stockTickers); }
+        if (typeof renderStockDash === 'function') renderStockDash();
+        if (typeof renderStockChips === 'function') renderStockChips();
+        toast('Removed ' + t);
+        return JSON.stringify({ success: true, ticker: t });
+      }
+      case 'set_comparison': {
+        compareTickers = (input.tickers || []).map(t => t.toUpperCase());
+        LS('compareTickers', compareTickers);
+        if (typeof renderCompareChart === 'function') renderCompareChart();
+        toast('Comparison: ' + compareTickers.join(', '));
+        return JSON.stringify({ success: true, tickers: compareTickers });
+      }
+      case 'add_news_ticker': {
+        const t = input.ticker.toUpperCase();
+        if (!newsTickerWatchlist.includes(t)) {
+          newsTickerWatchlist.push(t); LS('newsTickers', newsTickerWatchlist);
+          if (typeof renderNewsChips === 'function') renderNewsChips();
+          if (typeof renderNewsFeed === 'function') renderNewsFeed();
+        }
+        toast('News: added ' + t);
+        return JSON.stringify({ success: true, ticker: t });
+      }
+      case 'add_concept_node': {
+        const node = { id: cmNID++, x: 200 + Math.random() * 200, y: 150 + Math.random() * 150, w: 120, h: 50, title: input.title, desc: input.description || '', shape: 'rect', color: '#3b82f6' };
+        cmNodes.push(node);
+        cmSave(); cmRender();
+        toast('Added node: ' + input.title);
+        return JSON.stringify({ success: true, id: node.id });
+      }
+      case 'write_to_draw_pane': {
+        wbAddLayer('image', input.image_url, { label: input.label || 'Image', w: 250, h: 180 });
+        toast('Image added to draw pane');
+        return JSON.stringify({ success: true });
+      }
+      case 'add_text_overlay': {
+        wbSaveState();
+        const sz = input.size || 24;
+        wbX.font = 'bold ' + sz + 'px system-ui';
+        wbX.fillStyle = '#ffffff';
+        wbX.strokeStyle = '#000000';
+        wbX.lineWidth = 3;
+        wbX.textAlign = 'center';
+        let y = sz + 10;
+        if (input.position === 'center') y = wbC.height / 2;
+        else if (input.position === 'bottom') y = wbC.height - 15;
+        wbX.strokeText(input.text, wbC.width / 2, y);
+        wbX.fillText(input.text, wbC.width / 2, y);
+        return JSON.stringify({ success: true });
+      }
+      case 'clear_draw_pane': {
+        wbSaveState();
+        wbX.clearRect(0, 0, wbC.width, wbC.height);
+        wbLayers = []; wbRenderLayers();
+        if (wbShowGrid) wbDrawGrid();
+        toast('Draw pane cleared');
+        return JSON.stringify({ success: true });
+      }
+      case 'show_toast': { toast(input.message); return JSON.stringify({ success: true }); }
+
+      // ANALYSIS TOOLS
+      case 'run_scenario': {
+        const data = genStockData(input.ticker.toUpperCase(), '1Y');
+        const basePrice = data[data.length - 1].close;
+        const results = (input.scenarios || []).map(s => {
+          const projected = [];
+          for (let m = 0; m <= 12; m++) {
+            projected.push({ month: m, price: +(basePrice * Math.pow(1 + s.growth_rate / 12, m)).toFixed(2) });
+          }
+          return { name: s.name, growth_rate: s.growth_rate, projected };
+        });
+        return JSON.stringify({ ticker: input.ticker.toUpperCase(), base_price: basePrice.toFixed(2), scenarios: results });
+      }
+      case 'build_thesis': {
+        const t = input.ticker.toUpperCase();
+        const data = genStockData(t, '6M');
+        const company = COMPANY_DB.find(c => c.ticker === t);
+        const metrics = getCompanyMetrics(t);
+        const articles = genNews(t).slice(0, 5);
+        const closes = data.map(d => d.close);
+        const thesis = {
+          ticker: t,
+          company: company ? company.name : t,
+          sector: company ? company.sector : 'Unknown',
+          current_price: metrics.price.toFixed(2),
+          market_cap: formatCap(metrics.mktCap),
+          six_month_range: Math.min(...closes).toFixed(2) + ' - ' + Math.max(...closes).toFixed(2),
+          six_month_return: (((closes[closes.length - 1] - closes[0]) / closes[0]) * 100).toFixed(1) + '%',
+          recent_news: articles.map(a => a.title),
+          fundamentals: metrics
+        };
+        return JSON.stringify(thesis);
+      }
+      case 'sentiment_summary': {
+        const articles = genNews(input.keyword);
+        const positive = ['strong', 'growth', 'beat', 'surge', 'rally', 'record', 'expands', 'innovation'];
+        const negative = ['fall', 'decline', 'risk', 'cut', 'warning', 'probe', 'layoff', 'miss'];
+        let posCount = 0, negCount = 0;
+        articles.forEach(a => {
+          const text = (a.title + ' ' + a.snippet).toLowerCase();
+          positive.forEach(w => { if (text.includes(w)) posCount++; });
+          negative.forEach(w => { if (text.includes(w)) negCount++; });
+        });
+        const total = posCount + negCount || 1;
+        const score = ((posCount - negCount) / total * 100).toFixed(0);
+        return JSON.stringify({ keyword: input.keyword, articles_analyzed: articles.length, positive_signals: posCount, negative_signals: negCount, sentiment_score: +score, rating: score > 30 ? 'Bullish' : score < -30 ? 'Bearish' : 'Neutral', headlines: articles.slice(0, 5).map(a => a.title) });
+      }
+      case 'create_template': {
+        const anchor = parseRef(input.anchor_cell || 'A1') || { row: 0, col: 0 };
+        const templates = {
+          stock_comparison_table: { headers: ['Ticker', 'Price', 'Change %', 'Mkt Cap', 'PE', 'Sector'], rows: [['AAPL', '', '', '', '', ''], ['MSFT', '', '', '', '', ''], ['GOOGL', '', '', '', '', ''], ['AMZN', '', '', '', '', '']] },
+          earnings_tracker: { headers: ['Ticker', 'Report Date', 'EPS Est', 'EPS Actual', 'Surprise %', 'Revenue', 'Guidance'], rows: [['', '', '', '', '', '', ''], ['', '', '', '', '', '', ''], ['', '', '', '', '', '', '']] },
+          portfolio_summary: { headers: ['Ticker', 'Shares', 'Avg Cost', 'Current', 'Value', 'Gain/Loss', 'Weight %'], rows: [['', '', '', '', '', '', ''], ['', '', '', '', '', '', ''], ['', '', '', '', '', '', ''], ['', 'TOTAL', '', '', '=SUM(E' + (anchor.row + 2) + ':E' + (anchor.row + 4) + ')', '', '100%']] },
+          scenario_model: { headers: ['Month', 'Bear (-10%)', 'Base (5%)', 'Bull (20%)'], rows: Array.from({length: 12}, (_, i) => [String(i + 1), '', '', '']) },
+          news_sentiment_board: { headers: ['Source', 'Headline', 'Sentiment', 'Score', 'Date'], rows: [['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', '']] },
+          macro_dashboard: { headers: ['Indicator', 'Current', 'Previous', 'Trend', 'Impact'], rows: [['CPI', '', '', '', ''], ['Fed Rate', '', '', '', ''], ['VIX', '', '', '', ''], ['10Y Yield', '', '', '', ''], ['Unemployment', '', '', '', '']] }
+        };
+        const tpl = templates[input.type];
+        if (!tpl) return JSON.stringify({ error: 'Unknown template: ' + input.type });
+        while (ssR < anchor.row + 1 + tpl.rows.length) { ssD.push(new Array(ssC).fill('')); ssR++; }
+        while (ssC < anchor.col + tpl.headers.length) { ssD.forEach(r => r.push('')); ssC++; }
+        tpl.headers.forEach((h, i) => { ssD[anchor.row][anchor.col + i] = h; });
+        tpl.rows.forEach((row, ri) => { row.forEach((val, ci) => { ssD[anchor.row + 1 + ri][anchor.col + ci] = val; }); });
+        LS('sheet', ssD); ssRender();
+        toast('Template: ' + input.type);
+        return JSON.stringify({ success: true, type: input.type });
+      }
+
+      // IMAGE/MEME TOOLS
+      case 'search_image': {
+        const urls = [];
+        for (let i = 0; i < 6; i++) urls.push('https://source.unsplash.com/featured/400x300/?' + encodeURIComponent(input.query) + '&sig=' + (Date.now() + i));
+        return JSON.stringify({ query: input.query, urls });
+      }
+      case 'create_meme': {
+        // Use placeholder meme images based on template name
+        const MEME_URLS = {
+          stonks: 'https://i.imgflip.com/2xnzjd.jpg',
+          this_is_fine: 'https://i.imgflip.com/wxica.jpg',
+          galaxy_brain: 'https://i.imgflip.com/1yxkcp.jpg',
+          drake: 'https://i.imgflip.com/30b1gx.jpg',
+          disaster_girl: 'https://i.imgflip.com/23ls.jpg',
+          expanding_brain: 'https://i.imgflip.com/1jwhww.jpg',
+          trade_offer: 'https://i.imgflip.com/54hjww.jpg',
+          change_my_mind: 'https://i.imgflip.com/24y43o.jpg',
+          always_has_been: 'https://i.imgflip.com/46e43q.jpg'
+        };
+        const imgUrl = MEME_URLS[input.template_name] || MEME_URLS['stonks'];
+        // Add image as layer
+        wbAddLayer('image', imgUrl, { label: 'Meme: ' + input.template_name, w: 300, h: 280, x: 30, y: 30 });
+        // Draw text overlays on canvas
+        wbSaveState();
+        wbX.font = 'bold 28px Impact, sans-serif';
+        wbX.fillStyle = '#ffffff';
+        wbX.strokeStyle = '#000000';
+        wbX.lineWidth = 3;
+        wbX.textAlign = 'center';
+        if (input.top_text) {
+          wbX.strokeText(input.top_text.toUpperCase(), wbC.width / 2, 50);
+          wbX.fillText(input.top_text.toUpperCase(), wbC.width / 2, 50);
+        }
+        if (input.bottom_text) {
+          wbX.strokeText(input.bottom_text.toUpperCase(), wbC.width / 2, wbC.height - 30);
+          wbX.fillText(input.bottom_text.toUpperCase(), wbC.width / 2, wbC.height - 30);
+        }
+        toast('Meme created: ' + input.template_name);
+        return JSON.stringify({ success: true, template: input.template_name });
+      }
+
+      default: return JSON.stringify({ error: 'Unknown tool: ' + name });
     }
-    if (nonEmpty.length) parts.push('Sheet cells: ' + nonEmpty.slice(0, 80).join(', ') + (nonEmpty.length > 80 ? ' ... (' + nonEmpty.length + ' total)' : ''));
-
-    // Stock tickers
-    if (stockTickers.length) parts.push('Tracked stocks: ' + stockTickers.join(', '));
-    if (compareTickers.length) parts.push('Comparison chart: ' + compareTickers.join(', '));
-
-    // Notepad excerpt
-    const noteText = np.innerText.trim();
-    if (noteText) parts.push('Notepad excerpt: ' + noteText.substring(0, 500) + (noteText.length > 500 ? '...' : ''));
-
-    // Graph calc expressions
-    if (gcExpressions.length) parts.push('Graph expressions: ' + gcExpressions.map(e => e.expr).join(', '));
-
-    // Concept map
-    if (cmNodes.length) parts.push('Concept map nodes: ' + cmNodes.map(n => n.title).join(', '));
-
-    // News watchlist
-    if (newsTickerWatchlist.length) parts.push('News watchlist: ' + newsTickerWatchlist.join(', '));
-
-    return parts.join('\n');
+  } catch (e) {
+    return JSON.stringify({ error: e.message });
   }
+}
 
-  const SYSTEM_PROMPT = `You are Claude, an AI assistant embedded in an interactive workspace app. You can see the user's workspace state (sheet data, notes, stocks, graphs, etc.) and help them with:
-- Writing and explaining spreadsheet formulas (=SUM, =AVG, =IF, =SPARK, cell refs like A1+B2)
-- Analyzing their data and stocks
-- Writing content for their notepad
-- Suggesting graph expressions (sin(x), x^2, etc.)
-- General questions and brainstorming
+// ── Agentic loop with tool_use ──
+async function sendAgentMessage() {
+  if (!aiKey) { addAiMsg('system', 'Set your API key below to start.'); return; }
+  const input = $('#aiInput').value.trim();
+  if (!input || aiStreaming) return;
 
-When suggesting formulas, use the supported syntax: =SUM(A1:A5), =AVG(B1:B10), =MIN, =MAX, =COUNT, =MEDIAN, =PRODUCT, =IF(A1>5,yes,no), =SPARK(A1:A12), or cell arithmetic like =A1+B1*2.
+  addAiMsg('user', input);
+  $('#aiInput').value = '';
 
-Keep responses concise and actionable. Use plain text, not markdown.`;
+  // Add workspace context to the latest user message
+  const ctx = getWorkspaceContext();
+  const contextMsg = { role: 'user', content: '[Current Workspace State]\n' + ctx + '\n\n[User Request]\n' + input };
 
-  async function sendToClaudeDirect() {
-    if (!aiKey) { addAiMsg('system', 'Set your API key first.'); return; }
-    const input = $('#aiInput').value.trim();
-    if (!input) return;
-    if (aiStreaming) return;
+  // Manage history
+  aiMessages.push({ role: 'user', content: input });
+  if (aiMessages.length > 30) aiMessages = aiMessages.slice(-20);
 
-    addAiMsg('user', input);
-    $('#aiInput').value = '';
+  const model = $('#aiModel').value;
+  const thinkingDiv = addAiMsg('system', 'Thinking...');
+  aiStreaming = true;
 
-    // Add context on first message or when user asks about data
-    const ctx = getWorkspaceContext();
-    const contextMsg = { role: 'user', content: '[Workspace Context]\n' + ctx + '\n\n[User Question]\n' + input };
+  try {
+    // Build API messages: history + context-enriched latest
+    let apiMsgs = aiMessages.slice(0, -1).concat([contextMsg]);
 
-    // Keep conversation history manageable
-    aiMessages.push({ role: 'user', content: input });
-    if (aiMessages.length > 20) aiMessages = aiMessages.slice(-16);
+    let iterations = 0;
+    const MAX_ITERATIONS = 10;
 
-    // Build messages for API: include context in the latest user message
-    const apiMsgs = aiMessages.slice(0, -1).concat([contextMsg]);
+    while (iterations < MAX_ITERATIONS) {
+      iterations++;
 
-    const model = $('#aiModel').value;
-    const responseDiv = addAiMsg('assistant', '...');
-    aiStreaming = true;
-
-    try {
-      // Use fetch with streaming
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -4534,63 +5042,84 @@ Keep responses concise and actionable. Use plain text, not markdown.`;
         },
         body: JSON.stringify({
           model: model,
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
+          max_tokens: 4096,
+          system: AI_SYSTEM_PROMPT,
           messages: apiMsgs,
-          stream: true
+          tools: AGENT_TOOLS
         })
       });
 
       if (!resp.ok) {
         const err = await resp.text();
-        responseDiv.textContent = 'Error: ' + resp.status + ' — ' + (err.substring(0, 200));
+        thinkingDiv.textContent = 'Error: ' + resp.status + ' — ' + (err.substring(0, 300));
         aiStreaming = false;
         return;
       }
 
-      // Stream SSE
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = '';
-      let buf = '';
+      const result = await resp.json();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop();
+      // Extract text and tool_use blocks
+      const textBlocks = (result.content || []).filter(b => b.type === 'text');
+      const toolBlocks = (result.content || []).filter(b => b.type === 'tool_use');
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6);
-          if (data === '[DONE]') continue;
-          try {
-            const evt = JSON.parse(data);
-            if (evt.type === 'content_block_delta' && evt.delta && evt.delta.text) {
-              fullText += evt.delta.text;
-              responseDiv.textContent = fullText;
-              $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
-            }
-          } catch(e) {}
+      // Show any text response
+      if (textBlocks.length) {
+        const fullText = textBlocks.map(b => b.text).join('\n');
+        if (thinkingDiv.textContent === 'Thinking...') {
+          thinkingDiv.className = 'ai-msg assistant';
+          thinkingDiv.textContent = fullText;
+        } else {
+          addAiMsg('assistant', fullText);
         }
+        // Save to history as simple text
+        aiMessages.push({ role: 'assistant', content: fullText });
       }
 
-      if (!fullText) fullText = '(empty response)';
-      responseDiv.textContent = fullText;
-      aiMessages.push({ role: 'assistant', content: fullText });
-    } catch(e) {
-      responseDiv.textContent = 'Error: ' + e.message;
-    }
-    aiStreaming = false;
-  }
+      // If no tool calls, we're done
+      if (result.stop_reason !== 'tool_use' || !toolBlocks.length) {
+        if (!textBlocks.length && thinkingDiv.textContent === 'Thinking...') {
+          thinkingDiv.textContent = '(No response)';
+        }
+        break;
+      }
 
-  // Send handlers
-  $('#aiSend').onclick = sendToClaudeDirect;
-  $('#aiInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendToClaudeDirect(); }
-  });
-})();
+      // Remove thinking indicator if still showing
+      if (thinkingDiv.textContent === 'Thinking...') thinkingDiv.remove();
+
+      // Execute tool calls
+      const toolResults = [];
+      for (const toolBlock of toolBlocks) {
+        addToolStatus(toolBlock.name, toolBlock.input);
+        const toolResult = executeAgentTool(toolBlock.name, toolBlock.input);
+        toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult });
+      }
+
+      // Add assistant message with tool_use blocks to API messages
+      apiMsgs.push({ role: 'assistant', content: result.content });
+      // Add tool results as user message
+      apiMsgs.push({ role: 'user', content: toolResults });
+
+      // Update thinking indicator for next iteration
+      const nextThink = addAiMsg('system', 'Processing...');
+      // Continue loop — next API call will have tool results
+    }
+
+  } catch (e) {
+    thinkingDiv.textContent = 'Error: ' + e.message;
+  }
+  aiStreaming = false;
+}
+
+// Welcome message
+if (!$('#aiMsgs').children.length) {
+  addAiMsg('system', 'Native workspace agent. I can read and write to your sheet, notepad, graph, draw pane, and stock watchlist. Set your API key below to start.');
+}
+
+// Send handlers
+$('#aiSend').onclick = sendAgentMessage;
+$('#aiInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); }
+});
 
 </script>
 </body>
