@@ -461,6 +461,33 @@ body.light .fun-btn { background: var(--accent); }
 .timer-clock { font-family: 'Courier New', monospace; font-size: .62rem; font-weight: 700; color: #4CAF50; background: rgba(0,0,0,.65); border: 1px solid rgba(76,175,80,.35); border-radius: 4px; padding: 1px 4px; text-shadow: 0 0 4px rgba(76,175,80,.5); white-space: nowrap; line-height: 1.2; }
 .timer-stats { display: flex; flex-direction: column; gap: 0; line-height: 1.1; }
 .timer-stats div { font-size: .42rem; color: rgba(76,175,80,.7); font-family: system-ui, sans-serif; white-space: nowrap; background: rgba(0,0,0,.5); border-radius: 2px; padding: 0 3px; }
+/* ADDED — Phase 11: Mini-robot sub-agents */
+.mini-robot { position: absolute; bottom: 20px; z-index: 6; transform-origin: bottom center; opacity: 0; transition: opacity .3s; }
+.mini-robot.active { opacity: 1; }
+.mini-robot .mini-head { width: 14px; height: 11px; background: linear-gradient(180deg, #8a8a98, #6e6e7e, #5a5a68); border-radius: 3px 3px 2px 2px; margin: 0 auto; position: relative; }
+.mini-robot .mini-eyes { display: flex; justify-content: center; gap: 3px; padding-top: 3px; }
+.mini-robot .mini-eyes .eye { width: 2px; height: 2px; background: #1a1a1a; border-radius: 50%; }
+.mini-robot .mini-torso { width: 16px; height: 11px; background: linear-gradient(180deg, #7a7a88, #5e5e6e, #4a4a58); border-radius: 2px; margin: 1px auto 0; }
+.mini-robot .mini-tie { width: 3px; height: 7px; margin: 0 auto; clip-path: polygon(50% 0, 100% 15%, 65% 100%, 50% 80%, 35% 100%, 0 15%); }
+@keyframes miniRobotPop {
+  0% { transform: translateY(30px) scale(0); opacity: 0; }
+  40% { transform: translateY(-8px) scale(1.1); opacity: 1; }
+  60% { transform: translateY(2px) scale(0.95); }
+  80% { transform: translateY(-3px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes miniRobotBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes miniRobotDismiss {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(30px) scale(0); opacity: 0; }
+}
+.mini-robot.popping { animation: miniRobotPop .5s ease-out forwards; }
+.mini-robot.bouncing { animation: miniRobotBounce .6s ease-in-out infinite; }
+.mini-robot.dismissing { animation: miniRobotDismiss .4s ease-in forwards; }
+
 /* Tie/scene controls */
 .robot-controls { display: flex; gap: 4px; justify-content: center; padding: 3px 0; flex-shrink: 0; background: var(--panel-inset); border-bottom: 1px solid var(--border); }
 /* Robot scene resize handle — only visible in expanded pane */
@@ -1282,6 +1309,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <!-- ADDED — Phase 5: Load extracted tool module -->
 <script type="module" src="./tools.js"></script>
+<!-- ADDED — Phase 11: Orchestrator module -->
+<script type="module" src="./orchestrator.js"></script>
 </head>
 <body class="neon">
 
@@ -1506,6 +1535,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <label id="aiDeepToggleLabel" style="display:flex;align-items:center;gap:2px;font-size:.55rem;color:var(--text-dim);cursor:pointer;" title="Auto-include deep research with every query (adds ~$0.05-0.15 per query)">
         <input type="checkbox" id="aiDeepToggle" style="width:12px;height:12px;cursor:pointer;">
         <span>Deep</span>
+      </label>
+      <label id="aiOrchToggleLabel" style="display:flex;align-items:center;gap:2px;font-size:.55rem;color:var(--text-dim);cursor:pointer;" title="Orchestrator: auto-decomposes complex requests into parallel sub-tasks with error interception">
+        <input type="checkbox" id="aiOrchestratorToggle" checked style="width:12px;height:12px;cursor:pointer;">
+        <span>Orch</span>
       </label>
       <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
       <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
@@ -8968,6 +9001,50 @@ window._robotTaskDone = function() {
   _updateTimerDisplay();
 };
 
+// ADDED — Phase 11: Mini-robot sub-agent animation
+const MINI_ROBOT_COLORS = ['#D32F2F', '#1565C0', '#FF9800', '#4CAF50', '#9C27B0'];
+let _miniRobots = [];
+
+function spawnMiniRobots() {
+  dismissMiniRobots(); // Clean up any existing
+  const workstation = document.getElementById('robotWorkstation');
+  if (!workstation) return;
+  const count = 3; // Up to 3 mini-robots
+  const positions = [-38, -52, 38]; // Left, far-left, right of main robot
+  for (let i = 0; i < count; i++) {
+    const mini = document.createElement('div');
+    mini.className = 'mini-robot';
+    mini.innerHTML = '<div class="mini-head"><div class="mini-eyes"><span class="eye"></span><span class="eye"></span></div></div><div class="mini-torso"><div class="mini-tie" style="background:' + MINI_ROBOT_COLORS[i % MINI_ROBOT_COLORS.length] + ';"></div></div>';
+    mini.style.left = 'calc(50% + ' + positions[i] + 'px)';
+    mini.style.transform = 'translateX(-50%)';
+    workstation.appendChild(mini);
+    // Stagger pop-in
+    setTimeout(function() {
+      mini.classList.add('active', 'popping');
+      // After pop, start bouncing with staggered delay
+      setTimeout(function() {
+        mini.classList.remove('popping');
+        mini.classList.add('bouncing');
+        mini.style.animationDelay = (i * 0.15) + 's';
+      }, 500);
+    }, i * 200);
+    _miniRobots.push(mini);
+  }
+}
+
+function dismissMiniRobots() {
+  _miniRobots.forEach(function(mini, i) {
+    mini.classList.remove('bouncing', 'popping');
+    mini.classList.add('dismissing');
+    setTimeout(function() { if (mini.parentNode) mini.parentNode.removeChild(mini); }, 400);
+  });
+  _miniRobots = [];
+}
+
+// Expose globally for orchestrator
+window.spawnMiniRobots = spawnMiniRobots;
+window.dismissMiniRobots = dismissMiniRobots;
+
 // Patch setRobotWorking to also toggle monitors + timer
 const _origSetRobotWorking = setRobotWorking;
 setRobotWorking = function(active) {
@@ -9311,6 +9388,17 @@ async function sendAgentMessage() {
     useGeniePrompt();
   }
 
+  // ADDED — Phase 11: Auto-detect complex requests and route to orchestrator
+  const orchToggle = $('#aiOrchestratorToggle') && $('#aiOrchestratorToggle').checked;
+  if (orchToggle && window._isComplexRequest && window._isComplexRequest(input) && window._runOrchestrated) {
+    addAiMsg('user', input);
+    $('#aiInput').value = '';
+    const ctx = getWorkspaceContext();
+    const mdl = $('#aiModel').value;
+    spawnMiniRobots();
+    return window._runOrchestrated(input, ctx, { model: mdl, aiKey: aiKey }).finally(dismissMiniRobots);
+  }
+
   addAiMsg('user', input);
   $('#aiInput').value = '';
 
@@ -9645,6 +9733,16 @@ $('#aiSend').onclick = sendAgentMessage;
 $('#aiInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); }
 });
+
+// ADDED — Phase 11: Expose globals for orchestrator module
+window.executeAgentTool = executeAgentTool;
+window.addAiMsg = addAiMsg;
+window.addToolStatus = addToolStatus;
+window.saveToolAction = saveToolAction;
+window.getWorkspaceContext = getWorkspaceContext;
+window.trackUserUsage = typeof trackUserUsage !== 'undefined' ? trackUserUsage : function() {};
+window.updateCostPanel = typeof updateCostPanel !== 'undefined' ? updateCostPanel : function() {};
+window.MODEL_RATES = MODEL_RATES;
 
 </script>
 </body>
