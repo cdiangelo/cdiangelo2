@@ -1312,6 +1312,17 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   #authBox button { font-size: .82rem !important; padding: 12px !important; min-height: 44px; }
   #authBox .auth-user-item { min-height: 52px; }
   #authVerifyCode { font-size: 1.4rem !important; padding: 14px !important; width: 160px !important; }
+  /* Claude pane mobile fixes — shrink robot scene, fix backdrop overflow */
+  .robot-scene { height: 90px !important; }
+  .robot-scene-resize { display: none !important; }
+  .robot-workstation { transform: translateX(-50%) scale(0.7); transform-origin: bottom center; }
+  .robot-plant { display: none !important; }
+  .robot-controls { padding: 2px 0; }
+  .robot-controls select { font-size: .5rem !important; }
+  #q-claude .p-head { flex-wrap: wrap; gap: 2px; }
+  #q-claude .p-head .p-btn, #q-claude .p-head select, #q-claude .p-head label { font-size: .5rem !important; }
+  /* Hide less important Claude header buttons on mobile */
+  #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn, #aiOrchToggleLabel { display: none !important; }
 }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -2072,6 +2083,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-head">
       <span class="p-title"><span class="p-icon" style="font-size:.7rem;">&#9654;</span> Media</span>
       <div class="p-spacer"></div>
+      <button id="mediaStopBtn" class="p-btn" title="Stop video" style="font-size:.55rem;color:var(--danger, #ef4444);">&#9632; Stop</button>
       <button id="mediaAddBtn" class="p-btn" title="Add video" style="font-size:.55rem;">+ Add</button>
       <button id="mediaListBtn" class="p-btn" title="Video playlist" style="font-size:.55rem;">List</button>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
@@ -2780,13 +2792,13 @@ $('#gridApplyBtn').onclick = () => {
 // ── Mobile navigation ──
 (function initMobileNav() {
   const MOBILE_PANES = [
-    { id: 'q-claude', label: 'Claude', icon: '\uD83E\uDD16', desc: 'AI agent with workspace tools' },
-    { id: 'q-map', label: 'Analytics', icon: '\uD83D\uDCC8', desc: 'Stocks, concept maps, graphs' },
-    { id: 'q-news', label: 'News', icon: '\uD83D\uDCF0', desc: 'Market news and research' },
-    { id: 'q-notepad', label: 'Notes', icon: '\uD83D\uDCDD', desc: 'Rich text notepad' },
-    { id: 'q-whiteboard', label: 'Draw', icon: '\uD83C\uDFA8', desc: 'Whiteboard and diagrams' },
-    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA', desc: 'Spreadsheet with formulas' },
-    { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F', desc: 'YouTube player' }
+    { id: 'q-claude', label: 'Claude', icon: '\uD83E\uDD16', desc: 'Ask Claude to build tables, analyze stocks, create charts, and more' },
+    { id: 'q-map', label: 'Analytics', icon: '\uD83D\uDCC8', desc: 'Stock charts, concept maps, and graph calculator' },
+    { id: 'q-news', label: 'News', icon: '\uD83D\uDCF0', desc: 'Search news by keyword or track market tickers' },
+    { id: 'q-notepad', label: 'Notes', icon: '\uD83D\uDCDD', desc: 'Rich text editor with formatting and colors' },
+    { id: 'q-whiteboard', label: 'Draw', icon: '\uD83C\uDFA8', desc: 'Freeform drawing with shapes, text, and layers' },
+    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA', desc: 'Spreadsheet with formulas like SUM, AVG, VLOOKUP' },
+    { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F', desc: 'YouTube video player and playlist' }
   ];
   let mobIdx = -1; // -1 = table of contents home
   const isMobile = () => window.innerWidth <= 768;
@@ -2808,8 +2820,15 @@ $('#gridApplyBtn').onclick = () => {
       title.textContent = 'Interactive Workspace';
       mobTocEl.appendChild(title);
 
+      const intro = document.createElement('div');
+      intro.style.cssText = 'background:var(--panel-inset);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:.68rem;color:var(--text);line-height:1.5;';
+      intro.innerHTML = '<strong style="color:var(--accent2);">Quick Start</strong><br>' +
+        'Open <b>Claude</b> and type what you need \u2014 he can build tables, fetch stock data, chart comparisons, write analyses, and draw on the whiteboard. ' +
+        'Or use the other tools directly: edit the <b>Sheet</b>, draw on the <b>Whiteboard</b>, search <b>News</b>, and more.';
+      mobTocEl.appendChild(intro);
+
       const swipeHint = document.createElement('div');
-      swipeHint.style.cssText = 'text-align:center;font-size:.65rem;color:var(--text-dim);margin-bottom:14px;opacity:.7;';
+      swipeHint.style.cssText = 'text-align:center;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;opacity:.7;';
       swipeHint.innerHTML = '\u2190 Swipe left/right to switch panes \u2192';
       mobTocEl.appendChild(swipeHint);
 
@@ -3183,6 +3202,14 @@ function showVideo(idx) {
   fsBtn.style.cssText = 'background:rgba(0,0,0,.4);color:#fff;border:none;width:22px;height:22px;border-radius:4px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center';
   fsBtn.addEventListener('click', toggleFullscreen);
   controls.appendChild(fsBtn);
+
+  // Close/stop button (important for mobile — no right-click available)
+  const closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '&times;';
+  closeBtn.title = 'Close video';
+  closeBtn.style.cssText = 'background:rgba(200,0,0,.6);color:#fff;border:none;width:22px;height:22px;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center';
+  closeBtn.addEventListener('click', () => { funOff(); toast('Stopped'); const em = document.getElementById('mediaPaneEmpty'); if (em) em.style.display = ''; });
+  controls.appendChild(closeBtn);
   funWrap.appendChild(controls);
 
   // Persistent skip/next button — always visible
@@ -3313,6 +3340,13 @@ function releaseVideoFromMediaPane() {
 
 // Media pane buttons
 try {
+  const mediaStopBtn = document.getElementById('mediaStopBtn');
+  if (mediaStopBtn) mediaStopBtn.onclick = () => {
+    funOff();
+    const emptyMsg = document.getElementById('mediaPaneEmpty');
+    if (emptyMsg) emptyMsg.style.display = '';
+    toast('Stopped');
+  };
   const mediaAddBtn = document.getElementById('mediaAddBtn');
   const mediaListBtn = document.getElementById('mediaListBtn');
   if (mediaAddBtn) mediaAddBtn.onclick = () => {
