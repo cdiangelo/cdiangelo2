@@ -698,7 +698,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-body">
       <div class="toolbar">
         <span class="cell-ref" id="ssCellRef">A1</span>
-        <input type="text" id="ssFormula" placeholder="Value or formula: =SUM(A1:A5)  =AVG  =IF(A1>5,yes,no)  =SPARK(B2:B13)" />
+        <input type="text" id="ssFormula" placeholder="=SUM  =SUMIF  =COUNTIF  =VLOOKUP  =LEN  =A1&amp;B1  =TEXT(A1,&quot;0.00&quot;)  =UPPER  =LEFT  =IF" />
         <div class="sep"></div>
         <button id="ssAddRow" title="Add row">+Row</button>
         <button id="ssAddCol" title="Add column">+Col</button>
@@ -1602,6 +1602,63 @@ function cellVal(r, c, visited) {
   return isNaN(n) ? (raw || '') : n;
 }
 
+// Helper: get range of cell values as array of {row, col, val}
+function getRangeVals(startRef, endRef, visited) {
+  const s = parseRef(startRef), e = parseRef(endRef);
+  if (!s || !e) return [];
+  const result = [];
+  for (let r = Math.min(s.row, e.row); r <= Math.max(s.row, e.row); r++)
+    for (let c = Math.min(s.col, e.col); c <= Math.max(s.col, e.col); c++) {
+      result.push({ row: r, col: c, val: cellVal(r, c, new Set(visited)) });
+    }
+  return result;
+}
+
+// Helper: compare value against criteria string (for SUMIF/COUNTIF)
+function matchesCriteria(val, criteria) {
+  // Operator criteria: ">5", "<=10", "<>0", "!=abc"
+  const opMatch = criteria.match(/^(>=|<=|!=|<>|>|<|=)(.+)$/);
+  if (opMatch) {
+    const op = opMatch[1], cmpRaw = opMatch[2];
+    const numVal = typeof val === 'number' ? val : parseFloat(val);
+    const cmpNum = parseFloat(cmpRaw);
+    const useNum = !isNaN(numVal) && !isNaN(cmpNum);
+    if (op === '>') return useNum && numVal > cmpNum;
+    if (op === '<') return useNum && numVal < cmpNum;
+    if (op === '>=') return useNum && numVal >= cmpNum;
+    if (op === '<=') return useNum && numVal <= cmpNum;
+    if (op === '=' || op === '==') return useNum ? numVal === cmpNum : String(val).toUpperCase() === cmpRaw.toUpperCase();
+    if (op === '!=' || op === '<>') return useNum ? numVal !== cmpNum : String(val).toUpperCase() !== cmpRaw.toUpperCase();
+  }
+  // Wildcard match (* and ?)
+  if (criteria.includes('*') || criteria.includes('?')) {
+    const pattern = '^' + criteria.replace(/\*/g, '.*').replace(/\?/g, '.') + '$';
+    return new RegExp(pattern, 'i').test(String(val));
+  }
+  // Exact match (case-insensitive for strings)
+  const nv = parseFloat(val), nc = parseFloat(criteria);
+  if (!isNaN(nv) && !isNaN(nc)) return nv === nc;
+  return String(val).toUpperCase() === criteria.toUpperCase();
+}
+
+// Drag-fill: adjust cell references in formulas by offset
+function ssFillAdjust(srcVal, rowOff, colOff) {
+  if (typeof srcVal !== 'string') return srcVal;
+  if (!srcVal.startsWith('=')) {
+    // Auto-increment numbers
+    const n = parseFloat(srcVal);
+    if (!isNaN(n)) return String(n + (rowOff || colOff));
+    return srcVal;
+  }
+  // Adjust cell references: A1 → A2 (row+1), A1 → B1 (col+1)
+  return srcVal.replace(/([A-Z]+)(\d+)/gi, (m, col, row) => {
+    const newRow = parseInt(row) + rowOff;
+    const colIdx = col.toUpperCase().split('').reduce((a, c) => a * 26 + c.charCodeAt(0) - 64, 0) - 1 + colOff;
+    if (newRow < 1 || colIdx < 0) return m;
+    return colN(colIdx) + newRow;
+  });
+}
+
 function evalF(formula, visited) {
   try {
     const f = formula.substring(1).trim().toUpperCase();
@@ -1629,25 +1686,216 @@ function evalF(formula, visited) {
       if (fn === 'PRODUCT') return vals.reduce((a,b) => a*b, 1);
     }
 
-    // IF
+    // SUMIF(range, criteria, [sum_range])
+    const sumifM = f.match(/^SUMIF\(([A-Z]+\d+):([A-Z]+\d+)\s*,\s*"?([^"]*?)"?\s*(?:,\s*([A-Z]+\d+):([A-Z]+\d+))?\)$/);
+    if (sumifM) {
+      const criteriaRange = getRangeVals(sumifM[1], sumifM[2], visited);
+      const criteria = sumifM[3];
+      const sumRange = sumifM[4] ? getRangeVals(sumifM[4], sumifM[5], visited) : criteriaRange;
+      let total = 0;
+      criteriaRange.forEach((cell, i) => {
+        if (matchesCriteria(cell.val, criteria)) {
+          const sv = sumRange[i] ? sumRange[i].val : 0;
+          total += typeof sv === 'number' ? sv : (parseFloat(sv) || 0);
+        }
+      });
+      return total;
+    }
+
+    // COUNTIF(range, criteria)
+    const countifM = f.match(/^COUNTIF\(([A-Z]+\d+):([A-Z]+\d+)\s*,\s*"?([^"]*?)"?\)$/);
+    if (countifM) {
+      const range = getRangeVals(countifM[1], countifM[2], visited);
+      const criteria = countifM[3];
+      return range.filter(cell => matchesCriteria(cell.val, criteria)).length;
+    }
+
+    // VLOOKUP(lookup_value, table_range, col_index, [approx])
+    const vlookupM = f.match(/^VLOOKUP\(([^,]+)\s*,\s*([A-Z]+\d+):([A-Z]+\d+)\s*,\s*(\d+)\s*(?:,\s*(TRUE|FALSE|0|1))?\)$/);
+    if (vlookupM) {
+      let lookupVal = vlookupM[1].trim();
+      // Resolve cell reference for lookup value
+      const lookRef = parseRef(lookupVal);
+      if (lookRef) lookupVal = cellVal(lookRef.row, lookRef.col, new Set(visited));
+      else if (lookupVal.startsWith('"') && lookupVal.endsWith('"')) lookupVal = lookupVal.slice(1, -1);
+      else if (!isNaN(parseFloat(lookupVal))) lookupVal = parseFloat(lookupVal);
+
+      const tblStart = parseRef(vlookupM[2]), tblEnd = parseRef(vlookupM[3]);
+      if (!tblStart || !tblEnd) return '#REF!';
+      const colIdx = parseInt(vlookupM[4]) - 1;
+      const approx = vlookupM[5] ? (vlookupM[5] === 'TRUE' || vlookupM[5] === '1') : false;
+
+      for (let r = Math.min(tblStart.row, tblEnd.row); r <= Math.max(tblStart.row, tblEnd.row); r++) {
+        const firstColVal = cellVal(r, tblStart.col, new Set(visited));
+        const matches = typeof lookupVal === 'number'
+          ? (typeof firstColVal === 'number' ? firstColVal === lookupVal : parseFloat(firstColVal) === lookupVal)
+          : String(firstColVal).toUpperCase() === String(lookupVal).toUpperCase();
+        if (matches) {
+          const resultCol = tblStart.col + colIdx;
+          if (resultCol > tblEnd.col) return '#REF!';
+          return cellVal(r, resultCol, new Set(visited));
+        }
+      }
+      return '#N/A';
+    }
+
+    // LEN(ref) or LEN("text")
+    const lenM = f.match(/^LEN\((.+)\)$/);
+    if (lenM) {
+      const arg = lenM[1].trim();
+      if (arg.startsWith('"') && arg.endsWith('"')) return arg.slice(1, -1).length;
+      const ref = parseRef(arg);
+      if (ref) return String(cellVal(ref.row, ref.col, new Set(visited))).length;
+      return arg.length;
+    }
+
+    // UPPER(ref), LOWER(ref), TRIM(ref)
+    const strFnM = f.match(/^(UPPER|LOWER|TRIM|PROPER)\((.+)\)$/);
+    if (strFnM) {
+      const fn = strFnM[1];
+      let arg = strFnM[2].trim();
+      if (arg.startsWith('"') && arg.endsWith('"')) arg = arg.slice(1, -1);
+      else { const ref = parseRef(arg); if (ref) arg = String(cellVal(ref.row, ref.col, new Set(visited))); }
+      if (fn === 'UPPER') return arg.toUpperCase();
+      if (fn === 'LOWER') return arg.toLowerCase();
+      if (fn === 'TRIM') return arg.trim();
+      if (fn === 'PROPER') return arg.replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    // LEFT(ref, n), RIGHT(ref, n), MID(ref, start, len)
+    const leftM = f.match(/^LEFT\((.+?)\s*,\s*(\d+)\)$/);
+    if (leftM) {
+      let arg = leftM[1].trim();
+      if (arg.startsWith('"') && arg.endsWith('"')) arg = arg.slice(1, -1);
+      else { const ref = parseRef(arg); if (ref) arg = String(cellVal(ref.row, ref.col, new Set(visited))); }
+      return arg.substring(0, parseInt(leftM[2]));
+    }
+    const rightM = f.match(/^RIGHT\((.+?)\s*,\s*(\d+)\)$/);
+    if (rightM) {
+      let arg = rightM[1].trim();
+      if (arg.startsWith('"') && arg.endsWith('"')) arg = arg.slice(1, -1);
+      else { const ref = parseRef(arg); if (ref) arg = String(cellVal(ref.row, ref.col, new Set(visited))); }
+      return arg.slice(-parseInt(rightM[2]));
+    }
+    const midM = f.match(/^MID\((.+?)\s*,\s*(\d+)\s*,\s*(\d+)\)$/);
+    if (midM) {
+      let arg = midM[1].trim();
+      if (arg.startsWith('"') && arg.endsWith('"')) arg = arg.slice(1, -1);
+      else { const ref = parseRef(arg); if (ref) arg = String(cellVal(ref.row, ref.col, new Set(visited))); }
+      return arg.substring(parseInt(midM[2]) - 1, parseInt(midM[2]) - 1 + parseInt(midM[3]));
+    }
+
+    // SUBSTITUTE(text, old, new)
+    const subM = f.match(/^SUBSTITUTE\((.+?)\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\)$/);
+    if (subM) {
+      let arg = subM[1].trim();
+      if (arg.startsWith('"') && arg.endsWith('"')) arg = arg.slice(1, -1);
+      else { const ref = parseRef(arg); if (ref) arg = String(cellVal(ref.row, ref.col, new Set(visited))); }
+      return arg.split(subM[2]).join(subM[3]);
+    }
+
+    // CONCATENATE or CONCAT(args...)
+    const concatM = f.match(/^CONCAT(?:ENATE)?\((.+)\)$/);
+    if (concatM) {
+      return concatM[1].split(',').map(a => {
+        a = a.trim();
+        if (a.startsWith('"') && a.endsWith('"')) return a.slice(1, -1);
+        const ref = parseRef(a);
+        if (ref) return String(cellVal(ref.row, ref.col, new Set(visited)));
+        return a;
+      }).join('');
+    }
+
+    // TEXT(ref, format) — basic number formatting
+    const textM = f.match(/^TEXT\((.+?)\s*,\s*"([^"]*)"\)$/);
+    if (textM) {
+      let arg = textM[1].trim();
+      const fmt = textM[2];
+      const ref = parseRef(arg);
+      let val = ref ? cellVal(ref.row, ref.col, new Set(visited)) : parseFloat(arg);
+      if (typeof val !== 'number') val = parseFloat(val) || 0;
+      // Common formats
+      if (fmt === '0') return Math.round(val).toString();
+      if (fmt === '0.0' || fmt === '0.0') return val.toFixed(1);
+      if (fmt === '0.00') return val.toFixed(2);
+      if (fmt === '#,##0') return Math.round(val).toLocaleString();
+      if (fmt === '#,##0.00') return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (fmt === '0%') return Math.round(val * 100) + '%';
+      if (fmt === '0.0%') return (val * 100).toFixed(1) + '%';
+      if (fmt === '$#,##0') return '$' + Math.round(val).toLocaleString();
+      if (fmt === '$#,##0.00') return '$' + val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      // Decimal precision from format string
+      const decM = fmt.match(/^0\.(0+)$/);
+      if (decM) return val.toFixed(decM[1].length);
+      return val.toString();
+    }
+
+    // ROUND(value, decimals), ROUNDUP, ROUNDDOWN
+    const roundM = f.match(/^(ROUND|ROUNDUP|ROUNDDOWN)\((.+?)\s*,\s*(\d+)\)$/);
+    if (roundM) {
+      let arg = roundM[2].trim();
+      const ref = parseRef(arg);
+      let val = ref ? cellVal(ref.row, ref.col, new Set(visited)) : parseFloat(arg);
+      if (typeof val !== 'number') val = parseFloat(val) || 0;
+      const dec = parseInt(roundM[3]);
+      const mult = Math.pow(10, dec);
+      if (roundM[1] === 'ROUND') return Math.round(val * mult) / mult;
+      if (roundM[1] === 'ROUNDUP') return Math.ceil(val * mult) / mult;
+      return Math.floor(val * mult) / mult;
+    }
+
+    // ABS(value)
+    const absM = f.match(/^ABS\((.+)\)$/);
+    if (absM) {
+      let arg = absM[1].trim();
+      const ref = parseRef(arg);
+      let val = ref ? cellVal(ref.row, ref.col, new Set(visited)) : parseFloat(arg);
+      return Math.abs(typeof val === 'number' ? val : parseFloat(val) || 0);
+    }
+
+    // IF — enhanced to handle string comparisons and nested refs
     const im = f.match(/^IF\((.+),(.+),(.+)\)$/);
     if (im) {
       const cm = im[1].trim().match(/^([A-Z]+\d+)\s*(>=|<=|!=|<>|>|<|=)\s*(.+)$/);
       if (cm) {
         const ref = parseRef(cm[1]);
-        const cv = typeof cellVal(ref.row, ref.col, new Set(visited)) === 'number' ? cellVal(ref.row, ref.col, new Set(visited)) : 0;
-        const val = parseFloat(cm[3]);
+        const cv = cellVal(ref.row, ref.col, new Set(visited));
+        const cmpRaw = cm[3].trim();
+        // Try numeric comparison first
+        const cvNum = typeof cv === 'number' ? cv : parseFloat(cv);
+        const cmpNum = parseFloat(cmpRaw.replace(/"/g, ''));
+        const cmpStr = cmpRaw.replace(/"/g, '');
         let res = false;
         const op = cm[2];
-        if (op === '>') res = cv > val;
-        else if (op === '<') res = cv < val;
-        else if (op === '>=') res = cv >= val;
-        else if (op === '<=') res = cv <= val;
-        else if (op === '=' || op === '==') res = cv === val;
-        else if (op === '!=' || op === '<>') res = cv !== val;
+        const useNum = !isNaN(cvNum) && !isNaN(cmpNum);
+        if (op === '>') res = useNum && cvNum > cmpNum;
+        else if (op === '<') res = useNum && cvNum < cmpNum;
+        else if (op === '>=') res = useNum && cvNum >= cmpNum;
+        else if (op === '<=') res = useNum && cvNum <= cmpNum;
+        else if (op === '=' || op === '==') res = useNum ? cvNum === cmpNum : String(cv).toUpperCase() === cmpStr.toUpperCase();
+        else if (op === '!=' || op === '<>') res = useNum ? cvNum !== cmpNum : String(cv).toUpperCase() !== cmpStr.toUpperCase();
         const chosen = res ? im[2].trim() : im[3].trim();
-        return isNaN(parseFloat(chosen)) ? chosen.replace(/"/g,'') : parseFloat(chosen);
+        // Check if chosen is a cell ref
+        const chosenRef = parseRef(chosen);
+        if (chosenRef) return cellVal(chosenRef.row, chosenRef.col, new Set(visited));
+        return isNaN(parseFloat(chosen)) ? chosen.replace(/"/g, '') : parseFloat(chosen);
       }
+    }
+
+    // & concatenation operator: ="Hello "&A1&" World"
+    if (f.includes('&')) {
+      const origF = formula.substring(1).trim(); // preserve case for string literals
+      const parts = origF.split('&').map(p => {
+        p = p.trim();
+        if (p.startsWith('"') && p.endsWith('"')) return p.slice(1, -1);
+        const ref = parseRef(p.toUpperCase());
+        if (ref) {
+          const v = cellVal(ref.row, ref.col, new Set(visited));
+          return v === '' || v === undefined || v === null ? '' : String(v);
+        }
+        return p;
+      });
+      return parts.join('');
     }
 
     // Cell ref arithmetic
@@ -1747,7 +1995,94 @@ function ssRender() {
       const r = +inp.dataset.r, c = +inp.dataset.c;
       if (e.key === 'Enter') { e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+(r+1)+'"][data-c="'+c+'"]'); if (next) next.focus(); else ssRender(); }
       else if (e.key === 'Tab') { e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const nc = e.shiftKey ? c-1 : c+1; const next = t.querySelector('.ci[data-r="'+r+'"][data-c="'+nc+'"]'); if (next) next.focus(); else ssRender(); }
+      // Arrow key navigation (when not actively editing text)
+      else if (e.key === 'ArrowDown') { e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+(r+1)+'"][data-c="'+c+'"]'); if (next) next.focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+(r-1)+'"][data-c="'+c+'"]'); if (next) next.focus(); }
+      else if (e.key === 'ArrowRight' && (inp.selectionStart === inp.value.length || e.ctrlKey || e.metaKey)) {
+        if (!e.ctrlKey && !e.metaKey && inp.selectionStart !== inp.value.length) return;
+        e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+r+'"][data-c="'+(c+1)+'"]'); if (next) next.focus();
+      }
+      else if (e.key === 'ArrowLeft' && (inp.selectionStart === 0 || e.ctrlKey || e.metaKey)) {
+        if (!e.ctrlKey && !e.metaKey && inp.selectionStart !== 0) return;
+        e.preventDefault(); ssD[r][c] = inp.value; LS('sheet', ssD); const next = t.querySelector('.ci[data-r="'+r+'"][data-c="'+(c-1)+'"]'); if (next) next.focus();
+      }
+      // Ctrl+C / Ctrl+V / Ctrl+X clipboard
+      else if ((e.ctrlKey || e.metaKey) && e.key === 'c' && inp.selectionStart === inp.selectionEnd) {
+        e.preventDefault(); ssClipboard = ssD[r][c]; navigator.clipboard.writeText(ssD[r][c] || '').catch(() => {}); toast('Copied');
+      }
+      else if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
+        e.preventDefault(); ssClipboard = ssD[r][c]; navigator.clipboard.writeText(ssD[r][c] || '').catch(() => {}); ssD[r][c] = ''; LS('sheet', ssD); ssRender(); toast('Cut');
+      }
+      else if ((e.ctrlKey || e.metaKey) && e.key === 'v' && inp.selectionStart === inp.selectionEnd && !inp.value) {
+        // Only intercept paste on empty cells; otherwise let native paste work
+        e.preventDefault();
+        navigator.clipboard.readText().then(text => {
+          // Multi-cell paste: detect tab/newline grid
+          const rows = text.split('\n').filter(r => r.length);
+          if (rows.length > 1 || rows[0].includes('\t')) {
+            rows.forEach((rowStr, ri) => {
+              const cells = rowStr.split('\t');
+              cells.forEach((val, ci) => {
+                const tr = r + ri, tc = c + ci;
+                if (tr < ssR && tc < ssC) ssD[tr][tc] = val;
+              });
+            });
+          } else {
+            ssD[r][c] = ssClipboard !== null ? ssClipboard : text;
+          }
+          LS('sheet', ssD); ssRender(); toast('Pasted');
+        }).catch(() => {
+          if (ssClipboard !== null) { ssD[r][c] = ssClipboard; LS('sheet', ssD); ssRender(); toast('Pasted'); }
+        });
+      }
+      // Delete key clears cell
+      else if (e.key === 'Delete') { ssD[r][c] = ''; LS('sheet', ssD); ssRender(); }
     });
+
+    // Drag-fill handle: small square at bottom-right of selected cell
+    if (ssSel && +inp.dataset.r === ssSel.row && +inp.dataset.c === ssSel.col) {
+      const td = inp.parentElement;
+      const handle = document.createElement('div');
+      handle.className = 'ss-fill-handle';
+      handle.style.cssText = 'position:absolute;bottom:-3px;right:-3px;width:7px;height:7px;background:var(--accent);cursor:crosshair;z-index:5;border:1px solid var(--panel);';
+      td.style.position = 'relative';
+      td.appendChild(handle);
+      handle.addEventListener('mousedown', e => {
+        e.preventDefault(); e.stopPropagation();
+        const startR = ssSel.row, startC = ssSel.col;
+        const srcVal = ssD[startR][startC] || '';
+        function onMove(ev) {
+          const el = document.elementFromPoint(ev.clientX, ev.clientY);
+          if (el && el.classList.contains('ci')) {
+            el.parentElement.style.outline = '2px solid var(--accent)';
+          }
+        }
+        function onUp(ev) {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          t.querySelectorAll('td').forEach(td => td.style.outline = '');
+          const el = document.elementFromPoint(ev.clientX, ev.clientY);
+          if (el && el.classList.contains('ci')) {
+            const endR = +el.dataset.r, endC = +el.dataset.c;
+            // Fill down or right
+            if (endC === startC && endR !== startR) {
+              const dir = endR > startR ? 1 : -1;
+              for (let fr = startR + dir; dir > 0 ? fr <= endR : fr >= endR; fr += dir) {
+                ssD[fr][startC] = ssFillAdjust(srcVal, fr - startR, 0);
+              }
+            } else if (endR === startR && endC !== startC) {
+              const dir = endC > startC ? 1 : -1;
+              for (let fc = startC + dir; dir > 0 ? fc <= endC : fc >= endC; fc += dir) {
+                ssD[startR][fc] = ssFillAdjust(srcVal, 0, fc - startC);
+              }
+            }
+            LS('sheet', ssD); ssRender(); toast('Filled');
+          }
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    }
   });
 
   // Column header double-click to rename
@@ -1860,7 +2195,7 @@ function ssShowHint() {
     hint = document.createElement('div');
     hint.id = 'ssHint';
     hint.style.cssText = 'position:absolute;top:50px;left:50%;transform:translateX(-50%);color:var(--text-dim);font-size:.8rem;pointer-events:none;text-align:center;';
-    hint.textContent = 'Click any cell to start editing. Try formulas like =SUM(A1:A5)';
+    hint.textContent = 'Click any cell to start. Arrow keys navigate. Try =SUM =SUMIF =VLOOKUP =COUNTIF =LEN =A1&B1 =TEXT(A1,"0.00")';
     document.getElementById('ssWrap').appendChild(hint);
   } else if (!empty && hint) {
     hint.remove();
