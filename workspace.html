@@ -136,6 +136,13 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .fun-btn:hover { transform: scale(1.05); box-shadow: 0 0 12px rgba(91,95,199,.4); }
 .fun-btn:active { transform: scale(.97); }
 
+.fun-panel {
+  display: none; position: absolute; top: 38px; right: 0; width: 360px;
+  background: var(--panel-inset); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; z-index: 300; box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+.fun-panel.open { display: block; }
+.fun-panel h3 { font-size: .78rem; color: var(--accent2); margin-bottom: 8px; font-weight: 600; }
 /* Video player PIP overlay */
 #funVideoWrap { border-radius: 12px; overflow: hidden; }
 #funVideoWrap iframe { border: none; }
@@ -481,6 +488,8 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 /* comp-sensitive hide */
 body.ops-mode .comp-sensitive { color: transparent !important; user-select: none; }
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
 </head>
 <body class="neon">
 <!-- ═══ HEADER ═══ -->
@@ -515,7 +524,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
     <div class="fun-btn-wrap">
       <button class="fun-btn" id="wsToggle">&#128190; Workspaces</button>
-      <div class="fun-panel" id="wsPanel" style="min-width:320px;">
+      <div class="fun-panel" id="wsPanel" style="min-width:340px;">
         <h3 style="margin-bottom:8px;">Workspaces</h3>
         <div style="display:flex;gap:4px;margin-bottom:8px;">
           <button class="btn-sm btn-add" id="wsNew">+ New</button>
@@ -524,8 +533,31 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <button class="btn-sm" id="wsImport" style="background:var(--panel-inset);color:var(--text);border:1px solid var(--border);">Import</button>
           <button class="btn-sm" id="wsExport" style="background:var(--panel-inset);color:var(--text);border:1px solid var(--border);">Export</button>
         </div>
-        <div id="wsList" style="max-height:250px;overflow-y:auto;"></div>
+        <div id="wsList" style="max-height:200px;overflow-y:auto;"></div>
         <input type="file" id="wsImportFile" accept=".json" style="display:none;" />
+        <div id="driveSection" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-size:.72rem;font-weight:600;color:var(--accent2);">&#9729; Cloud Sync</span>
+            <div style="flex:1;"></div>
+            <button class="btn-sm" id="driveSignIn" style="background:rgba(66,133,244,.8);color:#fff;font-size:.65rem;">Sign in with Google</button>
+            <button class="btn-sm" id="driveSignOut" style="display:none;background:var(--panel-inset);color:var(--text);border:1px solid var(--border);font-size:.65rem;">Sign out</button>
+          </div>
+          <div id="driveUser" style="display:none;font-size:.65rem;color:var(--text-dim);margin-bottom:6px;"></div>
+          <div id="driveActions" style="display:none;">
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+              <button class="btn-sm" id="driveSave" style="background:rgba(66,133,244,.7);color:#fff;font-size:.65rem;flex:1;">&#8593; Save to Drive</button>
+              <button class="btn-sm" id="driveLink" style="background:var(--panel-inset);color:var(--text);border:1px solid var(--border);font-size:.65rem;" title="Copy share link">&#128279; Share Link</button>
+            </div>
+            <div id="driveFileList" style="max-height:150px;overflow-y:auto;"></div>
+          </div>
+          <div id="driveConfig" style="display:none;margin-top:6px;">
+            <label style="font-size:.62rem;color:var(--text-dim);display:block;margin-bottom:2px;">Google Client ID (from console.cloud.google.com)</label>
+            <div style="display:flex;gap:4px;">
+              <input type="text" id="driveClientId" placeholder="your-client-id.apps.googleusercontent.com" style="flex:1;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:.65rem;" />
+              <button class="btn-sm" id="driveConfigSave" style="background:var(--accent);color:#fff;font-size:.65rem;">Save</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <button class="fs-btn" id="helpBtn" title="Help" style="font-size:1rem;">?</button>
@@ -824,6 +856,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <option value="between">Shade Between (2 curves)</option>
             <option value="overlap">Shade Overlap</option>
           </select>
+          <button id="gcAutoFit" title="Auto-fit axes to curves" style="font-size:.68rem;">Auto Fit</button>
           <button id="gcExportPng" title="Export PNG" style="font-size:.68rem;">PNG</button>
           <button id="gcExportSvg" title="Export SVG" style="font-size:.68rem;">SVG</button>
         </div>
@@ -2523,6 +2556,38 @@ $('#gcRedraw').onclick = () => { renderGC(); toast('Graph updated'); };
 });
 $('#gcShadeMode').onchange = renderGC;
 
+// Auto-fit axes to visible curves
+$('#gcAutoFit').onclick = () => {
+  if (!gcExpressions.length) { toast('Add an expression first'); return; }
+  // Sample all expressions across a wide initial range to find bounds
+  let yMin = Infinity, yMax = -Infinity, hasData = false;
+  // Start from current x range, or default wide
+  const curXMin = parseFloat($('#gcXmin').value) || -10;
+  const curXMax = parseFloat($('#gcXmax').value) || 10;
+  const xRange = curXMax - curXMin || 20;
+  const steps = 500;
+  const dx = xRange / steps;
+  gcExpressions.forEach(e => {
+    for (let i = 0; i <= steps; i++) {
+      const x = curXMin + i * dx;
+      const y = gcParse(e.expr, x);
+      if (isFinite(y) && !isNaN(y)) {
+        if (y < yMin) yMin = y;
+        if (y > yMax) yMax = y;
+        hasData = true;
+      }
+    }
+  });
+  if (!hasData) { toast('No valid data to fit'); return; }
+  // Add 10% padding
+  const yPad = (yMax - yMin) * 0.1 || 1;
+  yMin -= yPad; yMax += yPad;
+  $('#gcYmin').value = Math.round(yMin * 100) / 100;
+  $('#gcYmax').value = Math.round(yMax * 100) / 100;
+  renderGC();
+  toast('Axes fit to curves');
+};
+
 // Export PNG
 $('#gcExportPng').onclick = () => {
   const cvs = $('#gcCanvas');
@@ -2932,6 +2997,330 @@ $('#wsExport').onclick = () => {
 };
 
 renderWSList();
+
+/* ═══════════════════════════════════════════
+   GOOGLE DRIVE CLOUD SYNC
+   ═══════════════════════════════════════════ */
+(function() {
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+  const APP_FOLDER = 'InteractiveWorkspace';
+  let driveToken = null;
+  let driveClientId = localStorage.getItem('ws_driveClientId') || '';
+  let driveReady = false;
+  let tokenClient = null;
+
+  // Show config if no client ID set
+  function updateDriveUI() {
+    const hasId = !!driveClientId;
+    $('#driveConfig').style.display = hasId ? 'none' : 'block';
+    $('#driveSignIn').style.display = hasId && !driveToken ? '' : 'none';
+    $('#driveSignOut').style.display = driveToken ? '' : 'none';
+    $('#driveActions').style.display = driveToken ? '' : 'none';
+    $('#driveUser').style.display = driveToken ? '' : 'none';
+  }
+
+  // Save client ID
+  $('#driveConfigSave').onclick = () => {
+    const v = $('#driveClientId').value.trim();
+    if (!v) return;
+    driveClientId = v;
+    localStorage.setItem('ws_driveClientId', v);
+    updateDriveUI();
+    initGapi();
+    toast('Client ID saved');
+  };
+  if (driveClientId) $('#driveClientId').value = driveClientId;
+
+  // Initialize Google API client
+  function initGapi() {
+    if (!driveClientId || driveReady) return;
+    if (typeof gapi === 'undefined') { setTimeout(initGapi, 500); return; }
+    gapi.load('client', async () => {
+      await gapi.client.init({});
+      await gapi.client.load('drive', 'v3');
+      driveReady = true;
+      initTokenClient();
+    });
+  }
+
+  function initTokenClient() {
+    if (typeof google === 'undefined' || !google.accounts) { setTimeout(initTokenClient, 500); return; }
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: driveClientId,
+      scope: DRIVE_SCOPE,
+      callback: (resp) => {
+        if (resp.error) { toast('Auth failed: ' + resp.error); return; }
+        driveToken = resp.access_token;
+        gapi.client.setToken({ access_token: driveToken });
+        fetchDriveUser();
+        updateDriveUI();
+        listDriveFiles();
+      }
+    });
+  }
+
+  // Sign in
+  $('#driveSignIn').onclick = () => {
+    if (!driveClientId) { toast('Set a Google Client ID first'); return; }
+    if (!driveReady) { initGapi(); toast('Loading Google API...'); return; }
+    if (!tokenClient) { initTokenClient(); toast('Initializing...'); return; }
+    tokenClient.requestAccessToken();
+  };
+
+  // Sign out
+  $('#driveSignOut').onclick = () => {
+    if (driveToken) {
+      google.accounts.oauth2.revoke(driveToken);
+      driveToken = null;
+      gapi.client.setToken(null);
+    }
+    $('#driveUser').textContent = '';
+    $('#driveFileList').innerHTML = '';
+    updateDriveUI();
+    toast('Signed out');
+  };
+
+  async function fetchDriveUser() {
+    try {
+      const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: 'Bearer ' + driveToken }
+      });
+      const u = await r.json();
+      $('#driveUser').textContent = 'Signed in as ' + (u.email || u.name || 'User');
+    } catch(e) { $('#driveUser').textContent = 'Signed in'; }
+  }
+
+  // Get or create app folder
+  async function getAppFolder() {
+    const resp = await gapi.client.drive.files.list({
+      q: "name='" + APP_FOLDER + "' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      fields: 'files(id)',
+      spaces: 'drive'
+    });
+    if (resp.result.files.length) return resp.result.files[0].id;
+    const cr = await gapi.client.drive.files.create({
+      resource: { name: APP_FOLDER, mimeType: 'application/vnd.google-apps.folder' },
+      fields: 'id'
+    });
+    return cr.result.id;
+  }
+
+  // Save workspace to Drive
+  $('#driveSave').onclick = async () => {
+    if (!driveToken) { toast('Sign in first'); return; }
+    try {
+      toast('Saving to Drive...');
+      const folderId = await getAppFolder();
+      const ws = wsIndex.find(w => w.id === wsActiveId);
+      const name = (ws ? ws.name : 'Workspace') + '.json';
+      const state = serializeState();
+      state._wsName = ws ? ws.name : 'Workspace';
+      state._savedAt = Date.now();
+      state._sourceId = wsActiveId;
+      const json = JSON.stringify(state);
+
+      // Check if this workspace was already saved (by sourceId in appProperties)
+      const existing = await gapi.client.drive.files.list({
+        q: "'" + folderId + "' in parents and trashed=false and appProperties has { key='wsSourceId' and value='" + wsActiveId + "' }",
+        fields: 'files(id,name)',
+        spaces: 'drive'
+      });
+
+      let fileId;
+      if (existing.result.files.length) {
+        // Update existing file
+        fileId = existing.result.files[0].id;
+        await fetch('https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=media', {
+          method: 'PATCH',
+          headers: { Authorization: 'Bearer ' + driveToken, 'Content-Type': 'application/json' },
+          body: json
+        });
+        await gapi.client.drive.files.update({ fileId, resource: { name } });
+      } else {
+        // Create new file
+        const metadata = {
+          name,
+          parents: [folderId],
+          mimeType: 'application/json',
+          appProperties: { wsSourceId: wsActiveId }
+        };
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', new Blob([json], { type: 'application/json' }));
+        const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + driveToken },
+          body: form
+        });
+        const created = await r.json();
+        fileId = created.id;
+      }
+
+      // Mark locally that this workspace is synced
+      if (ws) { ws.driveFileId = fileId; LS('workspaces', wsIndex); }
+      toast('Saved to Drive');
+      listDriveFiles();
+    } catch(e) { console.error(e); toast('Drive save failed: ' + (e.message || e)); }
+  };
+
+  // Share link — create a reader-permission link
+  $('#driveLink').onclick = async () => {
+    if (!driveToken) { toast('Sign in first'); return; }
+    const ws = wsIndex.find(w => w.id === wsActiveId);
+    if (!ws || !ws.driveFileId) { toast('Save to Drive first'); return; }
+    try {
+      // Set file to "anyone with link can read"
+      await gapi.client.drive.permissions.create({
+        fileId: ws.driveFileId,
+        resource: { role: 'reader', type: 'anyone' }
+      });
+      const link = location.origin + location.pathname + '?ws=' + ws.driveFileId;
+      await navigator.clipboard.writeText(link);
+      toast('Share link copied! Recipients get their own copy.');
+    } catch(e) {
+      console.error(e);
+      toast('Could not create share link');
+    }
+  };
+
+  // List Drive files
+  async function listDriveFiles() {
+    if (!driveToken) return;
+    try {
+      const folderId = await getAppFolder();
+      const resp = await gapi.client.drive.files.list({
+        q: "'" + folderId + "' in parents and trashed=false",
+        fields: 'files(id,name,modifiedTime,appProperties)',
+        orderBy: 'modifiedTime desc',
+        pageSize: 20,
+        spaces: 'drive'
+      });
+      renderDriveList(resp.result.files || []);
+    } catch(e) { console.error(e); }
+  }
+
+  function renderDriveList(files) {
+    const el = $('#driveFileList');
+    el.innerHTML = '';
+    if (!files.length) {
+      el.innerHTML = '<div style="text-align:center;padding:8px;color:var(--text-dim);font-size:.65rem;">No saved workspaces in Drive</div>';
+      return;
+    }
+    files.forEach(f => {
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 6px;border-bottom:1px solid var(--border);font-size:.65rem;';
+      const name = f.name.replace(/\.json$/i, '');
+      const date = new Date(f.modifiedTime);
+      const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      div.innerHTML =
+        '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);" title="' + name + '">' + name + '</span>' +
+        '<span style="color:var(--text-dim);font-size:.6rem;white-space:nowrap;">' + dateStr + '</span>' +
+        '<button class="drive-load" title="Load as new workspace" style="background:none;border:none;color:var(--accent2);cursor:pointer;font-size:.7rem;padding:0 2px;">&#8595;</button>' +
+        '<button class="drive-del" title="Delete from Drive" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:.8rem;padding:0 2px;">&times;</button>';
+
+      div.querySelector('.drive-load').onclick = async () => {
+        try {
+          toast('Loading from Drive...');
+          const resp = await fetch('https://www.googleapis.com/drive/v3/files/' + f.id + '?alt=media', {
+            headers: { Authorization: 'Bearer ' + driveToken }
+          });
+          const state = await resp.json();
+          // Create as new unique local workspace instance
+          const id = genId();
+          const wsName = (state._wsName || name) + ' (Cloud)';
+          delete state._wsName; delete state._savedAt; delete state._sourceId;
+          wsIndex.push({ id, name: wsName, driveFileId: f.id, createdAt: Date.now(), updatedAt: Date.now() });
+          LS('workspaces', wsIndex);
+          LS('workspace_' + id, state);
+          switchWorkspace(id);
+          toast('Loaded: ' + wsName);
+        } catch(e) { toast('Load failed'); console.error(e); }
+      };
+
+      div.querySelector('.drive-del').onclick = async () => {
+        if (!confirm('Delete "' + name + '" from Drive?')) return;
+        try {
+          await gapi.client.drive.files.delete({ fileId: f.id });
+          // Remove driveFileId from local ws
+          wsIndex.forEach(w => { if (w.driveFileId === f.id) delete w.driveFileId; });
+          LS('workspaces', wsIndex);
+          listDriveFiles();
+          toast('Deleted from Drive');
+        } catch(e) { toast('Delete failed'); console.error(e); }
+      };
+
+      el.appendChild(div);
+    });
+  }
+
+  // Load shared workspace from URL parameter ?ws=DRIVE_FILE_ID
+  async function loadSharedWorkspace() {
+    const params = new URLSearchParams(location.search);
+    const wsFileId = params.get('ws');
+    if (!wsFileId) return;
+
+    // Clear the URL param so refreshes don't re-load
+    history.replaceState(null, '', location.pathname);
+
+    // Check if we already loaded this file
+    const existing = wsIndex.find(w => w.driveFileId === wsFileId);
+    if (existing) {
+      switchWorkspace(existing.id);
+      toast('Switched to previously loaded workspace');
+      return;
+    }
+
+    // Try loading as public file (no auth needed for shared files)
+    try {
+      toast('Loading shared workspace...');
+      const resp = await fetch('https://www.googleapis.com/drive/v3/files/' + wsFileId + '?alt=media&key=' + (driveClientId ? driveClientId.split('.')[0] : ''), {
+        headers: driveToken ? { Authorization: 'Bearer ' + driveToken } : {}
+      });
+      if (!resp.ok) {
+        // Try with API key fallback
+        const resp2 = await fetch('https://www.googleapis.com/drive/v3/files/' + wsFileId + '?alt=media');
+        if (!resp2.ok) { toast('Cannot access shared workspace — sign in or check link'); return; }
+        var state = await resp2.json();
+      } else {
+        var state = await resp.json();
+      }
+      // Create unique local instance from shared data
+      const id = genId();
+      const wsName = (state._wsName || 'Shared') + ' (Shared)';
+      delete state._wsName; delete state._savedAt; delete state._sourceId;
+      saveActiveWorkspace();
+      wsIndex.push({ id, name: wsName, driveFileId: wsFileId, createdAt: Date.now(), updatedAt: Date.now() });
+      LS('workspaces', wsIndex);
+      LS('workspace_' + id, state);
+      wsActiveId = id;
+      LS('activeWorkspace', id);
+      deserializeState(state);
+      renderWSList();
+      toast('Loaded shared workspace as your own copy: ' + wsName);
+    } catch(e) {
+      console.error(e);
+      toast('Could not load shared workspace');
+    }
+  }
+
+  // Auto-clear shell: warn on unload if workspace not saved to Drive
+  let shellCleared = false;
+  window.addEventListener('beforeunload', e => {
+    const ws = wsIndex.find(w => w.id === wsActiveId);
+    if (ws && !ws.driveFileId) {
+      // Workspace not saved to Drive — show warning
+      e.preventDefault();
+      e.returnValue = 'Unsaved workspace changes will be available locally but not synced to cloud.';
+    }
+  });
+
+  // Init on load
+  updateDriveUI();
+  if (driveClientId) initGapi();
+
+  // Check for shared workspace link on load
+  setTimeout(loadSharedWorkspace, 1500);
+})();
 
 /* ═══════════════════════════════════════════
    COMPANY SEARCH / TICKER LOOKUP
