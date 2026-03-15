@@ -1712,7 +1712,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <option value="desert">Desert</option>
         </select>
       </div>
-      <div id="aiApiKeySection" style="padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
+      <div id="aiApiKeySection" style="display:none;padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
         <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
           <input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
           <button id="aiKeyToggle" style="padding:3px 6px;border:none;border-radius:4px;background:var(--panel-inset);color:var(--text-dim);cursor:pointer;font-size:.6rem;" title="Show/hide key">&#128065;</button>
@@ -2154,8 +2154,13 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
   const gate = document.getElementById('authGate');
   if (!gate) return;
 
-  // If already authenticated as admin, skip gate
-  if (wsIsAdmin) { gate.style.display = 'none'; return; }
+  // If already authenticated as admin, skip gate and show API key section
+  if (wsIsAdmin) {
+    gate.style.display = 'none';
+    const apiSec = document.getElementById('aiApiKeySection');
+    if (apiSec) apiSec.style.display = 'block';
+    return;
+  }
 
   // ---- Helpers ----
   function validateEmail(val) {
@@ -2457,6 +2462,9 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
       wsIsAdmin = true;
       localStorage.setItem('ws_adminSession', 'true');
       gate.style.display = 'none';
+      // Admin sees and controls the API key
+      const apiSec = document.getElementById('aiApiKeySection');
+      if (apiSec) apiSec.style.display = 'block';
       showLogoutButton();
     } else {
       document.getElementById('authError').style.display = 'block';
