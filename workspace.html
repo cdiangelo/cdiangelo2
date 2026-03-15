@@ -1362,7 +1362,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
       <button id="aiSavedActionsBtn" class="p-btn" title="Saved tool actions" style="font-size:.55rem;">Actions</button>
-      <button id="aiLogBtn" class="p-btn" title="Save chat log to notepad tabs">&#128218;</button>
+      <button id="aiInfoBtn" class="p-btn" title="Capabilities &amp; settings" style="font-size:.6rem;">Info</button>
+      <button id="aiLogBtn" class="p-btn" title="Chat session history" style="font-size:.55rem;">History</button>
       <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-claude" title="Expand">&#x2922;</button>
@@ -7092,6 +7093,111 @@ $('#aiKeySave').onclick = () => {
 $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
 $('#aiSavedActionsBtn').onclick = renderSavedActionsPanel;
 
+// ── Info panel: capabilities, training, customization ──
+$('#aiInfoBtn').onclick = () => {
+  let panel = document.getElementById('aiInfoPanel');
+  if (panel) { panel.remove(); return; }
+  panel = document.createElement('div');
+  panel.id = 'aiInfoPanel';
+  panel.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:30;background:var(--bg);overflow-y:auto;padding:12px 14px;font-size:.62rem;line-height:1.5;color:var(--text);';
+
+  const sectionStyle = 'margin-bottom:12px;';
+  const headStyle = 'font-weight:700;font-size:.72rem;color:var(--accent2);margin-bottom:4px;';
+  const subHeadStyle = 'font-weight:600;font-size:.65rem;color:var(--accent);margin:6px 0 3px;';
+  const dimStyle = 'color:var(--text-dim);';
+  const listStyle = 'margin:2px 0 2px 12px;padding:0;';
+  const liStyle = 'margin:2px 0;';
+
+  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
+    '<span style="font-weight:700;font-size:.8rem;">Claude Agent — Capabilities & Settings</span>' +
+    '<button onclick="this.closest(\'#aiInfoPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button></div>' +
+
+    // Current Capabilities
+    '<div style="' + sectionStyle + '">' +
+    '<div style="' + headStyle + '">Current Capabilities</div>' +
+    '<div style="' + subHeadStyle + '">Reading & Analysis</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">Read spreadsheet data, notes, graph expressions, concept maps</li>' +
+    '<li style="' + liStyle + '">Fetch live stock prices (Yahoo Finance) with OHLCV data</li>' +
+    '<li style="' + liStyle + '">Pull real news articles via Google News RSS with sentiment analysis</li>' +
+    '<li style="' + liStyle + '">Deep research mode — aggregates multiple article sources on a topic</li>' +
+    '<li style="' + liStyle + '">Get stock fundamentals: P/E, market cap, revenue growth, sector</li>' +
+    '</ul>' +
+    '<div style="' + subHeadStyle + '">Writing & Creation</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">Write cells, formulas, and formatted tables to spreadsheet (auto-tabs)</li>' +
+    '<li style="' + liStyle + '">Write rich content to notepad with auto-tab creation</li>' +
+    '<li style="' + liStyle + '">Plot math expressions on the graph calculator</li>' +
+    '<li style="' + liStyle + '">Manage stock watchlist and comparison charts</li>' +
+    '<li style="' + liStyle + '">Add nodes to concept map, images/text to whiteboard</li>' +
+    '<li style="' + liStyle + '">Generate memes via imgflip API (12+ templates)</li>' +
+    '</ul>' +
+    '<div style="' + subHeadStyle + '">Analysis Tools</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">Run bull/base/bear scenario projections for any stock</li>' +
+    '<li style="' + liStyle + '">Build investment theses synthesizing price + fundamentals + news</li>' +
+    '<li style="' + liStyle + '">Sentiment scoring across multiple news sources</li>' +
+    '<li style="' + liStyle + '">Scaffold templates: stock comparison, earnings, portfolio, macro dashboard</li>' +
+    '<li style="' + liStyle + '">Pricing/business model analysis with unit economics</li>' +
+    '</ul></div>' +
+
+    // What You Can Do
+    '<div style="' + sectionStyle + '">' +
+    '<div style="' + headStyle + '">What You Can Ask</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">"Analyze AAPL and build me an investment thesis"</li>' +
+    '<li style="' + liStyle + '">"Compare MSFT, GOOG, AMZN in a table with key metrics"</li>' +
+    '<li style="' + liStyle + '">"Run bull/base/bear scenarios for TSLA"</li>' +
+    '<li style="' + liStyle + '">"Research the latest on AI chip stocks and summarize"</li>' +
+    '<li style="' + liStyle + '">"Create a portfolio tracker template in the sheet"</li>' +
+    '<li style="' + liStyle + '">"Plot sin(x), cos(x), and x^2 on the graph"</li>' +
+    '<li style="' + liStyle + '">"Make a stonks meme about buying the dip"</li>' +
+    '<li style="' + liStyle + '">"What\'s the sentiment on NVDA right now?"</li>' +
+    '</ul></div>' +
+
+    // Future Training & Customization
+    '<div style="' + sectionStyle + '">' +
+    '<div style="' + headStyle + '">Future Training & Customization</div>' +
+    '<p style="' + dimStyle + 'margin:0 0 6px;">Claude\'s behavior can be extended with:</p>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '"><b>Custom tools</b> — Add new tool definitions to AGENT_TOOLS for domain-specific actions (CRM lookups, internal APIs, custom calculations)</li>' +
+    '<li style="' + liStyle + '"><b>System prompt tuning</b> — Edit the system message to change personality, focus areas, default behaviors, and output formatting</li>' +
+    '<li style="' + liStyle + '"><b>Model selection</b> — Switch between Claude models (Haiku for speed, Sonnet for balance, Opus for depth) via the model dropdown</li>' +
+    '<li style="' + liStyle + '"><b>Deep mode</b> — Toggle the "Deep" checkbox for multi-step agentic reasoning with tool chaining</li>' +
+    '<li style="' + liStyle + '"><b>Template scaffolds</b> — Add new template types for industry-specific workflows</li>' +
+    '<li style="' + liStyle + '"><b>Data source plugins</b> — Extend with additional market data feeds, proprietary databases, or internal endpoints</li>' +
+    '</ul></div>' +
+
+    // Management & Reset
+    '<div style="' + sectionStyle + '">' +
+    '<div style="' + headStyle + '">Managing Your Agent</div>' +
+    '<table style="width:100%;font-size:.6rem;border-collapse:collapse;">' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;width:100px;">Clear Chat</td><td style="padding:4px 0;' + dimStyle + '">Trash icon — resets conversation context (model forgets current session)</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Save Log</td><td style="padding:4px 0;' + dimStyle + '">Book icon — saves session to log or exports all logs to notepad tabs</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Actions</td><td style="padding:4px 0;' + dimStyle + '">View and replay past tool outputs (sheet writes, notes, graphs). Auto-saved when Claude uses write tools.</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">$ Cost</td><td style="padding:4px 0;' + dimStyle + '">Track API token usage and cost for the current session</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Users</td><td style="padding:4px 0;' + dimStyle + '">Admin dashboard — view per-user usage stats across all tracked users</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">API Key</td><td style="padding:4px 0;' + dimStyle + '">Set your Anthropic API key (stored locally, never transmitted elsewhere)</td></tr>' +
+    '<tr><td style="padding:4px 0;font-weight:600;">Full Reset</td><td style="padding:4px 0;' + dimStyle + '">Clear browser localStorage to reset all agent data, logs, actions, and preferences</td></tr>' +
+    '</table></div>' +
+
+    // Saved Data
+    '<div style="' + sectionStyle + '">' +
+    '<div style="' + headStyle + '">Stored Data (localStorage)</div>' +
+    '<p style="' + dimStyle + 'margin:0 0 4px;">All data stays in your browser. Nothing is sent to external servers except API calls to Anthropic.</p>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">Chat logs & session history</li>' +
+    '<li style="' + liStyle + '">Saved tool actions (replayable)</li>' +
+    '<li style="' + liStyle + '">Per-user usage tracking (admin)</li>' +
+    '<li style="' + liStyle + '">Sheet data, notepad content, graph expressions</li>' +
+    '<li style="' + liStyle + '">Robot scene, theme, and layout preferences</li>' +
+    '</ul>' +
+    '<div style="margin-top:8px;"><button onclick="if(confirm(\'Clear ALL stored data? This cannot be undone.\')){ localStorage.clear(); location.reload(); }" style="font-size:.58rem;padding:3px 10px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:4px;cursor:pointer;">Reset All Data</button></div>' +
+    '</div>';
+
+  document.querySelector('.pane[data-pane="claude"] .p-body').appendChild(panel);
+};
+
 // ── Claude analytics log ──
 // Save chat sessions to localStorage and export to notepad tabs
 let aiChatLog = LS('aiChatLog') || []; // Array of { timestamp, messages, model, tokenUsage }
@@ -7137,13 +7243,80 @@ function exportLogToNotepad() {
 }
 
 $('#aiLogBtn').onclick = () => {
-  const choice = confirm('Save current chat to log?\n\nOK = Save to log\nCancel = Export all logs to notepad tabs');
-  if (choice) {
-    saveCurrentChatToLog();
+  let panel = document.getElementById('aiHistoryPanel');
+  if (panel) { panel.remove(); return; }
+  panel = document.createElement('div');
+  panel.id = 'aiHistoryPanel';
+  panel.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:28;background:var(--bg);overflow-y:auto;padding:10px 12px;font-size:.6rem;';
+
+  const topBar = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
+    '<span style="font-weight:700;font-size:.72rem;">Chat Session History</span>' +
+    '<div style="display:flex;gap:6px;align-items:center;">' +
+    '<button id="aiHistSave" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">Save Current</button>' +
+    '<button id="aiHistExport" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--text-dim);color:var(--text-dim);background:none;border-radius:3px;cursor:pointer;">Export to Notes</button>' +
+    '<button onclick="this.closest(\'#aiHistoryPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button>' +
+    '</div></div>';
+
+  if (!aiChatLog.length) {
+    panel.innerHTML = topBar + '<div style="color:var(--text-dim);text-align:center;padding:30px 10px;">No saved sessions yet.<br><br>Click <b>Save Current</b> to snapshot this conversation.<br>Sessions are stored locally in your browser.</div>';
   } else {
-    exportLogToNotepad();
+    let rows = aiChatLog.slice().reverse().map((entry, i) => {
+      const d = new Date(entry.timestamp);
+      const date = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      const msgCount = (entry.messages || []).length;
+      const userMsgs = (entry.messages || []).filter(m => m.role === 'user');
+      const preview = userMsgs.length ? userMsgs[0].content.substring(0, 60) + (userMsgs[0].content.length > 60 ? '...' : '') : '(no user messages)';
+      const tokens = ((entry.tokensIn || 0) + (entry.tokensOut || 0)).toLocaleString();
+      const realIdx = aiChatLog.length - 1 - i;
+      return '<div style="padding:6px 0;border-bottom:1px solid var(--border);">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+        '<div style="flex:1;min-width:0;">' +
+        '<div style="font-weight:600;color:var(--accent);">' + date + ' <span style="color:var(--text-dim);font-weight:400;">(' + entry.model + ')</span></div>' +
+        '<div style="color:var(--text-dim);margin:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + preview.replace(/</g,'&lt;') + '</div>' +
+        '<div style="color:var(--text-dim);font-size:.5rem;">' + msgCount + ' messages &middot; ' + tokens + ' tokens &middot; ' + (entry.requests || 0) + ' API calls</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px;">' +
+        '<button onclick="viewChatLogEntry(' + realIdx + ')" style="font-size:.5rem;padding:2px 6px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">View</button>' +
+        '<button onclick="if(confirm(\'Delete this session?\')){aiChatLog.splice(' + realIdx + ',1);LS(\'aiChatLog\',aiChatLog);$(\'#aiLogBtn\').click();$(\'#aiLogBtn\').click();}" style="font-size:.5rem;padding:2px 6px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Delete</button>' +
+        '</div></div></div>';
+    }).join('');
+    panel.innerHTML = topBar + '<div style="color:var(--text-dim);margin-bottom:6px;font-size:.52rem;">' + aiChatLog.length + ' saved session' + (aiChatLog.length === 1 ? '' : 's') + '</div>' + rows;
   }
+
+  document.querySelector('.pane[data-pane="claude"] .p-body').appendChild(panel);
+
+  // Wire up buttons after appended to DOM
+  const saveBtn = document.getElementById('aiHistSave');
+  const exportBtn = document.getElementById('aiHistExport');
+  if (saveBtn) saveBtn.onclick = () => { saveCurrentChatToLog(); $('#aiLogBtn').click(); $('#aiLogBtn').click(); };
+  if (exportBtn) exportBtn.onclick = () => { exportLogToNotepad(); document.getElementById('aiHistoryPanel')?.remove(); };
 };
+
+function viewChatLogEntry(idx) {
+  const entry = aiChatLog[idx];
+  if (!entry) return;
+  let panel = document.getElementById('aiHistoryPanel');
+  if (!panel) return;
+  const d = new Date(entry.timestamp);
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
+    '<span style="font-weight:700;font-size:.72rem;">Session: ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + '</span>' +
+    '<div style="display:flex;gap:6px;align-items:center;">' +
+    '<button onclick="$(\'#aiLogBtn\').click();$(\'#aiLogBtn\').click();" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">Back</button>' +
+    '<button onclick="this.closest(\'#aiHistoryPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button>' +
+    '</div></div>';
+  html += '<div style="color:var(--text-dim);margin-bottom:6px;font-size:.52rem;">Model: ' + entry.model + ' &middot; ' +
+    ((entry.tokensIn||0)+(entry.tokensOut||0)).toLocaleString() + ' tokens &middot; ' + (entry.requests||0) + ' API calls</div>';
+  (entry.messages || []).forEach(m => {
+    const isUser = m.role === 'user';
+    const isSystem = m.role === 'system';
+    const bg = isUser ? 'var(--accent)' : isSystem ? 'var(--text-dim)' : 'var(--accent2)';
+    const align = isUser ? 'flex-end' : 'flex-start';
+    html += '<div style="display:flex;justify-content:' + align + ';margin:3px 0;">' +
+      '<div style="max-width:85%;padding:5px 8px;border-radius:6px;background:' + bg + ';color:#fff;font-size:.58rem;white-space:pre-wrap;word-break:break-word;">' +
+      String(m.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div></div>';
+  });
+  panel.innerHTML = html;
+}
 
 // Auto-save chat to log at end of each conversation
 // ── Auto-saved tool actions (linkage) ──
