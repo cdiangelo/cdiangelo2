@@ -1313,9 +1313,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   #authBox .auth-user-item { min-height: 52px; }
   #authVerifyCode { font-size: 1.4rem !important; padding: 14px !important; width: 160px !important; }
   /* Claude pane mobile fixes — shrink robot scene, fix backdrop overflow */
-  .robot-scene { height: 90px !important; }
+  .robot-scene { height: 110px !important; overflow: visible !important; }
   .robot-scene-resize { display: none !important; }
-  .robot-workstation { transform: translateX(-50%) scale(0.7); transform-origin: bottom center; }
+  .robot-bg { inset: 0 !important; min-height: 110px !important; }
+  .robot-workstation { transform: translateX(-50%) scale(0.65); transform-origin: bottom center; }
   .robot-plant { display: none !important; }
   .robot-controls { padding: 2px 0; }
   .robot-controls select { font-size: .5rem !important; }
@@ -1650,7 +1651,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
       <div class="robot-scene-resize" id="robotSceneResize" title="Drag to resize robot scene"></div>
       <div class="robot-scene" id="robotScene">
-        <div class="robot-bg" id="robotBg"></div>
+        <div class="robot-bg scene-office" id="robotBg"></div>
         <div class="robot-glass"></div>
         <div class="robot-plant robot-plant-l"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div><div class="plant-leaf plant-leaf-t"></div></div>
         <div class="robot-plant robot-plant-r"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div></div>
@@ -7564,16 +7565,7 @@ Based on these real sources, produce a comprehensive research report with:
 
 Format this as a polished research report. Cite specific sources by name. Use real data from the articles. Keep it professional and analytical.`;
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': aiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({ model, max_tokens: 4096, messages: [{ role: 'user', content: researchPrompt }] })
-    });
+    const resp = await aiApiFetch({ model, max_tokens: 4096, messages: [{ role: 'user', content: researchPrompt }] });
 
     if (!resp.ok) throw new Error('API error: ' + resp.status);
     const result = await resp.json();
@@ -7727,6 +7719,51 @@ renderNewsFeed();
 let aiKey = localStorage.getItem('ws_aiApiKey') || '';
 let aiMessages = [];
 let aiStreaming = false;
+let aiProxyAvailable = false; // Set true once proxy is confirmed running
+
+const AI_PROXY_URL = 'http://localhost:3001/proxy/ai';
+
+// Check if AI proxy is available (key held server-side = secure mode)
+(async function checkAiProxy() {
+  try {
+    const r = await fetch(AI_PROXY_URL + '/status', { signal: AbortSignal.timeout(2000) });
+    if (r.ok) {
+      const data = await r.json();
+      aiProxyAvailable = true;
+      if (data.configured) {
+        aiKey = 'proxy';  // Sentinel: key is on the server, not here
+        console.log('[AI] Proxy mode active — API key on server (last4: ' + data.last4 + ')');
+      } else {
+        console.log('[AI] Proxy available but no API key configured yet');
+      }
+    }
+  } catch (_) {
+    console.log('[AI] No proxy detected — using direct API mode');
+  }
+})();
+
+// Unified AI API fetch — routes through proxy when available, direct otherwise
+async function aiApiFetch(body) {
+  if (aiProxyAvailable) {
+    return fetch(AI_PROXY_URL + '/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  }
+  // Fallback: direct API call (admin dev mode with local key)
+  if (!aiKey || aiKey === 'proxy') throw new Error('API key not configured');
+  return fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': aiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
+  });
+}
 
 // ── Token tracking for cost estimator ──
 let aiSessionTokensIn = 0;
@@ -8092,14 +8129,30 @@ $('#aiKeyToggle').onclick = () => {
   }
 };
 
-$('#aiKeySave').onclick = () => {
+$('#aiKeySave').onclick = async () => {
   const v = $('#aiApiKey').value.trim();
   if (!v || v.startsWith('••')) return;
   aiKey = v;
   localStorage.setItem('ws_aiApiKey', v);
   $('#aiApiKey').value = '••••••••••' + v.slice(-4);
   $('#aiApiKey').type = 'password';
-  addAiMsg('system', 'API key saved. Claude is ready.');
+  // Also push key to proxy server for secure mode
+  try {
+    const r = await fetch(AI_PROXY_URL + '/key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: ADMIN_PASSWORD, apiKey: v })
+    });
+    if (r.ok) {
+      aiProxyAvailable = true;
+      aiKey = 'proxy';
+      addAiMsg('system', 'API key saved to server. Claude is ready (secure proxy mode).');
+    } else {
+      addAiMsg('system', 'API key saved locally. Claude is ready. (Proxy unavailable — run node proxy.js for secure mode)');
+    }
+  } catch (_) {
+    addAiMsg('system', 'API key saved locally. Claude is ready. (Proxy unavailable — run node proxy.js for secure mode)');
+  }
 };
 
 $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
@@ -9612,7 +9665,7 @@ function renderAccessRequestsPanel() {
 
 // ── Agentic loop with tool_use ──
 async function sendAgentMessage() {
-  if (!aiKey) {
+  if (!aiKey && !aiProxyAvailable) {
     if (wsIsAdmin) {
       addAiMsg('system', 'Set your API key below to start.');
     } else {
@@ -9758,23 +9811,14 @@ async function sendAgentMessage() {
       let result;
       let streamFailed = false;
       try {
-        const resp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': aiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
-          body: JSON.stringify({
+        const resp = await aiApiFetch({
             model: model,
             max_tokens: 4096,
             system: AI_SYSTEM_PROMPT,
             messages: apiMsgs,
             tools: AGENT_TOOLS,
             stream: true
-          })
-        });
+          });
 
         if (!resp.ok) {
           const err = await resp.text();
@@ -9875,22 +9919,13 @@ async function sendAgentMessage() {
       }
 
       if (streamFailed) {
-        const resp2 = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': aiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
-          body: JSON.stringify({
+        const resp2 = await aiApiFetch({
             model: model,
             max_tokens: 4096,
             system: AI_SYSTEM_PROMPT,
             messages: apiMsgs,
             tools: AGENT_TOOLS
-          })
-        });
+          });
         if (!resp2.ok) {
           const err = await resp2.text();
           thinkingDiv.textContent = 'Error: ' + resp2.status + ' — ' + (err.substring(0, 300));
@@ -9992,6 +10027,7 @@ window.addAiMsg = addAiMsg;
 window.addToolStatus = addToolStatus;
 window.saveToolAction = saveToolAction;
 window.getWorkspaceContext = getWorkspaceContext;
+window.aiApiFetch = aiApiFetch;
 window.trackUserUsage = typeof trackUserUsage !== 'undefined' ? trackUserUsage : function() {};
 window.updateCostPanel = typeof updateCostPanel !== 'undefined' ? updateCostPanel : function() {};
 window.MODEL_RATES = MODEL_RATES;

@@ -58,16 +58,23 @@ async function apiCall(apiKey, model, systemPrompt, messages, tools, stream = fa
   if (tools && tools.length) body.tools = tools;
   if (stream) body.stream = true;
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify(body)
-  });
+  // Use the shared proxy-aware fetch from workspace.html if available
+  let resp;
+  if (typeof window.aiApiFetch === 'function') {
+    resp = await window.aiApiFetch(body);
+  } else {
+    // Fallback: direct API call
+    resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(body)
+    });
+  }
 
   if (!resp.ok) {
     const err = await resp.text();
