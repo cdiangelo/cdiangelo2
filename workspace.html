@@ -381,13 +381,13 @@ body.light .fun-btn { background: var(--accent); }
 .plant-leaf-l { bottom: 16px; left: 0; transform: rotate(-30deg); }
 .plant-leaf-r { bottom: 18px; right: 0; transform: rotate(30deg); }
 .plant-leaf-t { bottom: 22px; left: 50%; transform: translateX(-50%); width: 5px; height: 6px; border-radius: 50% 50% 30% 30%; background: #81C784; }
-/* Desk + monitors — monitors on LEFT side */
-.robot-desk { position: absolute; bottom: 0; left: 20%; right: 18%; height: 20px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 4px rgba(0,0,0,.3); }
-.robot-monitors { position: absolute; bottom: 18px; left: 22%; display: flex; gap: 6px; z-index: 3; }
+/* Desk + monitors + robot grouped at center */
+.robot-desk { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 20px; background: linear-gradient(180deg, #5D4037 0%, #3E2723 100%); border-radius: 3px 3px 0 0; z-index: 3; box-shadow: 0 -1px 4px rgba(0,0,0,.3); }
+.robot-monitors { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); margin-left: -30px; display: flex; gap: 6px; z-index: 3; }
 .robot-monitor { width: 22px; height: 16px; background: #0a0a0a; border: 2px solid #333; border-radius: 2px; box-shadow: inset 0 0 2px rgba(0,0,0,.8); transition: box-shadow 0.3s, border-color 0.3s; }
 .robot-monitor.on { border-color: #555; box-shadow: inset 0 0 5px rgba(76,175,80,.4), 0 0 4px rgba(76,175,80,.2); }
-/* Robot body — on RIGHT side, fills most of vertical area */
-.robot-body { position: absolute; bottom: 16px; right: 22%; text-align: center; z-index: 4; }
+/* Robot body — right of monitors, stays close */
+.robot-body { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); margin-left: 24px; text-align: center; z-index: 4; }
 .robot-head { width: 32px; height: 26px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 7px 7px 4px 4px; margin: 0 auto; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.3); animation: robotLook 5s ease-in-out infinite; }
 .robot-glasses { position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 24px; height: 6px; z-index: 1; }
 .robot-glasses::before, .robot-glasses::after { content: ''; position: absolute; top: 0; width: 9px; height: 5px; border: 1px solid rgba(180,180,200,.6); border-radius: 50%; background: rgba(200,220,255,.06); }
@@ -7646,14 +7646,14 @@ if (robotSceneSel) {
     const maxH = pane ? pane.offsetHeight * 0.6 : 400;
     const newH = Math.max(80, Math.min(maxH, startH + delta));
     scene.style.height = newH + 'px';
-    // Proportional scaling of robot elements
+    // Proportional scaling of robot elements — preserve translateX centering
     const scale = newH / defaultH;
     const body = scene.querySelector('.robot-body');
-    if (body) { body.style.transform = 'scale(' + scale + ')'; body.style.transformOrigin = 'bottom right'; }
+    if (body) { body.style.transform = 'translateX(-50%) scale(' + scale + ')'; body.style.transformOrigin = 'bottom center'; }
     const monitors = scene.querySelector('.robot-monitors');
-    if (monitors) { monitors.style.transform = 'scale(' + scale + ')'; monitors.style.transformOrigin = 'bottom left'; }
+    if (monitors) { monitors.style.transform = 'translateX(-50%) scale(' + scale + ')'; monitors.style.transformOrigin = 'bottom center'; }
     const desk = scene.querySelector('.robot-desk');
-    if (desk) { desk.style.transform = 'scaleX(' + Math.min(scale, 1.5) + ')'; desk.style.transformOrigin = 'bottom center'; }
+    if (desk) { desk.style.transform = 'translateX(-50%) scaleX(' + Math.min(scale, 1.5) + ')'; desk.style.transformOrigin = 'bottom center'; }
   });
   document.addEventListener('mouseup', () => {
     if (!dragging) return;
