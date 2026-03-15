@@ -480,6 +480,31 @@ body.neon .nav-group-btns button.active { background: linear-gradient(135deg, #3
 .stock-search-item .ssi-name { font-size: .72rem; color: var(--text-dim); flex: 1; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stock-search-item .ssi-exchange { font-size: .6rem; color: var(--text-dim); }
 
+/* Company browser list */
+.browse-row {
+  display: flex; align-items: center; padding: 5px 10px; gap: 0;
+  border-bottom: 1px solid var(--border); font-size: .72rem;
+  transition: background .1s; cursor: default;
+}
+.browse-row:hover { background: rgba(99,102,241,.05); }
+.browse-row .br-ticker { width: 60px; font-weight: 700; color: var(--accent); }
+.browse-row .br-name { flex: 2; min-width: 100px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browse-row .br-price { width: 70px; text-align: right; font-weight: 600; color: var(--text); }
+.browse-row .br-cap { width: 80px; text-align: right; color: var(--text-dim); }
+.browse-row .br-sector { width: 80px; font-size: .62rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browse-row .br-size { width: 65px; font-size: .6rem; }
+.browse-row .br-size .sz-mega { color: #6366f1; } .browse-row .br-size .sz-large { color: #10b981; } .browse-row .br-size .sz-mid { color: #f59e0b; }
+.browse-row .br-add { width: 50px; text-align: center; }
+.browse-row .br-cmp { width: 40px; text-align: center; }
+.browse-row .br-add button, .browse-row .br-cmp button {
+  padding: 1px 6px; font-size: .62rem; border-radius: 3px; border: 1px solid var(--border);
+  background: var(--panel-inset); color: var(--text-dim); cursor: pointer; transition: all .12s;
+}
+.browse-row .br-add button:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.browse-row .br-cmp button { border-color: var(--accent); color: var(--accent); }
+.browse-row .br-cmp button:hover { background: var(--accent); color: #fff; }
+.browse-row .br-cmp button.active { background: var(--accent); color: #fff; }
+
 /* Toast */
 .toast {
   position: fixed; bottom: 16px; left: 50%;
@@ -724,6 +749,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <div id="stockSearchResults" class="stock-search-results" style="display:none;"></div>
           </div>
           <button id="stockAdd">+Add</button>
+          <button id="stockBrowse" title="Browse all companies" style="font-size:.68rem;">&#128203; List</button>
           <div class="sep"></div>
           <span id="stockChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
           <div class="p-spacer" style="flex:1;"></div>
@@ -753,6 +779,35 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             Add a ticker symbol above to start tracking stocks.<br>
             Data is simulated for demonstration.
           </div>
+        </div>
+        <!-- Company browser overlay -->
+        <div id="stockBrowsePanel" style="display:none;position:absolute;inset:0;z-index:50;background:var(--panel);flex-direction:column;">
+          <div style="display:flex;align-items:center;padding:8px 10px;gap:6px;background:var(--panel-inset);border-bottom:1px solid var(--border);">
+            <span style="font-size:.78rem;font-weight:700;color:var(--accent);">Company Directory</span>
+            <div style="flex:1;"></div>
+            <select id="browseFilterSector" style="font-size:.68rem;padding:2px 4px;border-radius:3px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+              <option value="">All Sectors</option>
+            </select>
+            <select id="browseFilterSize" style="font-size:.68rem;padding:2px 4px;border-radius:3px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+              <option value="">All Sizes</option>
+              <option value="Mega Cap">Mega Cap</option>
+              <option value="Large Cap">Large Cap</option>
+              <option value="Mid Cap">Mid Cap</option>
+            </select>
+            <input type="text" id="browseSearch" placeholder="Filter..." style="font-size:.68rem;padding:2px 6px;border-radius:3px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:90px;" />
+            <button id="stockBrowseClose" style="font-size:.78rem;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text-dim);cursor:pointer;">&times; Close</button>
+          </div>
+          <div style="display:flex;padding:4px 10px;gap:0;background:var(--bg);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;">
+            <span style="width:60px;">Ticker</span>
+            <span style="flex:2;min-width:100px;">Company</span>
+            <span style="width:70px;text-align:right;">Price</span>
+            <span style="width:80px;text-align:right;">Mkt Cap</span>
+            <span style="width:80px;">Sector</span>
+            <span style="width:65px;">Size</span>
+            <span style="width:50px;text-align:center;">Add</span>
+            <span style="width:40px;text-align:center;">&#x27A4;</span>
+          </div>
+          <div id="browseList" style="flex:1;overflow-y:auto;"></div>
         </div>
       </div>
       <!-- CONCEPT MAP VIEW -->
@@ -2884,6 +2939,110 @@ document.addEventListener('click', e => {
 });
 
 /* ═══════════════════════════════════════════
+   COMPANY BROWSER / DIRECTORY
+   ═══════════════════════════════════════════ */
+function getCompanyMetrics(ticker) {
+  // Deterministic price/cap from ticker seed (reuses genStockData logic)
+  let seed = 0;
+  for (let i = 0; i < ticker.length; i++) seed = (seed * 31 + ticker.charCodeAt(i)) & 0x7fffffff;
+  function rand() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  const price = 50 + rand() * 450;
+  const shares = (rand() * 8 + 0.5) * 1e9; // 0.5B to 8.5B shares
+  const mktCap = price * shares;
+  let sizeGroup;
+  if (mktCap > 200e9) sizeGroup = 'Mega Cap';
+  else if (mktCap > 10e9) sizeGroup = 'Large Cap';
+  else sizeGroup = 'Mid Cap';
+  return { price, mktCap, sizeGroup };
+}
+
+function formatCap(cap) {
+  if (cap >= 1e12) return '$' + (cap / 1e12).toFixed(1) + 'T';
+  if (cap >= 1e9) return '$' + (cap / 1e9).toFixed(1) + 'B';
+  return '$' + (cap / 1e6).toFixed(0) + 'M';
+}
+
+// Populate sector filter options
+(function() {
+  const sectors = [...new Set(COMPANY_DB.map(c => c.sector))].sort();
+  const sel = $('#browseFilterSector');
+  sectors.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+})();
+
+function renderBrowseList() {
+  const list = $('#browseList');
+  const sectorFilter = $('#browseFilterSector').value;
+  const sizeFilter = $('#browseFilterSize').value;
+  const search = $('#browseSearch').value.toLowerCase().trim();
+
+  let companies = COMPANY_DB.map(c => {
+    const m = getCompanyMetrics(c.ticker);
+    return { ...c, ...m };
+  });
+
+  if (sectorFilter) companies = companies.filter(c => c.sector === sectorFilter);
+  if (sizeFilter) companies = companies.filter(c => c.sizeGroup === sizeFilter);
+  if (search) companies = companies.filter(c => c.ticker.toLowerCase().includes(search) || c.name.toLowerCase().includes(search));
+
+  companies.sort((a, b) => b.mktCap - a.mktCap); // Sort by market cap descending
+
+  list.innerHTML = '';
+  companies.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'browse-row';
+    const inTracked = stockTickers.includes(c.ticker);
+    const inCompare = compareTickers.includes(c.ticker);
+    const szClass = c.sizeGroup === 'Mega Cap' ? 'sz-mega' : c.sizeGroup === 'Large Cap' ? 'sz-large' : 'sz-mid';
+    row.innerHTML =
+      '<span class="br-ticker">' + c.ticker + '</span>' +
+      '<span class="br-name" title="' + c.name + '">' + c.name + '</span>' +
+      '<span class="br-price">$' + c.price.toFixed(2) + '</span>' +
+      '<span class="br-cap">' + formatCap(c.mktCap) + '</span>' +
+      '<span class="br-sector">' + c.sector + '</span>' +
+      '<span class="br-size"><span class="' + szClass + '">' + c.sizeGroup + '</span></span>' +
+      '<span class="br-add"><button' + (inTracked ? ' disabled style="opacity:.4;"' : '') + '>+ Add</button></span>' +
+      '<span class="br-cmp"><button class="' + (inCompare ? 'active' : '') + '">&#x27A4;</button></span>';
+    // Add to tracked
+    row.querySelector('.br-add button').onclick = () => {
+      if (stockTickers.includes(c.ticker)) return;
+      stockTickers.push(c.ticker);
+      LS('stockTickers', stockTickers);
+      renderStockChips();
+      renderStockDash();
+      renderBrowseList();
+      toast(c.ticker + ' added');
+    };
+    // Add to compare
+    row.querySelector('.br-cmp button').onclick = () => {
+      if (compareTickers.includes(c.ticker)) {
+        compareTickers = compareTickers.filter(t => t !== c.ticker);
+      } else {
+        compareTickers.push(c.ticker);
+      }
+      LS('compareTickers', compareTickers);
+      renderStockDash();
+      renderBrowseList();
+      toast(compareTickers.includes(c.ticker) ? c.ticker + ' → Compare' : c.ticker + ' removed');
+    };
+    list.appendChild(row);
+  });
+
+  if (!companies.length) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim);font-size:.75rem;">No companies match your filters.</div>';
+  }
+}
+
+$('#stockBrowse').onclick = () => {
+  const panel = $('#stockBrowsePanel');
+  panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
+  if (panel.style.display === 'flex') renderBrowseList();
+};
+$('#stockBrowseClose').onclick = () => { $('#stockBrowsePanel').style.display = 'none'; };
+$('#browseFilterSector').onchange = renderBrowseList;
+$('#browseFilterSize').onchange = renderBrowseList;
+$('#browseSearch').addEventListener('input', renderBrowseList);
+
+/* ═══════════════════════════════════════════
    NEWS & MARKET COVERAGE (Simulated)
    ═══════════════════════════════════════════ */
 const NEWS_SOURCES = ['Reuters', 'Bloomberg', 'CNBC', 'Financial Times', 'WSJ', 'MarketWatch', 'Barron\'s', 'Seeking Alpha'];
@@ -2981,7 +3140,7 @@ function renderNewsFeed() {
     const div = document.createElement('div');
     div.className = 'news-item';
     const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? a.hoursAgo + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
-    const archiveUrl = 'https://archive.is/newest/' + encodeURIComponent(a.url);
+    const archiveUrl = 'https://archive.is/?url=' + encodeURIComponent(a.url);
     div.innerHTML =
       '<div class="news-source">' + a.source + '</div>' +
       '<div class="news-title">' + a.title + '</div>' +
