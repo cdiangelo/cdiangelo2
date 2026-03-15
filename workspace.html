@@ -388,18 +388,19 @@ body.light .fun-btn { background: var(--accent); }
 .robot-monitor.on { border-color: #555; box-shadow: inset 0 0 5px rgba(76,175,80,.4), 0 0 4px rgba(76,175,80,.2); }
 /* Robot body — right of monitors, stays close */
 .robot-body { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); margin-left: 24px; text-align: center; z-index: 4; }
-.robot-head { width: 32px; height: 26px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 7px 7px 4px 4px; margin: 0 auto; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.3); animation: robotLook 5s ease-in-out infinite; }
+.robot-head { width: 32px; height: 26px; background: linear-gradient(180deg, #8a8a98, #6e6e7e, #5a5a68); border-radius: 5px 5px 3px 3px; margin: 0 auto; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.4); animation: robotLook 5s ease-in-out infinite; }
 .robot-glasses { position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 24px; height: 6px; z-index: 1; }
-.robot-glasses::before, .robot-glasses::after { content: ''; position: absolute; top: 0; width: 9px; height: 5px; border: 1px solid rgba(180,180,200,.6); border-radius: 50%; background: rgba(200,220,255,.06); }
+.robot-glasses::before, .robot-glasses::after { content: ''; position: absolute; top: 0; width: 9px; height: 5px; border: 1.5px solid #1a1a1a; border-radius: 50%; background: rgba(20,20,30,.15); }
 .robot-glasses::before { left: 0; }
 .robot-glasses::after { right: 0; }
-.robot-glasses-bridge { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); width: 4px; height: 1px; background: rgba(180,180,200,.5); }
+.robot-glasses-bridge { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); width: 4px; height: 1px; background: #1a1a1a; }
 .robot-eyes { display: flex; justify-content: center; gap: 8px; padding-top: 8px; position: relative; z-index: 2; }
 .robot-eyes .eye { width: 4px; height: 4px; background: #1a1a1a; border-radius: 50%; box-shadow: inset 0 0 1px rgba(255,255,255,.2); }
-.robot-torso { width: 34px; height: 24px; background: linear-gradient(180deg, #222, #111); border-radius: 4px; margin: 2px auto 0; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.robot-torso { width: 36px; height: 26px; background: linear-gradient(180deg, #7a7a88, #5e5e6e, #4a4a58); border-radius: 3px; margin: 2px auto 0; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
 .robot-tie { width: 7px; height: 16px; margin: 0 auto; clip-path: polygon(50% 0, 100% 15%, 65% 100%, 50% 80%, 35% 100%, 0 15%); background: #D32F2F; transition: background 0.3s, clip-path 0.3s; }
-.robot-arms { display: flex; justify-content: center; gap: 26px; margin-top: -12px; }
-.robot-arms .arm { width: 7px; height: 16px; background: linear-gradient(180deg, #D4AF37, #B8960C); border-radius: 3px; transition: transform 0.15s; transform-origin: top center; }
+.robot-arms { display: flex; justify-content: center; gap: 28px; margin-top: -14px; }
+.robot-arms .arm { width: 8px; height: 18px; background: linear-gradient(180deg, #7a7a88, #5e5e6e); border-radius: 2px; transition: transform 0.15s; transform-origin: top center; position: relative; }
+.robot-arms .arm::after { content: ''; position: absolute; top: 3px; left: 1px; right: 1px; height: 12px; background: repeating-linear-gradient(180deg, transparent, transparent 2px, rgba(0,0,0,.2) 2px, rgba(0,0,0,.2) 3px); }
 .robot-arms .arm.typing-l { transform: rotate(-8deg) translateY(2px); }
 .robot-arms .arm.typing-r { transform: rotate(8deg) translateY(2px); }
 /* Head look animation — looks left at monitors then back at viewer */
@@ -428,6 +429,8 @@ body.light .fun-btn { background: var(--accent); }
 @keyframes sceneScrollSlow { from { background-position: 0 bottom; } to { background-position: -300px bottom; } }
 @keyframes sceneFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes sceneErupt { 0%,80% { opacity: .6; transform: translateY(0); } 90% { opacity: 1; transform: translateY(-2px); } 100% { opacity: .6; transform: translateY(0); } }
+@keyframes volcanoProjectiles { 0% { opacity: .7; transform: translateY(0) scale(1); } 25% { opacity: 1; transform: translateY(-6px) scale(1.1); } 50% { opacity: .9; transform: translateY(-2px) scale(1.05); } 75% { opacity: 1; transform: translateY(-5px) scale(1.08); } 100% { opacity: .7; transform: translateY(0) scale(1); } }
+@keyframes forestSway { 0% { transform: translateX(0); } 100% { transform: translateX(3px); } }
 @keyframes sceneCars { from { background-position: 0 0; } to { background-position: 200px 0; } }
 
 /* ── Office (default) ── */
@@ -503,184 +506,342 @@ body.light .fun-btn { background: var(--accent); }
 .robot-bg.scene-volcano {
   background:
     linear-gradient(180deg,
-      #050100 0%, #0a0300 10%, #150800 22%,
-      #2a1000 35%, #3e1500 50%,
-      #5a2000 65%, #3a1200 78%, #1a0800 90%, #0a0300 100%);
+      #0a0000 0%, #150400 8%, #1e0800 18%,
+      #2a0c00 30%, #351000 42%,
+      #2a0c00 58%, #1e0800 72%, #140400 85%, #0a0200 100%);
 }
 .robot-bg.scene-volcano::before {
-  /* Volcano mountain shape + crater glow + lava streams */
+  /* Two distant volcanoes (full profile) + smoke plumes + lava streams */
   background:
-    /* Ash/smoke clouds at top */
-    radial-gradient(ellipse 50px 20px at 45% 5%, rgba(80,60,50,.4) 0%, transparent 100%),
-    radial-gradient(ellipse 40px 15px at 55% 8%, rgba(100,70,50,.3) 0%, transparent 100%),
-    radial-gradient(ellipse 60px 18px at 40% 12%, rgba(70,50,40,.25) 0%, transparent 100%),
-    /* Eruption glow at crater */
-    radial-gradient(ellipse 14px 20px at 50% 28%, rgba(255,100,0,.8) 0%, rgba(255,60,0,.3) 50%, transparent 100%),
-    radial-gradient(circle 8px at 50% 25%, rgba(255,200,0,.6) 0%, transparent 100%),
-    /* Lava streams down sides */
-    linear-gradient(160deg, transparent 30%, rgba(255,80,0,.5) 32%, rgba(255,120,0,.3) 34%, transparent 36%),
-    linear-gradient(200deg, transparent 30%, rgba(255,80,0,.4) 32%, rgba(255,100,0,.2) 34%, transparent 36%),
-    linear-gradient(170deg, transparent 33%, rgba(255,60,0,.35) 35%, transparent 37%),
-    /* Mountain silhouette - dark triangular shape */
-    linear-gradient(155deg, transparent 28%, #1a0800 30%, #1a0800 100%),
-    linear-gradient(205deg, transparent 28%, #1a0800 30%, #1a0800 100%),
-    /* Mountain base fills */
-    linear-gradient(180deg, transparent 55%, #120600 55%);
+    /* ── LEFT VOLCANO (smaller, farther) ── */
+    /* Smoke plume rising from left crater */
+    radial-gradient(ellipse 22px 30px at 28% 8%, rgba(90,70,60,.35) 0%, transparent 100%),
+    radial-gradient(ellipse 18px 22px at 25% 15%, rgba(110,80,60,.25) 0%, transparent 100%),
+    radial-gradient(ellipse 28px 16px at 30% 4%, rgba(70,55,45,.3) 0%, transparent 100%),
+    radial-gradient(ellipse 15px 12px at 22% 20%, rgba(80,60,50,.2) 0%, transparent 100%),
+    /* Eruption glow at left crater */
+    radial-gradient(ellipse 6px 10px at 28% 38%, rgba(255,120,0,.7) 0%, rgba(255,60,0,.2) 60%, transparent 100%),
+    radial-gradient(circle 4px at 28% 36%, rgba(255,220,0,.5) 0%, transparent 100%),
+    /* Lava streams down left volcano */
+    linear-gradient(162deg, transparent 40%, rgba(255,80,0,.45) 41.5%, rgba(255,120,0,.2) 43%, transparent 44%),
+    linear-gradient(198deg, transparent 40%, rgba(255,60,0,.35) 41.5%, rgba(255,90,0,.15) 43%, transparent 44%),
+    /* Left volcano silhouette — full triangle visible */
+    conic-gradient(from 200deg at 28% 40%, transparent 0deg, #1a0800 15deg, #1a0800 55deg, transparent 70deg),
+    /* Left volcano base rock */
+    radial-gradient(ellipse 55px 20px at 28% 75%, #120500 0%, transparent 100%),
+
+    /* ── RIGHT VOLCANO (larger, closer) ── */
+    /* Billowing smoke plume from right crater */
+    radial-gradient(ellipse 30px 40px at 72% 2%, rgba(100,75,55,.4) 0%, transparent 100%),
+    radial-gradient(ellipse 24px 30px at 68% 10%, rgba(120,85,60,.3) 0%, transparent 100%),
+    radial-gradient(ellipse 35px 20px at 75% 0%, rgba(80,60,45,.35) 0%, transparent 100%),
+    radial-gradient(ellipse 20px 25px at 70% 18%, rgba(90,65,50,.25) 0%, transparent 100%),
+    radial-gradient(ellipse 40px 14px at 74% 6%, rgba(70,55,45,.2) 0%, transparent 100%),
+    /* Eruption glow at right crater */
+    radial-gradient(ellipse 10px 16px at 72% 28%, rgba(255,100,0,.85) 0%, rgba(255,50,0,.3) 55%, transparent 100%),
+    radial-gradient(circle 6px at 72% 25%, rgba(255,200,0,.65) 0%, transparent 100%),
+    radial-gradient(circle 3px at 72% 24%, rgba(255,255,200,.5) 0%, transparent 100%),
+    /* Lava streams down right volcano */
+    linear-gradient(158deg, transparent 31%, rgba(255,80,0,.5) 32.5%, rgba(255,130,0,.25) 34%, transparent 35%),
+    linear-gradient(202deg, transparent 31%, rgba(255,70,0,.45) 32.5%, rgba(255,100,0,.2) 34%, transparent 35%),
+    linear-gradient(180deg, transparent 33%, rgba(255,60,0,.3) 34%, transparent 35.5%),
+    /* Right volcano silhouette — full triangle */
+    conic-gradient(from 195deg at 72% 30%, transparent 0deg, #1a0800 12deg, #1a0800 60deg, transparent 72deg),
+    /* Right volcano base rock */
+    radial-gradient(ellipse 70px 25px at 72% 68%, #120500 0%, transparent 100%),
+
+    /* ── Ground / lava field ── */
+    linear-gradient(180deg, transparent 65%, #120500 68%, #0e0300 100%),
+    radial-gradient(ellipse 90% 10px at 50% 88%, rgba(255,60,0,.12) 0%, transparent 100%),
+    radial-gradient(ellipse 60% 6px at 40% 92%, rgba(255,80,0,.08) 0%, transparent 100%);
   background-size: 100% 100%;
   background-repeat: no-repeat;
   animation: sceneErupt 6s ease-in-out infinite;
 }
 .robot-bg.scene-volcano::after {
-  /* Flying ember particles + lava bombs */
+  /* Projectile magma bombs, flying stones, ember particles */
   background:
-    radial-gradient(2px 2px at 30% 18%, #FFD600, transparent),
-    radial-gradient(1.5px 1.5px at 42% 12%, #FF6D00, transparent),
-    radial-gradient(2px 2px at 58% 15%, #FFAB00, transparent),
-    radial-gradient(1.5px 1.5px at 48% 22%, #FF6D00, transparent),
-    radial-gradient(1px 1px at 35% 28%, #FFD600, transparent),
-    radial-gradient(2px 2px at 65% 20%, #FF9100, transparent),
-    radial-gradient(1.5px 1.5px at 52% 10%, #FFD600, transparent),
-    radial-gradient(1px 1px at 38% 8%, #FF6D00, transparent),
-    radial-gradient(2px 2px at 55% 30%, #FF8F00, transparent),
-    radial-gradient(1px 1px at 45% 35%, #FFD600, transparent),
-    /* Lava pool glow at base */
-    radial-gradient(ellipse 40px 8px at 50% 90%, rgba(255,100,0,.25) 0%, transparent 100%),
-    radial-gradient(ellipse 25px 5px at 40% 85%, rgba(255,60,0,.2) 0%, transparent 100%),
-    radial-gradient(ellipse 30px 6px at 62% 88%, rgba(255,80,0,.2) 0%, transparent 100%);
-  animation: sceneTwinkle 2s ease-in-out infinite, sceneFloat 4s ease-in-out infinite;
+    /* Large magma projectiles (arcing from craters) */
+    radial-gradient(3px 3px at 65% 18%, #FF6D00, #FF3D00, transparent),
+    radial-gradient(3.5px 3px at 78% 12%, #FF8F00, #FF5722, transparent),
+    radial-gradient(2.5px 2.5px at 60% 8%, #FFAB00, #FF6D00, transparent),
+    radial-gradient(3px 2.5px at 80% 22%, #FF6D00, #E65100, transparent),
+    radial-gradient(2px 2px at 24% 25%, #FF8F00, #FF3D00, transparent),
+    radial-gradient(2.5px 2px at 34% 14%, #FFAB00, transparent),
+    /* Flying stone/rock fragments (dark with hot edges) */
+    radial-gradient(2.5px 2px at 68% 15%, #4E342E, #BF360C, transparent),
+    radial-gradient(2px 2px at 76% 20%, #3E2723, #BF360C, transparent),
+    radial-gradient(2px 1.5px at 82% 10%, #4E342E, #E65100, transparent),
+    radial-gradient(1.5px 1.5px at 22% 18%, #3E2723, #BF360C, transparent),
+    radial-gradient(2px 2px at 32% 22%, #4E342E, #E65100, transparent),
+    /* Small ember sparks scattered across sky */
+    radial-gradient(1.5px 1.5px at 55% 6%, #FFD600, transparent),
+    radial-gradient(1px 1px at 42% 10%, #FF6D00, transparent),
+    radial-gradient(1.5px 1.5px at 85% 16%, #FFAB00, transparent),
+    radial-gradient(1px 1px at 15% 12%, #FFD600, transparent),
+    radial-gradient(1.5px 1.5px at 48% 20%, #FF9100, transparent),
+    radial-gradient(1px 1px at 62% 28%, #FFD600, transparent),
+    radial-gradient(1.5px 1.5px at 38% 5%, #FF6D00, transparent),
+    radial-gradient(1px 1px at 90% 8%, #FFAB00, transparent),
+    radial-gradient(1px 1px at 50% 3%, #FFD600, transparent),
+    radial-gradient(1px 1px at 20% 7%, #FF8F00, transparent),
+    /* Lava pool glow at base between volcanoes */
+    radial-gradient(ellipse 50px 8px at 50% 82%, rgba(255,80,0,.2) 0%, transparent 100%),
+    radial-gradient(ellipse 30px 5px at 38% 86%, rgba(255,60,0,.15) 0%, transparent 100%),
+    radial-gradient(ellipse 35px 5px at 62% 84%, rgba(255,90,0,.15) 0%, transparent 100%);
+  animation: volcanoProjectiles 3s ease-in-out infinite, sceneFloat 4s ease-in-out infinite;
 }
 
 /* ── Forest ── */
-/* Layered tree canopy with distinct round/oval tree crowns, dappled sunlight, depth */
+/* Distinct tree shapes with big flowing leaves and branches, dappled sunlight */
 .robot-bg.scene-forest {
   background:
     linear-gradient(180deg,
-      #b5e8c3 0%, #8dd49e 8%, #6abf7b 16%,
-      #4caf50 28%, #3d9e44 40%, #2e8c35 55%,
-      #1e7a28 70%, #145a1c 82%, #0a3a10 92%, #051f08 100%);
+      #a8e6cf 0%, #7ecba1 6%, #5bb87a 14%,
+      #4caf50 24%, #3d9e44 36%, #2e8c35 50%,
+      #1e7a28 65%, #145a1c 78%, #0a3a10 90%, #051f08 100%);
 }
 .robot-bg.scene-forest::before {
-  /* Multiple overlapping tree canopy circles at various depths — back row (lighter) */
+  /* Back trees with distinct leaf shapes — tall oaks and spreading branches */
   background:
-    /* Sunlight dapples */
-    radial-gradient(circle 5px at 25% 22%, rgba(255,255,180,.15) 0%, transparent 100%),
-    radial-gradient(circle 4px at 60% 15%, rgba(255,255,180,.12) 0%, transparent 100%),
-    radial-gradient(circle 6px at 80% 25%, rgba(255,255,180,.1) 0%, transparent 100%),
-    radial-gradient(circle 3px at 42% 30%, rgba(255,255,180,.08) 0%, transparent 100%),
-    /* Back trees (lighter, smaller — depth) */
-    radial-gradient(ellipse 18px 16px at 10% 30%, #5cb85c 0%, transparent 70%),
-    radial-gradient(ellipse 22px 18px at 28% 25%, #4caf50 0%, transparent 70%),
-    radial-gradient(ellipse 20px 16px at 48% 28%, #57b857 0%, transparent 70%),
-    radial-gradient(ellipse 18px 15px at 68% 22%, #4caf50 0%, transparent 70%),
-    radial-gradient(ellipse 24px 18px at 85% 27%, #5cb85c 0%, transparent 70%),
-    /* Mid trees */
-    radial-gradient(ellipse 24px 22px at 6% 48%, #388e3c 0%, transparent 70%),
-    radial-gradient(ellipse 28px 24px at 22% 45%, #2e7d32 0%, transparent 70%),
-    radial-gradient(ellipse 22px 20px at 38% 50%, #388e3c 0%, transparent 70%),
-    radial-gradient(ellipse 26px 22px at 55% 44%, #2e7d32 0%, transparent 70%),
-    radial-gradient(ellipse 30px 24px at 72% 48%, #388e3c 0%, transparent 70%),
-    radial-gradient(ellipse 24px 20px at 92% 46%, #2e7d32 0%, transparent 70%);
-  animation: sceneDrift 14s ease-in-out infinite alternate;
+    /* Sunlight beams filtering through */
+    radial-gradient(circle 7px at 30% 18%, rgba(255,255,160,.18) 0%, transparent 100%),
+    radial-gradient(circle 5px at 65% 12%, rgba(255,255,180,.14) 0%, transparent 100%),
+    radial-gradient(circle 8px at 85% 22%, rgba(255,255,140,.1) 0%, transparent 100%),
+    radial-gradient(circle 4px at 48% 28%, rgba(255,255,170,.08) 0%, transparent 100%),
+
+    /* ── Back row: tall palm-like tree (left) ── */
+    radial-gradient(ellipse 12px 18px at 8% 18%, #6abf6a 0%, transparent 75%),
+    radial-gradient(ellipse 14px 8px at 4% 22%, #5bb85b 0%, transparent 70%),
+    radial-gradient(ellipse 14px 7px at 12% 20%, #5bb85b 0%, transparent 70%),
+    /* Drooping leaf fronds */
+    radial-gradient(ellipse 18px 5px at 2% 26%, #4caf50 0%, transparent 80%),
+    radial-gradient(ellipse 16px 4px at 14% 24%, #4caf50 0%, transparent 80%),
+
+    /* ── Back row: wide spreading oak (center-left) ── */
+    radial-gradient(ellipse 28px 20px at 25% 22%, #5cb85c 0%, transparent 65%),
+    radial-gradient(ellipse 14px 12px at 18% 18%, #66c266 0%, transparent 70%),
+    radial-gradient(ellipse 16px 10px at 33% 16%, #5cb85c 0%, transparent 70%),
+    /* Big drooping branch-leaves */
+    radial-gradient(ellipse 20px 6px at 15% 30%, #4caf50 0%, transparent 75%),
+    radial-gradient(ellipse 18px 5px at 35% 28%, #52b852 0%, transparent 75%),
+
+    /* ── Back row: conical pine (center) ── */
+    conic-gradient(from 180deg at 48% 15%, transparent 150deg, #4a9e4a 165deg, #4a9e4a 195deg, transparent 210deg),
+    radial-gradient(ellipse 10px 22px at 48% 24%, #3d8e3d 0%, transparent 70%),
+
+    /* ── Back row: bushy round tree (center-right) ── */
+    radial-gradient(ellipse 22px 18px at 65% 20%, #5cb85c 0%, transparent 65%),
+    radial-gradient(ellipse 12px 10px at 60% 15%, #66c266 0%, transparent 70%),
+    radial-gradient(ellipse 12px 10px at 72% 17%, #5cb85c 0%, transparent 70%),
+    /* Flowing leaf clusters drooping down */
+    radial-gradient(ellipse 16px 5px at 58% 28%, #4caf50 0%, transparent 80%),
+    radial-gradient(ellipse 14px 5px at 73% 26%, #52b852 0%, transparent 80%),
+
+    /* ── Back row: tall willow-like (far right) ── */
+    radial-gradient(ellipse 18px 24px at 88% 20%, #5cb85c 0%, transparent 65%),
+    radial-gradient(ellipse 22px 6px at 82% 32%, #4caf50 0%, transparent 80%),
+    radial-gradient(ellipse 20px 5px at 94% 30%, #4caf50 0%, transparent 80%),
+    radial-gradient(ellipse 24px 4px at 86% 35%, #3d9e44 0%, transparent 80%),
+
+    /* ── Mid row trees with thicker branch-leaf masses ── */
+    /* Wide tropical tree (left) — big hanging leaf clusters */
+    radial-gradient(ellipse 30px 22px at 10% 45%, #388e3c 0%, transparent 65%),
+    radial-gradient(ellipse 20px 7px at 0% 50%, #2e8c35 0%, transparent 80%),
+    radial-gradient(ellipse 22px 6px at 18% 52%, #2e8c35 0%, transparent 80%),
+    radial-gradient(ellipse 16px 6px at 5% 55%, #267d2e 0%, transparent 80%),
+    /* Spreading maple (center-left) */
+    radial-gradient(ellipse 26px 22px at 28% 42%, #2e7d32 0%, transparent 65%),
+    radial-gradient(ellipse 18px 8px at 20% 48%, #267d2e 0%, transparent 75%),
+    radial-gradient(ellipse 20px 7px at 36% 46%, #2e8c35 0%, transparent 75%),
+    radial-gradient(ellipse 14px 14px at 24% 38%, #338e38 0%, transparent 70%),
+    /* Tall straight tree (center) */
+    radial-gradient(ellipse 20px 26px at 48% 40%, #2e7d32 0%, transparent 65%),
+    radial-gradient(ellipse 24px 7px at 42% 50%, #267d2e 0%, transparent 80%),
+    radial-gradient(ellipse 22px 6px at 54% 48%, #2e8c35 0%, transparent 80%),
+    /* Broad fig-like tree (center-right) */
+    radial-gradient(ellipse 32px 20px at 68% 44%, #388e3c 0%, transparent 65%),
+    radial-gradient(ellipse 14px 14px at 62% 40%, #3d9e44 0%, transparent 70%),
+    radial-gradient(ellipse 16px 12px at 76% 38%, #388e3c 0%, transparent 70%),
+    radial-gradient(ellipse 24px 6px at 60% 52%, #267d2e 0%, transparent 80%),
+    radial-gradient(ellipse 20px 6px at 78% 50%, #2e8c35 0%, transparent 80%),
+    /* Banyan-like tree (right) */
+    radial-gradient(ellipse 28px 22px at 90% 44%, #2e7d32 0%, transparent 65%),
+    radial-gradient(ellipse 22px 7px at 84% 52%, #267d2e 0%, transparent 80%),
+    radial-gradient(ellipse 20px 6px at 98% 50%, #2e8c35 0%, transparent 80%);
+  animation: forestSway 8s ease-in-out infinite alternate;
 }
 .robot-bg.scene-forest::after {
-  /* Front trees (darkest, largest) + trunks + ground */
+  /* Front trees — largest, darkest, with visible trunks + branches + flowing leaf masses */
   background:
-    /* Front canopy row */
-    radial-gradient(ellipse 32px 28px at 0% 68%, #1b5e20 0%, transparent 65%),
-    radial-gradient(ellipse 36px 30px at 16% 65%, #145218 0%, transparent 65%),
-    radial-gradient(ellipse 30px 26px at 32% 70%, #1b5e20 0%, transparent 65%),
-    radial-gradient(ellipse 38px 32px at 50% 66%, #145218 0%, transparent 65%),
-    radial-gradient(ellipse 34px 28px at 68% 68%, #1b5e20 0%, transparent 65%),
-    radial-gradient(ellipse 32px 26px at 84% 65%, #145218 0%, transparent 65%),
-    radial-gradient(ellipse 28px 24px at 100% 70%, #1b5e20 0%, transparent 65%),
-    /* Tree trunks (thin brown lines) */
-    linear-gradient(180deg, transparent 62%, #3E2723 62%, #3E2723 64%, transparent 64%),
-    linear-gradient(180deg, transparent 60%, #4E342E 60%, #4E342E 62%, transparent 62%),
-    linear-gradient(180deg, transparent 63%, #3E2723 63%, #3E2723 65%, transparent 65%),
-    linear-gradient(180deg, transparent 61%, #4E342E 61%, #4E342E 63%, transparent 63%),
-    /* Dark forest floor */
-    linear-gradient(180deg, transparent 78%, rgba(5,15,4,.7) 85%, rgba(3,10,2,.9) 100%);
+    /* ── Front left: massive spreading tree with heavy leaf droop ── */
+    radial-gradient(ellipse 38px 28px at 8% 60%, #1b5e20 0%, transparent 60%),
+    radial-gradient(ellipse 18px 16px at 0% 55%, #1e6b22 0%, transparent 65%),
+    radial-gradient(ellipse 20px 14px at 18% 54%, #1b5e20 0%, transparent 65%),
+    /* Thick drooping branch-leaves */
+    radial-gradient(ellipse 28px 8px at 0% 68%, #145218 0%, transparent 80%),
+    radial-gradient(ellipse 24px 7px at 16% 66%, #145218 0%, transparent 80%),
+    radial-gradient(ellipse 20px 6px at 4% 72%, #0e4210 0%, transparent 80%),
+
+    /* ── Front center-left: tall tree with distinct branch tiers ── */
+    radial-gradient(ellipse 30px 22px at 26% 58%, #145218 0%, transparent 60%),
+    radial-gradient(ellipse 22px 10px at 18% 62%, #1b5e20 0%, transparent 70%),
+    radial-gradient(ellipse 24px 8px at 34% 64%, #145218 0%, transparent 70%),
+    radial-gradient(ellipse 16px 16px at 22% 52%, #1e6b22 0%, transparent 65%),
+    radial-gradient(ellipse 14px 12px at 30% 50%, #1b5e20 0%, transparent 65%),
+
+    /* ── Front center: giant canopy tree dominating ── */
+    radial-gradient(ellipse 42px 30px at 48% 58%, #145218 0%, transparent 58%),
+    radial-gradient(ellipse 20px 18px at 40% 52%, #1e6b22 0%, transparent 65%),
+    radial-gradient(ellipse 22px 16px at 56% 50%, #1b5e20 0%, transparent 65%),
+    /* Cascading leaf branches */
+    radial-gradient(ellipse 30px 8px at 38% 68%, #0e4210 0%, transparent 80%),
+    radial-gradient(ellipse 28px 7px at 56% 66%, #145218 0%, transparent 80%),
+    radial-gradient(ellipse 22px 6px at 46% 72%, #0a3a10 0%, transparent 80%),
+
+    /* ── Front center-right: asymmetric leaning tree ── */
+    radial-gradient(ellipse 34px 26px at 70% 60%, #1b5e20 0%, transparent 60%),
+    radial-gradient(ellipse 16px 14px at 64% 54%, #1e6b22 0%, transparent 65%),
+    radial-gradient(ellipse 18px 12px at 78% 56%, #145218 0%, transparent 65%),
+    radial-gradient(ellipse 26px 7px at 62% 68%, #0e4210 0%, transparent 80%),
+    radial-gradient(ellipse 22px 6px at 80% 66%, #145218 0%, transparent 80%),
+
+    /* ── Front right: wide banyan with aerial roots ── */
+    radial-gradient(ellipse 36px 26px at 92% 58%, #145218 0%, transparent 60%),
+    radial-gradient(ellipse 18px 14px at 86% 52%, #1b5e20 0%, transparent 65%),
+    radial-gradient(ellipse 24px 8px at 84% 66%, #0e4210 0%, transparent 80%),
+    radial-gradient(ellipse 20px 7px at 98% 64%, #145218 0%, transparent 80%),
+
+    /* Tree trunks + visible branches */
+    linear-gradient(180deg, transparent 55%, #3E2723 56%, #3E2723 58%, transparent 58.5%),
+    linear-gradient(180deg, transparent 53%, #4E342E 54%, #4E342E 56%, transparent 56.5%),
+    linear-gradient(180deg, transparent 56%, #3E2723 57%, #3E2723 59%, transparent 59.5%),
+    linear-gradient(180deg, transparent 54%, #4E342E 55%, #4E342E 57%, transparent 57.5%),
+    linear-gradient(180deg, transparent 55%, #3E2723 56%, #3E2723 58%, transparent 58.5%),
+    /* Dark forest floor with leaf litter */
+    linear-gradient(180deg, transparent 78%, rgba(8,20,6,.7) 82%, rgba(5,15,4,.85) 88%, rgba(3,10,2,.95) 100%);
   background-size:
-    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
-    3px 100%, 2px 100%, 3px 100%, 2px 100%,
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
+    100% 100%, 100% 100%, 100% 100%, 100% 100%,
+    3px 100%, 3px 100%, 3px 100%, 3px 100%, 3px 100%,
     100% 100%;
   background-position:
-    0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
-    18% 0, 38% 0, 58% 0, 78% 0,
+    0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+    0 0, 0 0, 0 0, 0 0, 0 0,
+    0 0, 0 0, 0 0, 0 0, 0 0, 0 0,
+    0 0, 0 0, 0 0, 0 0, 0 0,
+    0 0, 0 0, 0 0, 0 0,
+    10% 0, 28% 0, 48% 0, 70% 0, 92% 0,
     0 0;
   background-repeat: no-repeat;
+  animation: forestSway 10s ease-in-out infinite alternate-reverse;
 }
 
-/* ── City (Roku-inspired art deco) ── */
-/* Wide buildings, streets at bottom with moving cars, neon glow, layered skyline */
+/* ── City — top-down view from tall building, dense skyscrapers, minimal sky ── */
 .robot-bg.scene-city {
   background:
     linear-gradient(180deg,
-      #06061a 0%, #0e0e30 10%, #1a1050 20%, #2d1568 32%, #4a1a80 44%,
-      #7b1fa2 54%, #c2185b 66%, #e64a19 76%, #ff8f00 86%, #ffd54f 100%);
+      #06061a 0%, #0e0e30 5%, #1a1050 10%, #2d1568 16%,
+      #4a1a80 20%, #3a1570 24%, #1a0c40 30%, #0e0820 40%, #080514 100%);
 }
 .robot-bg.scene-city::before {
-  /* Wide building silhouettes with varied heights + street at bottom */
+  /* Dense wall of skyscrapers filling 80%+ of the scene — viewed looking across skyline */
   background:
-    /* Street level — dark road with lane markings */
-    linear-gradient(180deg, transparent 88%, #1a1a1a 88%, #1a1a1a 100%),
-    /* Lane markings / street line */
-    repeating-linear-gradient(90deg, transparent 0, transparent 10px, rgba(255,200,50,.2) 10px, rgba(255,200,50,.2) 16px, transparent 16px, transparent 30px),
-    /* Wide buildings — back row (shorter, lighter) */
-    linear-gradient(180deg, transparent 42%, rgba(20,15,40,.5) 42%, rgba(20,15,40,.5) 88%, transparent 88%),
-    linear-gradient(180deg, transparent 48%, rgba(25,18,50,.4) 48%, rgba(25,18,50,.4) 88%, transparent 88%),
-    linear-gradient(180deg, transparent 38%, rgba(18,12,38,.5) 38%, rgba(18,12,38,.5) 88%, transparent 88%),
-    linear-gradient(180deg, transparent 50%, rgba(22,16,45,.4) 50%, rgba(22,16,45,.4) 88%, transparent 88%),
-    /* Front buildings (taller, darker, wider) */
-    linear-gradient(180deg, transparent 30%, rgba(10,8,25,.7) 30%, rgba(10,8,25,.7) 88%, transparent 88%),
-    linear-gradient(180deg, transparent 35%, rgba(12,10,30,.65) 35%, rgba(12,10,30,.65) 88%, transparent 88%),
-    linear-gradient(180deg, transparent 25%, rgba(8,6,20,.7) 25%, rgba(8,6,20,.7) 88%, transparent 88%),
-    linear-gradient(180deg, transparent 40%, rgba(14,10,32,.6) 40%, rgba(14,10,32,.6) 88%, transparent 88%),
-    linear-gradient(180deg, transparent 32%, rgba(10,8,25,.7) 32%, rgba(10,8,25,.7) 88%, transparent 88%);
+    /* ── Back row: distant buildings (faint, start at ~15%) ── */
+    linear-gradient(180deg, transparent 15%, rgba(20,16,45,.35) 15%, rgba(20,16,45,.35) 100%),
+    linear-gradient(180deg, transparent 18%, rgba(24,18,50,.3) 18%, rgba(24,18,50,.3) 100%),
+    linear-gradient(180deg, transparent 12%, rgba(16,12,38,.4) 12%, rgba(16,12,38,.4) 100%),
+    linear-gradient(180deg, transparent 20%, rgba(22,16,45,.3) 20%, rgba(22,16,45,.3) 100%),
+    linear-gradient(180deg, transparent 14%, rgba(18,14,42,.35) 14%, rgba(18,14,42,.35) 100%),
+    linear-gradient(180deg, transparent 22%, rgba(20,16,44,.3) 22%, rgba(20,16,44,.3) 100%),
+    linear-gradient(180deg, transparent 16%, rgba(16,12,40,.35) 16%, rgba(16,12,40,.35) 100%),
+    linear-gradient(180deg, transparent 19%, rgba(22,16,46,.3) 19%, rgba(22,16,46,.3) 100%),
+    linear-gradient(180deg, transparent 13%, rgba(18,14,42,.35) 13%, rgba(18,14,42,.35) 100%),
+    linear-gradient(180deg, transparent 21%, rgba(20,15,44,.3) 21%, rgba(20,15,44,.3) 100%),
+    /* ── Mid row: medium buildings (start at ~25-40%) ── */
+    linear-gradient(180deg, transparent 25%, rgba(12,10,28,.55) 25%, rgba(12,10,28,.55) 100%),
+    linear-gradient(180deg, transparent 30%, rgba(14,11,32,.5) 30%, rgba(14,11,32,.5) 100%),
+    linear-gradient(180deg, transparent 22%, rgba(10,8,24,.6) 22%, rgba(10,8,24,.6) 100%),
+    linear-gradient(180deg, transparent 35%, rgba(14,12,30,.45) 35%, rgba(14,12,30,.45) 100%),
+    linear-gradient(180deg, transparent 28%, rgba(12,10,28,.55) 28%, rgba(12,10,28,.55) 100%),
+    linear-gradient(180deg, transparent 32%, rgba(14,11,30,.5) 32%, rgba(14,11,30,.5) 100%),
+    linear-gradient(180deg, transparent 24%, rgba(10,8,26,.55) 24%, rgba(10,8,26,.55) 100%),
+    linear-gradient(180deg, transparent 38%, rgba(14,12,32,.4) 38%, rgba(14,12,32,.4) 100%),
+    linear-gradient(180deg, transparent 26%, rgba(12,10,28,.5) 26%, rgba(12,10,28,.5) 100%),
+    linear-gradient(180deg, transparent 34%, rgba(14,11,30,.45) 34%, rgba(14,11,30,.45) 100%),
+    /* ── Front row: closest towers (tallest, darkest, start at ~18-30%) ── */
+    linear-gradient(180deg, transparent 18%, rgba(6,4,14,.8) 18%, rgba(6,4,14,.8) 100%),
+    linear-gradient(180deg, transparent 22%, rgba(8,6,18,.75) 22%, rgba(8,6,18,.75) 100%),
+    linear-gradient(180deg, transparent 15%, rgba(5,3,12,.85) 15%, rgba(5,3,12,.85) 100%),
+    linear-gradient(180deg, transparent 26%, rgba(8,6,18,.7) 26%, rgba(8,6,18,.7) 100%),
+    linear-gradient(180deg, transparent 20%, rgba(6,4,14,.8) 20%, rgba(6,4,14,.8) 100%),
+    linear-gradient(180deg, transparent 24%, rgba(7,5,16,.75) 24%, rgba(7,5,16,.75) 100%),
+    /* ── Street level at very bottom ── */
+    linear-gradient(180deg, transparent 92%, #0a0a0a 92%);
   background-size:
-    100% 100%,
-    600px 4px,
-    22px 100%, 18px 100%, 26px 100%, 16px 100%,
-    30px 100%, 24px 100%, 34px 100%, 20px 100%, 28px 100%;
+    10px 100%, 8px 100%, 12px 100%, 7px 100%, 9px 100%, 8px 100%, 11px 100%, 7px 100%, 10px 100%, 8px 100%,
+    14px 100%, 11px 100%, 16px 100%, 10px 100%, 13px 100%, 12px 100%, 15px 100%, 9px 100%, 14px 100%, 11px 100%,
+    22px 100%, 18px 100%, 26px 100%, 16px 100%, 20px 100%, 18px 100%,
+    100% 100%;
   background-position:
-    0 0,
-    0 92%,
-    5% 0, 16% 0, 28% 0, 40% 0,
-    52% 0, 62% 0, 74% 0, 85% 0, 95% 0;
-  background-repeat:
-    no-repeat,
-    repeat-x,
-    no-repeat, no-repeat, no-repeat, no-repeat,
-    no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
-  animation: sceneScroll 40s linear infinite;
+    2% 0, 9% 0, 17% 0, 26% 0, 34% 0, 44% 0, 54% 0, 64% 0, 74% 0, 86% 0,
+    4% 0, 12% 0, 21% 0, 30% 0, 40% 0, 50% 0, 60% 0, 70% 0, 80% 0, 92% 0,
+    6% 0, 18% 0, 34% 0, 52% 0, 70% 0, 88% 0,
+    0 0;
+  background-repeat: no-repeat;
 }
 .robot-bg.scene-city::after {
-  /* Window lights on buildings + moving car headlights on street */
+  /* Window lights filling the dense buildings + rooftop beacons */
   background:
-    /* Window lights — scattered yellow dots */
-    radial-gradient(1.5px 1.5px at 8% 45%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 10% 52%, #FFC107, transparent),
-    radial-gradient(1.5px 1.5px at 12% 60%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 20% 40%, #FF8F00, transparent),
-    radial-gradient(1.5px 1.5px at 22% 55%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 35% 35%, #FFC107, transparent),
-    radial-gradient(1.5px 1.5px at 38% 48%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 55% 30%, #FF8F00, transparent),
-    radial-gradient(1.5px 1.5px at 58% 42%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 60% 56%, #FFC107, transparent),
-    radial-gradient(1.5px 1.5px at 75% 33%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 78% 50%, #FF8F00, transparent),
-    radial-gradient(1.5px 1.5px at 80% 62%, #FFD54F, transparent),
-    radial-gradient(1px 1px at 90% 38%, #FFC107, transparent),
-    radial-gradient(1.5px 1.5px at 95% 52%, #FFD54F, transparent),
-    /* Car headlights on street — small bright dots at bottom */
-    radial-gradient(2px 1.5px at 15% 92%, #fff, transparent),
-    radial-gradient(2px 1.5px at 35% 91%, #FF6F00, transparent),
-    radial-gradient(2px 1.5px at 60% 93%, #fff, transparent),
-    radial-gradient(2px 1.5px at 82% 92%, #FF6F00, transparent),
-    /* Neon glow accents */
-    radial-gradient(ellipse 20px 4px at 30% 87%, rgba(194,24,91,.2) 0%, transparent 100%),
-    radial-gradient(ellipse 16px 3px at 70% 87%, rgba(123,31,162,.2) 0%, transparent 100%);
+    /* Window light grid across all building levels */
+    radial-gradient(1px 1px at 7% 28%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 8% 38%, #FFC107, transparent),
+    radial-gradient(1px 1px at 9% 50%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 10% 62%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 11% 74%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 19% 24%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 20% 36%, #FFC107, transparent),
+    radial-gradient(1px 1px at 21% 48%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 22% 60%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 23% 72%, #FFC107, transparent),
+    radial-gradient(1px 1px at 30% 30%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 32% 42%, #FFC107, transparent),
+    radial-gradient(1px 1px at 34% 56%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 36% 68%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 38% 80%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 42% 22%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 44% 34%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 46% 46%, #FFC107, transparent),
+    radial-gradient(1px 1px at 48% 58%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 50% 70%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 52% 82%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 58% 26%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 60% 38%, #FFC107, transparent),
+    radial-gradient(1px 1px at 62% 52%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 64% 66%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 66% 78%, #FFC107, transparent),
+    radial-gradient(1px 1px at 72% 20%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 74% 34%, #FFC107, transparent),
+    radial-gradient(1px 1px at 76% 48%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 78% 62%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 80% 76%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 86% 28%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 88% 42%, #FFC107, transparent),
+    radial-gradient(1px 1px at 90% 56%, #FF8F00, transparent),
+    radial-gradient(1px 1px at 92% 70%, #FFD54F, transparent),
+    radial-gradient(1px 1px at 94% 84%, #FFC107, transparent),
+    /* Rooftop beacons */
+    radial-gradient(2px 2px at 35% 16%, #f44, transparent),
+    radial-gradient(2px 2px at 53% 14%, #f44, transparent),
+    radial-gradient(2px 2px at 71% 18%, #f44, transparent),
+    radial-gradient(2px 2px at 89% 22%, #f44, transparent),
+    /* Neon glow accents on closer buildings */
+    radial-gradient(ellipse 14px 4px at 20% 50%, rgba(194,24,91,.12) 0%, transparent 100%),
+    radial-gradient(ellipse 12px 3px at 55% 44%, rgba(123,31,162,.12) 0%, transparent 100%),
+    radial-gradient(ellipse 16px 4px at 80% 48%, rgba(0,150,255,.08) 0%, transparent 100%);
   animation: sceneTwinkle2 3s ease-in-out infinite;
 }
 
