@@ -3790,9 +3790,11 @@ function wbSwitchPage(id) {
   wbX.clearRect(0, 0, wbC.width, wbC.height);
   wbLayers = page ? JSON.parse(JSON.stringify(page.layers || [])) : [];
   wbRenderLayers();
+  validateExhibitImages(); // Check for dead image URLs on page switch
   if (page && page.dataUrl) {
     const img = new Image();
     img.onload = () => { wbX.drawImage(img, 0, 0); };
+    img.onerror = () => { console.warn('[WB] Failed to restore page canvas from dataUrl'); };
     img.src = page.dataUrl;
   }
   wbHist = [];
@@ -3846,9 +3848,11 @@ setTimeout(() => {
     wbActivePageId = initWbPage.id;
     wbLayers = JSON.parse(JSON.stringify(initWbPage.layers || []));
     wbRenderLayers();
+    validateExhibitImages(); // Check for dead image URLs on load
     if (initWbPage.dataUrl) {
       const img = new Image();
       img.onload = () => { wbX.drawImage(img, 0, 0); };
+      img.onerror = () => { console.warn('[WB] Failed to restore whiteboard canvas from dataUrl'); };
       img.src = initWbPage.dataUrl;
     }
   }
@@ -3878,6 +3882,41 @@ function wbAddLayer(type, content, opts) {
   return layer;
 }
 
+function generatePlaceholderSVG(label) {
+  const escaped = (label || 'Image unavailable').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120" viewBox="0 0 200 120">' +
+    '<rect width="200" height="120" fill="#2a2a2a" rx="6"/>' +
+    '<text x="100" y="50" text-anchor="middle" fill="#888" font-size="18">&#9888;</text>' +
+    '<text x="100" y="78" text-anchor="middle" fill="#777" font-size="11" font-family="system-ui">' + escaped + '</text></svg>';
+  return 'data:image/svg+xml;base64,' + btoa(svg);
+}
+
+function wbSafeDrawImage(ctx, imgSrc, x, y, w, h) {
+  const img = new Image();
+  if (imgSrc && !imgSrc.startsWith('data:')) img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    if (w !== undefined && h !== undefined) ctx.drawImage(img, x || 0, y || 0, w, h);
+    else ctx.drawImage(img, x || 0, y || 0);
+  };
+  img.onerror = () => { console.warn('[WB] Failed to load image for canvas draw:', imgSrc?.substring(0, 60)); };
+  img.src = imgSrc;
+}
+
+function validateExhibitImages() {
+  wbLayers.forEach(layer => {
+    if ((layer.type === 'image' || layer.type === 'chart') && layer.content) {
+      if (layer.content.startsWith('data:')) return; // base64 — always valid
+      const img = new Image();
+      img.onerror = () => {
+        console.warn('[WB] Dead image URL replaced with placeholder:', layer.content.substring(0, 60));
+        layer.content = generatePlaceholderSVG(layer.label || 'Image unavailable');
+        wbRenderLayers();
+      };
+      img.src = layer.content;
+    }
+  });
+}
+
 function wbRenderLayers() {
   document.querySelectorAll('.wb-layer-obj').forEach(el => el.remove());
   const wrap = $('#wbWrap');
@@ -3891,15 +3930,16 @@ function wbRenderLayers() {
 
     if (layer.type === 'image' || layer.type === 'chart') {
       const img = document.createElement('img');
-      img.src = layer.content;
+      // CORS for external images on canvas
+      if (layer.content && !layer.content.startsWith('data:')) img.crossOrigin = 'anonymous';
       img.style.cssText = 'width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;';
       img.draggable = false;
       img.onerror = function() {
-        this.style.display = 'none';
-        el.style.border = '2px dashed var(--danger)';
-        el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.justifyContent = 'center';
-        el.innerHTML = '<span style="color:var(--danger);font-size:.65rem;text-align:center;padding:8px;">Image failed to load</span>';
+        // Fall back to placeholder SVG — never show broken image icon
+        this.onerror = null; // prevent infinite loop
+        this.src = generatePlaceholderSVG(layer.label || 'Image unavailable');
       };
+      img.src = layer.content;
       el.appendChild(img);
     } else if (layer.type === 'table') {
       const div = document.createElement('div');
@@ -4000,7 +4040,8 @@ $('#wbImgSearchBtn').onclick = () => {
     img.src = url;
     img.style.cssText = 'width:60px;height:45px;object-fit:cover;border-radius:3px;cursor:pointer;border:1px solid var(--border);';
     img.title = 'Click to add';
-    img.onerror = function() { this.style.border = '1px dashed var(--danger)'; this.title = 'Failed'; };
+    img.crossOrigin = 'anonymous';
+    img.onerror = function() { this.onerror = null; this.src = generatePlaceholderSVG('Failed'); this.title = 'Image unavailable'; };
     img.onclick = () => {
       wbAddLayer('image', url, { label: q + ' ' + (i + 1), w: 250, h: 180 });
       $('#wbImgPanel').style.display = 'none';
