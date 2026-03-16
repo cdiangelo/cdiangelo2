@@ -1569,7 +1569,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
       <button id="aiAccessReqBtn" class="p-btn" title="User access requests (admin)" style="font-size:.55rem;">Requests</button>
       <button id="aiSavedActionsBtn" class="p-btn" title="Saved tool actions" style="font-size:.55rem;">Actions</button>
-      <button id="aiCleanupBtn" class="p-btn" title="Cleanup — reformat recent action log for clarity" style="font-size:.55rem;">&#x1F9F9; Cleanup</button>
+      <button id="aiCleanupBtn" class="p-btn" title="Cleanup available in Whiteboard, Concept Map, Notepad, Scratch Sheet" style="font-size:.55rem;">&#x1F9F9; Cleanup</button>
       <button id="aiInfoBtn" class="p-btn" title="Capabilities &amp; settings" style="font-size:.6rem;">Info</button>
       <button id="aiLogBtn" class="p-btn" title="Chat session history" style="font-size:.55rem;">History</button>
       <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
@@ -2322,22 +2322,7 @@ const wsDeviceId = getDeviceFingerprint();
         body: JSON.stringify({ userName: name, deviceId: wsDeviceId })
       }).catch(() => {});
     } catch(_) {}
-    // Hide admin-only elements
-    const pricingBtn = document.getElementById('aiPricingBtn');
-    if (pricingBtn) pricingBtn.style.display = 'none';
-    const pricingPanel = document.getElementById('aiPricingPanel');
-    if (pricingPanel) pricingPanel.style.display = 'none';
-    // Users never see the API key — admin controls it centrally
-    const apiSection = document.getElementById('aiApiKeySection');
-    const lockedSection = document.getElementById('aiApiKeyLocked');
-    if (apiSection) apiSection.style.display = 'none';
-    if (lockedSection) lockedSection.style.display = 'none';
-    const usageDashBtn = document.getElementById('aiUsageDashBtn');
-    if (usageDashBtn) usageDashBtn.style.display = 'none';
-    const accessReqBtn = document.getElementById('aiAccessReqBtn');
-    if (accessReqBtn) accessReqBtn.style.display = 'none';
-    showUserInfo();
-    setTimeout(activateGenieMode, 300);
+    applyRolePermissions(); // Apply all user-scoped features immediately
   }
 
   // ---- New user registration (name only) ----
@@ -2400,10 +2385,7 @@ const wsDeviceId = getDeviceFingerprint();
       wsIsAdmin = true;
       localStorage.setItem('ws_adminSession', 'true');
       gate.style.display = 'none';
-      // Admin sees and controls the API key
-      const apiSec = document.getElementById('aiApiKeySection');
-      if (apiSec) apiSec.style.display = 'block';
-      showLogoutButton();
+      applyRolePermissions(); // Apply all admin features immediately
     } else {
       document.getElementById('authError').style.display = 'block';
       document.getElementById('authPassword').value = '';
@@ -2421,6 +2403,50 @@ const wsDeviceId = getDeviceFingerprint();
     document.getElementById('authTogglePw').innerHTML = isHidden ? '&#128064;' : '&#128065;';
   };
 })();
+
+// ── Role permissions: apply all role-dependent UI in one pass ──
+// Called after login (admin or user) AND on page reload for returning sessions.
+function applyRolePermissions() {
+  const role = wsIsAdmin ? 'admin' : (wsUserName ? 'user' : 'anonymous');
+  const loadedAt = new Date().toISOString();
+  const source = localStorage.getItem('ws_adminSession') === 'true' ? 'storage' :
+                 localStorage.getItem('ws_userName') ? 'storage' : 'default';
+  console.log('[PROFILE] Applying role:', role, '| loadedAt:', loadedAt, '| source:', source);
+
+  // Admin-only elements
+  const adminElements = ['aiPricingBtn', 'aiPricingPanel', 'aiUsageDashBtn', 'aiAccessReqBtn'];
+  const adminShowElements = ['aiApiKeySection'];
+
+  if (wsIsAdmin) {
+    adminShowElements.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; });
+    showLogoutButton();
+    // Ensure RH token tab is visible for admin
+    const rhTabBar = document.getElementById('rhTabBar');
+    if (rhTabBar) rhTabBar.style.display = 'flex';
+    const rhSetCredsWrap = document.getElementById('rhSetCredsWrap');
+    if (rhSetCredsWrap) rhSetCredsWrap.style.display = 'block';
+    // Activate genie mode for admin
+    if (typeof activateGenieMode === 'function') setTimeout(activateGenieMode, 300);
+  } else if (wsUserName) {
+    // User role: hide admin-only elements
+    adminElements.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    const apiSection = document.getElementById('aiApiKeySection');
+    const lockedSection = document.getElementById('aiApiKeyLocked');
+    if (apiSection) apiSection.style.display = 'none';
+    if (lockedSection) lockedSection.style.display = 'none';
+    showUserInfo();
+    if (typeof activateGenieMode === 'function') setTimeout(activateGenieMode, 300);
+  }
+
+  // Dispatch event for any components that need to react to profile changes
+  window.dispatchEvent(new CustomEvent('profileReady', { detail: { role, userName: wsUserName, isAdmin: wsIsAdmin } }));
+}
+
+// On page load: if returning session exists, apply permissions immediately
+if (wsIsAdmin || wsUserName) {
+  // Defer slightly to ensure DOM is fully parsed
+  setTimeout(applyRolePermissions, 0);
+}
 
 // API key unlock for user mode
 (function() {
@@ -8655,12 +8681,16 @@ function openNewsArticle(title, url) {
     window.open(url, '_blank');
     return;
   }
-  // Archive mode — open archive.is version, copy original article link to clipboard
-  const archiveUrl = 'https://archive.is/' + url;
-  window.open(archiveUrl, '_blank');
+  // Archive mode — copy article link to clipboard, show toast, then open archive.is
   navigator.clipboard.writeText(url).then(
-    () => toast('Archive tab opened \u2014 article link copied to clipboard'),
-    () => toast('Archive tab opened \u2014 clipboard unavailable')
+    () => {
+      toast('Link copied to clipboard! Opening archive.is\u2026');
+      setTimeout(() => window.open('https://archive.is', '_blank'), 400);
+    },
+    () => {
+      toast('Clipboard unavailable \u2014 opening archive.is');
+      window.open('https://archive.is', '_blank');
+    }
   );
 }
 
@@ -9687,34 +9717,296 @@ $('#aiKeySave').onclick = async () => {
 $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
 $('#aiSavedActionsBtn').onclick = renderSavedActionsPanel;
 
-// ── Cleanup mode: reformat the agent action log for visual clarity ──
+// ── Cleanup tool: context-aware workspace cleanup ──
+// Target tabs: Whiteboard (q-whiteboard), Concept Map (cmap in q-map), Notepad (q-notepad), Scratch Sheet (q-sheet)
+const CLEANUP_TABS = {
+  'q-whiteboard': 'Whiteboard',
+  'q-notepad': 'Notepad',
+  'q-sheet': 'Scratch Sheet'
+};
+// Concept Map is a sub-tab of q-map (q4Tabs cmap button)
+function getCleanupActiveTab() {
+  // Check if concept map sub-tab is active
+  const cmapActive = document.querySelector('#q4Tabs button.active');
+  if (cmapActive && cmapActive.dataset.q4 === 'cmap') {
+    const mapPane = document.getElementById('q-map');
+    if (mapPane && mapPane.offsetParent !== null) return { id: 'cmap', label: 'Concept Map' };
+  }
+  // Check main panes
+  for (const [id, label] of Object.entries(CLEANUP_TABS)) {
+    const pane = document.getElementById(id);
+    if (pane && pane.offsetParent !== null && pane.clientHeight > 0) return { id, label };
+  }
+  return null;
+}
+
+// Snapshot for undo
+let cleanupUndoSnapshot = null;
+
+function takeCleanupSnapshot(tabInfo) {
+  const snap = { tabId: tabInfo.id, tabLabel: tabInfo.label, ts: Date.now() };
+  if (tabInfo.id === 'q-notepad') {
+    snap.content = document.getElementById('npArea').innerHTML;
+  } else if (tabInfo.id === 'q-sheet') {
+    snap.data = JSON.parse(JSON.stringify(ssD));
+    snap.colNames = ssColNames.slice();
+  } else if (tabInfo.id === 'q-whiteboard') {
+    snap.dataUrl = document.getElementById('wbCanvas').toDataURL();
+    snap.layers = typeof wbLayers !== 'undefined' ? JSON.parse(JSON.stringify(wbLayers)) : [];
+  } else if (tabInfo.id === 'cmap') {
+    snap.nodes = JSON.parse(JSON.stringify(cmNodes));
+    snap.edges = JSON.parse(JSON.stringify(cmEdges));
+  }
+  return snap;
+}
+
+function restoreCleanupSnapshot(snap) {
+  if (!snap) return;
+  if (snap.tabId === 'q-notepad') {
+    document.getElementById('npArea').innerHTML = snap.content;
+    npSaveCurrentPage();
+  } else if (snap.tabId === 'q-sheet') {
+    ssD = JSON.parse(JSON.stringify(snap.data));
+    ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10;
+    ssColNames = snap.colNames.slice();
+    ssRender();
+    ssSaveCurrentPage();
+  } else if (snap.tabId === 'q-whiteboard') {
+    const img = new Image();
+    const wbCanvas = document.getElementById('wbCanvas');
+    const wbCtx = wbCanvas.getContext('2d');
+    img.onload = () => { wbCtx.clearRect(0, 0, wbCanvas.width, wbCanvas.height); wbCtx.drawImage(img, 0, 0); };
+    img.src = snap.dataUrl;
+    if (typeof wbLayers !== 'undefined') { wbLayers.length = 0; snap.layers.forEach(l => wbLayers.push(l)); wbRenderLayers(); }
+    wbSaveCurrentPage();
+  } else if (snap.tabId === 'cmap') {
+    cmNodes.length = 0; snap.nodes.forEach(n => cmNodes.push(n));
+    cmEdges.length = 0; snap.edges.forEach(e => cmEdges.push(e));
+    cmSave(); cmRender();
+  }
+  toast('Cleanup undone — ' + snap.tabLabel + ' restored');
+}
+
+// Serialize tab state for Claude
+function serializeTabForCleanup(tabInfo) {
+  if (tabInfo.id === 'q-notepad') {
+    const np = document.getElementById('npArea');
+    return { type: 'notepad', html: np.innerHTML, textLength: np.innerText.length };
+  } else if (tabInfo.id === 'q-sheet') {
+    return {
+      type: 'scratch_sheet',
+      rows: ssR, cols: ssC,
+      data: ssD.slice(0, 50).map(row => row.slice(0, 20)), // cap for API
+      colNames: ssColNames.slice()
+    };
+  } else if (tabInfo.id === 'q-whiteboard') {
+    const wbCanvas = document.getElementById('wbCanvas');
+    const layers = typeof wbLayers !== 'undefined' ? wbLayers : [];
+    return {
+      type: 'whiteboard',
+      width: wbCanvas.width, height: wbCanvas.height,
+      layerCount: layers.length,
+      layers: layers.map(l => ({
+        id: l.id, label: l.label || '', type: l.type || 'unknown',
+        x: l.x || 0, y: l.y || 0, width: l.w || 0, height: l.h || 0,
+        zIndex: l.z || 0, visible: l.visible !== false
+      }))
+    };
+  } else if (tabInfo.id === 'cmap') {
+    const cmCanvas = document.getElementById('cmCanvas');
+    return {
+      type: 'concept_map',
+      width: cmCanvas.width, height: cmCanvas.height,
+      nodes: cmNodes.map(n => ({
+        id: n.id, title: n.title, desc: n.desc || '',
+        x: n.x, y: n.y, w: n.w, h: n.h,
+        shape: n.shape || 'rounded', color: n.color || '#6366f1'
+      })),
+      edges: cmEdges.map(e => ({ from: e.from, to: e.to, label: e.label || '' }))
+    };
+  }
+  return null;
+}
+
+// Apply cleanup result from Claude
+function applyCleanupResult(tabInfo, patch) {
+  if (!patch || !Array.isArray(patch)) return [];
+  const applied = [];
+  if (tabInfo.id === 'cmap' && patch.length) {
+    patch.forEach(change => {
+      if (change.change_type === 'reposition') {
+        const node = cmNodes.find(n => n.id === change.element_id);
+        if (node) {
+          if (change.x !== undefined) node.x = change.x;
+          if (change.y !== undefined) node.y = change.y;
+          applied.push('Repositioned: ' + (node.title || node.id));
+        }
+      } else if (change.change_type === 'flag_error') {
+        applied.push('Error Flagged: ' + (change.element_id) + ' — ' + (change.reason || 'unknown'));
+      } else if (change.change_type === 'flag_review') {
+        applied.push('Flagged for Review: ' + (change.element_id) + ' — ' + (change.reason || 'needs review'));
+      }
+    });
+    cmSave(); cmRender();
+  } else if (tabInfo.id === 'q-notepad' && patch.length) {
+    const np = document.getElementById('npArea');
+    patch.forEach(change => {
+      if (change.change_type === 'replace_html' && change.new_html) {
+        np.innerHTML = change.new_html;
+        applied.push('Formatting Fixed: ' + (change.description || 'normalized'));
+      } else if (change.change_type === 'flag_review') {
+        applied.push('Flagged for Review: ' + (change.description || 'formatting inconsistency'));
+      }
+    });
+    npSaveCurrentPage();
+  } else if (tabInfo.id === 'q-sheet' && patch.length) {
+    patch.forEach(change => {
+      if (change.change_type === 'flag_review') {
+        applied.push('Flagged for Review: ' + (change.description || 'cell issue'));
+      }
+    });
+  } else if (tabInfo.id === 'q-whiteboard' && patch.length) {
+    patch.forEach(change => {
+      if (change.change_type === 'flag_error' || change.change_type === 'flag_review') {
+        applied.push((change.change_type === 'flag_error' ? 'Error Flagged' : 'Flagged for Review') + ': ' + (change.description || change.element_id));
+      }
+    });
+  }
+  return applied;
+}
+
+// Show cleanup summary panel
+function showCleanupSummary(tabLabel, summary, appliedChanges) {
+  // Remove any existing summary
+  const existing = document.getElementById('cleanupSummaryPanel');
+  if (existing) existing.remove();
+
+  const panel = document.createElement('div');
+  panel.id = 'cleanupSummaryPanel';
+  panel.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9000;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px;max-width:380px;max-height:400px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);font-size:.62rem;color:var(--text);';
+
+  const repoChanges = appliedChanges.filter(c => c.startsWith('Repositioned'));
+  const errorChanges = appliedChanges.filter(c => c.startsWith('Error Flagged'));
+  const formatChanges = appliedChanges.filter(c => c.startsWith('Formatting Fixed'));
+  const reviewChanges = appliedChanges.filter(c => c.startsWith('Flagged for Review'));
+
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+  html += '<span style="font-weight:700;font-size:.72rem;color:var(--accent2);">\uD83E\uDDF9 Cleanup Summary — ' + tabLabel + '</span>';
+  html += '<span id="cleanupDismiss" style="cursor:pointer;font-size:.9rem;color:var(--text-dim);">&times;</span>';
+  html += '</div>';
+
+  function section(title, items) {
+    if (!items.length) return '';
+    let s = '<div style="margin-bottom:6px;"><div style="font-weight:600;color:var(--accent);font-size:.58rem;text-transform:uppercase;margin-bottom:2px;">' + title + '</div>';
+    items.forEach(item => { s += '<div style="padding:1px 0;color:var(--text-dim);font-size:.55rem;">\u2022 ' + item + '</div>'; });
+    s += '</div>';
+    return s;
+  }
+
+  html += section('Repositioned', repoChanges);
+  html += section('Error Flagged', errorChanges);
+  html += section('Formatting Fixed', formatChanges);
+  html += section('Flagged for Review', reviewChanges);
+
+  if (!appliedChanges.length) {
+    html += '<div style="color:var(--text-dim);font-style:italic;">No changes needed — tab looks clean.</div>';
+  }
+
+  if (summary) {
+    html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:.55rem;color:var(--text-dim);">' + summary + '</div>';
+  }
+
+  html += '<div style="display:flex;gap:8px;margin-top:10px;">';
+  html += '<button id="cleanupUndo" style="flex:1;padding:6px;border:1px solid #f59e0b40;border-radius:6px;background:#f59e0b15;color:#f59e0b;font-size:.62rem;cursor:pointer;font-weight:600;">Undo Cleanup</button>';
+  html += '<button id="cleanupDismissBtn" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text-dim);font-size:.62rem;cursor:pointer;">Dismiss</button>';
+  html += '</div>';
+
+  panel.innerHTML = html;
+  document.body.appendChild(panel);
+
+  panel.querySelector('#cleanupDismiss').onclick = () => panel.remove();
+  panel.querySelector('#cleanupDismissBtn').onclick = () => panel.remove();
+  panel.querySelector('#cleanupUndo').onclick = () => {
+    restoreCleanupSnapshot(cleanupUndoSnapshot);
+    panel.remove();
+  };
+}
+
+// Cleanup button tooltip updates based on active tab
+function updateCleanupButton() {
+  const btn = $('#aiCleanupBtn');
+  if (!btn) return;
+  const tab = getCleanupActiveTab();
+  if (tab) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.title = '\uD83E\uDDF9 Cleanup ' + tab.label;
+  } else {
+    btn.disabled = true;
+    btn.style.opacity = '0.4';
+    btn.title = 'Cleanup available in Whiteboard, Concept Map, Notepad, Scratch Sheet';
+  }
+}
+
+// Update button state periodically and on pane changes
+setInterval(updateCleanupButton, 2000);
+
 $('#aiCleanupBtn').onclick = async () => {
   if (aiStreaming) { toast('Wait for current task to finish'); return; }
-  if (!aiSavedActions.length) { toast('No actions to clean up'); return; }
-  // Build a digest of recent actions for Claude to reformat
-  const recentActions = aiSavedActions.slice(-20).map(a => ({
-    tool: a.tool, time: new Date(a.timestamp).toLocaleString(),
-    input: JSON.stringify(a.input).substring(0, 200)
-  }));
-  const cleanupSystemPrompt = 'You are a formatting assistant. You receive a log of recent agent tool actions. ' +
-    'Your ONLY job is to reformat this log into a clean, visually organized summary. ' +
-    'Do NOT take any new actions, call any tools, or suggest changes. ' +
-    'Group related actions together (e.g. all write_cells in sequence = one "Spreadsheet update" group). ' +
-    'For each group: provide a clear heading, the time range, and a 1-sentence summary of what was done. ' +
-    'Use markdown formatting (headers, bullet points, bold) for readability. ' +
-    'End with a "Session Stats" line: total actions, unique tools used, time span.';
-  const cleanupUserPrompt = 'Here are the recent agent actions to reformat:\n\n' +
-    recentActions.map((a, i) => (i+1) + '. [' + a.time + '] ' + a.tool + ': ' + a.input).join('\n') +
-    '\n\nReformat this into a clean, grouped summary. No new actions — presentation only.';
+  const tabInfo = getCleanupActiveTab();
+  if (!tabInfo) { toast('Switch to Whiteboard, Concept Map, Notepad, or Scratch Sheet to use Cleanup'); return; }
 
-  addAiMsg('system', '\uD83E\uDDF9 Running cleanup pass on action log...');
+  // Take undo snapshot BEFORE any changes
+  cleanupUndoSnapshot = takeCleanupSnapshot(tabInfo);
+
+  // Serialize current tab state
+  const tabState = serializeTabForCleanup(tabInfo);
+  if (!tabState) { toast('Could not read tab state'); return; }
+
+  const cleanupSystemPrompt = `Persona: Senior UX-Aware Technical Editor operating in a visual workspace environment.
+
+You are performing a non-destructive cleanup pass on a workspace tab. Your job is to identify and resolve visual, structural, and formatting problems in the content provided.
+
+Priority stack (high to low):
+  1. Error visibility — errored or broken elements must be surfaced, never hidden
+  2. Spatial clarity — overlapping or densely packed elements must be resolved
+  3. Visual hierarchy — structure should be immediately scannable at a glance
+  4. Formatting consistency — text-based tabs follow clean normalized conventions
+  5. Preservation — do not remove, reorder semantically, or alter user intent
+
+Operating rules:
+  - Work only within the content boundary of the active tab
+  - Do not add new content nodes — only reposition, restyle, flag, or annotate
+  - For each change made, emit a structured entry to the Cleanup Summary log
+  - If a problem is ambiguous (unclear if intentional), flag with change_type "flag_review" but do not auto-fix
+  - Output: a JSON object with two keys:
+    1. "patch": a JSON array of change objects, each with: element_id, change_type (reposition/flag_error/flag_review/replace_html), and relevant fields (x, y, reason, description, new_html)
+    2. "summary": a plain text string summarizing what was done
+
+Tab-specific rules:
+  - Whiteboard: fix overlap, z-index, error surfacing, density spacing via layer repositioning
+  - Concept Map: node spacing, hierarchy breathing room, connector routing, error flags
+  - Notepad: heading normalization, list indentation (2-space), max 1 blank line, font consistency. For replace_html changes, include the full cleaned HTML.
+  - Scratch Sheet: same as Notepad plus flag broken embeds or references
+
+IMPORTANT: Return ONLY valid JSON. No markdown fences, no explanation outside the JSON.`;
+
+  const userMsg = `Active tab: ${tabInfo.label}
+Tab dimensions: ${tabState.width || 'N/A'}x${tabState.height || 'N/A'}px
+
+Current tab content state:
+${JSON.stringify(tabState, null, 2)}
+
+Perform a full cleanup pass. Return a JSON object with "patch" (array of changes) and "summary" (plain text).`;
+
+  addAiMsg('system', '\uD83E\uDDF9 Running cleanup pass on ' + tabInfo.label + '...');
   aiStreaming = true;
   try {
     const resp = await aiApiFetch({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
+      max_tokens: 4000,
       system: cleanupSystemPrompt,
-      messages: [{ role: 'user', content: cleanupUserPrompt }]
+      messages: [{ role: 'user', content: userMsg }]
     });
     if (resp.ok) {
       const data = await safeParseJson(resp, 'cleanup');
@@ -9722,7 +10014,23 @@ $('#aiCleanupBtn').onclick = async () => {
       aiSessionTokensIn += data.usage?.input_tokens || 0;
       aiSessionTokensOut += data.usage?.output_tokens || 0;
       aiSessionRequests++;
-      addAiMsg('assistant', text);
+      // Parse Claude's JSON response
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch(pe) {
+        // Try to extract JSON from markdown fences
+        const m = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (m) { try { result = JSON.parse(m[1]); } catch(_) {} }
+      }
+      if (result && result.patch) {
+        const applied = applyCleanupResult(tabInfo, result.patch);
+        showCleanupSummary(tabInfo.label, result.summary || '', applied);
+        addAiMsg('assistant', '\uD83E\uDDF9 Cleanup complete for ' + tabInfo.label + '. ' + applied.length + ' change(s) applied. See summary panel.');
+      } else {
+        addAiMsg('assistant', '\uD83E\uDDF9 Cleanup analysis:\n' + text);
+        showCleanupSummary(tabInfo.label, 'No structured changes returned — see chat for details.', []);
+      }
     } else {
       addAiMsg('system', 'Cleanup failed: ' + resp.status);
     }
@@ -10483,8 +10791,9 @@ function getWorkspaceContext() {
   return parts.join('\n');
 }
 
-// ── System prompt ──
-const AI_SYSTEM_PROMPT = `You are a native workspace analyst and creative co-pilot embedded directly inside this interactive workspace app. You are NOT a sidebar chatbot. You live inside the workspace and interact with it the way a power user would — reading state, writing data, building views, running analysis, and generating memes when the moment calls for it.
+// ── System prompt (dynamic — reads wsUserName at call time, not definition time) ──
+function getAiSystemPrompt() {
+  return `You are a native workspace analyst and creative co-pilot embedded directly inside this interactive workspace app. You are NOT a sidebar chatbot. You live inside the workspace and interact with it the way a power user would — reading state, writing data, building views, running analysis, and generating memes when the moment calls for it.
 
 USER CONTEXT: The current user's name is "${wsUserName || 'there'}". Address them by name naturally in your responses — greet them by name, reference them personally. Make the interaction feel personalized and direct.
 
@@ -10539,6 +10848,8 @@ When asked about pricing, costs, or business modeling:
 6. Write strategic recommendations to the notepad with specific numbers using write_note.
 7. Always show the path from current costs to profitable unit economics.
 8. When suggesting pricing tiers, include at least 3 tiers (free/starter, pro, enterprise).`;
+}
+const AI_SYSTEM_PROMPT = getAiSystemPrompt(); // initial value; rebuilt at request time
 
 // ── Tool definitions for Anthropic API ──
 // ADDED — Phase 5: These inline definitions serve as fallback until tools.js module loads.
@@ -11783,7 +12094,7 @@ async function sendAgentMessage() {
     // Build combined system prompt: persona → tier → base → context
     const personaPrompt = getActivePersona().systemPrompt || '';
     const contextInjection = buildContextInjection();
-    const assembledSystemPrompt = (personaPrompt ? personaPrompt + '\n\n' : '') + (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + AI_SYSTEM_PROMPT + contextInjection;
+    const assembledSystemPrompt = (personaPrompt ? personaPrompt + '\n\n' : '') + (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + getAiSystemPrompt() + contextInjection;
     console.log('[API] System prompt: ~' + Math.round(assembledSystemPrompt.length / 1000) + 'k chars | Persona: ' + getActivePersona().label + ' | Tier: ' + TASK_TIERS[currentTierKey].label + ' | Context slots: ' + getActiveContextSlots().length);
 
     let iterations = 0;
@@ -12164,58 +12475,85 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   overlay.id = 'rhModal';
   overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;';
   overlay.innerHTML = `
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:340px;max-width:90vw;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:380px;max-width:90vw;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <span style="font-size:.85rem;font-weight:700;color:var(--text);">Robinhood Account</span>
+        <span style="font-size:.85rem;font-weight:700;color:var(--text);">Robinhood Account Setup</span>
         <span id="rhModalClose" style="cursor:pointer;font-size:1rem;color:var(--text-dim);">&times;</span>
       </div>
-      <div id="rhTabBar" style="display:flex;gap:0;margin-bottom:12px;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
-        <button id="rhTabLogin" class="rh-tab-active" style="flex:1;padding:6px;border:none;font-size:.65rem;cursor:pointer;background:var(--panel-inset);color:var(--text);font-weight:600;">Login</button>
-        <button id="rhTabToken" style="flex:1;padding:6px;border:none;border-left:1px solid var(--border);font-size:.65rem;cursor:pointer;background:none;color:var(--text-dim);">Paste Token</button>
+
+      <!-- Connection Status Badge (always visible) -->
+      <div id="rhStatusBadge" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel-inset);margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span id="rhBadgeDot" style="width:10px;height:10px;border-radius:50%;background:#ef4444;flex-shrink:0;"></span>
+          <span id="rhBadgeLabel" style="font-size:.68rem;font-weight:600;color:var(--text);">Not Connected</span>
+          <span id="rhBadgeAccount" style="font-size:.6rem;color:var(--text-dim);"></span>
+          <div style="flex:1;"></div>
+          <button id="rhTestConnection" style="font-size:.58rem;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text-dim);cursor:pointer;">Test Connection</button>
+        </div>
+        <div id="rhBadgeVerified" style="font-size:.5rem;color:var(--text-dim);margin-top:4px;"></div>
+        <div id="rhBadgeHint" style="font-size:.55rem;color:var(--text-dim);margin-top:2px;font-style:italic;"></div>
       </div>
-      <div id="rhTokenForm" style="display:none;">
-        <div style="font-size:.58rem;color:var(--text-dim);margin-bottom:10px;line-height:1.5;">
-          <div style="font-weight:600;margin-bottom:4px;color:var(--text);font-size:.62rem;">How to get your token:</div>
-          <div style="padding-left:8px;">
+
+      <!-- Divider -->
+      <div style="border-top:1px solid var(--border);margin:12px 0;"></div>
+
+      <!-- Token Input Section (ALWAYS visible) -->
+      <div id="rhTokenForm">
+        <label style="font-size:.65rem;font-weight:600;color:var(--text);display:block;margin-bottom:4px;">API Token / Auth Key</label>
+        <div style="position:relative;">
+          <input type="password" id="rhTokenInput" placeholder="Paste token here" spellcheck="false" style="width:100%;margin-bottom:4px;padding:8px 32px 8px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.65rem;font-family:monospace;box-sizing:border-box;" />
+          <span id="rhShowToken" style="position:absolute;right:8px;top:7px;cursor:pointer;font-size:.7rem;color:var(--text-dim);user-select:none;" title="Show/hide token">&#128065;</span>
+        </div>
+        <div style="font-size:.5rem;color:var(--text-dim);margin-bottom:6px;">Updating this field will replace your stored token.</div>
+        <div id="rhTokenMsg" style="font-size:.62rem;color:var(--text-dim);margin-bottom:6px;min-height:14px;"></div>
+        <button id="rhTokenSubmit" style="width:100%;padding:8px;border:1px solid #22c55e40;border-radius:6px;background:#22c55e15;color:#22c55e;font-size:.72rem;cursor:pointer;font-weight:600;">Save Token</button>
+        <details style="margin-top:8px;">
+          <summary style="font-size:.55rem;color:var(--text-dim);cursor:pointer;">How to get your token</summary>
+          <div style="font-size:.52rem;color:var(--text-dim);margin-top:6px;line-height:1.5;padding-left:8px;">
             1. Open <a href="https://robinhood.com" target="_blank" style="color:#22c55e;">robinhood.com</a> and log in normally<br>
             2. Press <kbd style="font-size:.5rem;padding:1px 4px;border:1px solid var(--border);border-radius:3px;background:var(--panel-inset);">F12</kbd> to open Developer Tools<br>
             3. Click <b>Application</b> tab &rarr; <b>Cookies</b> &rarr; <b>https://robinhood.com</b><br>
-            4. Find <code style="font-size:.52rem;background:var(--panel-inset);padding:1px 3px;border-radius:2px;">__Host-Web-App-Secondary-Access-Token</code><br>
-            5. Double-click the <b>Value</b>, copy it, and paste below
+            4. Find <code style="font-size:.48rem;background:var(--panel-inset);padding:1px 3px;border-radius:2px;">__Host-Web-App-Secondary-Access-Token</code><br>
+            5. Double-click the <b>Value</b>, copy it, and paste above
+          </div>
+        </details>
+      </div>
+
+      <!-- Divider -->
+      <div style="border-top:1px solid var(--border);margin:12px 0;"></div>
+
+      <!-- Login Form (secondary method, collapsible) -->
+      <details id="rhLoginDetails">
+        <summary style="font-size:.62rem;font-weight:600;color:var(--text);cursor:pointer;margin-bottom:8px;">Email / Password Login</summary>
+        <div id="rhLoginForm" style="margin-top:8px;">
+          <div style="font-size:.55rem;color:var(--text-dim);margin-bottom:8px;">Sign in with your Robinhood email and password. MFA will be requested if enabled.</div>
+          <input type="email" id="rhUsername" placeholder="Email" value="${savedEmail}" autocomplete="email" style="width:100%;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
+          <div style="position:relative;">
+            <input type="password" id="rhPassword" placeholder="Password" autocomplete="current-password" style="width:100%;margin-bottom:6px;padding:8px 32px 8px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
+            <span id="rhShowPw" style="position:absolute;right:8px;top:7px;cursor:pointer;font-size:.7rem;color:var(--text-dim);user-select:none;" title="Show password">&#128065;</span>
+          </div>
+          <div id="rhMfaWrap" style="display:none;">
+            <input type="text" id="rhMfaCode" placeholder="MFA code" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" style="width:100%;margin-bottom:6px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.85rem;font-weight:600;letter-spacing:.2em;text-align:center;box-sizing:border-box;" />
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <input type="checkbox" id="rhRemember" ${savedEmail ? 'checked' : ''} style="margin:0;" />
+            <label for="rhRemember" style="font-size:.6rem;color:var(--text-dim);cursor:pointer;">Remember email</label>
+          </div>
+          <div id="rhLoginMsg" style="font-size:.62rem;color:var(--text-dim);margin-bottom:6px;min-height:14px;"></div>
+          <div style="display:flex;gap:8px;">
+            <button id="rhLoginSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;cursor:pointer;">Login</button>
+            <button id="rhLogoutSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;display:none;">Logout</button>
+          </div>
+          <button id="rhQuickLogin" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid #22c55e40;border-radius:6px;background:#22c55e15;color:#22c55e;font-size:.72rem;cursor:pointer;font-weight:600;">Quick Login (Stored Credentials)</button>
+          <div id="rhSetCredsWrap" style="display:none;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">
+            <div style="font-size:.55rem;color:var(--text-dim);margin-bottom:4px;">Store credentials server-side for quick login:</div>
+            <input type="email" id="rhSetEmail" placeholder="RH Email" style="width:100%;margin-bottom:4px;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;box-sizing:border-box;" />
+            <input type="password" id="rhSetPw" placeholder="RH Password" style="width:100%;margin-bottom:4px;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;box-sizing:border-box;" />
+            <button id="rhSaveCreds" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;cursor:pointer;">Save Credentials</button>
+            <div id="rhSetCredsMsg" style="font-size:.55rem;color:var(--text-dim);margin-top:4px;min-height:12px;"></div>
           </div>
         </div>
-        <textarea id="rhTokenInput" placeholder="Paste token here..." rows="3" spellcheck="false" style="width:100%;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.65rem;font-family:monospace;box-sizing:border-box;resize:vertical;"></textarea>
-        <div id="rhTokenMsg" style="font-size:.62rem;color:var(--text-dim);margin-bottom:6px;min-height:14px;"></div>
-        <button id="rhTokenSubmit" style="width:100%;padding:8px;border:1px solid #22c55e40;border-radius:6px;background:#22c55e15;color:#22c55e;font-size:.72rem;cursor:pointer;font-weight:600;">Verify &amp; Connect</button>
-      </div>
-      <div id="rhLoginForm">
-        <div style="font-size:.58rem;color:var(--text-dim);margin-bottom:8px;">Sign in with your Robinhood email and password. MFA will be requested if enabled.</div>
-        <input type="email" id="rhUsername" placeholder="Email" value="${savedEmail}" autocomplete="email" style="width:100%;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
-        <div style="position:relative;">
-          <input type="password" id="rhPassword" placeholder="Password" autocomplete="current-password" style="width:100%;margin-bottom:6px;padding:8px 32px 8px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
-          <span id="rhShowPw" style="position:absolute;right:8px;top:7px;cursor:pointer;font-size:.7rem;color:var(--text-dim);user-select:none;" title="Show password">&#128065;</span>
-        </div>
-        <div id="rhMfaWrap" style="display:none;">
-          <input type="text" id="rhMfaCode" placeholder="MFA code" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" style="width:100%;margin-bottom:6px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.85rem;font-weight:600;letter-spacing:.2em;text-align:center;box-sizing:border-box;" />
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-          <input type="checkbox" id="rhRemember" ${savedEmail ? 'checked' : ''} style="margin:0;" />
-          <label for="rhRemember" style="font-size:.6rem;color:var(--text-dim);cursor:pointer;">Remember email</label>
-        </div>
-        <div id="rhLoginMsg" style="font-size:.62rem;color:var(--text-dim);margin-bottom:6px;min-height:14px;"></div>
-        <div style="display:flex;gap:8px;">
-          <button id="rhLoginSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;cursor:pointer;">Login</button>
-          <button id="rhLogoutSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;display:none;">Logout</button>
-        </div>
-        <button id="rhQuickLogin" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid #22c55e40;border-radius:6px;background:#22c55e15;color:#22c55e;font-size:.72rem;cursor:pointer;font-weight:600;">Quick Login (Stored Credentials)</button>
-        <div id="rhSetCredsWrap" style="display:none;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">
-          <div style="font-size:.55rem;color:var(--text-dim);margin-bottom:4px;">Store credentials server-side for quick login:</div>
-          <input type="email" id="rhSetEmail" placeholder="RH Email" style="width:100%;margin-bottom:4px;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;box-sizing:border-box;" />
-          <input type="password" id="rhSetPw" placeholder="RH Password" style="width:100%;margin-bottom:4px;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;box-sizing:border-box;" />
-          <button id="rhSaveCreds" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;cursor:pointer;">Save Credentials</button>
-          <div id="rhSetCredsMsg" style="font-size:.55rem;color:var(--text-dim);margin-top:4px;min-height:12px;"></div>
-        </div>
-      </div>
+      </details>
       <div id="rhPortfolioSummary" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
         <div style="font-size:.7rem;font-weight:600;color:var(--text);margin-bottom:8px;">Portfolio</div>
         <div id="rhPortfolioContent" style="font-size:.65rem;color:var(--text-dim);"></div>
@@ -12226,30 +12564,88 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
 
   let rhChallengeId = '';
 
-  // ── Tab switching: Login vs Paste Token ──
-  function rhSwitchTab(tab) {
-    const loginForm = $('#rhLoginForm');
-    const tokenForm = $('#rhTokenForm');
-    const tabLogin = $('#rhTabLogin');
-    const tabToken = $('#rhTabToken');
-    if (tab === 'token') {
-      loginForm.style.display = 'none';
-      tokenForm.style.display = 'block';
-      tabToken.style.background = 'var(--panel-inset)'; tabToken.style.color = 'var(--text)'; tabToken.style.fontWeight = '600';
-      tabLogin.style.background = 'none'; tabLogin.style.color = 'var(--text-dim)'; tabLogin.style.fontWeight = 'normal';
+  // ── Connection status badge update ──
+  function updateRhBadge() {
+    const dot = $('#rhBadgeDot');
+    const label = $('#rhBadgeLabel');
+    const acct = $('#rhBadgeAccount');
+    const verified = $('#rhBadgeVerified');
+    const hint = $('#rhBadgeHint');
+    if (!dot) return;
+
+    const storedToken = localStorage.getItem('rh_auth_token');
+
+    if (RH_SESSION.status === 'active') {
+      dot.style.background = '#22c55e';
+      label.textContent = 'Connected';
+      label.style.color = '#22c55e';
+      const mask = RH_SESSION.accountMask ? 'Account: RH-\u2022\u2022\u2022\u2022' + RH_SESSION.accountMask : '';
+      const tokenMask = storedToken ? 'Token: \u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + storedToken.slice(-4) : '';
+      acct.textContent = [mask, tokenMask].filter(Boolean).join('  |  ');
+      if (RH_SESSION.validatedAt) {
+        const ago = Math.round((Date.now() - RH_SESSION.validatedAt) / 1000);
+        const agoStr = ago < 60 ? ago + 's ago' : Math.round(ago / 60) + 'm ago';
+        verified.textContent = 'Last verified: ' + agoStr;
+      }
+      hint.textContent = '';
+    } else if (RH_SESSION.status === 'validating') {
+      dot.style.background = '#f59e0b';
+      label.textContent = 'Validating...';
+      label.style.color = '#f59e0b';
+      acct.textContent = '';
+      verified.textContent = '';
+      hint.textContent = '';
+    } else if (RH_SESSION.status === 'error') {
+      dot.style.background = '#ef4444';
+      label.textContent = 'Error / Offline';
+      label.style.color = '#ef4444';
+      acct.textContent = '';
+      verified.textContent = '';
+      hint.textContent = storedToken ? 'Token stored locally but connection failed — try Test Connection' : '';
     } else {
-      loginForm.style.display = 'block';
-      tokenForm.style.display = 'none';
-      tabLogin.style.background = 'var(--panel-inset)'; tabLogin.style.color = 'var(--text)'; tabLogin.style.fontWeight = '600';
-      tabToken.style.background = 'none'; tabToken.style.color = 'var(--text-dim)'; tabToken.style.fontWeight = 'normal';
+      dot.style.background = '#ef4444';
+      label.textContent = 'Not Connected';
+      label.style.color = '#ef4444';
+      acct.textContent = '';
+      verified.textContent = '';
+      hint.textContent = 'Paste your token above to link your account';
     }
   }
-  $('#rhTabLogin').onclick = () => rhSwitchTab('login');
-  $('#rhTabToken').onclick = () => rhSwitchTab('token');
 
-  // Only show token tab for admin
-  if (!wsIsAdmin) {
-    $('#rhTabBar').style.display = 'none';
+  // ── Token show/hide toggle ──
+  const rhShowTokenBtn = $('#rhShowToken');
+  if (rhShowTokenBtn) {
+    rhShowTokenBtn.onclick = () => {
+      const inp = $('#rhTokenInput');
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      rhShowTokenBtn.style.opacity = show ? '1' : '.5';
+    };
+  }
+
+  // ── Test Connection button ──
+  $('#rhTestConnection').onclick = async () => {
+    const btn = $('#rhTestConnection');
+    btn.disabled = true; btn.textContent = 'Testing...';
+    try {
+      await validateRhToken();
+      updateRhBadge();
+    } catch(e) {
+      console.warn('[RH] Test connection error:', e.message);
+    }
+    btn.disabled = false; btn.textContent = 'Test Connection';
+  };
+
+  // Pre-populate token field from localStorage on modal open
+  function populateStoredToken() {
+    const stored = localStorage.getItem('rh_auth_token');
+    // Don't overwrite if user is actively typing
+    const inp = $('#rhTokenInput');
+    if (stored && !inp.value) {
+      // Show masked placeholder — don't expose the actual token
+      inp.placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + stored.slice(-4) + ' (stored)';
+    }
+    updateRhBadge();
   }
 
   // ── Token paste submit ──
@@ -12270,14 +12666,27 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       const data = await safeParseJson(resp, 'set-token');
       if (data.ok) {
         rhLoggedIn = true;
-        msg.textContent = 'Connected!'; msg.style.color = '#22c55e';
+        // Persist token locally for display and reconnection
+        localStorage.setItem('rh_auth_token', token);
+        msg.textContent = 'Token saved and connection verified'; msg.style.color = '#22c55e';
         $('#rhTokenInput').value = '';
+        $('#rhTokenInput').placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + token.slice(-4) + ' (stored)';
         onLoginSuccess();
       } else {
-        msg.textContent = data.message || 'Token rejected'; msg.style.color = '#ef4444';
+        // Still save token locally so user doesn't lose it
+        localStorage.setItem('rh_auth_token', token);
+        msg.textContent = 'Token saved but connection failed \u2014 check your key'; msg.style.color = '#f59e0b';
+        $('#rhTokenInput').value = '';
+        $('#rhTokenInput').placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + token.slice(-4) + ' (stored)';
+        updateRhBadge();
       }
     } catch(e) {
-      msg.textContent = (e.name === 'TimeoutError' ? 'Timed out' : 'Error') + ': ' + e.message; msg.style.color = '#ef4444';
+      // Save token locally even if proxy is down
+      localStorage.setItem('rh_auth_token', token);
+      msg.textContent = 'Token saved locally but connection failed: ' + e.message; msg.style.color = '#f59e0b';
+      $('#rhTokenInput').value = '';
+      $('#rhTokenInput').placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + token.slice(-4) + ' (stored)';
+      updateRhBadge();
     } finally {
       $('#rhTokenSubmit').disabled = false; $('#rhTokenSubmit').style.opacity = '1';
     }
@@ -12301,6 +12710,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments', 'historicals', 'positions', 'account', 'orders', 'ratings', 'earnings'];
     updateRhConnectionStatus();
     updateRhLoginUI();
+    updateRhBadge();
     $('#rhLogoutSubmit').style.display = 'block';
     $('#rhMfaWrap').style.display = 'none';
     rhChallengeId = '';
@@ -12310,6 +12720,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
 
   $('#rhLoginBtn').onclick = async () => {
     overlay.style.display = 'flex';
+    populateStoredToken();
     if (rhLoggedIn) {
       $('#rhLogoutSubmit').style.display = 'block';
     } else {
@@ -12338,6 +12749,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display = 'none'; };
 
   // Enter key submits
+  $('#rhTokenInput').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#rhTokenSubmit').click(); } };
   $('#rhPassword').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
   $('#rhMfaCode').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
 
@@ -12402,6 +12814,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments'];
     updateRhConnectionStatus();
     updateRhLoginUI();
+    updateRhBadge();
     $('#rhLoginMsg').textContent = 'Logged out.'; $('#rhLoginMsg').style.color = 'var(--text-dim)';
     $('#rhLogoutSubmit').style.display = 'none';
     $('#rhPortfolioSummary').style.display = 'none';
@@ -12515,7 +12928,16 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     }
   }
 
-  checkRobinhoodStatus();
+  // On load: read stored token, set badge to pending, validate
+  (async function initRhOnLoad() {
+    const stored = localStorage.getItem('rh_auth_token');
+    if (stored) {
+      RH_SESSION.status = 'validating';
+      updateRhBadge();
+    }
+    await checkRobinhoodStatus();
+    updateRhBadge();
+  })();
 })();
 
 // ── App ready flag + safety-net re-render ──
