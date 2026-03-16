@@ -2571,9 +2571,13 @@ function getAllUserUsage() {
    ═══════════════════════════════════════════ */
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
-// Proxy always runs locally — override via ?proxy=host:port if needed
+// Hosted proxy on Render — override via ?proxy=host:port for local dev
 const _proxyParam = new URLSearchParams(window.location.search).get('proxy');
-const PROXY_BASE = _proxyParam ? 'http://' + _proxyParam : 'http://localhost:3001';
+const PROXY_BASE = _proxyParam
+  ? 'http://' + _proxyParam
+  : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:3001'
+    : 'https://cdiangelo2-proxy.onrender.com';
 // Per-profile scoped localStorage — user data is isolated from admin
 const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','adminSession','userName','userContact','aiApiKey','accessRequests','blockedUsers','driveClientId']);
 function _lsPrefix(k) {

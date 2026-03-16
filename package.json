@@ -1,4 +1,12 @@
 {
+  "name": "cdiangelo2-proxy",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node proxy.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "express": "^5.2.1"
   }

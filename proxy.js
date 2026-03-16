@@ -4,7 +4,7 @@
 
 const express = require('express');
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // ── AI API key: held server-side only, never sent to browser ──
 const ADMIN_PASSWORD = 'animalcrackers'; // Must match workspace.html
