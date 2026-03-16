@@ -6706,69 +6706,109 @@ async function renderCompareChart() {
   newCvs.style.cssText = cvs.style.cssText;
   newCvs.id = cvs.id;
   cvs.parentNode.replaceChild(newCvs, cvs);
-  // Re-draw on the new canvas
+  // Re-draw on the new canvas — split: 75% price, 25% volume
   const ctx2 = newCvs.getContext('2d');
   ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Volume panel layout
+  const volGap = 6;
+  const volPanelH = Math.max(30, (h - pad.top - pad.bottom) * 0.25);
+  const pricePanelH = h - pad.top - pad.bottom - volGap - volPanelH;
+  const volTop = pad.top + pricePanelH + volGap;
+  // Volume max across all tickers
+  let volGlobalMax = 0;
+  allVolumes.forEach(vd => { if (vd) vd.forEach(v => { if (v > volGlobalMax) volGlobalMax = v; }); });
+  function fmtVol(v) { return v >= 1e9 ? (v/1e9).toFixed(1)+'B' : v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v; }
   function drawOnNew(hoverIdx) {
     ctx2.clearRect(0, 0, w, h);
-    // Grid lines
-    ctx2.strokeStyle = getComputedStyle(document.body).getPropertyValue('--border') || '#333';
-    ctx2.lineWidth = 0.5;
-    ctx2.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-dim') || '#888';
-    ctx2.font = baseFontSize + 'px system-ui, sans-serif';
-    ctx2.textAlign = 'right';
+    const borderColor = getComputedStyle(document.body).getPropertyValue('--border') || '#333';
+    const dimColor = getComputedStyle(document.body).getPropertyValue('--text-dim') || '#888';
+    // ── PRICE PANEL ──
+    ctx2.strokeStyle = borderColor; ctx2.lineWidth = 0.5;
+    ctx2.fillStyle = dimColor; ctx2.font = baseFontSize + 'px system-ui, sans-serif'; ctx2.textAlign = 'right';
     for (let i = 0; i <= 4; i++) {
-      const y = pad.top + (plotH / 4) * i;
+      const y = pad.top + (pricePanelH / 4) * i;
       const val = gMax - (gRange / 4) * i;
       ctx2.beginPath(); ctx2.moveTo(pad.left, y); ctx2.lineTo(w - pad.right, y); ctx2.stroke();
       ctx2.fillText(valuePrefix + (isDollarMode ? val.toFixed(2) : val.toFixed(1)) + valueSuffix, pad.left - 4, y + 3);
     }
-    // Zero line (only meaningful in % mode)
     if (!isDollarMode && gMin < 0 && gMax > 0) {
-      const zeroY = pad.top + ((gMax - 0) / gRange) * plotH;
-      ctx2.strokeStyle = getComputedStyle(document.body).getPropertyValue('--text-dim') || '#666';
-      ctx2.lineWidth = 1; ctx2.setLineDash([4, 4]);
-      ctx2.beginPath(); ctx2.moveTo(pad.left, zeroY); ctx2.lineTo(w - pad.right, zeroY); ctx2.stroke();
-      ctx2.setLineDash([]);
+      const zeroY = pad.top + ((gMax - 0) / gRange) * pricePanelH;
+      ctx2.strokeStyle = dimColor; ctx2.lineWidth = 1; ctx2.setLineDash([4, 4]);
+      ctx2.beginPath(); ctx2.moveTo(pad.left, zeroY); ctx2.lineTo(w - pad.right, zeroY); ctx2.stroke(); ctx2.setLineDash([]);
     }
-    // Series
+    // Price series
     allSeries.forEach((series, si) => {
       const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
-      ctx2.strokeStyle = color; ctx2.lineWidth = 2;
-      ctx2.beginPath();
+      ctx2.strokeStyle = color; ctx2.lineWidth = 2; ctx2.beginPath();
       series.forEach((v, i) => {
         const x = pad.left + (i / (series.length - 1)) * plotW;
-        const y = pad.top + ((gMax - v) / gRange) * plotH;
+        const y = pad.top + ((gMax - v) / gRange) * pricePanelH;
         i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
       });
       ctx2.stroke();
-      const lastY = pad.top + ((gMax - series[series.length - 1]) / gRange) * plotH;
+      const lastY = pad.top + ((gMax - series[series.length - 1]) / gRange) * pricePanelH;
       ctx2.fillStyle = color; ctx2.font = 'bold ' + baseFontSize + 'px system-ui, sans-serif'; ctx2.textAlign = 'left';
       ctx2.fillText(compareTickers[si], w - pad.right + 3, lastY + 3);
     });
+    // ── VOLUME PANEL (persistent area chart) ──
+    if (volGlobalMax > 0) {
+      // Separator
+      ctx2.strokeStyle = borderColor; ctx2.lineWidth = 0.5;
+      ctx2.beginPath(); ctx2.moveTo(pad.left, volTop - volGap / 2); ctx2.lineTo(w - pad.right, volTop - volGap / 2); ctx2.stroke();
+      // Volume y-axis labels
+      ctx2.fillStyle = dimColor; ctx2.font = (baseFontSize - 2) + 'px system-ui'; ctx2.textAlign = 'right';
+      ctx2.fillText(fmtVol(volGlobalMax), pad.left - 4, volTop + 8);
+      ctx2.fillText('0', pad.left - 4, volTop + volPanelH);
+      // Draw volume area per ticker (semi-transparent, stacked if <=4)
+      allVolumes.forEach((vd, si) => {
+        if (!vd || !vd.length) return;
+        const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
+        ctx2.beginPath();
+        vd.forEach((v, i) => {
+          const x = pad.left + (i / (vd.length - 1)) * plotW;
+          const vy = volTop + volPanelH - ((v || 0) / volGlobalMax) * volPanelH;
+          i === 0 ? ctx2.moveTo(x, vy) : ctx2.lineTo(x, vy);
+        });
+        ctx2.lineTo(pad.left + plotW, volTop + volPanelH);
+        ctx2.lineTo(pad.left, volTop + volPanelH);
+        ctx2.closePath();
+        ctx2.fillStyle = color.replace(')', ',.25)').replace('rgb', 'rgba');
+        // Fallback for hex colors
+        if (color.startsWith('#')) {
+          const r = parseInt(color.slice(1,3),16), g = parseInt(color.slice(3,5),16), b = parseInt(color.slice(5,7),16);
+          ctx2.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',.25)';
+        }
+        ctx2.fill();
+      });
+    }
+    // ── SHARED CROSSHAIR ──
     if (hoverIdx >= 0 && allSeries.length && hoverIdx < allSeries[0].length) {
       const hx = pad.left + (hoverIdx / (allSeries[0].length - 1)) * plotW;
-      ctx2.beginPath(); ctx2.moveTo(hx, pad.top); ctx2.lineTo(hx, pad.top + plotH);
+      // Vertical rule across both panels
+      ctx2.beginPath(); ctx2.moveTo(hx, pad.top); ctx2.lineTo(hx, volTop + volPanelH);
       ctx2.strokeStyle = 'rgba(255,255,255,.3)'; ctx2.lineWidth = 1; ctx2.setLineDash([3, 3]); ctx2.stroke(); ctx2.setLineDash([]);
+      // Price dots + labels
       allSeries.forEach((series, si) => {
-        const v = series[hoverIdx];
-        const hy = pad.top + ((gMax - v) / gRange) * plotH;
-        const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
+        const v = series[hoverIdx]; const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
+        const hy = pad.top + ((gMax - v) / gRange) * pricePanelH;
         ctx2.beginPath(); ctx2.arc(hx, hy, 4, 0, Math.PI * 2);
-        ctx2.fillStyle = color; ctx2.fill();
-        ctx2.strokeStyle = '#000'; ctx2.lineWidth = 1; ctx2.stroke();
+        ctx2.fillStyle = color; ctx2.fill(); ctx2.strokeStyle = '#000'; ctx2.lineWidth = 1; ctx2.stroke();
         ctx2.font = (baseFontSize - 1) + 'px system-ui'; ctx2.fillStyle = color; ctx2.textAlign = 'left';
         let tipText = compareTickers[si] + ': ' + valuePrefix + (isDollarMode ? v.toFixed(2) : v.toFixed(1)) + valueSuffix;
-        // Show extra data (H/L, Vol) when Robinhood data available
         if (isDollarMode && allHighs[si] && allHighs[si][hoverIdx] != null && allLows[si] && allLows[si][hoverIdx] != null) {
           tipText += '  H:' + parseFloat(allHighs[si][hoverIdx]).toFixed(2) + ' L:' + parseFloat(allLows[si][hoverIdx]).toFixed(2);
         }
-        if (allVolumes[si] && allVolumes[si][hoverIdx]) {
-          const vol = allVolumes[si][hoverIdx];
-          tipText += '  Vol:' + (vol >= 1e6 ? (vol/1e6).toFixed(1) + 'M' : vol >= 1e3 ? (vol/1e3).toFixed(0) + 'K' : vol);
-        }
         ctx2.fillText(tipText, hx + 8, hy + 3 + si * (baseFontSize + 2));
       });
+      // Volume hover value
+      if (volGlobalMax > 0) {
+        allVolumes.forEach((vd, si) => {
+          if (!vd || !vd[hoverIdx]) return;
+          const color = COMPARE_COLORS[si % COMPARE_COLORS.length];
+          ctx2.font = (baseFontSize - 2) + 'px system-ui'; ctx2.fillStyle = color; ctx2.textAlign = 'left';
+          ctx2.fillText(compareTickers[si] + ': ' + fmtVol(vd[hoverIdx]), hx + 6, volTop + 10 + si * (baseFontSize));
+        });
+      }
     }
   }
   drawOnNew(-1);
