@@ -2577,7 +2577,7 @@ const PROXY_BASE = _proxyParam
   ? 'http://' + _proxyParam
   : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:3001'
-    : 'https://cdiangelo2-proxy.onrender.com';
+    : window.location.origin;
 // Per-profile scoped localStorage — user data is isolated from admin
 const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','adminSession','userName','userContact','aiApiKey','accessRequests','blockedUsers','driveClientId']);
 function _lsPrefix(k) {
