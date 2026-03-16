@@ -7,9 +7,6 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Serve static files (HTML, JS, CSS) from project root
-app.use(express.static(path.join(__dirname)));
-
 // ── AI API key: held server-side only, never sent to browser ──
 const ADMIN_PASSWORD = 'animalcrackers'; // Must match workspace.html
 let storedApiKey = process.env.ANTHROPIC_API_KEY || '';
@@ -370,6 +367,9 @@ async function refreshRobinhoodToken() {
     return false;
   }
 }
+
+// Serve static files (HTML, JS, CSS) from project root — after API routes so they take priority
+app.use(express.static(path.join(__dirname)));
 
 app.listen(PORT, () => {
   console.log('CORS proxy running on http://localhost:' + PORT);
