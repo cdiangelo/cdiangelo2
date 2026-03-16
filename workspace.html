@@ -2572,7 +2572,10 @@ function getAllUserUsage() {
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 // Dynamic proxy base — works on localhost, LAN IPs, or remote hosts
-const PROXY_BASE = window.location.protocol + '//' + window.location.hostname + ':3001';
+// If opened as file:// or hostname is empty, fall back to localhost
+const PROXY_BASE = (window.location.hostname && window.location.protocol !== 'file:')
+  ? window.location.protocol + '//' + window.location.hostname + ':3001'
+  : 'http://localhost:3001';
 // Per-profile scoped localStorage — user data is isolated from admin
 const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','adminSession','userName','userContact','aiApiKey','accessRequests','blockedUsers','driveClientId']);
 function _lsPrefix(k) {
@@ -10827,7 +10830,8 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       if (mfaCode) body.mfa_code = mfaCode;
       if (rhChallengeId) body.challenge_id = rhChallengeId;
       const resp = await fetch(PROXY_BASE + '/proxy/robinhood/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000)
       });
       const data = await resp.json();
       if (data.ok) {
@@ -10847,7 +10851,9 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
         msg.textContent = data.message || 'Login failed'; msg.style.color = '#ef4444';
       }
     } catch(e) {
-      msg.textContent = 'Connection error — is proxy.js running?'; msg.style.color = '#ef4444';
+      const hint = e.name === 'TimeoutError' ? 'Timed out' : 'Connection error';
+      msg.textContent = hint + ' — is proxy.js running on ' + PROXY_BASE + '?'; msg.style.color = '#ef4444';
+      console.error('[RH Login]', e.message, 'PROXY_BASE=' + PROXY_BASE);
     } finally {
       $('#rhLoginSubmit').disabled = false; $('#rhLoginSubmit').style.opacity = '1';
     }
