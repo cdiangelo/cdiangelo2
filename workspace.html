@@ -2738,7 +2738,19 @@ const DEFAULT_GRID_ORDER = ['q-notepad', 'q-claude', 'q-sheet', 'q-whiteboard', 
 
 function getGridOrder() {
   const saved = LS('gridOrder');
-  if (saved && saved.length === 6) return saved;
+  if (saved && saved.length === 6) {
+    // Sanitize: replace removed pane IDs (e.g. q-sports) with defaults
+    const validIds = GRID_PANES.map(p => p.id);
+    const sanitized = saved.map(id => validIds.includes(id) ? id : null);
+    if (sanitized.includes(null)) {
+      // Fill nulls with panes not yet used
+      const used = new Set(sanitized.filter(Boolean));
+      const available = validIds.filter(id => !used.has(id));
+      let ai = 0;
+      return sanitized.map(id => id || (ai < available.length ? available[ai++] : DEFAULT_GRID_ORDER[0]));
+    }
+    return saved;
+  }
   return DEFAULT_GRID_ORDER.slice();
 }
 
@@ -9829,16 +9841,24 @@ setTimeout(function() {
 
   async function renderSportsTab() {
     if (!content) return;
+    // Skip rendering if sports view is hidden (saves network calls on page load)
+    const sportsViewEl = document.getElementById('sportsView');
+    if (sportsViewEl && sportsViewEl.style.display === 'none') return;
     const league = leagueSel?.value || 'nba';
     const dk = document.documentElement.classList.contains('dark');
     content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim);">Loading...</div>';
 
-    switch (activeTab) {
-      case 'scores': await renderScoresTab(content, league, dk); break;
-      case 'standings': await renderStandingsTab(content, league, dk); break;
-      case 'leaders': await renderLeadersTab(content, league, dk); break;
-      case 'odds': renderOddsTab(content, league, dk); break;
-      case 'news': await renderNewsTab(content, league, dk); break;
+    try {
+      switch (activeTab) {
+        case 'scores': await renderScoresTab(content, league, dk); break;
+        case 'standings': await renderStandingsTab(content, league, dk); break;
+        case 'leaders': await renderLeadersTab(content, league, dk); break;
+        case 'odds': renderOddsTab(content, league, dk); break;
+        case 'news': await renderNewsTab(content, league, dk); break;
+      }
+    } catch (e) {
+      console.warn('[Sports] Render error:', e.message);
+      content.innerHTML = '<div style="padding:20px;color:var(--text-dim);text-align:center;">Sports data unavailable. Check proxy connection.</div>';
     }
   }
 
@@ -12523,19 +12543,32 @@ function updateDesignBotCost() {
 // DESIGN BOT — Phase 5: Build and inject UI panel
 (function initDesignBotUI() {
   // DESIGN BOT — Phase 5: Create Design Bot panel inside Claude pane
+  // Strategy: insert the Design Bot panel and divider AFTER the main chat area,
+  // but keep all existing children in place. Use CSS to make p-body a horizontal
+  // split only for the chat+bot portion while preserving overlay panels.
   const claudeBody = document.querySelector('#q-claude .p-body');
   if (!claudeBody) return;
 
-  // Wrap existing children in a left-half container
-  const existingChildren = Array.from(claudeBody.children);
-  const splitContainer = document.createElement('div');
-  splitContainer.className = 'design-bot-split';
-  splitContainer.id = 'designBotSplit';
+  // Find the main chat area and input row — these go in the left half
+  const aiMsgs = document.getElementById('aiMsgs');
+  const aiInputRow = claudeBody.querySelector('.ai-input-row');
+  if (!aiMsgs || !aiInputRow) return;
 
+  // Create a wrapper for the main agent chat + input (left half)
   const leftHalf = document.createElement('div');
   leftHalf.className = 'agent-half';
   leftHalf.id = 'mainAgentHalf';
-  existingChildren.forEach(child => leftHalf.appendChild(child));
+  leftHalf.style.cssText = 'display:flex;flex-direction:column;position:relative;';
+
+  // Move ONLY the chat messages and input row into the left half
+  // Keep overlay panels, robot scene, API key sections in the p-body
+  leftHalf.appendChild(aiMsgs);
+  leftHalf.appendChild(aiInputRow);
+
+  // Create split container
+  const splitContainer = document.createElement('div');
+  splitContainer.className = 'design-bot-split';
+  splitContainer.id = 'designBotSplit';
 
   // Divider
   const divider = document.createElement('div');
@@ -12570,7 +12603,10 @@ function updateDesignBotCost() {
   splitContainer.appendChild(leftHalf);
   splitContainer.appendChild(divider);
   splitContainer.appendChild(rightHalf);
-  claudeBody.appendChild(splitContainer);
+
+  // Insert the split container as the FIRST child of p-body
+  // so it takes up the flex:1 space. Robot scene and API key sections stay below.
+  claudeBody.insertBefore(splitContainer, claudeBody.firstChild);
 
   // Add drawing banner to whiteboard pane
   const wbWrap = document.getElementById('wbWrap');
