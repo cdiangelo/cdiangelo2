@@ -313,6 +313,8 @@ body.light #designBotPanel .db-msg.assistant { background: rgba(255,248,230,.25)
 }
 .p-btn:hover { color: var(--accent2); background: rgba(255,255,255,.05); }
 .p-body { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; background: var(--panel); }
+.pane-error-banner { display: flex; align-items: center; gap: 6px; }
+.pane-error-banner::before { content: '\26A0'; }
 
 /* ═══ TOOLBAR (shared) ═══ */
 .toolbar {
@@ -2567,6 +2569,48 @@ async function getAllUserUsage() {
    ═══════════════════════════════════════════ */
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
+// Safe element binding — prevents crash if element doesn't exist
+function $on(sel, event, handler) {
+  const el = typeof sel === 'string' ? $(sel) : sel;
+  if (el) el.addEventListener(event, handler);
+}
+function $click(sel, handler) {
+  const el = typeof sel === 'string' ? $(sel) : sel;
+  if (el) el.onclick = handler;
+}
+// Safe resize chain — each function isolated so one failure doesn't block others
+function safeResize() {
+  try { resizeWB(); } catch(e) { console.warn('[WB resize]', e); }
+  try { resizeCM(); } catch(e) { console.warn('[CM resize]', e); }
+  try { if (typeof resizeGC === 'function') resizeGC(); } catch(e) { console.warn('[GC resize]', e); }
+  try { if (typeof renderStockDash === 'function') renderStockDash(); } catch(e) { console.warn('[Stock render]', e); }
+}
+// Pane error display — shows error message inside a pane's body
+function paneError(paneId, moduleName, err) {
+  console.error('[' + moduleName + ']', err);
+  try {
+    const pane = document.getElementById(paneId);
+    if (!pane) return;
+    const body = pane.querySelector('.p-body');
+    if (!body) return;
+    let banner = body.querySelector('.pane-error-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.className = 'pane-error-banner';
+      banner.style.cssText = 'padding:8px 12px;background:rgba(220,50,50,.12);color:#e55;font-size:.7rem;border-bottom:1px solid rgba(220,50,50,.2);flex-shrink:0;';
+      body.insertBefore(banner, body.firstChild);
+    }
+    banner.textContent = moduleName + ' error: ' + (err.message || err);
+  } catch(_) {}
+}
+// Global safety net
+window.onerror = function(msg, src, line, col, err) {
+  console.error('[Global]', msg, 'at line', line);
+  return false;
+};
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('[Unhandled Promise]', e.reason);
+});
 // Hosted proxy on Render — override via ?proxy=host:port for local dev
 const _proxyParam = new URLSearchParams(window.location.search).get('proxy');
 const PROXY_BASE = _proxyParam
@@ -2584,7 +2628,8 @@ function _lsPrefix(k) {
 }
 const LS = (k, v) => { try { const pfx = _lsPrefix(k); return v === undefined ? JSON.parse(localStorage.getItem(pfx+k)||'null') : localStorage.setItem(pfx+k, JSON.stringify(v)); } catch(e) { return null; } };
 function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  const t = $('#toast'); if (!t) return;
+  t.textContent = msg; t.classList.add('show');
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 1800);
 }
 
@@ -2606,12 +2651,15 @@ function applyScheme(idx) {
   const scheme = SCHEMES[idx];
   document.body.classList.remove('crisp','muted','neon');
   document.body.classList.add(scheme);
-  $('#schemeLabel').textContent = scheme.charAt(0).toUpperCase() + scheme.slice(1);
+  const _sl = $('#schemeLabel'); if (_sl) _sl.textContent = scheme.charAt(0).toUpperCase() + scheme.slice(1);
   LS('scheme', idx);
   // Update whiteboard pen color to match scheme
-  if (scheme === 'neon') $('#wbColor').value = '#ffffff';
-  else if (scheme === 'muted') $('#wbColor').value = '#3a3020';
-  else $('#wbColor').value = '#222222';
+  const _wbc = $('#wbColor');
+  if (_wbc) {
+    if (scheme === 'neon') _wbc.value = '#ffffff';
+    else if (scheme === 'muted') _wbc.value = '#3a3020';
+    else _wbc.value = '#222222';
+  }
   updateNotepadSwatches();
   // Re-render charts to match scheme
   if (typeof renderStockDash === 'function') try { renderStockDash(); } catch(e) {}
@@ -2623,27 +2671,29 @@ function applyDarkLight(isLight) {
   updateNotepadSwatches();
 }
 
-$('#schemeSlider').addEventListener('input', function() { applyScheme(+this.value); });
-$('#toggleDark').addEventListener('change', function() { applyDarkLight(this.checked); });
+$on('#schemeSlider', 'input', function() { applyScheme(+this.value); });
+$on('#toggleDark', 'change', function() { applyDarkLight(this.checked); });
 
 // Restore
 const savedScheme = LS('scheme');
-if (savedScheme !== null) { $('#schemeSlider').value = savedScheme; applyScheme(savedScheme); }
+const _ss = $('#schemeSlider');
+if (savedScheme !== null && _ss) { _ss.value = savedScheme; applyScheme(savedScheme); }
 else { applyScheme(2); }
 const savedLight = LS('lightMode');
-if (savedLight) { $('#toggleDark').checked = true; applyDarkLight(true); }
+const _td = $('#toggleDark');
+if (savedLight && _td) { _td.checked = true; applyDarkLight(true); }
 
 /* ═══════════════════════════════════════════
    FULLSCREEN
    ═══════════════════════════════════════════ */
-$('#fsBtn').onclick = () => {
+$click('#fsBtn', () => {
   if (!document.fullscreenElement) document.documentElement.requestFullscreen();
   else document.exitFullscreen();
-};
+});
 
 /* Help overlay */
-$('#helpBtn').onclick = () => { $('#helpOverlay').style.display = 'flex'; };
-if (!LS('helpSeen')) { $('#helpOverlay').style.display = 'flex'; LS('helpSeen', true); }
+$click('#helpBtn', () => { const h = $('#helpOverlay'); if (h) h.style.display = 'flex'; });
+if (!LS('helpSeen')) { const h = $('#helpOverlay'); if (h) h.style.display = 'flex'; LS('helpSeen', true); }
 
 /* ═══════════════════════════════════════════
    PANE EXPAND / FOCUS
@@ -2687,7 +2737,7 @@ $$('[data-expand]').forEach(btn => {
         p.style.display = 'none';
       }
     }
-    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
+    setTimeout(safeResize, 50);
   });
 });
 
@@ -2716,12 +2766,12 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
       const gridPaneIds = new Set(GRID_PANES.map(gp => gp.id));
       $$('.pane').forEach(el => { if (!gridPaneIds.has(el.id)) el.style.display = 'none'; });
     }
-    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
+    setTimeout(safeResize, 50);
   });
 });
 
 // Reset grid — show all panes in default layout
-$('#resetGridBtn').onclick = () => {
+$click('#resetGridBtn', () => {
   // Remove expanded state and reset zoom (only grid-managed panes)
   const gridPaneIds = new Set(GRID_PANES.map(p => p.id));
   $$('.pane').forEach(el => {
@@ -2749,9 +2799,9 @@ $('#resetGridBtn').onclick = () => {
   $$('.nav-group-btns button[data-pane]').forEach(b => b.classList.remove('active'));
   const allBtn = document.querySelector('.nav-group-btns button[data-pane="all"]');
   if (allBtn) allBtn.classList.add('active');
-  setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
+  setTimeout(safeResize, 50);
   toast('Grid reset');
-};
+});
 
 // ── Grid Layout Settings ──
 const GRID_PANES = [
@@ -2829,8 +2879,8 @@ function openGridSettings() {
   modal.style.display = 'flex';
 }
 
-$('#gridSettingsBtn').onclick = openGridSettings;
-$('#gridApplyBtn').onclick = () => {
+$click('#gridSettingsBtn', openGridSettings);
+$click('#gridApplyBtn', () => {
   const sels = $$('.grid-slot-sel');
   const order = Array.from(sels).map(s => s.value);
   // Check for duplicates — each slot must have a unique pane
@@ -2842,9 +2892,9 @@ $('#gridApplyBtn').onclick = () => {
   LS('gridOrder', order);
   applyGridOrder(order);
   $('#gridSettingsModal').style.display = 'none';
-  setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
+  setTimeout(safeResize, 50);
   toast('Layout applied');
-};
+});
 
 // Apply saved grid order on load (always apply to ensure correct pane visibility)
 (function() {
@@ -2965,7 +3015,7 @@ $('#gridApplyBtn').onclick = () => {
       setTimeout(() => { hint.style.opacity = '0'; }, 3000);
       setTimeout(() => { hint.remove(); }, 3500);
     }
-    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
+    setTimeout(safeResize, 50);
   }
 
   prevBtn.onclick = () => {
@@ -3371,19 +3421,20 @@ function funOff() {
 }
 
 // Play button — click cycles videos, right-click stops
-$('#funPlayBtn').onclick = () => {
+$click('#funPlayBtn', () => {
   if (FUN_VIDEOS.length === 0) { toast('Add videos in Media settings first'); return; }
   funState++;
   if (funState >= FUN_VIDEOS.length) funState = 0;
   showVideo(funState);
-};
-$('#funPlayBtn').oncontextmenu = e => {
+});
+const _fpb = $('#funPlayBtn');
+if (_fpb) _fpb.oncontextmenu = e => {
   e.preventDefault();
   if (funState >= 0) { funOff(); toast('Stopped'); }
 };
 
 // Settings button — toggle editor
-$('#funEditBtn').onclick = () => { renderEditor(); };
+$click('#funEditBtn', () => { renderEditor(); });
 
 // Escape exits fullscreen
 document.addEventListener('keydown', e => {
@@ -3477,11 +3528,12 @@ function updateNotepadSwatches() {
 updateNotepadSwatches();
 
 function npUpdateWords() {
+  if (!np) return;
   const t = np.innerText.trim();
-  $('#npWords').textContent = 'Words: ' + (t ? t.split(/\s+/).length : 0);
-  $('#npSaveStatus').textContent = 'Unsaved';
+  const _nw = $('#npWords'); if (_nw) _nw.textContent = 'Words: ' + (t ? t.split(/\s+/).length : 0);
+  const _ns = $('#npSaveStatus'); if (_ns) _ns.textContent = 'Unsaved';
 }
-np.addEventListener('input', npUpdateWords);
+if (np) np.addEventListener('input', npUpdateWords);
 
 // ── Notepad multi-page system ──
 let npPages = LS('notepadPages') || [{ id: 1, title: 'Page 1', content: '' }];
@@ -3563,11 +3615,11 @@ setInterval(() => {
 }, 5000);
 
 // Timestamp insert
-$('#npTimestamp').onclick = () => {
+$click('#npTimestamp', () => {
   const d = new Date();
   const ts = '— ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' —';
   document.execCommand('insertHTML', false, '<br><span style="color:var(--text-dim);font-size:.78rem;">' + ts + '</span><br>');
-};
+});
 
 // Load saved — init active page
 const initNpPage = npPages.find(p => p.id === npActivePageId) || npPages[0];
@@ -3620,13 +3672,18 @@ window.getAgentMemory = function() {
 /* ═══════════════════════════════════════════
    WHITEBOARD
    ═══════════════════════════════════════════ */
-const wbC = $('#wbCanvas');
-const wbX = wbC.getContext('2d');
-const wbGC = $('#wbGridCanvas');
-const wbGX = wbGC.getContext('2d');
+let wbC, wbX, wbGC, wbGX;
+try {
+  wbC = $('#wbCanvas');
+  wbX = wbC ? wbC.getContext('2d') : null;
+  wbGC = $('#wbGridCanvas');
+  wbGX = wbGC ? wbGC.getContext('2d') : null;
+  if (!wbC || !wbX) throw new Error('Whiteboard canvas not found');
+} catch(e) { paneError('q-whiteboard', 'Whiteboard', e); }
 let wbTool = 'pen', wbDraw = false, wbHist = [], wbSX, wbSY, wbGridMode = 'none';
 
 function resizeWB() {
+  if (!wbC || !wbX) return;
   const w = $('#wbWrap');
   if (!w) return;
   const cw = w.clientWidth, ch = w.clientHeight;
@@ -3744,7 +3801,7 @@ function wbDrawGrid() {
 }
 function wbSaveState() { wbHist.push(wbC.toDataURL()); if (wbHist.length > 50) wbHist.shift(); }
 
-window.addEventListener('resize', () => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); });
+window.addEventListener('resize', safeResize);
 setTimeout(resizeWB, 100);
 
 $$('.wb-tool').forEach(btn => {
@@ -3820,14 +3877,14 @@ wbC.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touche
 wbC.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; wbC.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY })); }, { passive: false });
 wbC.addEventListener('touchend', e => { e.preventDefault(); wbC.dispatchEvent(new MouseEvent('mouseup', {})); }, { passive: false });
 
-$('#wbUndo').onclick = () => {
+$click('#wbUndo', () => {
   if (!wbHist.length) return;
   const img = new Image();
   img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
   img.src = wbHist.pop();
-};
-$('#wbClear').onclick = () => { wbSaveState(); wbX.clearRect(0, 0, wbC.width, wbC.height); };
-$('#wbSave').onclick = () => {
+});
+$click('#wbClear', () => { wbSaveState(); wbX.clearRect(0, 0, wbC.width, wbC.height); });
+$click('#wbSave', () => {
   const expCvs = document.createElement('canvas');
   expCvs.width = wbC.width; expCvs.height = wbC.height;
   const ectx = expCvs.getContext('2d');
@@ -3835,7 +3892,7 @@ $('#wbSave').onclick = () => {
   ectx.fillRect(0, 0, expCvs.width, expCvs.height);
   ectx.drawImage(wbC, 0, 0);
   const a = document.createElement('a'); a.download = 'whiteboard.png'; a.href = expCvs.toDataURL(); a.click(); toast('Exported');
-};
+});
 
 /* ═══════════════════════════════════════════
    WHITEBOARD — LAYERS, IMAGES, CROSS-PANE COPY
@@ -4050,27 +4107,27 @@ function wbRenderLayerList() {
 
 wbC.addEventListener('mousedown', () => { if (wbSelectedLayer !== null) { wbSelectedLayer = null; wbRenderLayers(); wbRenderLayerList(); } }, true);
 
-$('#wbLayers').onclick = function() {
+$click('#wbLayers', function() {
   const p = $('#wbLayerPanel');
   p.style.display = p.style.display === 'none' ? 'block' : 'none';
   this.classList.toggle('active', p.style.display === 'block');
   if (p.style.display === 'block') wbRenderLayerList();
-};
+});
 
 // Image search panel
-$('#wbImgSearch').onclick = () => { const p = $('#wbImgPanel'); p.style.display = p.style.display === 'none' ? 'block' : 'none'; };
-$('#wbImgClose').onclick = () => { $('#wbImgPanel').style.display = 'none'; };
-$('#wbImgUrlAdd').onclick = () => {
+$click('#wbImgSearch', () => { const p = $('#wbImgPanel'); if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; });
+$click('#wbImgClose', () => { const p = $('#wbImgPanel'); if (p) p.style.display = 'none'; });
+$click('#wbImgUrlAdd', () => {
   const url = $('#wbImgUrl').value.trim();
   if (!url) return;
   wbAddLayer('image', url, { label: 'Image', w: 200, h: 150 });
   $('#wbImgUrl').value = '';
   $('#wbImgPanel').style.display = 'none';
   toast('Image added');
-};
+});
 
 // Image search via picsum.photos
-$('#wbImgSearchBtn').onclick = () => {
+$click('#wbImgSearchBtn', () => {
   const q = $('#wbImgQuery').value.trim();
   if (!q) return;
   const results = $('#wbImgResults');
@@ -4089,11 +4146,11 @@ $('#wbImgSearchBtn').onclick = () => {
     };
     results.appendChild(img);
   }
-};
-$('#wbImgQuery').addEventListener('keydown', e => { if (e.key === 'Enter') $('#wbImgSearchBtn').click(); });
+});
+$on('#wbImgQuery', 'keydown', e => { if (e.key === 'Enter') $('#wbImgSearchBtn').click(); });
 
 // Copy chart from Analytics
-$('#wbPasteChart').onclick = () => {
+$click('#wbPasteChart', () => {
   let srcCanvas = null, label = 'Chart';
   const compareWrap = $('#stockCompareWrap');
   if (compareWrap && compareWrap.style.display !== 'none') { srcCanvas = $('#compareCanvas'); label = 'Comparison Chart'; }
@@ -4111,10 +4168,10 @@ $('#wbPasteChart').onclick = () => {
   const aspect = srcCanvas.width / (srcCanvas.height || 1);
   wbAddLayer('chart', dataUrl, { label, w: 300, h: Math.round(300 / aspect) });
   toast(label + ' copied to whiteboard');
-};
+});
 
 // Copy table from Sheet
-$('#wbPasteTable').onclick = () => {
+$click('#wbPasteTable', () => {
   let html = '<table style="border-collapse:collapse;font-size:.55rem;color:var(--text);width:100%;">';
   html += '<tr>';
   for (let c = 0; c < Math.min(ssC, 15); c++) html += '<th style="padding:2px 4px;border:1px solid var(--border);background:var(--panel-inset);font-weight:600;white-space:nowrap;">' + (ssColNames[c] || colN(c)) + '</th>';
@@ -4133,7 +4190,7 @@ $('#wbPasteTable').onclick = () => {
   html += '</table>';
   wbAddLayer('table', html, { label: 'Sheet Data', w: 350, h: 200 });
   toast('Table copied to whiteboard');
-};
+});
 
 /* ═══════════════════════════════════════════
    SPREADSHEET
@@ -5087,7 +5144,7 @@ function renderSparkline(canvas, values) {
 }
 
 // Formula bar
-$('#ssFormula').addEventListener('keydown', e => {
+$on('#ssFormula', 'keydown', e => {
   if (e.key === 'Enter' && ssSel) {
     ssD[ssSel.r1][ssSel.c1] = $('#ssFormula').value;
     LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
@@ -5095,24 +5152,24 @@ $('#ssFormula').addEventListener('keydown', e => {
 });
 
 // Insert row/col at selection (or at end if no selection)
-$('#ssAddRow').onclick = () => {
+$click('#ssAddRow', () => {
   ssPushUndo();
   const idx = ssSel ? ssSel.r1 + 1 : ssR;
   ssD.splice(idx, 0, new Array(ssC).fill(''));
   ssR++; LS('sheet', ssD); ssRender();
-};
-$('#ssAddCol').onclick = () => {
+});
+$click('#ssAddCol', () => {
   ssPushUndo();
   const idx = ssSel ? ssSel.c1 + 1 : ssC;
   ssD.forEach(r => r.splice(idx, 0, ''));
   ssC++; LS('sheet', ssD); ssRender();
-};
-$('#ssSortA').onclick = () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(a[c]).localeCompare(String(b[c])) : va-vb; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2191'); };
-$('#ssSortD').onclick = () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); };
-$('#ssHeat').onclick = function() { ssHeatMap = !ssHeatMap; this.classList.toggle('active', ssHeatMap); ssRender(); };
-$('#ssFormulas').onclick = function() { ssShowFormulas = !ssShowFormulas; this.classList.toggle('active', ssShowFormulas); ssRender(); };
+});
+$click('#ssSortA', () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(a[c]).localeCompare(String(b[c])) : va-vb; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2191'); });
+$click('#ssSortD', () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); });
+$click('#ssHeat', function() { ssHeatMap = !ssHeatMap; this.classList.toggle('active', ssHeatMap); ssRender(); });
+$click('#ssFormulas', function() { ssShowFormulas = !ssShowFormulas; this.classList.toggle('active', ssShowFormulas); ssRender(); });
 // Force recalculate all formula cells
-$('#ssCalcAll').onclick = () => {
+$click('#ssCalcAll', () => {
   let count = 0;
   for (let r = 0; r < ssR; r++) {
     for (let c = 0; c < ssC; c++) {
@@ -5128,21 +5185,21 @@ $('#ssCalcAll').onclick = () => {
   }
   LS('sheet', ssD); ssRender();
   toast(count ? 'Calculated ' + count + ' cell' + (count > 1 ? 's' : '') : 'No formulas to calculate');
-};
+});
 // ── Undo system ──
 function ssPushUndo() {
   ssUndoHist.push({ data: JSON.parse(JSON.stringify(ssD)), rows: ssR, cols: ssC });
   if (ssUndoHist.length > 50) ssUndoHist.shift();
 }
-$('#ssUndo').onclick = () => {
+$click('#ssUndo', () => {
   if (!ssUndoHist.length) { toast('Nothing to undo'); return; }
   const snap = ssUndoHist.pop();
   ssD = snap.data; ssR = snap.rows; ssC = snap.cols;
   LS('sheet', ssD); ssRender(); toast('Undone');
-};
+});
 
 // ── Formula help panel ──
-$('#ssHelp').onclick = () => {
+$click('#ssHelp', () => {
   let panel = document.getElementById('ssHelpPanel');
   if (panel) { panel.remove(); return; }
   panel = document.createElement('div');
@@ -5188,26 +5245,27 @@ $('#ssHelp').onclick = () => {
     ).join('') +
     '</table>';
   document.getElementById('ssWrap').appendChild(panel);
-};
+});
 
-$('#ssExport').onclick = () => {
+$click('#ssExport', () => {
   let csv = '';
   for (let r = 0; r < ssR; r++) csv += ssD[r].map(v => { const s = String(v); return s.includes(',') || s.includes('"') ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',') + '\n';
   const a = document.createElement('a'); a.download = 'sheet.csv';
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.click(); toast('CSV exported');
-};
+});
 
 // Context menu
 const ctx = $('#ctxMenu');
-$('#ssTable').addEventListener('contextmenu', e => {
+$on('#ssTable', 'contextmenu', e => {
   e.preventDefault();
+  if (!ctx) return;
   const td = e.target.closest('td');
   if (!td) return;
   ctx.style.left = e.clientX + 'px'; ctx.style.top = e.clientY + 'px';
   ctx.classList.add('open');
   ctx._r = +td.dataset.r; ctx._c = +td.dataset.c;
 });
-document.addEventListener('click', () => ctx.classList.remove('open'));
+document.addEventListener('click', () => { if (ctx) ctx.classList.remove('open'); });
 $$('.ctx-item').forEach(item => {
   item.onclick = () => {
     const action = item.dataset.action;
@@ -5267,12 +5325,17 @@ ssShowHint();
 /* ═══════════════════════════════════════════
    CONCEPT MAP
    ═══════════════════════════════════════════ */
-const cmC = $('#cmCanvas');
-const cmX = cmC.getContext('2d');
+let cmC, cmX;
+try {
+  cmC = $('#cmCanvas');
+  cmX = cmC ? cmC.getContext('2d') : null;
+  if (!cmC || !cmX) throw new Error('Concept map canvas not found');
+} catch(e) { paneError('q-map', 'Concept Map', e); }
 let cmNodes = [], cmEdges = [], cmTool = 'select';
 let cmDrag = null, cmDOX = 0, cmDOY = 0, cmConnFrom = null, cmHover = null, cmNID = 1;
 
 function resizeCM() {
+  if (!cmC || !cmX) return;
   const w = $('#cmWrap');
   if (!w) return;
   cmC.width = w.clientWidth; cmC.height = w.clientHeight;
@@ -5426,13 +5489,13 @@ function openEditor(node) {
   $('#neShape').value = node.shape; $('#neColor').value = node.color;
   ed._node = node;
 }
-$('#neSave').onclick = () => {
+$click('#neSave', () => {
   const ed = $('#nodeEd'), n = ed._node;
   n.title = $('#neTitle').value || 'Node'; n.desc = $('#neDesc').value;
   n.shape = $('#neShape').value; n.color = $('#neColor').value;
   ed.classList.remove('open'); cmSave(); cmRender();
-};
-$('#neCancel').onclick = () => $('#nodeEd').classList.remove('open');
+});
+$click('#neCancel', () => $('#nodeEd').classList.remove('open'));
 
 // Templates
 $('#cmTemplate').onchange = function() {
@@ -5476,7 +5539,7 @@ $('#cmTemplate').onchange = function() {
 };
 
 // Auto layout
-$('#cmLayout').onclick = () => {
+$click('#cmLayout', () => {
   if (!cmNodes.length) return;
   for (let iter = 0; iter < 100; iter++) {
     for (let i = 0; i < cmNodes.length; i++) for (let j = i+1; j < cmNodes.length; j++) {
@@ -5497,9 +5560,9 @@ $('#cmLayout').onclick = () => {
   }
   cmNodes.forEach(n => { n.x = Math.max(70, Math.min(cmC.width-70, n.x)); n.y = Math.max(35, Math.min(cmC.height-35, n.y)); });
   cmSave(); cmRender(); toast('Layout optimized');
-};
-$('#cmExport').onclick = () => { const a = document.createElement('a'); a.download = 'concept-map.png'; a.href = cmC.toDataURL(); a.click(); toast('Exported'); };
-$('#cmClear').onclick = () => { if (cmNodes.length && !confirm('Clear all?')) return; cmNodes = []; cmEdges = []; cmNID = 1; cmSave(); cmRender(); };
+});
+$click('#cmExport', () => { const a = document.createElement('a'); a.download = 'concept-map.png'; a.href = cmC.toDataURL(); a.click(); toast('Exported'); });
+$click('#cmClear', () => { if (cmNodes.length && !confirm('Clear all?')) return; cmNodes = []; cmEdges = []; cmNID = 1; cmSave(); cmRender(); });
 
 setTimeout(cmRender, 150);
 
@@ -5534,7 +5597,7 @@ setTimeout(cmRender, 150);
   });
 
   // Vertical divider
-  $('#divV').addEventListener('mousedown', e => {
+  $on('#divV', 'mousedown', e => {
     dragging = { type: 'v', startY: e.clientY };
     document.body.style.cursor = 'row-resize';
     document.body.style.userSelect = 'none';
@@ -5575,7 +5638,7 @@ setTimeout(cmRender, 150);
       rowFr[1] = 100 - rowFr[0];
       applyRows();
     }
-    resizeWB(); resizeCM();
+    safeResize();
   });
 
   document.addEventListener('mouseup', () => {
@@ -5583,7 +5646,7 @@ setTimeout(cmRender, 150);
       dragging = null;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
+      setTimeout(safeResize, 50);
     }
   });
 })();
@@ -5591,8 +5654,8 @@ setTimeout(cmRender, 150);
 /* ═══════════════════════════════════════════
    SPREADSHEET BULK ADD
    ═══════════════════════════════════════════ */
-$('#ssAdd5Row').onclick = () => { for (let i = 0; i < 5; i++) { ssD.push(new Array(ssC).fill('')); ssR++; } LS('sheet', ssD); ssRender(); toast('+5 rows'); };
-$('#ssAdd5Col').onclick = () => { for (let i = 0; i < 5; i++) { ssD.forEach(r => r.push('')); ssC++; } LS('sheet', ssD); ssRender(); toast('+5 cols'); };
+$click('#ssAdd5Row', () => { for (let i = 0; i < 5; i++) { ssD.push(new Array(ssC).fill('')); ssR++; } LS('sheet', ssD); ssRender(); toast('+5 rows'); });
+$click('#ssAdd5Col', () => { for (let i = 0; i < 5; i++) { ssD.forEach(r => r.push('')); ssC++; } LS('sheet', ssD); ssRender(); toast('+5 cols'); });
 
 /* ═══════════════════════════════════════════
    Q4 TAB SWITCHING (Stocks / Concept Map / Graph Calc)
@@ -5602,13 +5665,13 @@ $$('#q4Tabs button').forEach(btn => {
     $$('#q4Tabs button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const tab = btn.dataset.q4;
-    $('#stocksView').style.display = tab === 'stocks' ? 'flex' : 'none';
-    $('#cmapView').style.display = tab === 'cmap' ? 'flex' : 'none';
-    $('#graphCalcView').style.display = tab === 'graphcalc' ? 'flex' : 'none';
-    const sportsViewEl = document.getElementById('sportsView');
-    if (sportsViewEl) sportsViewEl.style.display = tab === 'sports' ? 'flex' : 'none';
-    if (tab === 'cmap') setTimeout(resizeCM, 50);
-    if (tab === 'graphcalc') setTimeout(resizeGC, 50);
+    const sv = $('#stocksView'); if (sv) sv.style.display = tab === 'stocks' ? 'flex' : 'none';
+    const cv = $('#cmapView'); if (cv) cv.style.display = tab === 'cmap' ? 'flex' : 'none';
+    const gv = $('#graphCalcView'); if (gv) gv.style.display = tab === 'graphcalc' ? 'flex' : 'none';
+    const spv = document.getElementById('sportsView');
+    if (spv) spv.style.display = tab === 'sports' ? 'flex' : 'none';
+    if (tab === 'cmap') try { setTimeout(resizeCM, 50); } catch(e) {}
+    if (tab === 'graphcalc') try { setTimeout(resizeGC, 50); } catch(e) {}
     if (tab === 'sports' && typeof window.renderSportsTab === 'function') setTimeout(window.renderSportsTab, 50);
   });
 });
@@ -6365,19 +6428,19 @@ async function renderCompareChart() {
   newCvs.addEventListener('mouseleave', () => drawOnNew(-1));
 }
 
-$('#clearCompare').onclick = () => {
+$click('#clearCompare', () => {
   compareTickers = [];
   LS('compareTickers', compareTickers);
   renderStockDash();
-};
+});
 
-$('#compareModeToggle').onclick = () => {
+$click('#compareModeToggle', () => {
   compareMode = compareMode === 'pct' ? 'dollar' : 'pct';
   LS('compareMode', compareMode);
   renderCompareChart();
-};
+});
 
-$('#stockAdd').onclick = () => {
+$click('#stockAdd', () => {
   const t = $('#stockInput').value.trim().toUpperCase();
   if (!t || stockTickers.includes(t)) return;
   stockTickers.push(t);
@@ -6386,10 +6449,10 @@ $('#stockAdd').onclick = () => {
   renderStockChips();
   renderStockDash();
   toast(t + ' added');
-};
-$('#stockInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#stockAdd').click(); });
+});
+$on('#stockInput', 'keydown', e => { if (e.key === 'Enter') $('#stockAdd').click(); });
 $('#stockRange').onchange = () => renderStockDash();
-$('#stockRefresh').onclick = () => { renderStockDash(); toast('Refreshed'); };
+$click('#stockRefresh', () => { renderStockDash(); toast('Refreshed'); });
 
 function renderStockChips() {
   const el = $('#stockChips');
@@ -6612,11 +6675,11 @@ function renderGCExprList() {
   });
 }
 
-$('#gcAddExpr').onclick = () => {
+$click('#gcAddExpr', () => {
   gcExpressions.push({ expr: '', color: GC_COLORS[gcExpressions.length % GC_COLORS.length] });
   LS('gcExpressions', gcExpressions);
   renderGCExprList();
-};
+});
 
 $('#gcExamples').onchange = function() {
   if (!this.value) return;
@@ -6628,14 +6691,14 @@ $('#gcExamples').onchange = function() {
   toast('Added: ' + gcExpressions[gcExpressions.length - 1].expr);
 };
 
-$('#gcRedraw').onclick = () => { renderGC(); toast('Graph updated'); };
+$click('#gcRedraw', () => { renderGC(); toast('Graph updated'); });
 ['gcXmin','gcXmax','gcYmin','gcYmax'].forEach(id => {
   $('#' + id).addEventListener('change', renderGC);
 });
 $('#gcShadeMode').onchange = renderGC;
 
 // Auto-fit axes to visible curves
-$('#gcAutoFit').onclick = () => {
+$click('#gcAutoFit', () => {
   if (!gcExpressions.length) { toast('Add an expression first'); return; }
   // Sample all expressions across a wide initial range to find bounds
   let yMin = Infinity, yMax = -Infinity, hasData = false;
@@ -6664,10 +6727,10 @@ $('#gcAutoFit').onclick = () => {
   $('#gcYmax').value = Math.round(yMax * 100) / 100;
   renderGC();
   toast('Axes fit to curves');
-};
+});
 
 // Export PNG
-$('#gcExportPng').onclick = () => {
+$click('#gcExportPng', () => {
   const cvs = $('#gcCanvas');
   // Draw with white/dark background for clean export
   const dpr = window.devicePixelRatio || 1;
@@ -6683,10 +6746,10 @@ $('#gcExportPng').onclick = () => {
   a.href = expCvs.toDataURL('image/png');
   a.click();
   toast('PNG exported');
-};
+});
 
 // Export SVG
-$('#gcExportSvg').onclick = () => {
+$click('#gcExportSvg', () => {
   const xMin = parseFloat($('#gcXmin').value) || -10;
   const xMax = parseFloat($('#gcXmax').value) || 10;
   const yMin = parseFloat($('#gcYmin').value) || -10;
@@ -6723,7 +6786,7 @@ $('#gcExportSvg').onclick = () => {
   a.href = URL.createObjectURL(blob);
   a.click();
   toast('SVG exported');
-};
+});
 
 renderGCExprList();
 // Initial render when tab is shown
@@ -6968,11 +7031,11 @@ function renderWSList() {
 }
 
 // Panel toggle
-$('#wsToggle').onclick = e => { e.stopPropagation(); $('#wsPanel').classList.toggle('open'); if ($('#wsPanel').classList.contains('open')) renderWSList(); };
+$click('#wsToggle', e => { e.stopPropagation(); const p = $('#wsPanel'); if (p) { p.classList.toggle('open'); if (p.classList.contains('open')) renderWSList(); } });
 document.addEventListener('click', e => { if (!e.target.closest('[id=wsToggle]') && !e.target.closest('#wsPanel')) $('#wsPanel').classList.remove('open'); });
 
 // New workspace
-$('#wsNew').onclick = () => {
+$click('#wsNew', () => {
   saveActiveWorkspace();
   const id = genId();
   const name = prompt('Workspace name:', 'Workspace ' + (wsIndex.length + 1));
@@ -6994,10 +7057,10 @@ $('#wsNew').onclick = () => {
   saveActiveWorkspace();
   renderWSList();
   toast('Created: ' + name.trim());
-};
+});
 
 // Merge
-$('#wsMergeBtn').onclick = () => {
+$click('#wsMergeBtn', () => {
   const checked = [...$$('#wsList .ws-merge-check:checked')].map(cb => cb.dataset.id);
   if (checked.length < 2) { toast('Select 2+ workspaces to merge'); return; }
   const names = [];
@@ -7083,10 +7146,10 @@ $('#wsMergeBtn').onclick = () => {
   deserializeState(merged);
   renderWSList();
   toast('Merged ' + names.length + ' workspaces');
-};
+});
 
 // Import
-$('#wsImport').onclick = () => $('#wsImportFile').click();
+$click('#wsImport', () => $('#wsImportFile').click());
 $('#wsImportFile').onchange = function() {
   const file = this.files[0];
   if (!file) return;
@@ -7108,7 +7171,7 @@ $('#wsImportFile').onchange = function() {
 };
 
 // Export
-$('#wsExport').onclick = () => {
+$click('#wsExport', () => {
   const blob = serializeState();
   const ws = wsIndex.find(w => w.id === wsActiveId);
   const name = ws ? ws.name : 'workspace';
@@ -7119,7 +7182,7 @@ $('#wsExport').onclick = () => {
   a.href = URL.createObjectURL(b);
   a.click();
   toast('Exported: ' + name);
-};
+});
 
 renderWSList();
 
@@ -7223,7 +7286,7 @@ renderWSList();
   }
 
   // Sign in button
-  $('#googleSignIn').onclick = () => {
+  $click('#googleSignIn', () => {
     if (!googleClientIdVal) {
       // No client ID — fall back to simple popup flow
       const popup = window.open(
@@ -7255,10 +7318,10 @@ renderWSList();
     } else {
       toast('Google Identity Services not loaded yet. Try again in a moment.');
     }
-  };
+  });
 
   // Sign out
-  $('#googleSignOut').onclick = () => {
+  $click('#googleSignOut', () => {
     // Revoke token if we have one
     if (googleAccessToken && typeof google !== 'undefined' && google.accounts) {
       google.accounts.oauth2.revoke(googleAccessToken, () => {});
@@ -7274,7 +7337,7 @@ renderWSList();
     updateGmailUI();
     toast('Signed out of Google');
     if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
-  };
+  });
 
   // Client ID save
   const clientIdSave = $('#googleClientIdSave');
@@ -7595,8 +7658,8 @@ function renderStockSearch() {
   });
 }
 
-$('#stockInput').addEventListener('input', renderStockSearch);
-$('#stockInput').addEventListener('focus', renderStockSearch);
+$on('#stockInput', 'input', renderStockSearch);
+$on('#stockInput', 'focus', renderStockSearch);
 document.addEventListener('click', e => {
   if (!e.target.closest('#stockSearchResults') && !e.target.closest('#stockInput')) {
     $('#stockSearchResults').style.display = 'none';
@@ -7773,15 +7836,15 @@ function renderBrowseList() {
   }
 }
 
-$('#stockBrowse').onclick = () => {
+$click('#stockBrowse', () => {
   const panel = $('#stockBrowsePanel');
   panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
   if (panel.style.display === 'flex') renderBrowseList();
-};
-$('#stockBrowseClose').onclick = () => { $('#stockBrowsePanel').style.display = 'none'; };
+});
+$click('#stockBrowseClose', () => { const p = $('#stockBrowsePanel'); if (p) p.style.display = 'none'; });
 $('#browseFilterSector').onchange = renderBrowseList;
 $('#browseFilterSize').onchange = renderBrowseList;
-$('#browseSearch').addEventListener('input', renderBrowseList);
+$on('#browseSearch', 'input', renderBrowseList);
 
 /* ═══════════════════════════════════════════
    NEWS & MARKET COVERAGE
@@ -8028,7 +8091,7 @@ Format this as a polished research report. Cite specific sources by name. Use re
   }
 }
 
-$('#newsDeepResearch').onclick = runDeepResearch;
+$click('#newsDeepResearch', runDeepResearch);
 
 // Inline article viewer
 let newsViewerState = { directUrl: '', archiveUrl: '', readerUrl: '' };
@@ -8060,10 +8123,10 @@ function openNewsViewer(title, directUrl, archiveUrl) {
   openNewsArticle(title, directUrl || archiveUrl);
 }
 
-$('#newsViewerBack').onclick = () => {
+$click('#newsViewerBack', () => {
   $('#newsViewer').style.display = 'none';
   $('#newsViewerFrame').src = 'about:blank';
-};
+});
 
 $('#newsViewerMode').onchange = function() {
   if (!newsViewerState.directUrl) return;
@@ -8105,10 +8168,10 @@ function pushTickerToNews(ticker) {
   toast(ticker + ' → News');
 }
 
-$('#newsSearchBtn').onclick = () => { renderNewsFeed(); };
-$('#newsSearch').addEventListener('keydown', e => { if (e.key === 'Enter') renderNewsFeed(); });
-$('#newsClearBtn').onclick = () => { $('#newsSearch').value = ''; renderNewsFeed(); };
-$('#stockClearSearch').onclick = () => { $('#stockInput').value = ''; $('#stockSearchResults').style.display = 'none'; };
+$click('#newsSearchBtn', () => { renderNewsFeed(); });
+$on('#newsSearch', 'keydown', e => { if (e.key === 'Enter') renderNewsFeed(); });
+$click('#newsClearBtn', () => { const el = $('#newsSearch'); if (el) el.value = ''; renderNewsFeed(); });
+$click('#stockClearSearch', () => { const el = $('#stockInput'); if (el) el.value = ''; const sr = $('#stockSearchResults'); if (sr) sr.style.display = 'none'; });
 
 renderNewsChips();
 renderNewsFeed();
@@ -8231,18 +8294,19 @@ function updateCostPanel() {
 // Close all admin action panels (mutually exclusive)
 function closeAllAdminPanels(except) {
   ['aiCostPanel', 'aiPricingPanel', 'aiUsageDash'].forEach(id => {
-    if (id !== except) $('#' + id).style.display = 'none';
+    const el = $('#' + id); if (el && id !== except) el.style.display = 'none';
   });
   const accPanel = document.getElementById('aiAccessPanel');
   if (accPanel && except !== 'aiAccessPanel') accPanel.remove();
 }
 
-$('#aiCostBtn').onclick = () => {
+$click('#aiCostBtn', () => {
   const panel = $('#aiCostPanel');
+  if (!panel) return;
   closeAllAdminPanels('aiCostPanel');
   if (panel.style.display === 'none') { updateCostPanel(); panel.style.display = 'block'; }
   else panel.style.display = 'none';
-};
+});
 
 // ── Pricing calculator ──
 const PRICING_TOKEN_PROFILES = {
@@ -8372,12 +8436,13 @@ function updatePricingCalc() {
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;font-weight:600;color:var(--success, #10b981);"><span>3x margin profit/yr:</span><span>' + fmtCost((costPerUser * 3 * users * 12) - (totalMonthlyCost * 12)) + '</span></div>';
 }
 
-$('#aiPricingBtn').onclick = () => {
+$click('#aiPricingBtn', () => {
   const panel = $('#aiPricingPanel');
+  if (!panel) return;
   closeAllAdminPanels('aiPricingPanel');
   if (panel.style.display === 'none') { updatePricingCalc(); panel.style.display = 'block'; }
   else panel.style.display = 'none';
-};
+});
 
 // Drill-in: show per-request log for a user
 function showUserDrillIn(userName) {
@@ -8469,8 +8534,9 @@ function showUserDrillIn(userName) {
   renderDrillIn();
 }
 
-$('#aiUsageDashBtn').onclick = async () => {
+$click('#aiUsageDashBtn', async () => {
   const panel = $('#aiUsageDash');
+  if (!panel) return;
   closeAllAdminPanels('aiUsageDash');
   if (panel.style.display === 'none') {
     const users = await getAllUserUsage();
@@ -8507,8 +8573,8 @@ $('#aiUsageDashBtn').onclick = async () => {
     panel.style.display = 'block';
   } else panel.style.display = 'none';
   if (!wsIsAdmin) { panel.style.display = 'none'; }
-};
-$('#aiAccessReqBtn').onclick = renderAccessRequestsPanel;
+});
+$click('#aiAccessReqBtn', renderAccessRequestsPanel);
 // Show pending request count badge for admin
 (async function updateAccessBadge() {
   if (!wsIsAdmin) return;
@@ -8544,13 +8610,13 @@ MODEL_MIX_IDS.forEach(id => {
   if (el) el.addEventListener('input', () => balanceSliderGroup(id, MODEL_MIX_IDS));
 });
 
-if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
+{ const _ak = $('#aiApiKey'); if (_ak && aiKey) _ak.value = '••••••••••' + aiKey.slice(-4); }
 
 // API key show/hide toggle
-$('#aiKeyToggle').onclick = () => {
+$click('#aiKeyToggle', () => {
   const inp = $('#aiApiKey');
+  if (!inp) return;
   if (inp.type === 'password') {
-    // Show the full stored key
     if (aiKey && inp.value.startsWith('••')) inp.value = aiKey;
     inp.type = 'text';
   } else {
@@ -8558,15 +8624,17 @@ $('#aiKeyToggle').onclick = () => {
     if (aiKey && !inp.value.startsWith('sk-')) inp.value = '••••••••••' + aiKey.slice(-4);
     else if (aiKey) inp.value = '••••••••••' + aiKey.slice(-4);
   }
-};
+});
 
-$('#aiKeySave').onclick = async () => {
-  const v = $('#aiApiKey').value.trim();
+$click('#aiKeySave', async () => {
+  const _ki = $('#aiApiKey');
+  if (!_ki) return;
+  const v = _ki.value.trim();
   if (!v || v.startsWith('••')) return;
   aiKey = v;
   localStorage.setItem('ws_aiApiKey', v);
-  $('#aiApiKey').value = '••••••••••' + v.slice(-4);
-  $('#aiApiKey').type = 'password';
+  _ki.value = '••••••••••' + v.slice(-4);
+  _ki.type = 'password';
   // Also push key to proxy server for secure mode
   try {
     const r = await fetch(AI_PROXY_URL + '/key', {
@@ -8584,13 +8652,13 @@ $('#aiKeySave').onclick = async () => {
   } catch (_) {
     addAiMsg('system', 'API key saved locally. Claude is ready. (Proxy unavailable — run node proxy.js for secure mode)');
   }
-};
+});
 
-$('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
-$('#aiSavedActionsBtn').onclick = renderSavedActionsPanel;
+$click('#aiClear', () => { aiMessages = []; const _am = $('#aiMsgs'); if (_am) _am.innerHTML = ''; addAiMsg('system', 'Chat cleared.'); });
+$click('#aiSavedActionsBtn', renderSavedActionsPanel);
 
 // ── Info panel: capabilities, training, customization ──
-$('#aiInfoBtn').onclick = () => {
+$click('#aiInfoBtn', () => {
   let panel = document.getElementById('aiInfoPanel');
   if (panel) { panel.remove(); return; }
   panel = document.createElement('div');
@@ -8692,7 +8760,7 @@ $('#aiInfoBtn').onclick = () => {
     '</div>';
 
   document.querySelector('#q-claude .p-body').appendChild(panel);
-};
+});
 
 // ── Claude analytics log ──
 // Save chat sessions to localStorage and export to notepad tabs
@@ -8738,7 +8806,7 @@ function exportLogToNotepad() {
   toast('Exported ' + aiChatLog.length + ' sessions to notepad tabs');
 }
 
-$('#aiLogBtn').onclick = () => { renderHistoryPanel(); };
+$click('#aiLogBtn', () => { renderHistoryPanel(); });
 
 function renderHistoryPanel() {
   let panel = document.getElementById('aiHistoryPanel');
@@ -11656,30 +11724,27 @@ if (!$('#aiMsgs').children.length) {
 }
 
 // Send handlers
-$('#aiSend').onclick = sendAgentMessage;
-$('#aiInput').addEventListener('keydown', e => {
+$click('#aiSend', sendAgentMessage);
+$on('#aiInput', 'keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); }
 });
 
 // ── Nudge button — pushes Claude to delegate, change approach, or take action ──
-$('#aiNudge').onclick = function() {
+$click('#aiNudge', function() {
   if (!aiStreaming) {
-    // Not currently running — inject a nudge as a user message
     const nudgePrompt = 'You seem to be stuck or not making progress on the task. Please try a different approach: delegate sub-tasks using your tools, break the problem into smaller steps, or just take direct action with the workspace tools (write_cells, write_note, draw_shape, etc.) instead of explaining. Do NOT repeat what you already said — try something new.';
-    $('#aiInput').value = nudgePrompt;
+    const _ai = $('#aiInput'); if (_ai) _ai.value = nudgePrompt;
     sendAgentMessage();
     toast('Nudged Claude to take action');
   } else {
-    // Currently streaming/working — show a nudge alert in chat
     const nudgeDiv = document.createElement('div');
     nudgeDiv.className = 'ai-msg system';
     nudgeDiv.style.cssText = 'color:#FF9800;font-size:.62rem;padding:6px 10px;background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.25);border-radius:6px;margin:4px 0;';
     nudgeDiv.innerHTML = '<b>Nudge:</b> Claude is still working on the current request. If it seems stuck, wait for it to finish or clear the chat to start fresh.';
-    $('#aiMsgs').appendChild(nudgeDiv);
-    $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+    const _am = $('#aiMsgs'); if (_am) { _am.appendChild(nudgeDiv); _am.scrollTop = _am.scrollHeight; }
     toast('Claude is still working...');
   }
-};
+});
 
 // ADDED — Phase 11: Expose globals for orchestrator module
 window.executeAgentTool = executeAgentTool;
@@ -11789,8 +11854,8 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       tabToken.style.background = 'none'; tabToken.style.color = 'var(--text-dim)'; tabToken.style.fontWeight = 'normal';
     }
   }
-  $('#rhTabLogin').onclick = () => rhSwitchTab('login');
-  $('#rhTabToken').onclick = () => rhSwitchTab('token');
+  $click('#rhTabLogin', () => rhSwitchTab('login'));
+  $click('#rhTabToken', () => rhSwitchTab('token'));
 
   // Only show token tab for admin
   if (!wsIsAdmin) {
@@ -11798,7 +11863,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   }
 
   // ── Token paste submit ──
-  $('#rhTokenSubmit').onclick = async () => {
+  $click('#rhTokenSubmit', async () => {
     const msg = $('#rhTokenMsg');
     const token = ($('#rhTokenInput').value || '').trim();
     if (!token || token.length < 10) { msg.textContent = 'Paste a valid token (it should be a long string)'; msg.style.color = '#ef4444'; return; }
@@ -11824,15 +11889,15 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     } finally {
       $('#rhTokenSubmit').disabled = false; $('#rhTokenSubmit').style.opacity = '1';
     }
-  };
+  });
 
   // Show/hide password toggle
-  $('#rhShowPw').onclick = () => {
+  $click('#rhShowPw', () => {
     const pw = $('#rhPassword');
     const show = pw.type === 'password';
     pw.type = show ? 'text' : 'password';
     $('#rhShowPw').style.opacity = show ? '1' : '.5';
-  };
+  });
 
   function onLoginSuccess() {
     $('#rhLoginMsg').textContent = 'Connected!'; $('#rhLoginMsg').style.color = '#22c55e';
@@ -11845,7 +11910,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     renderNewsFeed();
   }
 
-  $('#rhLoginBtn').onclick = async () => {
+  $click('#rhLoginBtn', async () => {
     overlay.style.display = 'flex';
     if (rhLoggedIn) {
       $('#rhLogoutSubmit').style.display = 'block';
@@ -11871,9 +11936,9 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
         qlBtn.style.display = 'none';
       }
     }
-  };
+  });
 
-  $('#rhModalClose').onclick = () => { overlay.style.display = 'none'; };
+  $click('#rhModalClose', () => { overlay.style.display = 'none'; });
   overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display = 'none'; };
 
   // Enter key submits
@@ -11886,7 +11951,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     if (this.value.length === 6) setTimeout(() => $('#rhLoginSubmit').click(), 200);
   };
 
-  $('#rhLoginSubmit').onclick = async () => {
+  $click('#rhLoginSubmit', async () => {
     const msg = $('#rhLoginMsg');
     const username = $('#rhUsername').value.trim();
     const password = $('#rhPassword').value;
@@ -11927,20 +11992,20 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     } finally {
       $('#rhLoginSubmit').disabled = false; $('#rhLoginSubmit').style.opacity = '1';
     }
-  };
+  });
 
-  $('#rhLogoutSubmit').onclick = async () => {
+  $click('#rhLogoutSubmit', async () => {
     try { await fetch(PROXY_BASE + '/proxy/robinhood/logout', { method: 'POST' }); } catch(e) {}
     rhLoggedIn = false;
     updateRhLoginUI();
     $('#rhLoginMsg').textContent = 'Logged out.'; $('#rhLoginMsg').style.color = 'var(--text-dim)';
     $('#rhLogoutSubmit').style.display = 'none';
     $('#rhPortfolioSummary').style.display = 'none';
-  };
+  });
 
   // ── Quick Login (admin only, uses stored credentials) ──
   let qlChallengeId = '';
-  $('#rhQuickLogin').onclick = async () => {
+  $click('#rhQuickLogin', async () => {
     const msg = $('#rhLoginMsg');
     msg.textContent = 'Logging in with stored credentials...'; msg.style.color = 'var(--text-dim)';
     $('#rhQuickLogin').disabled = true; $('#rhQuickLogin').style.opacity = '0.6';
@@ -11977,14 +12042,14 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     } finally {
       $('#rhQuickLogin').disabled = false; $('#rhQuickLogin').style.opacity = '1';
     }
-  };
+  });
 
   // ── Store Credentials (admin only) ──
   if (wsIsAdmin) {
     const setCredsWrap = $('#rhSetCredsWrap');
     if (setCredsWrap) setCredsWrap.style.display = 'block';
   }
-  $('#rhSaveCreds').onclick = async () => {
+  $click('#rhSaveCreds', async () => {
     const msg = $('#rhSetCredsMsg');
     const email = $('#rhSetEmail').value.trim();
     const pw = $('#rhSetPw').value;
@@ -12006,7 +12071,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     } catch(e) {
       msg.textContent = 'Error: ' + e.message; msg.style.color = '#ef4444';
     }
-  };
+  });
 
   async function loadPortfolioSummary() {
     if (!rhLoggedIn) return;
