@@ -1569,6 +1569,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
       <button id="aiAccessReqBtn" class="p-btn" title="User access requests (admin)" style="font-size:.55rem;">Requests</button>
       <button id="aiSavedActionsBtn" class="p-btn" title="Saved tool actions" style="font-size:.55rem;">Actions</button>
+      <button id="aiCleanupBtn" class="p-btn" title="Cleanup — reformat recent action log for clarity" style="font-size:.55rem;">&#x1F9F9; Cleanup</button>
       <button id="aiInfoBtn" class="p-btn" title="Capabilities &amp; settings" style="font-size:.6rem;">Info</button>
       <button id="aiLogBtn" class="p-btn" title="Chat session history" style="font-size:.55rem;">History</button>
       <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
@@ -9709,6 +9710,51 @@ $('#aiKeySave').onclick = async () => {
 
 $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
 $('#aiSavedActionsBtn').onclick = renderSavedActionsPanel;
+
+// ── Cleanup mode: reformat the agent action log for visual clarity ──
+$('#aiCleanupBtn').onclick = async () => {
+  if (aiStreaming) { toast('Wait for current task to finish'); return; }
+  if (!aiSavedActions.length) { toast('No actions to clean up'); return; }
+  // Build a digest of recent actions for Claude to reformat
+  const recentActions = aiSavedActions.slice(-20).map(a => ({
+    tool: a.tool, time: new Date(a.timestamp).toLocaleString(),
+    input: JSON.stringify(a.input).substring(0, 200)
+  }));
+  const cleanupSystemPrompt = 'You are a formatting assistant. You receive a log of recent agent tool actions. ' +
+    'Your ONLY job is to reformat this log into a clean, visually organized summary. ' +
+    'Do NOT take any new actions, call any tools, or suggest changes. ' +
+    'Group related actions together (e.g. all write_cells in sequence = one "Spreadsheet update" group). ' +
+    'For each group: provide a clear heading, the time range, and a 1-sentence summary of what was done. ' +
+    'Use markdown formatting (headers, bullet points, bold) for readability. ' +
+    'End with a "Session Stats" line: total actions, unique tools used, time span.';
+  const cleanupUserPrompt = 'Here are the recent agent actions to reformat:\n\n' +
+    recentActions.map((a, i) => (i+1) + '. [' + a.time + '] ' + a.tool + ': ' + a.input).join('\n') +
+    '\n\nReformat this into a clean, grouped summary. No new actions — presentation only.';
+
+  addAiMsg('system', '\uD83E\uDDF9 Running cleanup pass on action log...');
+  aiStreaming = true;
+  try {
+    const resp = await aiApiFetch({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      system: cleanupSystemPrompt,
+      messages: [{ role: 'user', content: cleanupUserPrompt }]
+    });
+    if (resp.ok) {
+      const data = await safeParseJson(resp, 'cleanup');
+      const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+      aiSessionTokensIn += data.usage?.input_tokens || 0;
+      aiSessionTokensOut += data.usage?.output_tokens || 0;
+      aiSessionRequests++;
+      addAiMsg('assistant', text);
+    } else {
+      addAiMsg('system', 'Cleanup failed: ' + resp.status);
+    }
+  } catch(e) {
+    addAiMsg('system', 'Cleanup error: ' + e.message);
+  }
+  aiStreaming = false;
+};
 
 // ── Info panel: capabilities, training, customization ──
 $('#aiInfoBtn').onclick = () => {
