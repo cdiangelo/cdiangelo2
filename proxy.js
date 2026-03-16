@@ -156,19 +156,23 @@ app.post('/proxy/ai/messages', async (req, res) => {
       });
     }
 
-    // If streaming, pipe the response directly
+    // If streaming, forward the SSE stream to the client
     if (body.stream) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      // Pipe the raw SSE stream from Anthropic to the client
-      const reader = anthropicResp.body;
-      reader.pipe(res);
-      reader.on('end', () => res.end());
-      reader.on('error', (err) => {
+      const reader = anthropicResp.body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+        }
+      } catch (err) {
         console.error('[AI Proxy] Stream error:', err.message);
+      } finally {
         res.end();
-      });
+      }
     } else {
       // Non-streaming: forward JSON response
       const data = await anthropicResp.json();
