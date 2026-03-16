@@ -6,6 +6,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const app = express();
+app.set('trust proxy', true); // Trust Render/reverse proxy for accurate client IP
 const PORT = process.env.PORT || 3001;
 
 // ── AI API key: held server-side only, never sent to browser ──
@@ -427,21 +428,72 @@ async function refreshRobinhoodToken() {
 }
 
 // ═══════════════════════════════════════════
-// ADMIN TRACKING — server-side usage & access requests
+// ADMIN TRACKING — server-side usage, device/IP tracking & access requests
 // ═══════════════════════════════════════════
 
-const userUsage = new Map();   // userName -> {prompts, tokens, lastActive}
-const accessRequests = [];     // [{name, contact, message, ts}]
+const userUsage = new Map();      // userName -> {prompts, tokens, lastActive, devices, ips}
+const deviceRegistry = new Map(); // deviceId -> {userName, ips[], firstSeen, lastSeen}
+const accessRequests = [];        // [{name, contact, message, ts}]
+
+// Helper: extract client IP from request (works behind proxies like Render)
+function getClientIp(req) {
+  return req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+    || req.headers['x-real-ip']
+    || req.connection?.remoteAddress
+    || req.ip
+    || 'unknown';
+}
+
+// POST /proxy/admin/register-device — Client registers device + name on login
+app.post('/proxy/admin/register-device', (req, res) => {
+  const { userName, deviceId } = req.body || {};
+  if (!userName) return res.status(400).json({ error: true, message: 'Missing userName' });
+  const ip = getClientIp(req);
+  const now = new Date().toISOString();
+
+  // Track device → user mapping
+  if (deviceId) {
+    const devEntry = deviceRegistry.get(deviceId) || { userName, ips: [], firstSeen: now, lastSeen: now, allNames: [] };
+    devEntry.lastSeen = now;
+    devEntry.userName = userName;
+    if (!devEntry.allNames.includes(userName)) devEntry.allNames.push(userName);
+    if (!devEntry.ips.includes(ip)) devEntry.ips.push(ip);
+    deviceRegistry.set(deviceId, devEntry);
+  }
+
+  // Initialize or update user usage entry with device/IP info
+  const existing = userUsage.get(userName) || { prompts: 0, tokens: 0, lastActive: null, devices: [], ips: [] };
+  existing.lastActive = now;
+  if (deviceId && !existing.devices.includes(deviceId)) existing.devices.push(deviceId);
+  if (!existing.ips.includes(ip)) existing.ips.push(ip);
+  userUsage.set(userName, existing);
+
+  res.json({ ok: true });
+});
 
 // POST /proxy/admin/log-usage — Client reports usage after each AI call
 app.post('/proxy/admin/log-usage', (req, res) => {
-  const { userName, tokensUsed } = req.body || {};
+  const { userName, tokensUsed, deviceId } = req.body || {};
   if (!userName) return res.status(400).json({ error: true, message: 'Missing userName' });
-  const existing = userUsage.get(userName) || { prompts: 0, tokens: 0, lastActive: null };
+  const ip = getClientIp(req);
+  const existing = userUsage.get(userName) || { prompts: 0, tokens: 0, lastActive: null, devices: [], ips: [] };
   existing.prompts++;
   existing.tokens += (tokensUsed || 0);
   existing.lastActive = new Date().toISOString();
+  // Track device and IP per user
+  if (deviceId && !existing.devices.includes(deviceId)) existing.devices.push(deviceId);
+  if (!existing.ips.includes(ip)) existing.ips.push(ip);
   userUsage.set(userName, existing);
+
+  // Update device registry too
+  if (deviceId) {
+    const devEntry = deviceRegistry.get(deviceId) || { userName, ips: [], firstSeen: existing.lastActive, lastSeen: existing.lastActive, allNames: [] };
+    devEntry.lastSeen = existing.lastActive;
+    if (!devEntry.allNames.includes(userName)) devEntry.allNames.push(userName);
+    if (!devEntry.ips.includes(ip)) devEntry.ips.push(ip);
+    deviceRegistry.set(deviceId, devEntry);
+  }
+
   res.json({ ok: true });
 });
 
@@ -451,14 +503,38 @@ app.get('/proxy/admin/users', (req, res) => {
   if (pw !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Invalid admin password' });
   const users = {};
   userUsage.forEach((data, name) => { users[name] = data; });
+  // Attach cross-reference: flag users who share a device or IP with other names
+  for (const [name, data] of Object.entries(users)) {
+    const aliases = new Set();
+    (data.devices || []).forEach(devId => {
+      const dev = deviceRegistry.get(devId);
+      if (dev) dev.allNames.forEach(n => { if (n !== name) aliases.add(n); });
+    });
+    (data.ips || []).forEach(ip => {
+      userUsage.forEach((otherData, otherName) => {
+        if (otherName !== name && (otherData.ips || []).includes(ip)) aliases.add(otherName);
+      });
+    });
+    if (aliases.size > 0) data.possibleAliases = [...aliases];
+  }
   res.json(users);
+});
+
+// GET /proxy/admin/devices — Returns device registry (admin-protected)
+app.get('/proxy/admin/devices', (req, res) => {
+  const pw = req.query.password;
+  if (pw !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Invalid admin password' });
+  const devices = {};
+  deviceRegistry.forEach((data, devId) => { devices[devId] = data; });
+  res.json(devices);
 });
 
 // POST /proxy/admin/request-access — User submits access request
 app.post('/proxy/admin/request-access', (req, res) => {
-  const { name, contact, message } = req.body || {};
+  const { name, contact, deviceId, message } = req.body || {};
   if (!name) return res.status(400).json({ error: true, message: 'Missing name' });
-  accessRequests.push({ name, contact: contact || '', message: message || '', ts: new Date().toISOString() });
+  const ip = getClientIp(req);
+  accessRequests.push({ name, contact: contact || '', deviceId: deviceId || '', ip, message: message || '', ts: new Date().toISOString() });
   res.json({ ok: true });
 });
 

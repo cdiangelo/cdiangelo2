@@ -1308,12 +1308,12 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   #authBox { padding: 24px 16px !important; border-radius: 12px !important; }
   #authBox h2 { font-size: 1rem !important; }
   #authBox p { font-size: .72rem !important; }
-  #authBox input[type="text"], #authBox input[type="email"], #authBox input[type="password"] {
+  #authBox input[type="text"], #authBox input[type="password"] {
     font-size: 16px !important; padding: 12px 14px !important;
   }
   #authBox button { font-size: .82rem !important; padding: 12px !important; min-height: 44px; }
   #authBox .auth-user-item { min-height: 52px; }
-  #authVerifyCode { font-size: 1.4rem !important; padding: 14px !important; width: 160px !important; }
+  /* authVerifyCode removed — name-only auth */
   /* Claude pane mobile fixes — shrink robot scene, fix backdrop overflow */
   .robot-scene { height: 110px !important; overflow: visible !important; }
   .robot-scene-resize { display: none !important; }
@@ -1364,26 +1364,12 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
     </div>
 
-    <!-- Step 2: New user registration form -->
+    <!-- Step 2: New user registration form (name only) -->
     <div id="authUserNameForm" style="display:none;margin-top:12px;">
       <input type="text" id="authUserName" placeholder="Enter your name" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:8px;box-sizing:border-box;" />
-      <input type="email" id="authUserContact" placeholder="Email address" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:8px;box-sizing:border-box;" />
-      <div id="authContactError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;">Please enter a valid email address</div>
-      <div id="authContactDupError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;"></div>
-      <button id="authUserEnter" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--success, #10b981);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Send Verification Code</button>
+      <div id="authNameError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;"></div>
+      <button id="authUserEnter" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--success, #10b981);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Enter Workspace</button>
       <button id="authBackToList" style="width:100%;padding:8px;border:none;border-radius:8px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;margin-top:6px;">&#8592; Back to user list</button>
-    </div>
-
-    <!-- Step 3: Email verification code entry -->
-    <div id="authVerifyForm" style="display:none;margin-top:12px;">
-      <p id="authVerifyMsg" style="color:var(--text-dim);font-size:.72rem;margin:0 0 12px;"></p>
-      <div style="display:flex;gap:6px;justify-content:center;margin-bottom:12px;">
-        <input type="text" id="authVerifyCode" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6" placeholder="000000" style="width:160px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:1.4rem;text-align:center;letter-spacing:6px;font-weight:700;box-sizing:border-box;" />
-      </div>
-      <div id="authVerifyError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;">Invalid verification code</div>
-      <button id="authVerifyBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Verify &amp; Enter</button>
-      <button id="authResendBtn" style="width:100%;padding:8px;border:none;border-radius:8px;background:none;color:var(--accent2);font-size:.7rem;cursor:pointer;margin-top:4px;">Resend code</button>
-      <button id="authBackFromVerify" style="width:100%;padding:6px;border:none;border-radius:8px;background:none;color:var(--text-dim);font-size:.68rem;cursor:pointer;">&#8592; Back</button>
     </div>
 
     <!-- Admin form -->
@@ -2152,6 +2138,36 @@ let wsUserName = localStorage.getItem('ws_userName') || '';
 const ADMIN_PASSWORD = 'animalcrackers'; // Full admin workspace access
 const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
 
+// ── Device fingerprint for user tracking ──
+function getDeviceFingerprint() {
+  let fp = localStorage.getItem('ws_deviceId');
+  if (fp) return fp;
+  // Generate a stable fingerprint from browser properties + random component
+  const nav = navigator;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'top';
+  ctx.font = '14px Arial';
+  ctx.fillText('fingerprint', 2, 2);
+  const canvasHash = canvas.toDataURL().slice(-32);
+  const components = [
+    nav.userAgent, nav.language, nav.hardwareConcurrency,
+    screen.width + 'x' + screen.height, screen.colorDepth,
+    new Date().getTimezoneOffset(), canvasHash,
+    crypto.randomUUID().slice(0, 8) // unique per device install
+  ].join('|');
+  // Simple hash
+  let hash = 0;
+  for (let i = 0; i < components.length; i++) {
+    hash = ((hash << 5) - hash) + components.charCodeAt(i);
+    hash |= 0;
+  }
+  fp = 'dev_' + Math.abs(hash).toString(36) + '_' + Date.now().toString(36);
+  localStorage.setItem('ws_deviceId', fp);
+  return fp;
+}
+const wsDeviceId = getDeviceFingerprint();
+
 (function initAuthGate() {
   const gate = document.getElementById('authGate');
   if (!gate) return;
@@ -2165,53 +2181,25 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
   }
 
   // ---- Helpers ----
-  function validateEmail(val) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val);
+  function getRegisteredUsers() {
+    return JSON.parse(localStorage.getItem('ws_registeredUsers') || '{}');
   }
 
-  function getRegistered() {
-    return JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
+  function registerUser(name) {
+    const users = getRegisteredUsers();
+    const key = name.toLowerCase().trim();
+    users[key] = { name, deviceId: wsDeviceId, lastLogin: new Date().toISOString() };
+    localStorage.setItem('ws_registeredUsers', JSON.stringify(users));
+    // Also keep legacy registeredContacts for backward compat with usage tracking
+    const contacts = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
+    contacts[key] = name;
+    localStorage.setItem('ws_registeredContacts', JSON.stringify(contacts));
   }
-
-  function isContactDuplicate(name, contact) {
-    const registered = getRegistered();
-    const normalized = contact.toLowerCase().replace(/[\s\-\(\)]/g, '');
-    const existingName = registered[normalized];
-    if (existingName && existingName !== name) return 'email_taken';
-    for (const [regContact, regName] of Object.entries(registered)) {
-      if (regName === name && regContact !== normalized) return 'name_taken';
-    }
-    return false;
-  }
-
-  function registerContact(name, contact) {
-    const registered = getRegistered();
-    const normalized = contact.toLowerCase().replace(/[\s\-\(\)]/g, '');
-    registered[normalized] = name;
-    localStorage.setItem('ws_registeredContacts', JSON.stringify(registered));
-  }
-
-  function maskEmail(email) {
-    const [user, domain] = email.split('@');
-    if (user.length <= 2) return user[0] + '***@' + domain;
-    return user[0] + '***' + user.slice(-1) + '@' + domain;
-  }
-
-  function generateCode() {
-    return String(Math.floor(100000 + Math.random() * 900000));
-  }
-
-  // ---- State ----
-  let pendingName = '';
-  let pendingEmail = '';
-  let pendingCode = '';
-  let isReturningUser = false;
 
   // ---- Screen helpers ----
   function hideAllScreens() {
     document.getElementById('authUserList').style.display = 'none';
     document.getElementById('authUserNameForm').style.display = 'none';
-    document.getElementById('authVerifyForm').style.display = 'none';
     document.getElementById('authAdminForm').style.display = 'none';
   }
 
@@ -2222,17 +2210,27 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
 
   // ---- Build user list ----
   function buildUserList() {
-    const registered = getRegistered();
+    const registered = getRegisteredUsers();
+    // Also check legacy registeredContacts
+    const legacyContacts = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
     const container = document.getElementById('authUserListItems');
-    // Get unique users: {name, email, cost, lastActive}
     const userMap = {};
-    for (const [email, name] of Object.entries(registered)) {
-      if (!userMap[name]) userMap[name] = { name, email, cost: 0, requests: 0, lastActive: null };
-      // Grab usage data if available
-      const usage = JSON.parse(localStorage.getItem('ws_usage_' + name) || '{}');
-      userMap[name].cost = usage.cost || 0;
-      userMap[name].requests = usage.requests || 0;
-      userMap[name].lastActive = usage.lastActive || null;
+    // Merge legacy contacts
+    for (const [, name] of Object.entries(legacyContacts)) {
+      const key = name.toLowerCase().trim();
+      if (!userMap[key]) userMap[key] = { name, cost: 0, requests: 0, lastActive: null };
+    }
+    // Merge new registered users
+    for (const [, data] of Object.entries(registered)) {
+      const key = data.name.toLowerCase().trim();
+      if (!userMap[key]) userMap[key] = { name: data.name, cost: 0, requests: 0, lastActive: null };
+    }
+    // Attach usage data
+    for (const key of Object.keys(userMap)) {
+      const usage = JSON.parse(localStorage.getItem('ws_usage_' + userMap[key].name) || '{}');
+      userMap[key].cost = usage.cost || 0;
+      userMap[key].requests = usage.requests || 0;
+      userMap[key].lastActive = usage.lastActive || null;
     }
     // Also include admin usage
     const adminUsage = JSON.parse(localStorage.getItem('ws_usage_admin') || '{}');
@@ -2250,14 +2248,13 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
 
     let html = '';
     users.forEach(u => {
-      const masked = maskEmail(u.email);
       const costStr = u.cost > 0 ? '$' + u.cost.toFixed(4) : '';
       const lastStr = u.lastActive ? new Date(u.lastActive).toLocaleDateString() : '';
-      html += '<button class="auth-user-item" data-name="' + u.name.replace(/"/g, '&quot;') + '" data-email="' + u.email + '" style="width:100%;display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:6px;border:1px solid var(--border);border-radius:10px;background:var(--panel-inset);color:var(--text);cursor:pointer;transition:all .15s;text-align:left;">' +
+      html += '<button class="auth-user-item" data-name="' + u.name.replace(/"/g, '&quot;') + '" style="width:100%;display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:6px;border:1px solid var(--border);border-radius:10px;background:var(--panel-inset);color:var(--text);cursor:pointer;transition:all .15s;text-align:left;">' +
         '<div style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.8rem;flex-shrink:0;">' + u.name.charAt(0).toUpperCase() + '</div>' +
         '<div style="flex:1;min-width:0;">' +
           '<div style="font-weight:600;font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + u.name + '</div>' +
-          '<div style="font-size:.62rem;color:var(--text-dim);">' + masked + (lastStr ? ' &middot; ' + lastStr : '') + '</div>' +
+          '<div style="font-size:.62rem;color:var(--text-dim);">' + (lastStr ? 'Last active: ' + lastStr : 'New user') + '</div>' +
         '</div>' +
         (costStr ? '<div style="font-size:.62rem;color:var(--accent2);font-weight:600;flex-shrink:0;">' + costStr + '</div>' : '') +
       '</button>';
@@ -2274,78 +2271,29 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
 
     container.innerHTML = html;
 
-    // Bind click events on user items
+    // Bind click events on user items — returning users click to enter directly
     container.querySelectorAll('.auth-user-item').forEach(btn => {
       btn.onmouseenter = () => { btn.style.borderColor = 'var(--accent)'; btn.style.background = 'rgba(59,130,246,.08)'; };
       btn.onmouseleave = () => { btn.style.borderColor = 'var(--border)'; btn.style.background = 'var(--panel-inset)'; };
       btn.onclick = () => {
-        pendingName = btn.dataset.name;
-        pendingEmail = btn.dataset.email;
-        isReturningUser = true;
-        startVerification();
+        const name = btn.dataset.name;
+        registerUser(name);
+        completeUserLogin(name);
       };
     });
   }
 
-  // ---- Verification flow ----
-  function startVerification() {
-    pendingCode = generateCode();
-    const masked = maskEmail(pendingEmail);
-    document.getElementById('authTitle').textContent = 'Verify Your Identity';
-    document.getElementById('authSubtitle').textContent = 'Welcome back, ' + pendingName;
-    document.getElementById('authVerifyMsg').innerHTML = 'A verification code has been sent to <strong>' + masked + '</strong><br><span style="font-size:.6rem;color:var(--text-dim);">Check your email for the 6-digit code</span>';
-    document.getElementById('authVerifyCode').value = '';
-    document.getElementById('authVerifyError').style.display = 'none';
-    showScreen('authVerifyForm');
-    document.getElementById('authVerifyCode').focus();
-    // Simulate sending — show the code in a notification (no real email backend)
-    showVerificationNotification(pendingCode, pendingEmail);
-  }
-
-  function showVerificationNotification(code, email) {
-    // Create a floating notification simulating the email delivery
-    const notif = document.createElement('div');
-    notif.id = 'authCodeNotif';
-    notif.style.cssText = 'position:fixed;top:20px;right:20px;z-index:100000;background:#1a1a2e;border:1px solid #3b82f6;border-radius:12px;padding:16px 20px;box-shadow:0 8px 32px rgba(0,0,0,.6);max-width:320px;font-family:system-ui,-apple-system,sans-serif;animation:slideIn .3s ease;';
-    notif.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
-      '<span style="font-size:1.2rem;">&#9993;</span>' +
-      '<span style="font-weight:600;color:#e2e8f0;font-size:.78rem;">Verification Email</span>' +
-      '<span style="margin-left:auto;font-size:.6rem;color:#64748b;">just now</span>' +
-    '</div>' +
-    '<div style="color:#94a3b8;font-size:.68rem;margin-bottom:6px;">To: ' + email + '</div>' +
-    '<div style="color:#e2e8f0;font-size:.75rem;margin-bottom:8px;">Your verification code is:</div>' +
-    '<div style="background:#0f172a;border-radius:8px;padding:12px;text-align:center;font-size:1.4rem;font-weight:700;letter-spacing:8px;color:#3b82f6;font-family:monospace;">' + code + '</div>' +
-    '<div style="color:#64748b;font-size:.58rem;margin-top:8px;">This is a simulated email. In production, this would be sent to your inbox.</div>' +
-    '<button onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#64748b;cursor:pointer;font-size:.9rem;">&times;</button>';
-    // Remove old notification if exists
-    const old = document.getElementById('authCodeNotif');
-    if (old) old.remove();
-    document.body.appendChild(notif);
-    // Auto-remove after 30s
-    setTimeout(() => { if (notif.parentElement) notif.remove(); }, 30000);
-  }
-
-  function verifyCode() {
-    const entered = document.getElementById('authVerifyCode').value.trim();
-    if (entered !== pendingCode) {
-      document.getElementById('authVerifyError').textContent = 'Invalid verification code. Please try again.';
-      document.getElementById('authVerifyError').style.display = 'block';
-      document.getElementById('authVerifyCode').value = '';
-      document.getElementById('authVerifyCode').focus();
-      return;
-    }
-    // Verified — enter workspace
-    const notif = document.getElementById('authCodeNotif');
-    if (notif) notif.remove();
-    registerContact(pendingName, pendingEmail);
-    completeUserLogin(pendingName, pendingEmail);
-  }
-
-  function completeUserLogin(name, email) {
+  function completeUserLogin(name) {
     wsUserName = name;
     localStorage.setItem('ws_userName', name);
-    localStorage.setItem('ws_userContact', email);
     gate.style.display = 'none';
+    // Report login to server with device fingerprint for tracking
+    try {
+      fetch(PROXY_BASE + '/proxy/admin/register-device', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userName: name, deviceId: wsDeviceId })
+      }).catch(() => {});
+    } catch(_) {}
     // Hide admin-only elements
     const pricingBtn = document.getElementById('aiPricingBtn');
     if (pricingBtn) pricingBtn.style.display = 'none';
@@ -2364,35 +2312,20 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
     setTimeout(activateGenieMode, 300);
   }
 
-  // ---- New user registration ----
+  // ---- New user registration (name only) ----
   function submitNewUser() {
     const name = document.getElementById('authUserName').value.trim();
+    const errorEl = document.getElementById('authNameError');
+    errorEl.style.display = 'none';
     if (!name) { document.getElementById('authUserName').focus(); return; }
-    const email = document.getElementById('authUserContact').value.trim();
-    document.getElementById('authContactError').style.display = 'none';
-    document.getElementById('authContactDupError').style.display = 'none';
-    if (!email || !validateEmail(email)) {
-      document.getElementById('authContactError').style.display = 'block';
-      document.getElementById('authUserContact').focus();
-      return;
-    }
-    const dupCheck = isContactDuplicate(name, email);
-    if (dupCheck === 'email_taken') {
-      document.getElementById('authContactDupError').textContent = 'This email is already registered to another user';
-      document.getElementById('authContactDupError').style.display = 'block';
-      document.getElementById('authUserContact').focus();
-      return;
-    }
-    if (dupCheck === 'name_taken') {
-      document.getElementById('authContactDupError').textContent = 'This name is already registered with a different email';
-      document.getElementById('authContactDupError').style.display = 'block';
+    if (name.length < 2) {
+      errorEl.textContent = 'Name must be at least 2 characters';
+      errorEl.style.display = 'block';
       document.getElementById('authUserName').focus();
       return;
     }
-    pendingName = name;
-    pendingEmail = email;
-    isReturningUser = false;
-    startVerification();
+    registerUser(name);
+    completeUserLogin(name);
   }
 
   // ---- Build initial user list ----
@@ -2407,48 +2340,23 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
   }
 
   document.getElementById('authNewUserBtn').onclick = () => {
-    document.getElementById('authTitle').textContent = 'Create Account';
-    document.getElementById('authSubtitle').textContent = 'Enter your name and email to get started';
+    document.getElementById('authTitle').textContent = 'Enter Workspace';
+    document.getElementById('authSubtitle').textContent = 'Enter your name to get started';
     document.getElementById('authUserName').value = '';
-    document.getElementById('authUserContact').value = '';
-    document.getElementById('authContactError').style.display = 'none';
-    document.getElementById('authContactDupError').style.display = 'none';
+    const errorEl = document.getElementById('authNameError');
+    if (errorEl) errorEl.style.display = 'none';
     showScreen('authUserNameForm');
     document.getElementById('authUserName').focus();
   };
 
   document.getElementById('authBackToList').onclick = showMainScreen;
-  document.getElementById('authBackFromVerify').onclick = () => {
-    const notif = document.getElementById('authCodeNotif');
-    if (notif) notif.remove();
-    if (isReturningUser) showMainScreen();
-    else {
-      document.getElementById('authTitle').textContent = 'Create Account';
-      document.getElementById('authSubtitle').textContent = 'Enter your name and email to get started';
-      showScreen('authUserNameForm');
-    }
-  };
   document.getElementById('authBackFromAdmin').onclick = showMainScreen;
 
   // ---- Bind events ----
   document.getElementById('authUserEnter').onclick = submitNewUser;
   document.getElementById('authUserName').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('authUserContact').focus();
-  });
-  document.getElementById('authUserContact').addEventListener('keydown', e => {
     if (e.key === 'Enter') submitNewUser();
   });
-  document.getElementById('authVerifyBtn').onclick = verifyCode;
-  document.getElementById('authVerifyCode').addEventListener('keydown', e => {
-    if (e.key === 'Enter') verifyCode();
-  });
-  document.getElementById('authResendBtn').onclick = () => {
-    pendingCode = generateCode();
-    showVerificationNotification(pendingCode, pendingEmail);
-    document.getElementById('authVerifyError').style.display = 'none';
-    document.getElementById('authVerifyCode').value = '';
-    document.getElementById('authVerifyCode').focus();
-  };
 
   // Admin mode
   document.getElementById('authAdminBtn').onclick = () => {
@@ -2549,11 +2457,11 @@ function trackUserUsage(tokensIn, tokensOut, model) {
   data.log.push({ ts: data.lastActive, model, tokIn: tokensIn, tokOut: tokensOut, cost: reqCost });
   if (data.log.length > 500) data.log = data.log.slice(-500); // Cap at 500 entries
   localStorage.setItem(key, JSON.stringify(data));
-  // Also report to server for cross-browser admin visibility
+  // Also report to server for cross-browser admin visibility (includes device ID for tracking)
   try {
     fetch(PROXY_BASE + '/proxy/admin/log-usage', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userName: name, tokensUsed: tokensIn + tokensOut })
+      body: JSON.stringify({ userName: name, tokensUsed: tokensIn + tokensOut, deviceId: wsDeviceId })
     }).catch(() => {});
   } catch(_) {}
 }
@@ -2599,7 +2507,7 @@ const PROXY_BASE = _proxyParam
     ? 'http://localhost:3001'
     : window.location.origin;
 // Per-profile scoped localStorage — user data is isolated from admin
-const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','adminSession','userName','userContact','aiApiKey','accessRequests','blockedUsers','driveClientId']);
+const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','registeredUsers','adminSession','userName','deviceId','aiApiKey','accessRequests','blockedUsers','driveClientId']);
 function _lsPrefix(k) {
   if (LS_GLOBAL_KEYS.has(k) || k.startsWith('usage_') || k.startsWith('geniePrompts_')) return 'ws_';
   if (wsIsAdmin) return 'ws_admin_';
@@ -9152,6 +9060,8 @@ function getWorkspaceContext() {
 // ── System prompt ──
 const AI_SYSTEM_PROMPT = `You are a native workspace analyst and creative co-pilot embedded directly inside this interactive workspace app. You are NOT a sidebar chatbot. You live inside the workspace and interact with it the way a power user would — reading state, writing data, building views, running analysis, and generating memes when the moment calls for it.
 
+USER CONTEXT: The current user's name is "${wsUserName || 'there'}". Address them by name naturally in your responses — greet them by name, reference them personally. Make the interaction feel personalized and direct.
+
 You have tools that read and write to every pane: the spreadsheet, notepad, graph calculator, draw/whiteboard, stock watchlist, news feed, and concept map. You can draw shapes, charts, annotations, and summary cards on the whiteboard. You can connect, remove, clear, and layout concept map nodes. You can write to the Agent Memory tab to persist important context across sessions. Use $A$1 notation for absolute cell references in formulas.
 
 BEHAVIORAL RULES:
@@ -9968,7 +9878,7 @@ function activateGenieMode() {
   }
   updateGeniePromptsBadge();
   // Show greeting
-  addAiMsg('system', 'I am the Genie of the Workspace. You have ' + geniePromptsLeft + ' wishes (prompts) remaining. Choose wisely...');
+  addAiMsg('system', 'Welcome, ' + (wsUserName || 'traveler') + '. I am the Genie of the Workspace. You have ' + geniePromptsLeft + ' wishes (prompts) remaining. Choose wisely...');
 }
 
 function updateGeniePromptsBadge() {
@@ -10027,7 +9937,7 @@ function storeAccessRequest() {
   try {
     fetch(PROXY_BASE + '/proxy/admin/request-access', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, contact: localStorage.getItem('ws_userContact') || '', message: 'Requesting more prompts' })
+      body: JSON.stringify({ name, contact: '', deviceId: wsDeviceId, message: 'Requesting more prompts' })
     }).catch(() => {});
   } catch(_) {}
 }
@@ -10172,15 +10082,8 @@ async function renderAccessRequestsPanel() {
       const prompts = parseInt(localStorage.getItem('ws_geniePrompts_' + name) || '0');
       const blockInfo = blocked[name];
       const status = blockInfo ? (blockInfo.status === 'blocked' ? '<span style="color:var(--danger);font-weight:600;">Blocked</span>' : '<span style="color:#FF9800;font-weight:600;">Paused</span>') : (prompts > 0 ? '<span style="color:var(--success);">Active</span>' : '<span style="color:var(--text-dim);">Sleeping</span>');
-      const contact = '';
-      // Find contact info
-      const contacts = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
-      let userContact = '';
-      Object.entries(contacts).forEach(([c, n]) => { if (n === name) userContact = c; });
-
       html += '<tr style="border-bottom:1px solid var(--border);">' +
-        '<td style="padding:4px;"><span style="font-weight:600;">' + name + '</span>' +
-        (userContact ? '<br><span style="color:var(--text-dim);font-size:.45rem;">' + userContact + '</span>' : '') + '</td>' +
+        '<td style="padding:4px;"><span style="font-weight:600;">' + name + '</span></td>' +
         '<td style="padding:4px;text-align:center;">' + prompts + '</td>' +
         '<td style="padding:4px;text-align:center;">' + status + '</td>' +
         '<td style="padding:4px;text-align:right;">' +
