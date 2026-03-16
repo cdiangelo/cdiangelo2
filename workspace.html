@@ -1869,6 +1869,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <option value="5Y">5Y</option>
           </select>
           <button id="stockRefresh">Refresh</button>
+          <span id="stockFreshness" style="display:none;align-items:center;gap:3px;font-size:.55rem;color:var(--text-dim);margin-left:4px;" title="Data freshness"><span class="sf-dot" style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;"></span><span class="sf-label">—</span></span>
           <button id="rhLoginBtn" title="Login to Robinhood" style="font-size:.62rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;">RH: Login</button>
         </div>
         <!-- Comparison chart (big overlay) -->
@@ -5550,7 +5551,45 @@ function genStockData(ticker, range) {
 }
 
 // ── Real stock data — Robinhood primary, Yahoo Finance fallback ──
-const stockDataCache = {}; // { 'AAPL_1M': { data: [...], ts: Date.now() } }
+const stockDataCache = {}; // { 'AAPL_1M': { data: [...], ts: Date.now(), source: '...' } }
+const STOCK_LIVE_THRESHOLD = 15 * 60 * 1000; // 15 minutes
+
+function stockIsLive(cacheEntry) {
+  if (!cacheEntry || !cacheEntry.ts) return false;
+  return (Date.now() - cacheEntry.ts < STOCK_LIVE_THRESHOLD) &&
+    (cacheEntry.source === 'robinhood' || cacheEntry.source === 'yahoo');
+}
+
+function logStockProvenance(ticker, source, ts, isLive) {
+  const age = ts ? Math.round((Date.now() - ts) / 1000) : '?';
+  console.log('[STOCKS] ' + ticker + ': source=' + source + ', age=' + age + 's, live=' + isLive);
+}
+
+function updateStockFreshness() {
+  const el = document.getElementById('stockFreshness');
+  if (!el) return;
+  if (!stockTickers.length) { el.style.display = 'none'; return; }
+  el.style.display = 'inline-flex';
+  let allLive = true, anyLive = false, oldestTs = Date.now();
+  stockTickers.forEach(t => {
+    const range = document.getElementById('stockRange')?.value || '1M';
+    const entry = stockDataCache[t + '_' + range];
+    if (entry && stockIsLive(entry)) { anyLive = true; if (entry.ts < oldestTs) oldestTs = entry.ts; }
+    else allLive = false;
+  });
+  const dot = el.querySelector('.sf-dot');
+  const label = el.querySelector('.sf-label');
+  if (allLive && anyLive) {
+    dot.style.background = '#10b981'; label.textContent = 'Live';
+    el.title = 'All data fetched within 15 min';
+  } else if (anyLive) {
+    dot.style.background = '#f59e0b'; label.textContent = 'Partial';
+    el.title = 'Some cached — oldest: ' + new Date(oldestTs).toLocaleTimeString();
+  } else {
+    dot.style.background = '#ef4444'; label.textContent = 'No live data';
+    el.title = 'Live fetch failed — showing metadata only';
+  }
+}
 
 async function fetchRealStockData(ticker, range) {
   const cacheKey = ticker + '_' + range;
@@ -5864,7 +5903,7 @@ const COMPARE_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec48
 async function renderStockDash() {
   const dash = $('#stockDash');
   if (!stockTickers.length) {
-    dash.innerHTML = '<div style="width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px;">Add a ticker symbol above to start tracking stocks.<br>Live data via Yahoo Finance (falls back to simulated if unavailable).</div>';
+    dash.innerHTML = '<div style="width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px;">Add a ticker symbol above to start tracking stocks.<br>Live data via Robinhood &amp; Yahoo Finance.</div>';
     renderCompareChart();
     return;
   }
@@ -5874,8 +5913,8 @@ async function renderStockDash() {
   const isAllView = !document.getElementById('q-map').classList.contains('expanded');
   dash.innerHTML = '';
   stockTickers.forEach(async ticker => {
-    // Try real data first, fall back to simulated
-    let data = genStockData(ticker, range);
+    // Fetch real data — no simulated fallback
+    let data = null;
     let isReal = false;
     const realData = await fetchRealStockData(ticker, range);
     if (realData && realData.length >= 2) {
@@ -5885,24 +5924,40 @@ async function renderStockDash() {
     } else {
       stockRealDataStatus[ticker] = false;
     }
-    const current = data[data.length - 1];
-    const prev = data[0];
-    const change = ((current - prev) / prev * 100);
-    const isUp = change >= 0;
-    const inCompare = compareTickers.includes(ticker);
+    const cacheEntry = stockDataCache[ticker + '_' + range];
+    const isLive = cacheEntry ? stockIsLive(cacheEntry) : false;
+    logStockProvenance(ticker, cacheEntry?.source || 'unavailable', cacheEntry?.ts, isLive);
 
+    const inCompare = compareTickers.includes(ticker);
     const card = document.createElement('div');
     card.className = 'stat-card';
     card.style.minWidth = '180px';
     card.style.flex = '1';
-    card.innerHTML =
-      '<div class="sc-header"><div class="sc-label">' + ticker + '</div>' +
-      '<span class="sc-compare-btn' + (inCompare ? ' active' : '') + '" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart">&#x27A4;</span>' +
-      '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">&#128240;</span></div>' +
-      '<div class="sc-value">$' + current.toFixed(2) + '</div>' +
-      '<div class="sc-change ' + (isUp ? 'sc-up' : 'sc-down') + '">' + (isUp ? '&#9650; +' : '&#9660; ') + change.toFixed(2) + '% (' + range + ')' +
-      (isReal ? ' <span style="font-size:.45rem;color:var(--accent2);">LIVE</span>' : ' <span style="font-size:.45rem;color:var(--text-dim);">SIM</span>') + '</div>' +
-      '<canvas></canvas>';
+
+    if (!data) {
+      // No real data — show placeholder, never fabricated numbers
+      card.innerHTML =
+        '<div class="sc-header"><div class="sc-label">' + ticker + '</div>' +
+        '<span class="sc-compare-btn' + (inCompare ? ' active' : '') + '" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart">&#x27A4;</span>' +
+        '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">&#128240;</span></div>' +
+        '<div class="sc-value" style="color:var(--text-dim);" title="Live data unavailable. Refresh to retry.">&mdash;</div>' +
+        '<div class="sc-change" style="color:var(--text-dim);font-size:.5rem;">Live data unavailable</div>';
+      dash.appendChild(card);
+    } else {
+      const current = data[data.length - 1];
+      const prev = data[0];
+      const change = ((current - prev) / prev * 100);
+      const isUp = change >= 0;
+      const sourceTag = isLive ? ' <span style="font-size:.45rem;color:var(--accent2);">LIVE</span>'
+        : ' <span style="font-size:.45rem;color:var(--warning);">CACHED</span>';
+      card.innerHTML =
+        '<div class="sc-header"><div class="sc-label">' + ticker + '</div>' +
+        '<span class="sc-compare-btn' + (inCompare ? ' active' : '') + '" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart">&#x27A4;</span>' +
+        '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">&#128240;</span></div>' +
+        '<div class="sc-value">$' + current.toFixed(2) + '</div>' +
+        '<div class="sc-change ' + (isUp ? 'sc-up' : 'sc-down') + '">' + (isUp ? '&#9650; +' : '&#9660; ') + change.toFixed(2) + '% (' + range + ')' + sourceTag + '</div>' +
+        '<canvas></canvas>';
+    }
     dash.appendChild(card);
 
     // Compare button handler
@@ -5920,6 +5975,9 @@ async function renderStockDash() {
     card.querySelector('.sc-news-btn').onclick = () => {
       pushTickerToNews(ticker);
     };
+
+    // Skip sparkline + metrics if no data available
+    if (!data) { updateStockFreshness(); return; }
 
     // Robinhood enriched metrics (only when logged in)
     if (rhLoggedIn) {
@@ -6046,8 +6104,10 @@ async function renderStockDash() {
       drawSparkline(Math.max(0, Math.min(idx, data.length - 1)));
     });
     cvs.addEventListener('mouseleave', () => drawSparkline(-1));
+    updateStockFreshness();
   });
   // Render comparison chart after all cards
+  updateStockFreshness();
   await renderCompareChart();
 }
 
@@ -7543,8 +7603,6 @@ function getCompanyMetrics(ticker) { return getCompanyMetricsSimulated(ticker); 
 
 // Async version — Robinhood primary, Yahoo Finance fallback, simulated last resort
 async function getCompanyMetricsReal(ticker) {
-  const sim = getCompanyMetricsSimulated(ticker);
-
   // Tier 1: Try Robinhood quote + fundamentals (no auth needed)
   try {
     const [quote, fund] = await Promise.all([
@@ -7554,12 +7612,13 @@ async function getCompanyMetricsReal(ticker) {
     if (quote && quote.last_trade_price) {
       const price = parseFloat(quote.last_trade_price);
       const pe = fund?.pe_ratio ? parseFloat(fund.pe_ratio) : null;
-      const mktCap = fund?.market_cap ? parseFloat(fund.market_cap) : sim.mktCap;
+      const mktCap = fund?.market_cap ? parseFloat(fund.market_cap) : null;
       const sharesOut = fund?.shares_outstanding ? parseFloat(fund.shares_outstanding) : null;
+      const companyEntry = COMPANY_DB.find(c => c.ticker === ticker);
       return {
-        price: price || sim.price,
-        mktCap: mktCap || sim.mktCap,
-        sizeGroup: sim.sizeGroup,
+        price: price || null,
+        mktCap: mktCap,
+        sizeGroup: companyEntry?.isETF ? 'ETF' : (mktCap ? (mktCap > 200e9 ? 'Mega Cap' : mktCap > 10e9 ? 'Large Cap' : mktCap > 2e9 ? 'Mid Cap' : 'Small Cap') : null),
         pe: pe,
         eps: fund?.eps ? parseFloat(fund.eps) : null,
         revenue: null, // not in RH fundamentals
@@ -7595,9 +7654,9 @@ async function getCompanyMetricsReal(ticker) {
     const ks = summary.defaultKeyStatistics || {};
     const fd = summary.financialData || {};
     return {
-      price: fd.currentPrice?.raw || sim.price,
-      mktCap: sd.marketCap?.raw || sim.mktCap,
-      sizeGroup: sim.sizeGroup,
+      price: fd.currentPrice?.raw || null,
+      mktCap: sd.marketCap?.raw || null,
+      sizeGroup: sd.marketCap?.raw ? (sd.marketCap.raw > 200e9 ? 'Mega Cap' : sd.marketCap.raw > 10e9 ? 'Large Cap' : sd.marketCap.raw > 2e9 ? 'Mid Cap' : 'Small Cap') : null,
       pe: sd.trailingPE?.raw || null,
       eps: ks.trailingEps?.raw || null,
       revenue: fd.totalRevenue?.raw || null,
@@ -7607,7 +7666,15 @@ async function getCompanyMetricsReal(ticker) {
       source: 'yahoo'
     };
   } catch (e) {
-    return { ...sim, pe: null, eps: null, revenue: null, sharesOutstanding: null, forwardPE: null, priceToBook: null, source: 'simulated' };
+    // No live data — return metadata only, never fabricated numbers
+    const companyEntry = COMPANY_DB.find(c => c.ticker === ticker);
+    return {
+      price: null, mktCap: null, sizeGroup: companyEntry?.isETF ? 'ETF' : null,
+      pe: null, eps: null, revenue: null, sharesOutstanding: null,
+      forwardPE: null, priceToBook: null,
+      source: 'unavailable',
+      message: 'Live financial data unavailable. Refresh to retry.'
+    };
   }
 }
 
@@ -9652,21 +9719,28 @@ async function executeAgentTool(name, input) {
       case 'get_stock_data': {
         const ticker = input.ticker.toUpperCase();
         const range = input.range || '1M';
-        // Try real data first
         let closes = null;
-        let isReal = false;
+        let dataSource = 'unavailable';
         try {
           const realData = await fetchRealStockData(ticker, range);
-          if (realData && realData.length >= 2) { closes = realData; isReal = true; }
+          if (realData && realData.length >= 2) { closes = realData; }
         } catch(e) {}
-        if (!closes) closes = genStockData(ticker, range);
+        if (!closes) {
+          return JSON.stringify({ ticker, range, error: true, message: 'Live data unavailable for ' + ticker + '. Refresh or try again later.', data_source: 'unavailable' });
+        }
+        const cacheEntry = stockDataCache[ticker + '_' + range];
+        dataSource = cacheEntry?.source || 'yahoo';
+        const isLive = cacheEntry ? stockIsLive(cacheEntry) : false;
+        logStockProvenance(ticker, dataSource, cacheEntry?.ts, isLive);
         const stats = {
           current: closes[closes.length - 1].toFixed(2),
           high: Math.max(...closes).toFixed(2),
           low: Math.min(...closes).toFixed(2),
           change_pct: (((closes[closes.length - 1] - closes[0]) / closes[0]) * 100).toFixed(2) + '%',
           data_points: closes.length,
-          data_source: isReal ? 'Yahoo Finance (live)' : 'Simulated'
+          data_source: dataSource,
+          is_live: isLive,
+          fetched_at: cacheEntry?.ts ? new Date(cacheEntry.ts).toISOString() : null
         };
         const recent = closes.slice(-20).map((v, i) => ({ price: +v.toFixed(2) }));
         return JSON.stringify({ ticker, range, stats, recent });
