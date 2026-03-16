@@ -5593,6 +5593,37 @@ function updateStockFreshness() {
   }
 }
 
+// ── Market hours awareness ──
+const US_HOLIDAYS_2026 = ['2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25','2026-07-03','2026-09-07','2026-11-26','2026-12-25'];
+function isMarketOpen() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const day = et.getDay(); // 0=Sun, 6=Sat
+  const h = et.getHours(), m = et.getMinutes(), totalMin = h * 60 + m;
+  const dateStr = et.getFullYear() + '-' + String(et.getMonth() + 1).padStart(2, '0') + '-' + String(et.getDate()).padStart(2, '0');
+  const isHoliday = US_HOLIDAYS_2026.includes(dateStr);
+  if (day === 0 || day === 6 || isHoliday) return { isOpen: false, session: 'closed' };
+  if (totalMin >= 570 && totalMin < 960) return { isOpen: true, session: 'regular' }; // 9:30am-4pm
+  if (totalMin >= 240 && totalMin < 570) return { isOpen: false, session: 'pre_market' }; // 4am-9:30am
+  if (totalMin >= 960 && totalMin < 1200) return { isOpen: false, session: 'after_hours' }; // 4pm-8pm
+  return { isOpen: false, session: 'closed' };
+}
+
+function hasRecentData(ticker, maxAgeMinutes) {
+  const range = document.getElementById('stockRange')?.value || '1M';
+  const entry = stockDataCache[ticker + '_' + range];
+  if (!entry || !entry.ts) return false;
+  return (Date.now() - entry.ts) < (maxAgeMinutes || 15) * 60 * 1000;
+}
+
+function getMarketStatusContext() {
+  const { isOpen, session } = isMarketOpen();
+  const sessionLabels = { regular: 'open (regular session)', pre_market: 'pre-market', after_hours: 'after-hours', closed: 'closed' };
+  const priceLabel = isOpen ? 'live' : (session === 'pre_market' || session === 'after_hours') ? 'delayed' : 'closing';
+  return 'Current market status: ' + (sessionLabels[session] || session) + '. Prices shown are ' + priceLabel + ' as of ' + new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' }) + ' ET.' +
+    (isOpen ? '' : ' Markets are currently closed. Analysis is based on most recent closing data.');
+}
+
 async function fetchRealStockData(ticker, range) {
   const cacheKey = ticker + '_' + range;
   const cached = stockDataCache[cacheKey];
@@ -9653,8 +9684,21 @@ function getWorkspaceContext() {
   } else {
     parts.push('Whiteboard (' + wbC.width + 'x' + wbC.height + '): empty');
   }
-  // Robinhood status
+  // Market status + Robinhood
+  parts.push(getMarketStatusContext());
   parts.push('Robinhood: ' + (rhLoggedIn ? 'Connected (portfolio/orders/historicals available)' : 'Not connected (public quotes/fundamentals only)'));
+  // Cached stock data summary for agent reuse
+  const cachedStockSummary = [];
+  stockTickers.forEach(t => {
+    const range = document.getElementById('stockRange')?.value || '1M';
+    const entry = stockDataCache[t + '_' + range];
+    if (entry && entry.data && entry.data.length >= 2) {
+      const age = Math.round((Date.now() - entry.ts) / 1000);
+      const price = entry.data[entry.data.length - 1];
+      cachedStockSummary.push(t + ': $' + price.toFixed(2) + ' (source=' + entry.source + ', age=' + age + 's)');
+    }
+  });
+  if (cachedStockSummary.length) parts.push('Cached stock data (use instead of re-fetching if under 15min): ' + cachedStockSummary.join(', '));
   // ADDED — Phase 4: Include agent memory in context
   const agentMem = window.getAgentMemory ? window.getAgentMemory().slice(0, 800) : '';
   if (agentMem) parts.push('Agent Memory: ' + agentMem);
@@ -9674,6 +9718,8 @@ BEHAVIORAL RULES:
 3. SHOW YOUR REASONING — When building a thesis or running analysis, narrate your steps briefly in chat so the user understands what you're doing, then deliver the result into the workspace.
 4. CITE YOUR INPUTS — When forming a thesis or sentiment summary, reference the data sources, dates, and price events you drew from.
 5. BE CONCISE in chat. Let the workspace do the talking.
+6. DATA REUSE — Always check if price/fundamental data has already been provided in your context before requesting a fetch. If data is present and under 15 minutes old, use it directly. Cite data age in your response: "As of [time], {ticker} was trading at..."
+7. MARKET HOURS — When markets are closed, lead analysis with closing price context. If a ticker has no data in scope and markets are closed, say: "I don't have current data for {ticker}. Markets are closed. I can analyze based on the most recent available closing data — would you like me to fetch that?"
 
 SUPPORTED FORMULAS for the sheet: =SUM, =AVG, =MIN, =MAX, =COUNT, =MEDIAN, =PRODUCT, =SUMIF, =COUNTIF, =VLOOKUP, =IF, =LEN, =UPPER, =LOWER, =TRIM, =LEFT, =RIGHT, =MID, =SUBSTITUTE, =CONCAT, =TEXT, =ROUND, =ABS, =SQRT, =POWER, =LOG, =MOD, =PI, =SPARK, & concatenation, ^ exponentiation, cell arithmetic (=A1+B1*2, =A1^2, =A1^(1/3) for cube root).
 
