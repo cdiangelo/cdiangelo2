@@ -10030,8 +10030,21 @@ function renderSavedActionsPanel() {
   panel = document.createElement('div');
   panel.id = 'aiSavedActionsPanel';
   panel.style.cssText = 'position:absolute;bottom:0;left:0;right:0;top:0;z-index:25;background:var(--bg);overflow-y:auto;padding:8px;font-size:.6rem;';
-  if (!aiSavedActions.length) {
-    panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;font-size:.7rem;">Saved Actions</span><button onclick="this.closest(\'#aiSavedActionsPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;">&times;</button></div><div style="color:var(--text-dim);text-align:center;padding:20px;">No saved actions yet. Claude\'s tool outputs will appear here.</div>';
+  // Show PDF exports in saved actions
+  let pdfSection = '';
+  if (pdfExports.length) {
+    pdfSection = '<div style="margin-bottom:8px;"><div style="font-weight:600;font-size:.62rem;margin-bottom:4px;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'\':\'none\'">\uD83D\uDCC4 Research Exports (' + pdfExports.length + ') \u25B8</div><div style="display:none;">';
+    pdfExports.slice().reverse().forEach(p => {
+      const time = new Date(p.generatedAt).toLocaleString();
+      pdfSection += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);">' +
+        '<div><span style="font-weight:600;">' + (p.title || 'Research').substring(0, 40) + '</span><br><span style="color:var(--text-dim);font-size:.48rem;">' + (p.persona || '') + ' \u00B7 ' + time + '</span></div>' +
+        (p.contentUrl ? '<a href="' + p.contentUrl + '" target="_blank" style="font-size:.5rem;padding:2px 6px;border:1px solid var(--accent);color:var(--accent);border-radius:3px;text-decoration:none;">Open</a>' : '') +
+        '</div>';
+    });
+    pdfSection += '</div></div>';
+  }
+  if (!aiSavedActions.length && !pdfExports.length) {
+    panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;font-size:.7rem;">Saved Actions</span><button onclick="this.closest(\'#aiSavedActionsPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;">&times;</button></div>' + pdfSection + '<div style="color:var(--text-dim);text-align:center;padding:20px;">No saved actions yet. Claude\'s tool outputs will appear here.</div>';
   } else {
     let rows = aiSavedActions.slice().reverse().map(a => {
       const time = new Date(a.timestamp).toLocaleString();
@@ -10043,9 +10056,92 @@ function renderSavedActionsPanel() {
         '<button onclick="aiSavedActions=aiSavedActions.filter(x=>x.id!==' + a.id + ');localStorage.setItem(\'ws_aiSavedActions\',JSON.stringify(aiSavedActions));renderSavedActionsPanel();renderSavedActionsPanel();" style="font-size:.5rem;padding:2px 6px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Remove</button>' +
         '</div></div>';
     }).join('');
-    panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;font-size:.7rem;">Saved Actions (' + aiSavedActions.length + ')</span><button onclick="this.closest(\'#aiSavedActionsPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;">&times;</button></div>' + rows;
+    panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-weight:700;font-size:.7rem;">Saved Actions (' + aiSavedActions.length + ')</span><button onclick="this.closest(\'#aiSavedActionsPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;">&times;</button></div>' + pdfSection + rows;
   }
   document.querySelector('#q-claude .p-body')?.appendChild(panel);
+}
+
+// ── PDF Export for deep research ──
+let pdfExports = LS('compplan_pdf_exports') || [];
+
+function generateResearchPDF(title, content, meta) {
+  const htmlContent = '<!DOCTYPE html><html><head><title>' + title.replace(/</g, '&lt;') + '</title>' +
+    '<style>body{font-family:Arial,sans-serif;margin:40px;color:#1a1a1a;line-height:1.6;}' +
+    'h1{font-size:20px;border-bottom:2px solid #333;padding-bottom:8px;}' +
+    'h2{font-size:16px;margin-top:24px;}' +
+    'table{width:100%;border-collapse:collapse;margin:16px 0;}' +
+    'th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:13px;}' +
+    'th{background:#f5f5f5;font-weight:bold;}' +
+    '.meta{color:#666;font-size:12px;margin-bottom:24px;}' +
+    '.thesis{background:#f9f9f9;border-left:4px solid #333;padding:12px 16px;margin:16px 0;}' +
+    '.data-quality{font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:8px;}</style></head>' +
+    '<body><h1>' + title.replace(/</g, '&lt;') + '</h1>' +
+    '<div class="meta">Generated ' + new Date().toLocaleString() + (meta?.model ? ' \u00B7 Model: ' + meta.model : '') + (meta?.dataAge ? ' \u00B7 Data as of ' + meta.dataAge : '') + '</div>' +
+    content + '</body></html>';
+
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  return { url, title, htmlContent, generatedAt: Date.now() };
+}
+
+function renderPdfAttachment(pdfResult, taskDescription, persona) {
+  const div = document.createElement('div');
+  div.className = 'ai-msg system';
+  div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--panel-inset);font-size:.6rem;margin-top:4px;';
+  const dateStr = new Date(pdfResult.generatedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  div.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">\uD83D\uDCC4 ' + pdfResult.title + ' \u2014 ' + dateStr + '</div>' +
+    '<div style="display:flex;gap:6px;margin-top:4px;">' +
+    '<a href="' + pdfResult.url + '" target="_blank" style="padding:3px 10px;border:1px solid var(--accent);border-radius:4px;color:var(--accent);text-decoration:none;font-size:.56rem;cursor:pointer;">Open</a>' +
+    '<a href="' + pdfResult.url + '" download="research_' + pdfResult.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) + '_' + new Date().toISOString().slice(0, 10) + '.html" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);text-decoration:none;font-size:.56rem;cursor:pointer;">Download</a>' +
+    '</div>';
+  $('#aiMsgs').appendChild(div);
+  $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+
+  // Save to saved actions
+  const entry = {
+    id: Date.now(), type: 'pdf_export', title: pdfResult.title,
+    taskDescription: (taskDescription || '').substring(0, 100),
+    persona: persona || 'General',
+    generatedAt: pdfResult.generatedAt,
+    contentUrl: pdfResult.url, taskId: null
+  };
+  pdfExports.push(entry);
+  if (pdfExports.length > 20) pdfExports = pdfExports.slice(-20);
+  LS('compplan_pdf_exports', pdfExports);
+}
+
+// Auto-generate PDF when deep research completes
+function maybeGeneratePDF(input, responseText, tierKey, model) {
+  if (tierKey !== 'TIER_3') return;
+  const tokenEstimate = responseText.length / 4; // rough estimate
+  if (tokenEstimate < 800) return;
+  // Build PDF content from response text
+  let htmlBody = '';
+  const lines = responseText.split('\n');
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) { htmlBody += '<br>'; return; }
+    if (trimmed.startsWith('## ')) { htmlBody += '<h2>' + trimmed.slice(3).replace(/</g, '&lt;') + '</h2>'; return; }
+    if (trimmed.startsWith('# ')) { htmlBody += '<h1>' + trimmed.slice(2).replace(/</g, '&lt;') + '</h1>'; return; }
+    if (trimmed.startsWith('**') && trimmed.endsWith('**')) { htmlBody += '<div class="thesis"><b>' + trimmed.slice(2, -2).replace(/</g, '&lt;') + '</b></div>'; return; }
+    if (trimmed.startsWith('|') && trimmed.includes('|')) {
+      // Table row
+      const cells = trimmed.split('|').filter(c => c.trim());
+      if (cells.every(c => c.trim().match(/^[-:]+$/))) return; // separator row
+      const tag = htmlBody.includes('<table>') ? 'td' : 'th';
+      if (tag === 'th') htmlBody += '<table>';
+      htmlBody += '<tr>' + cells.map(c => '<' + tag + '>' + c.trim().replace(/</g, '&lt;') + '</' + tag + '>').join('') + '</tr>';
+      return;
+    }
+    if (htmlBody.includes('<table>') && !trimmed.startsWith('|')) htmlBody += '</table>';
+    htmlBody += '<p>' + trimmed.replace(/</g, '&lt;') + '</p>';
+  });
+  if (htmlBody.includes('<table>') && !htmlBody.endsWith('</table>')) htmlBody += '</table>';
+
+  const persona = getActivePersona();
+  const title = persona.label + ' Research: ' + (input.length > 60 ? input.substring(0, 57) + '...' : input);
+  const pdf = generateResearchPDF(title, htmlBody, { model, dataAge: new Date().toLocaleTimeString() });
+  renderPdfAttachment(pdf, input, persona.label);
 }
 
 function autoSaveChatLog() {
@@ -11834,6 +11930,15 @@ async function sendAgentMessage() {
   renderTaskAttemptHeaders(taskId, $('#aiMsgs'));
   // Save this inquiry as a granular log entry
   saveInquiryLog(input, model, inquiryActions);
+  // Auto-generate PDF for deep research completions
+  try {
+    const lastAttempt = aiTaskAttempts[taskId]?.attempts?.slice(-1)[0];
+    if (lastAttempt && lastAttempt.status === 'completed') {
+      // Collect all assistant text from this interaction
+      const respText = (lastAttempt.output || '') || aiMessages.filter(m => m.role === 'assistant').slice(-1).map(m => typeof m.content === 'string' ? m.content : (m.content || []).filter(b => b.type === 'text').map(b => b.text).join('')).join('');
+      maybeGeneratePDF(input, respText, currentTierKey, model);
+    }
+  } catch(_) {}
 }
 
 // Welcome message
