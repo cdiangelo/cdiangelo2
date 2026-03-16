@@ -2057,11 +2057,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <select id="newsMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
           <option value="verified">Verified</option>
         </select>
-        <select id="newsOpenMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);" title="How to open articles">
-          <option value="reader">Reader</option>
-          <option value="newtab">New Tab</option>
-          <option value="cache">Cached (archive.is)</option>
-        </select>
+        <div id="linkModeToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;font-size:.6rem;" title="Link open mode">
+          <button data-mode="archive" style="padding:2px 8px;border:none;cursor:pointer;font-size:.6rem;">Archive</button>
+          <button data-mode="direct" style="padding:2px 8px;border:none;cursor:pointer;font-size:.6rem;">Direct</button>
+        </div>
         <input type="text" id="newsSearch" placeholder="Search news by keyword or ticker..." style="flex:1;min-width:120px;" />
         <button id="newsSearchBtn">Search</button>
         <button id="newsClearBtn" title="Clear search" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">&#x2715;</button>
@@ -2082,11 +2081,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div style="display:flex;align-items:center;padding:6px 10px;gap:6px;border-bottom:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
           <button id="newsViewerBack" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);cursor:pointer;font-size:.72rem;">&larr; Back</button>
           <span id="newsViewerTitle" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;color:var(--text);font-weight:600;"></span>
-          <select id="newsViewerMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
-            <option value="reader">Reader</option>
-            <option value="direct">Direct</option>
-            <option value="archive">Cache (archive.is)</option>
-          </select>
+          <div id="viewerModeToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;font-size:.6rem;">
+            <button data-mode="archive" style="padding:2px 8px;border:none;cursor:pointer;font-size:.6rem;">Archive</button>
+            <button data-mode="direct" style="padding:2px 8px;border:none;cursor:pointer;font-size:.6rem;">Direct</button>
+          </div>
           <a id="newsViewerExternal" href="#" target="_blank" style="font-size:.65rem;color:var(--accent2);text-decoration:none;padding:2px 6px;border:1px solid var(--border);border-radius:3px;" title="Open in new tab">&#8599; New Tab</a>
         </div>
         <iframe id="newsViewerFrame" style="flex:1;border:none;width:100%;background:#fff;" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
@@ -8634,28 +8632,54 @@ Format this as a polished research report. Cite specific sources by name. Use re
 
 $('#newsDeepResearch').onclick = runDeepResearch;
 
+// ── Link mode: Archive (default) / Direct — binary toggle, persisted ──
+let currentLinkMode = localStorage.getItem('linkMode') || 'archive';
+
+function initLinkModeToggle(containerId) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+  wrap.querySelectorAll('button').forEach(btn => {
+    btn.onclick = () => {
+      currentLinkMode = btn.dataset.mode;
+      localStorage.setItem('linkMode', currentLinkMode);
+      updateLinkModeToggles();
+    };
+  });
+}
+function updateLinkModeToggles() {
+  ['linkModeToggle', 'viewerModeToggle'].forEach(id => {
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+    wrap.querySelectorAll('button').forEach(btn => {
+      const active = btn.dataset.mode === currentLinkMode;
+      btn.style.background = active ? 'var(--accent)' : 'var(--panel-inset)';
+      btn.style.color = active ? '#fff' : 'var(--text-dim)';
+    });
+  });
+}
+initLinkModeToggle('linkModeToggle');
+initLinkModeToggle('viewerModeToggle');
+updateLinkModeToggles();
+
 // Inline article viewer
-let newsViewerState = { directUrl: '', archiveUrl: '', readerUrl: '' };
+let newsViewerState = { directUrl: '', archiveUrl: '' };
 
 function openNewsArticle(title, url) {
-  const openMode = $('#newsOpenMode')?.value || 'reader';
-  if (openMode === 'newtab') {
-    window.open(url, '_blank');
+  if (currentLinkMode === 'archive') {
+    // Open archive.org save page in new tab + copy to clipboard
+    const archiveUrl = 'https://web.archive.org/save/' + url;
+    window.open(archiveUrl, '_blank');
+    navigator.clipboard.writeText(archiveUrl).then(
+      () => toast('Archive tab opened \u2014 URL copied to clipboard'),
+      () => toast('Archive tab opened \u2014 clipboard unavailable, paste manually')
+    );
     return;
   }
-  if (openMode === 'cache') {
-    // archive.is in a new tab (not iframe) so CAPTCHA can actually complete
-    window.open('https://archive.is/?url=' + encodeURIComponent(url), '_blank');
-    return;
-  }
-  // Reader mode — fetch via server-side proxy (no CAPTCHA needed)
-  const readerUrl = PROXY_BASE + '/proxy/article?url=' + encodeURIComponent(url);
-  const cacheUrl = 'https://archive.is/?url=' + encodeURIComponent(url);
-  newsViewerState = { directUrl: url, cacheUrl, readerUrl };
+  // Direct mode — open in inline viewer
+  newsViewerState = { directUrl: url, archiveUrl: 'https://web.archive.org/save/' + url };
   $('#newsViewerTitle').textContent = title;
   $('#newsViewerExternal').href = url;
-  $('#newsViewerMode').value = 'reader';
-  $('#newsViewerFrame').src = readerUrl;
+  $('#newsViewerFrame').src = url;
   $('#newsViewer').style.display = 'flex';
 }
 
@@ -8667,19 +8691,6 @@ function openNewsViewer(title, directUrl, archiveUrl) {
 $('#newsViewerBack').onclick = () => {
   $('#newsViewer').style.display = 'none';
   $('#newsViewerFrame').src = 'about:blank';
-};
-
-$('#newsViewerMode').onchange = function() {
-  if (!newsViewerState.directUrl) return;
-  if (this.value === 'archive') {
-    // Open archive.is in new tab — CAPTCHA doesn't work in iframes
-    window.open(newsViewerState.cacheUrl, '_blank');
-    this.value = 'reader'; // reset dropdown
-    return;
-  }
-  const src = this.value === 'reader' ? newsViewerState.readerUrl : newsViewerState.directUrl;
-  $('#newsViewerFrame').src = src;
-  $('#newsViewerExternal').href = newsViewerState.directUrl;
 };
 
 function renderNewsChips() {
