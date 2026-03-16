@@ -1434,14 +1434,16 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
         <div id="wsList" style="max-height:200px;overflow-y:auto;"></div>
         <input type="file" id="wsImportFile" accept=".json" style="display:none;" />
-        <div id="driveSection" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-            <span style="font-size:.72rem;font-weight:600;color:var(--accent2);">&#9729; Cloud Sync</span>
+        <div id="googleSection" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <svg width="14" height="14" viewBox="0 0 48 48" style="flex-shrink:0;"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.01 24.01 0 0 0 0 21.56l7.98-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            <span style="font-size:.72rem;font-weight:600;color:var(--accent2);">Google Account</span>
             <div style="flex:1;"></div>
-            <button class="btn-sm" id="driveSignIn" style="background:rgba(66,133,244,.8);color:#fff;font-size:.65rem;">Sign in with Google</button>
-            <button class="btn-sm" id="driveSignOut" style="display:none;background:var(--panel-inset);color:var(--text);border:1px solid var(--border);font-size:.65rem;">Sign out</button>
+            <button class="btn-sm" id="googleSignIn" style="background:rgba(66,133,244,.8);color:#fff;font-size:.65rem;">Sign in with Gmail</button>
+            <button class="btn-sm" id="googleSignOut" style="display:none;background:var(--panel-inset);color:var(--text);border:1px solid var(--border);font-size:.65rem;">Sign out</button>
           </div>
-          <div id="driveUser" style="display:none;font-size:.65rem;color:var(--text-dim);margin-bottom:6px;"></div>
+          <div id="googleUser" style="display:none;font-size:.65rem;color:var(--text-dim);margin-bottom:4px;"></div>
+          <div id="googlePerks" style="display:none;font-size:.6rem;color:var(--text-dim);margin-bottom:6px;line-height:1.4;">YouTube Premium (ad-free) &bull; Google Drive sync</div>
           <div id="driveActions" style="display:none;">
             <div style="display:flex;gap:4px;margin-bottom:6px;">
               <button class="btn-sm" id="driveSave" style="background:rgba(66,133,244,.7);color:#fff;font-size:.65rem;flex:1;">&#8593; Save to Drive</button>
@@ -1449,7 +1451,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             </div>
             <div id="driveFileList" style="max-height:150px;overflow-y:auto;"></div>
           </div>
-          <div id="driveConfig" style="display:none;margin-top:6px;">
+          <div id="googleConfig" style="display:none;margin-top:6px;">
             <label style="font-size:.62rem;color:var(--text-dim);display:block;margin-bottom:2px;">Google Client ID (from console.cloud.google.com)</label>
             <div style="display:flex;gap:4px;">
               <input type="text" id="driveClientId" placeholder="your-client-id.apps.googleusercontent.com" style="flex:1;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:.65rem;" />
@@ -3093,96 +3095,21 @@ function renderEditor() {
   volSection.appendChild(muteBtn); volSection.appendChild(volLabel); volSection.appendChild(volSlider); volSection.appendChild(volVal);
   editorPanel.appendChild(volSection);
 
-  // YouTube Premium sign-in section
+  // YouTube Premium status section
   const ytSection = document.createElement('div');
-  ytSection.style.cssText = 'margin-top:8px;padding:8px;border-radius:4px;background:' + (dk ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)') + ';display:flex;flex-direction:column;gap:6px';
+  ytSection.style.cssText = 'margin-top:8px;padding:8px;border-radius:4px;background:' + (dk ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)') + ';display:flex;align-items:center;gap:6px';
 
-  const ytHeader = document.createElement('div');
-  ytHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
-  const ytLabel = document.createElement('span');
-  ytLabel.textContent = 'YouTube Premium';
-  ytLabel.style.cssText = 'font-size:.7rem;font-weight:600;color:' + (dk ? '#cdd6f4' : '#333');
-  const ytToggle = document.createElement('input');
-  ytToggle.type = 'checkbox';
-  ytToggle.checked = ytPremium;
-  ytToggle.style.cssText = 'cursor:pointer;accent-color:#ff0000';
-  ytToggle.title = 'Enable ad-free playback with YouTube Premium';
-  ytHeader.appendChild(ytLabel); ytHeader.appendChild(ytToggle);
-  ytSection.appendChild(ytHeader);
-
-  const ytDesc = document.createElement('div');
-  ytDesc.style.cssText = 'font-size:.6rem;color:' + (dk ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.35)') + ';line-height:1.3';
-  ytDesc.textContent = ytPremium ? (ytSignedIn ? 'Signed in — ad-free playback enabled.' : 'Sign in with Google to enable ad-free playback.') : 'Enable to use your YouTube Premium subscription for ad-free videos.';
-  ytSection.appendChild(ytDesc);
-
-  // Google sign-in button (shown when Premium is toggled on)
-  const ytSignInBtn = document.createElement('button');
-  ytSignInBtn.style.cssText = 'display:' + (ytPremium && !ytSignedIn ? 'flex' : 'none') + ';align-items:center;justify-content:center;gap:6px;padding:5px 8px;border:1px solid ' + (dk ? 'rgba(255,255,255,.15)' : 'rgba(0,0,0,.12)') + ';border-radius:4px;background:' + (dk ? 'rgba(255,255,255,.06)' : '#fff') + ';color:' + (dk ? '#cdd6f4' : '#333') + ';cursor:pointer;font-size:.65rem;font-family:inherit;width:100%';
-  ytSignInBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.01 24.01 0 0 0 0 21.56l7.98-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg> Sign in with Google';
-
-  // Google sign-out row (shown when signed in)
-  const ytSignedInRow = document.createElement('div');
-  ytSignedInRow.style.cssText = 'display:' + (ytPremium && ytSignedIn ? 'flex' : 'none') + ';align-items:center;gap:6px';
-  const ytUserSpan = document.createElement('span');
-  ytUserSpan.textContent = ytUserName || 'Signed in';
-  ytUserSpan.style.cssText = 'flex:1;font-size:.6rem;color:' + (dk ? 'rgba(255,255,255,.5)' : 'rgba(0,0,0,.4)') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-  const ytSignOutBtn = document.createElement('button');
-  ytSignOutBtn.textContent = 'Sign out';
-  ytSignOutBtn.style.cssText = 'padding:2px 6px;border:1px solid ' + (dk ? 'rgba(255,255,255,.15)' : 'rgba(0,0,0,.12)') + ';border-radius:3px;background:none;color:' + (dk ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.35)') + ';cursor:pointer;font-size:.6rem;font-family:inherit;flex-shrink:0';
-  ytSignedInRow.appendChild(ytUserSpan); ytSignedInRow.appendChild(ytSignOutBtn);
-  ytSection.appendChild(ytSignInBtn);
-  ytSection.appendChild(ytSignedInRow);
-
-  function updateYtUI() {
-    ytDesc.textContent = ytPremium ? (ytSignedIn ? 'Signed in — ad-free playback enabled.' : 'Sign in with Google to enable ad-free playback.') : 'Enable to use your YouTube Premium subscription for ad-free videos.';
-    ytSignInBtn.style.display = ytPremium && !ytSignedIn ? 'flex' : 'none';
-    ytSignedInRow.style.display = ytPremium && ytSignedIn ? 'flex' : 'none';
-    ytUserSpan.textContent = ytUserName || 'Signed in';
+  const ytIcon = document.createElement('span');
+  ytIcon.textContent = ytSignedIn ? '\u2713' : '\u25CB';
+  ytIcon.style.cssText = 'font-size:.7rem;color:' + (ytSignedIn ? '#34A853' : (dk ? 'rgba(255,255,255,.3)' : 'rgba(0,0,0,.25)')) + ';flex-shrink:0';
+  const ytInfo = document.createElement('span');
+  ytInfo.style.cssText = 'font-size:.65rem;color:' + (dk ? '#cdd6f4' : '#333') + ';flex:1';
+  if (ytSignedIn) {
+    ytInfo.textContent = 'YouTube Premium' + (ytUserName ? ' \u2022 ' + ytUserName : '') + ' — ad-free';
+  } else {
+    ytInfo.innerHTML = 'YouTube Premium \u2022 <span style="color:' + (dk ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.35)') + '">Sign in via Workspaces</span>';
   }
-
-  ytToggle.addEventListener('change', () => {
-    ytPremium = ytToggle.checked;
-    localStorage.setItem('ytPremium', ytPremium);
-    updateYtUI();
-    // Reload current video to apply domain change
-    if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
-  });
-
-  ytSignInBtn.addEventListener('click', () => {
-    const clientId = localStorage.getItem('ws_driveClientId') || '';
-    if (!clientId) { toast('Set a Google Client ID in Workspaces \u2192 Cloud Sync first'); return; }
-    if (typeof google === 'undefined' || !google.accounts) { toast('Google API not loaded yet'); return; }
-    const ytTokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/youtube.readonly',
-      callback: (resp) => {
-        if (resp.error) { toast('Sign-in failed: ' + resp.error); return; }
-        ytSignedIn = true;
-        // Fetch user info
-        fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-          headers: { 'Authorization': 'Bearer ' + resp.access_token }
-        }).then(r => r.json()).then(info => {
-          ytUserName = info.name || info.email || 'YouTube User';
-          localStorage.setItem('ytUserName', ytUserName);
-          updateYtUI();
-        }).catch(() => { ytUserName = 'YouTube User'; updateYtUI(); });
-        toast('YouTube sign-in successful — ad-free playback enabled');
-        updateYtUI();
-        if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
-      }
-    });
-    ytTokenClient.requestAccessToken();
-  });
-
-  ytSignOutBtn.addEventListener('click', () => {
-    ytSignedIn = false;
-    ytUserName = '';
-    localStorage.removeItem('ytUserName');
-    updateYtUI();
-    toast('YouTube signed out');
-    if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
-  });
-
+  ytSection.appendChild(ytIcon); ytSection.appendChild(ytInfo);
   editorPanel.appendChild(ytSection);
 
   // Reset button
@@ -7057,46 +6984,66 @@ $('#wsExport').onclick = () => {
 renderWSList();
 
 /* ═══════════════════════════════════════════
-   GOOGLE DRIVE CLOUD SYNC
+   GOOGLE ACCOUNT (Gmail sign-in for Drive, YouTube Premium, etc.)
    ═══════════════════════════════════════════ */
 (function() {
-  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+  const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/youtube.readonly';
   const APP_FOLDER = 'InteractiveWorkspace';
-  let driveToken = null;
-  let driveClientId = localStorage.getItem('ws_driveClientId') || '';
-  let driveReady = false;
+  let googleToken = null;
+  let googleClientId = localStorage.getItem('ws_driveClientId') || '';
+  let googleReady = false;
   let tokenClient = null;
+  let googleUserInfo = null;
 
-  // Show config if no client ID set
-  function updateDriveUI() {
-    const hasId = !!driveClientId;
-    $('#driveConfig').style.display = hasId ? 'none' : 'block';
-    $('#driveSignIn').style.display = hasId && !driveToken ? '' : 'none';
-    $('#driveSignOut').style.display = driveToken ? '' : 'none';
-    $('#driveActions').style.display = driveToken ? '' : 'none';
-    $('#driveUser').style.display = driveToken ? '' : 'none';
+  // Update all UI elements based on sign-in state
+  function updateGoogleUI() {
+    const hasId = !!googleClientId;
+    const el = (s) => { try { return $(s); } catch(e) { return null; } };
+    const cfg = el('#googleConfig'); if (cfg) cfg.style.display = hasId ? 'none' : 'block';
+    const signIn = el('#googleSignIn'); if (signIn) signIn.style.display = hasId && !googleToken ? '' : 'none';
+    const signOut = el('#googleSignOut'); if (signOut) signOut.style.display = googleToken ? '' : 'none';
+    const actions = el('#driveActions'); if (actions) actions.style.display = googleToken ? '' : 'none';
+    const user = el('#googleUser'); if (user) user.style.display = googleToken ? '' : 'none';
+    const perks = el('#googlePerks'); if (perks) perks.style.display = googleToken ? '' : 'none';
+    // Update YouTube Premium state globally
+    if (googleToken) {
+      ytSignedIn = true;
+      ytPremium = true;
+      localStorage.setItem('ytPremium', 'true');
+      if (googleUserInfo) {
+        ytUserName = googleUserInfo.name || googleUserInfo.email || '';
+        localStorage.setItem('ytUserName', ytUserName);
+      }
+    } else {
+      ytSignedIn = false;
+    }
   }
+
+  // Expose token globally for other features
+  window.getGoogleToken = () => googleToken;
+  window.getGoogleUser = () => googleUserInfo;
+  window.isGoogleSignedIn = () => !!googleToken;
 
   // Save client ID
   $('#driveConfigSave').onclick = () => {
     const v = $('#driveClientId').value.trim();
     if (!v) return;
-    driveClientId = v;
+    googleClientId = v;
     localStorage.setItem('ws_driveClientId', v);
-    updateDriveUI();
+    updateGoogleUI();
     initGapi();
     toast('Client ID saved');
   };
-  if (driveClientId) $('#driveClientId').value = driveClientId;
+  if (googleClientId) $('#driveClientId').value = googleClientId;
 
   // Initialize Google API client
   function initGapi() {
-    if (!driveClientId || driveReady) return;
+    if (!googleClientId || googleReady) return;
     if (typeof gapi === 'undefined') { setTimeout(initGapi, 500); return; }
     gapi.load('client', async () => {
       await gapi.client.init({});
       await gapi.client.load('drive', 'v3');
-      driveReady = true;
+      googleReady = true;
       initTokenClient();
     });
   }
@@ -7104,48 +7051,56 @@ renderWSList();
   function initTokenClient() {
     if (typeof google === 'undefined' || !google.accounts) { setTimeout(initTokenClient, 500); return; }
     tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: driveClientId,
-      scope: DRIVE_SCOPE,
+      client_id: googleClientId,
+      scope: GOOGLE_SCOPES,
       callback: (resp) => {
-        if (resp.error) { toast('Auth failed: ' + resp.error); return; }
-        driveToken = resp.access_token;
-        gapi.client.setToken({ access_token: driveToken });
-        fetchDriveUser();
-        updateDriveUI();
+        if (resp.error) { toast('Sign-in failed: ' + resp.error); return; }
+        googleToken = resp.access_token;
+        gapi.client.setToken({ access_token: googleToken });
+        fetchGoogleUser();
+        updateGoogleUI();
         listDriveFiles();
+        toast('Signed in with Google');
+        // Reload current video if playing to apply YouTube Premium
+        if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
       }
     });
   }
 
   // Sign in
-  $('#driveSignIn').onclick = () => {
-    if (!driveClientId) { toast('Set a Google Client ID first'); return; }
-    if (!driveReady) { initGapi(); toast('Loading Google API...'); return; }
+  $('#googleSignIn').onclick = () => {
+    if (!googleClientId) { toast('Set a Google Client ID first'); return; }
+    if (!googleReady) { initGapi(); toast('Loading Google API...'); return; }
     if (!tokenClient) { initTokenClient(); toast('Initializing...'); return; }
     tokenClient.requestAccessToken();
   };
 
   // Sign out
-  $('#driveSignOut').onclick = () => {
-    if (driveToken) {
-      google.accounts.oauth2.revoke(driveToken);
-      driveToken = null;
+  $('#googleSignOut').onclick = () => {
+    if (googleToken) {
+      google.accounts.oauth2.revoke(googleToken);
+      googleToken = null;
       gapi.client.setToken(null);
     }
-    $('#driveUser').textContent = '';
+    googleUserInfo = null;
+    $('#googleUser').textContent = '';
     $('#driveFileList').innerHTML = '';
-    updateDriveUI();
-    toast('Signed out');
+    updateGoogleUI();
+    toast('Signed out of Google');
+    if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
   };
 
-  async function fetchDriveUser() {
+  async function fetchGoogleUser() {
     try {
       const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { Authorization: 'Bearer ' + driveToken }
+        headers: { Authorization: 'Bearer ' + googleToken }
       });
       const u = await r.json();
-      $('#driveUser').textContent = 'Signed in as ' + (u.email || u.name || 'User');
-    } catch(e) { $('#driveUser').textContent = 'Signed in'; }
+      googleUserInfo = u;
+      $('#googleUser').textContent = (u.email || u.name || 'Signed in');
+      ytUserName = u.name || u.email || 'Google User';
+      localStorage.setItem('ytUserName', ytUserName);
+    } catch(e) { $('#googleUser').textContent = 'Signed in'; }
   }
 
   // Get or create app folder
@@ -7165,7 +7120,7 @@ renderWSList();
 
   // Save workspace to Drive
   $('#driveSave').onclick = async () => {
-    if (!driveToken) { toast('Sign in first'); return; }
+    if (!googleToken) { toast('Sign in with Google first'); return; }
     try {
       toast('Saving to Drive...');
       const folderId = await getAppFolder();
@@ -7190,7 +7145,7 @@ renderWSList();
         fileId = existing.result.files[0].id;
         await fetch('https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=media', {
           method: 'PATCH',
-          headers: { Authorization: 'Bearer ' + driveToken, 'Content-Type': 'application/json' },
+          headers: { Authorization: 'Bearer ' + googleToken, 'Content-Type': 'application/json' },
           body: json
         });
         await gapi.client.drive.files.update({ fileId, resource: { name } });
@@ -7207,7 +7162,7 @@ renderWSList();
         form.append('file', new Blob([json], { type: 'application/json' }));
         const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
           method: 'POST',
-          headers: { Authorization: 'Bearer ' + driveToken },
+          headers: { Authorization: 'Bearer ' + googleToken },
           body: form
         });
         const created = await r.json();
@@ -7223,7 +7178,7 @@ renderWSList();
 
   // Share link — create a reader-permission link
   $('#driveLink').onclick = async () => {
-    if (!driveToken) { toast('Sign in first'); return; }
+    if (!googleToken) { toast('Sign in with Google first'); return; }
     const ws = wsIndex.find(w => w.id === wsActiveId);
     if (!ws || !ws.driveFileId) { toast('Save to Drive first'); return; }
     try {
@@ -7243,7 +7198,7 @@ renderWSList();
 
   // List Drive files
   async function listDriveFiles() {
-    if (!driveToken) return;
+    if (!googleToken) return;
     try {
       const folderId = await getAppFolder();
       const resp = await gapi.client.drive.files.list({
@@ -7280,7 +7235,7 @@ renderWSList();
         try {
           toast('Loading from Drive...');
           const resp = await fetch('https://www.googleapis.com/drive/v3/files/' + f.id + '?alt=media', {
-            headers: { Authorization: 'Bearer ' + driveToken }
+            headers: { Authorization: 'Bearer ' + googleToken }
           });
           const state = await resp.json();
           // Create as new unique local workspace instance
@@ -7331,8 +7286,8 @@ renderWSList();
     // Try loading as public file (no auth needed for shared files)
     try {
       toast('Loading shared workspace...');
-      const resp = await fetch('https://www.googleapis.com/drive/v3/files/' + wsFileId + '?alt=media&key=' + (driveClientId ? driveClientId.split('.')[0] : ''), {
-        headers: driveToken ? { Authorization: 'Bearer ' + driveToken } : {}
+      const resp = await fetch('https://www.googleapis.com/drive/v3/files/' + wsFileId + '?alt=media&key=' + (googleClientId ? googleClientId.split('.')[0] : ''), {
+        headers: googleToken ? { Authorization: 'Bearer ' + googleToken } : {}
       });
       if (!resp.ok) {
         // Try with API key fallback
@@ -7373,8 +7328,8 @@ renderWSList();
   });
 
   // Init on load
-  updateDriveUI();
-  if (driveClientId) initGapi();
+  updateGoogleUI();
+  if (googleClientId) initGapi();
 
   // Check for shared workspace link on load
   setTimeout(loadSharedWorkspace, 1500);
