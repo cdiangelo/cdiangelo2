@@ -4965,8 +4965,14 @@ function ssRender() {
     LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); ssShowHint();
   }
 
-  // mousedown: set selection anchor
+  // ── Single-click to edit: mousedown records anchor, mouseup enters edit if no drag ──
+  let ssDragged = false;
+  let ssMouseDownCell = null; // { r, c } of cell where mousedown occurred
+
+  // mousedown: set selection anchor, record potential edit target
   t.addEventListener('mousedown', e => {
+    ssDragged = false;
+    ssMouseDownCell = null;
     // Don't interfere with fill handle
     if (e.target.classList.contains('ss-fill-handle')) return;
     const td = e.target.closest('td[data-r]');
@@ -4992,6 +4998,7 @@ function ssRender() {
     const r = +td.dataset.r, c = +td.dataset.c;
     if (ssEditing && ssSel && r === ssSel.r1 && c === ssSel.c1) return; // clicking active editing cell
     ssExitEdit();
+    ssMouseDownCell = { r, c };
     if (e.shiftKey && ssSel) {
       ssSel.r2 = r; ssSel.c2 = c;
     } else {
@@ -5001,29 +5008,40 @@ function ssRender() {
     ssRenderSelection();
   });
 
-  // mousemove: extend selection during drag
+  // mousemove: extend selection during drag — set isDragged flag
   t.addEventListener('mousemove', e => {
     if (!ssSelecting || !ssSel) return;
     const td = e.target.closest('td[data-r]');
     if (!td) return;
     const r = +td.dataset.r, c = +td.dataset.c;
     if (r !== ssSel.r2 || c !== ssSel.c2) {
+      ssDragged = true; // Drag detected — don't enter edit on mouseup
       ssSel.r2 = r; ssSel.c2 = c;
       ssRenderSelection();
     }
   });
 
-  // mouseup: stop selecting
-  document.addEventListener('mouseup', () => { ssSelecting = false; });
+  // mouseup: stop selecting; enter edit mode if it was a simple click (no drag)
+  document.addEventListener('mouseup', () => {
+    if (ssSelecting && !ssDragged && ssMouseDownCell && ssSel) {
+      // Single click on a cell without dragging — enter edit mode
+      const { r, c } = ssMouseDownCell;
+      if (r === ssSel.r1 && c === ssSel.c1) {
+        ssEnterEdit(r, c);
+      }
+    }
+    ssSelecting = false;
+    ssMouseDownCell = null;
+  });
 
-  // dblclick: enter edit mode
+  // dblclick: still works — ensures edit mode on double click for reliability
   t.addEventListener('dblclick', e => {
     const td = e.target.closest('td[data-r]');
     if (td) {
       const r = +td.dataset.r, c = +td.dataset.c;
       ssSel = { r1: r, c1: c, r2: r, c2: c };
       ssRenderSelection();
-      ssEnterEdit(r, c);
+      if (!ssEditing) ssEnterEdit(r, c);
       return;
     }
     // Column header rename on dblclick
