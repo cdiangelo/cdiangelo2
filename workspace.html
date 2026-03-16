@@ -2521,6 +2521,47 @@ const PROXY_BASE = _proxyParam
   : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:3001'
     : window.location.origin;
+
+// ── Proxy health check ──
+let _proxyAlive = null; // null=unknown, true=reachable, false=down
+let _proxyLastCheck = 0;
+const PROXY_CHECK_INTERVAL = 30000; // re-check every 30s max
+
+async function checkProxyHealth(force) {
+  if (!force && _proxyAlive !== null && Date.now() - _proxyLastCheck < PROXY_CHECK_INTERVAL) return _proxyAlive;
+  try {
+    const r = await fetch(PROXY_BASE + '/proxy/ai/status', { signal: AbortSignal.timeout(3000) });
+    _proxyAlive = r.ok;
+    _proxyLastCheck = Date.now();
+    return _proxyAlive;
+  } catch(e) {
+    _proxyAlive = false;
+    _proxyLastCheck = Date.now();
+    console.error('[Proxy] Health check failed:', e.message);
+    return false;
+  }
+}
+
+function proxyDownError() {
+  const cmd = 'node proxy.js';
+  const msg = 'Proxy is not running on ' + PROXY_BASE + '. Start it with: ' + cmd;
+  console.error('[Proxy] ' + msg);
+  return new Error(msg);
+}
+
+// ── Safe JSON response parser — guards against HTML error pages ──
+async function safeParseJson(resp, context) {
+  const ct = (resp.headers.get('content-type') || '').toLowerCase();
+  if (!ct.includes('application/json') && !ct.includes('text/json')) {
+    let body = '';
+    try { body = await resp.text(); } catch(_) {}
+    const preview = body.substring(0, 200).replace(/\n/g, ' ');
+    const err = 'Expected JSON but received ' + (ct || 'unknown content-type') + (context ? ' (' + context + ')' : '') + ' — proxy may be down or endpoint is incorrect. Body: ' + preview;
+    console.error('[safeParseJson]', err);
+    throw new Error(err);
+  }
+  return resp.json();
+}
 // Per-profile scoped localStorage — user data is isolated from admin
 const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','registeredUsers','adminSession','userName','deviceId','aiApiKey','accessRequests','blockedUsers','gmailSignedIn','gmailEmail']);
 function _lsPrefix(k) {
@@ -5946,8 +5987,10 @@ const RH_SESSION = {
 
 async function detectRobinhoodSession() {
   try {
+    const alive = await checkProxyHealth();
+    if (!alive) { throw proxyDownError(); }
     const resp = await fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
-    const data = await resp.json();
+    const data = await safeParseJson(resp, 'RH status');
     rhLoggedIn = data.logged_in;
     RH_SESSION.isConnected = !!data.logged_in;
     RH_SESSION.authLevel = data.logged_in ? 'authenticated' : 'public';
@@ -6036,12 +6079,14 @@ function rhCacheGet(key) {
 }
 
 async function rhFetch(endpoint, auth) {
+  const alive = await checkProxyHealth();
+  if (!alive) throw proxyDownError();
   const route = auth ? '/proxy/robinhood/auth' : '/proxy/robinhood';
   const resp = await fetch(PROXY_BASE + route + '?endpoint=' + encodeURIComponent(endpoint), {
     signal: AbortSignal.timeout(8000)
   });
   if (!resp.ok) throw new Error('RH ' + resp.status);
-  return resp.json();
+  return safeParseJson(resp, 'rhFetch ' + endpoint);
 }
 
 // Tier 1: Public quote — no auth needed
@@ -6121,7 +6166,7 @@ async function fetchRobinhoodPositions() {
       for (const pos of data.results) {
         try {
           const instResp = await fetch(PROXY_BASE + '/proxy/robinhood?endpoint=' + encodeURIComponent(pos.instrument.replace('https://api.robinhood.com/', '')));
-          const inst = await instResp.json();
+          const inst = await safeParseJson(instResp, 'RH instrument');
           positions.push({
             ticker: inst.symbol,
             name: inst.simple_name || inst.name,
@@ -6176,7 +6221,7 @@ async function fetchRobinhoodOrders(limit) {
       for (const o of data.results.slice(0, limit || 20)) {
         try {
           const instResp = await fetch(PROXY_BASE + '/proxy/robinhood?endpoint=' + encodeURIComponent(o.instrument.replace('https://api.robinhood.com/', '')));
-          const inst = await instResp.json();
+          const inst = await safeParseJson(instResp, 'RH instrument');
           orders.push({
             ticker: inst.symbol,
             side: o.side,
@@ -8425,7 +8470,7 @@ Format this as a polished research report. Cite specific sources by name. Use re
     const resp = await aiApiFetch({ model, max_tokens: 4096, messages: [{ role: 'user', content: researchPrompt }] });
 
     if (!resp.ok) throw new Error('API error: ' + resp.status);
-    const result = await resp.json();
+    const result = await safeParseJson(resp, 'AI research');
     aiSessionTokensIn += result.usage?.input_tokens || 0;
     aiSessionTokensOut += result.usage?.output_tokens || 0;
     aiSessionRequests++;
@@ -8597,8 +8642,9 @@ const AI_PROXY_URL = PROXY_BASE + '/proxy/ai';
   try {
     const r = await fetch(AI_PROXY_URL + '/status', { signal: AbortSignal.timeout(2000) });
     if (r.ok) {
-      const data = await r.json();
+      const data = await safeParseJson(r, 'AI status');
       aiProxyAvailable = true;
+      _proxyAlive = true; _proxyLastCheck = Date.now(); // sync health state
       if (data.configured) {
         aiKey = 'proxy';  // Sentinel: key is on the server, not here
         console.log('[AI] Proxy mode active — API key on server (last4: ' + data.last4 + ')');
@@ -8882,7 +8928,7 @@ async function runTierPlanStep(prompt, tier) {
       messages: [{ role: 'user', content: 'In 3-5 bullet points, outline the steps to complete this task: ' + prompt }]
     });
     if (!planResp.ok) return null;
-    const planResult = await planResp.json();
+    const planResult = await safeParseJson(planResp, 'AI plan');
     return (planResult.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
   } catch { return null; }
 }
@@ -11343,7 +11389,7 @@ async function sendAgentMessage() {
           aiStreaming = false;
           return;
         }
-        result = await resp2.json();
+        result = await safeParseJson(resp2, 'AI non-streaming fallback');
         _stallPing();
       }
 
@@ -11672,12 +11718,14 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     msg.textContent = 'Verifying token with Robinhood...'; msg.style.color = 'var(--text-dim)';
     $('#rhTokenSubmit').disabled = true; $('#rhTokenSubmit').style.opacity = '0.6';
     try {
+      const alive = await checkProxyHealth();
+      if (!alive) throw proxyDownError();
       const resp = await fetch(PROXY_BASE + '/proxy/robinhood/set-token', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: ADMIN_PASSWORD, token }),
         signal: AbortSignal.timeout(15000)
       });
-      const data = await resp.json();
+      const data = await safeParseJson(resp, 'set-token');
       if (data.ok) {
         rhLoggedIn = true;
         msg.textContent = 'Connected!'; msg.style.color = '#22c55e';
@@ -11736,7 +11784,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       if (wsIsAdmin && !rhLoggedIn) {
         try {
           const st = await fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
-          const sd = await st.json();
+          const sd = await safeParseJson(st, 'RH status check');
           qlBtn.style.display = sd.has_stored_credentials ? 'block' : 'none';
         } catch(_) { qlBtn.style.display = 'none'; }
       } else {
@@ -11768,6 +11816,8 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     msg.textContent = 'Logging in...'; msg.style.color = 'var(--text-dim)';
     $('#rhLoginSubmit').disabled = true; $('#rhLoginSubmit').style.opacity = '0.6';
     try {
+      const alive = await checkProxyHealth();
+      if (!alive) throw proxyDownError();
       const body = { username, password };
       if (mfaCode) body.mfa_code = mfaCode;
       if (rhChallengeId) body.challenge_id = rhChallengeId;
@@ -11775,7 +11825,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         signal: AbortSignal.timeout(15000)
       });
-      const data = await resp.json();
+      const data = await safeParseJson(resp, 'RH login');
       if (data.ok) {
         rhLoggedIn = true;
         onLoginSuccess();
@@ -11822,6 +11872,8 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     msg.textContent = 'Logging in with stored credentials...'; msg.style.color = 'var(--text-dim)';
     $('#rhQuickLogin').disabled = true; $('#rhQuickLogin').style.opacity = '0.6';
     try {
+      const alive = await checkProxyHealth();
+      if (!alive) throw proxyDownError();
       const mfaCode = $('#rhMfaCode').value.trim();
       const body = { password: ADMIN_PASSWORD };
       if (mfaCode) body.mfa_code = mfaCode;
@@ -11830,7 +11882,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         signal: AbortSignal.timeout(15000)
       });
-      const data = await resp.json();
+      const data = await safeParseJson(resp, 'RH quick-login');
       if (data.ok) {
         rhLoggedIn = true;
         qlChallengeId = '';
@@ -11867,12 +11919,14 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     const pw = $('#rhSetPw').value;
     if (!email || !pw) { msg.textContent = 'Both fields required'; msg.style.color = '#ef4444'; return; }
     try {
+      const alive = await checkProxyHealth();
+      if (!alive) throw proxyDownError();
       const resp = await fetch(PROXY_BASE + '/proxy/robinhood/set-credentials', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: ADMIN_PASSWORD, rh_username: email, rh_password: pw }),
         signal: AbortSignal.timeout(5000)
       });
-      const data = await resp.json();
+      const data = await safeParseJson(resp, 'set-credentials');
       if (data.ok) {
         msg.textContent = 'Saved!'; msg.style.color = '#22c55e';
         $('#rhSetEmail').value = ''; $('#rhSetPw').value = '';
