@@ -219,8 +219,9 @@ body.light .fun-btn { background: var(--accent); }
 }
 /* Top-row panes (row 1) — lighter, receded */
 .pane[style*="grid-row:1"] { opacity: 0.92; }
-/* Bottom-row panes (row 3) — grounded, solid */
+/* Bottom-row panes (row 3) — grounded, solid; hidden panes must not render shadow */
 .pane[style*="grid-row:3"] { opacity: 1; box-shadow: 0 -2px 8px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.04); }
+.pane.pane-hidden { display: none !important; box-shadow: none !important; opacity: 0 !important; }
 /* Horizontal divider between rows — visible separator */
 .divider-v {
   background: linear-gradient(90deg, transparent 5%, var(--accent) 30%, var(--accent) 70%, transparent 95%) !important;
@@ -2540,11 +2541,15 @@ const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 // Hosted proxy on Render — override via ?proxy=host:port for local dev
 const _proxyParam = new URLSearchParams(window.location.search).get('proxy');
-const PROXY_BASE = _proxyParam
-  ? 'http://' + _proxyParam
-  : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:3001'
-    : window.location.origin;
+const PROXY_BASE = (() => {
+  if (_proxyParam) return 'http://' + _proxyParam;
+  const h = window.location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1') return 'http://localhost:3001';
+  // On Render itself, proxy is same-origin
+  if (h.includes('onrender.com')) return window.location.origin;
+  // On GitHub Pages or any other host, point to the Render proxy
+  return 'https://planning-tool-7o36.onrender.com';
+})();
 
 // ── Proxy health check ──
 let _proxyAlive = null; // null=unknown, true=reachable, false=down
@@ -2704,20 +2709,24 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
     $$('.nav-group-btns button[data-pane]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const pane = btn.dataset.pane;
-    $$('.pane').forEach(el => el.classList.remove('expanded'));
+    $$('.pane').forEach(el => { el.classList.remove('expanded'); el.classList.remove('pane-hidden'); });
     if (pane !== 'all') {
+      // Hide all panes behind the expanded one to prevent shadow artifacts
+      $$('.pane').forEach(el => {
+        if (el.id !== pane) el.classList.add('pane-hidden');
+      });
       const el = document.getElementById(pane);
       if (el) {
-        // Ensure pane is visible even if hidden by grid order
         el.style.display = '';
+        el.classList.remove('pane-hidden');
         el.classList.add('expanded');
-        // Snap media player if expanding media pane
         if (pane === 'q-media' && typeof snapVideoToMediaPane === 'function') {
           setTimeout(snapVideoToMediaPane, 50);
         }
       }
     } else {
-      // Returning to "All" view — re-apply grid order to restore correct visibility
+      // Returning to "All" view — unhide panes and re-apply grid order
+      $$('.pane').forEach(el => el.classList.remove('pane-hidden'));
       applyGridOrder(getGridOrder());
     }
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
@@ -2776,14 +2785,19 @@ function getGridOrder() {
 }
 
 function applyGridOrder(order) {
-  // Hide all panes first, then show the 6 in the grid
+  // Hide non-visible panes (use pane-hidden class to clear shadow artifacts)
   GRID_PANES.forEach(p => {
     const el = document.getElementById(p.id);
     if (!el) return;
     if (order.includes(p.id)) {
       el.style.display = '';
+      el.classList.remove('pane-hidden');
     } else {
       el.style.display = 'none';
+      el.classList.add('pane-hidden');
+      // Clear grid position to prevent stale attribute selector matches
+      el.style.gridColumn = '';
+      el.style.gridRow = '';
     }
   });
   order.forEach((paneId, i) => {
