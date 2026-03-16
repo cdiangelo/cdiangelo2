@@ -2163,6 +2163,20 @@ let wsUserName = localStorage.getItem('ws_userName') || '';
 const ADMIN_PASSWORD = 'animalcrackers'; // Full admin workspace access
 const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
 
+// Mode resolution log — makes regressions visible in DevTools
+{
+  const storedAdmin = localStorage.getItem('ws_adminSession');
+  const modeSource = storedAdmin === 'true' ? 'localStorage' : storedAdmin === null ? 'default' : 'localStorage';
+  const resolvedMode = wsIsAdmin ? 'admin' : (wsUserName ? 'user' : 'anonymous');
+  // Self-healing: if ws_adminSession has an invalid value, reset
+  if (storedAdmin !== null && storedAdmin !== 'true' && storedAdmin !== 'false') {
+    console.warn('[MODE] Invalid ws_adminSession value in storage ("' + storedAdmin + '") — reset to default');
+    localStorage.removeItem('ws_adminSession');
+    wsIsAdmin = false;
+  }
+  console.log('[MODE] Initialized as: ' + resolvedMode + ' — source: ' + modeSource + (wsUserName ? ' — user: ' + wsUserName : ''));
+}
+
 // ── Device fingerprint for user tracking ──
 function getDeviceFingerprint() {
   let fp = localStorage.getItem('ws_deviceId');
@@ -10844,31 +10858,24 @@ function activateGenieMode() {
   if (!scene) return;
   scene.classList.add('genie-mode');
   scene.classList.remove('sleeping-mode');
-  // Force desert scene
-  setRobotScene('desert');
-  // Disable scene selector in user mode
+  // Set desert as default scene but allow user to change
+  const savedScene = localStorage.getItem('ws_robotScene');
+  if (!savedScene) setRobotScene('desert');
+  // Scene selector stays enabled — users can change background
   const sel = document.getElementById('robotSceneSelect');
-  if (sel) sel.disabled = true;
-  // Check if user is blocked/paused
+  if (sel) sel.disabled = false;
+  // Check if user is blocked/paused (admin block only — not prompt exhaustion)
   const blockStatus = isUserBlocked(wsUserName);
-  if (blockStatus) {
-    const msg = blockStatus.status === 'blocked'
-      ? 'Your access has been blocked by an admin.'
-      : 'Your access is currently paused by an admin.';
-    activateSleepMode();
-    addAiMsg('system', msg + ' Contact your administrator to restore access.');
+  if (blockStatus && blockStatus.status === 'blocked') {
+    addAiMsg('system', 'Your access has been blocked by an admin. Contact your administrator to restore access.');
     return;
   }
-  // Load remaining prompts from storage
+  // Load remaining prompts from storage (informational only — never blocks sends)
   const stored = localStorage.getItem('ws_geniePrompts_' + (wsUserName || 'anon'));
-  if (stored !== null) geniePromptsLeft = parseInt(stored);
-  if (geniePromptsLeft <= 0) {
-    activateSleepMode();
-    return;
-  }
+  if (stored !== null) geniePromptsLeft = Math.max(0, parseInt(stored) || 0);
   updateGeniePromptsBadge();
   // Show greeting
-  addAiMsg('system', 'Welcome, ' + (wsUserName || 'traveler') + '. I am the Genie of the Workspace. You have ' + geniePromptsLeft + ' wishes (prompts) remaining. Choose wisely...');
+  addAiMsg('system', 'Welcome, ' + (wsUserName || 'traveler') + '! Ask me anything about your workspace.');
 }
 
 function updateGeniePromptsBadge() {
@@ -11153,21 +11160,14 @@ async function sendAgentMessage() {
   const input = $('#aiInput').value.trim();
   if (!input || aiStreaming) return;
 
-  // Genie mode: check prompt limit and block status (only for non-admin users)
+  // Genie mode: check admin-blocked status (only hard block — prompt count is informational)
   if (genieMode && !wsIsAdmin) {
     const blockStatus = isUserBlocked(wsUserName);
-    if (blockStatus) {
-      const msg = blockStatus.status === 'blocked'
-        ? 'Your access has been blocked by an admin. Contact your administrator.'
-        : 'Your access has been paused by an admin. Contact your administrator to resume.';
-      addAiMsg('system', msg);
-      if (!genieSleeping) activateSleepMode();
+    if (blockStatus && blockStatus.status === 'blocked') {
+      addAiMsg('system', 'Your access has been blocked by an admin. Contact your administrator.');
       return;
     }
-    if (genieSleeping) {
-      addAiMsg('system', 'The Genie is sleeping. Request access from your admin to get more wishes.');
-      return;
-    }
+    // Track prompt usage (informational — does not block sends)
     useGeniePrompt();
   }
 
