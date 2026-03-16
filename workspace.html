@@ -1754,6 +1754,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <option value="3d">3D Iso</option>
         </select>
         <button id="wbUndo">Undo</button>
+        <button id="wbRedo">Redo</button>
+        <button id="wbHistoryBtn" title="Undo history">&#128340;</button>
         <button id="wbClear">Clear</button>
         <button id="wbSave">PNG</button>
         <div class="sep"></div>
@@ -1768,6 +1770,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <!-- Layer objects rendered here -->
       </div>
       <!-- Layer panel -->
+      <div id="wbHistoryPanel" style="display:none;position:absolute;left:4px;top:36px;width:180px;max-height:200px;z-index:60;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);overflow-y:auto;font-size:.68rem;">
+        <div style="padding:6px 8px;font-weight:600;color:var(--accent2);border-bottom:1px solid var(--border);">Undo History</div>
+        <div id="wbHistoryList" style="padding:2px;"></div>
+      </div>
       <div id="wbLayerPanel" style="display:none;position:absolute;right:4px;top:36px;bottom:4px;width:160px;z-index:60;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);overflow-y:auto;font-size:.68rem;">
         <div style="padding:6px 8px;font-weight:600;color:var(--accent2);border-bottom:1px solid var(--border);">Layers</div>
         <div id="wbLayerList" style="padding:4px;"></div>
@@ -3543,7 +3549,111 @@ const wbC = $('#wbCanvas');
 const wbX = wbC.getContext('2d');
 const wbGC = $('#wbGridCanvas');
 const wbGX = wbGC.getContext('2d');
-let wbTool = 'pen', wbDraw = false, wbHist = [], wbSX, wbSY, wbGridMode = 'none';
+let wbTool = 'pen', wbDraw = false, wbSX, wbSY, wbGridMode = 'none';
+
+// ── Whiteboard undo/redo system (granular, named entries) ──
+const WB_HISTORY_MAX = 100;
+let wbHist = []; // { label, dataUrl, layers, groupId? }
+let wbRedoStack = [];
+let wbHistoryGroupId = null;
+let wbHistoryGroupLabel = '';
+
+function wbSaveState(label) {
+  // Clear redo on new action
+  wbRedoStack = [];
+  const entry = {
+    label: label || 'Draw',
+    dataUrl: wbC.toDataURL(),
+    layers: JSON.parse(JSON.stringify(wbLayers)),
+    ts: Date.now()
+  };
+  if (wbHistoryGroupId) entry.groupId = wbHistoryGroupId;
+  wbHist.push(entry);
+  if (wbHist.length > WB_HISTORY_MAX) wbHist.shift();
+  renderWbHistoryPanel();
+}
+
+function wbUndo() {
+  if (!wbHist.length) return;
+  const entry = wbHist.pop();
+  wbRedoStack.push({
+    label: 'Before: ' + entry.label,
+    dataUrl: wbC.toDataURL(),
+    layers: JSON.parse(JSON.stringify(wbLayers)),
+    ts: Date.now()
+  });
+  const img = new Image();
+  img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
+  img.src = entry.dataUrl;
+  wbLayers = JSON.parse(JSON.stringify(entry.layers));
+  wbRenderLayers();
+  renderWbHistoryPanel();
+}
+
+function wbRedo() {
+  if (!wbRedoStack.length) return;
+  const entry = wbRedoStack.pop();
+  wbHist.push({
+    label: 'Redo',
+    dataUrl: wbC.toDataURL(),
+    layers: JSON.parse(JSON.stringify(wbLayers)),
+    ts: Date.now()
+  });
+  const img = new Image();
+  img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
+  img.src = entry.dataUrl;
+  wbLayers = JSON.parse(JSON.stringify(entry.layers));
+  wbRenderLayers();
+  renderWbHistoryPanel();
+}
+
+function beginHistoryGroup(label) {
+  wbHistoryGroupId = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  wbHistoryGroupLabel = label || 'Agent action';
+}
+
+function endHistoryGroup() {
+  wbHistoryGroupId = null;
+  wbHistoryGroupLabel = '';
+}
+
+function undoLastAgentAction() {
+  // Find the most recent agent group and undo all entries in it
+  if (!wbHist.length) return;
+  const lastGroup = wbHist[wbHist.length - 1].groupId;
+  if (!lastGroup) { wbUndo(); return; }
+  while (wbHist.length && wbHist[wbHist.length - 1].groupId === lastGroup) {
+    wbUndo();
+  }
+}
+
+function redoLastAgentAction() {
+  if (!wbRedoStack.length) return;
+  const nextGroup = wbRedoStack[wbRedoStack.length - 1].groupId;
+  if (!nextGroup) { wbRedo(); return; }
+  while (wbRedoStack.length && wbRedoStack[wbRedoStack.length - 1].groupId === nextGroup) {
+    wbRedo();
+  }
+}
+
+function renderWbHistoryPanel() {
+  const el = document.getElementById('wbHistoryList');
+  if (!el) return;
+  el.innerHTML = '';
+  const recent = wbHist.slice(-10).reverse();
+  if (!recent.length) { el.innerHTML = '<div style="color:var(--text-dim);font-size:.55rem;padding:4px;">No history</div>'; return; }
+  recent.forEach((entry, i) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:3px 6px;font-size:.55rem;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);display:flex;justify-content:space-between;';
+    div.innerHTML = '<span>' + (entry.groupId ? '&#9654; ' : '') + entry.label + '</span><span style="color:var(--text-dim);font-size:.48rem;">' + new Date(entry.ts).toLocaleTimeString() + '</span>';
+    div.onclick = () => {
+      // Jump to this state
+      const stepsBack = i + 1;
+      for (let s = 0; s < stepsBack; s++) wbUndo();
+    };
+    el.appendChild(div);
+  });
+}
 
 function resizeWB() {
   const w = $('#wbWrap');
@@ -3661,7 +3771,7 @@ function wbDrawGrid() {
   }
   wbGX.restore();
 }
-function wbSaveState() { wbHist.push(wbC.toDataURL()); if (wbHist.length > 50) wbHist.shift(); }
+// wbSaveState moved to undo/redo system above
 
 window.addEventListener('resize', () => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); });
 setTimeout(resizeWB, 100);
@@ -3682,7 +3792,7 @@ $('#wbGridMode').onchange = function() {
 wbC.addEventListener('mousedown', e => {
   const r = wbC.getBoundingClientRect();
   wbSX = e.clientX - r.left; wbSY = e.clientY - r.top;
-  wbDraw = true; wbSaveState();
+  wbDraw = true; wbSaveState('Draw: ' + wbTool);
   if (wbTool === 'text') {
     const text = prompt('Text:');
     if (text) {
@@ -3739,13 +3849,14 @@ wbC.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touche
 wbC.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; wbC.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY })); }, { passive: false });
 wbC.addEventListener('touchend', e => { e.preventDefault(); wbC.dispatchEvent(new MouseEvent('mouseup', {})); }, { passive: false });
 
-$('#wbUndo').onclick = () => {
-  if (!wbHist.length) return;
-  const img = new Image();
-  img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
-  img.src = wbHist.pop();
+$('#wbUndo').onclick = () => wbUndo();
+$('#wbRedo').onclick = () => wbRedo();
+$('#wbHistoryBtn').onclick = () => {
+  const p = $('#wbHistoryPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  if (p.style.display === 'block') renderWbHistoryPanel();
 };
-$('#wbClear').onclick = () => { wbSaveState(); wbX.clearRect(0, 0, wbC.width, wbC.height); };
+$('#wbClear').onclick = () => { wbSaveState('Clear canvas'); wbX.clearRect(0, 0, wbC.width, wbC.height); };
 $('#wbSave').onclick = () => {
   const expCvs = document.createElement('canvas');
   expCvs.width = wbC.width; expCvs.height = wbC.height;
@@ -9835,6 +9946,8 @@ const AGENT_TOOLS_INLINE = [
   { name: 'add_text_overlay', description: 'Draw text on the whiteboard canvas.', input_schema: { type: 'object', properties: { text: { type: 'string' }, position: { type: 'string', enum: ['top', 'center', 'bottom'], description: 'Vertical position' }, size: { type: 'number', description: 'Font size in pixels (default 24)' } }, required: ['text'] } },
   { name: 'clear_draw_pane', description: 'Clear the whiteboard canvas and all layers.', input_schema: { type: 'object', properties: {} } },
   { name: 'show_toast', description: 'Show a brief notification toast to the user.', input_schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] } },
+  { name: 'wb_undo_agent', description: 'Undo the last agent whiteboard action group. Use when a whiteboard change produces an undesired result.', input_schema: { type: 'object', properties: {} } },
+  { name: 'wb_redo_agent', description: 'Redo the last undone agent whiteboard action group.', input_schema: { type: 'object', properties: {} } },
 
   // ANALYSIS TOOLS
   { name: 'run_scenario', description: 'Run bull/base/bear scenario projections for a stock. Returns projected price arrays for graphing or tables.', input_schema: { type: 'object', properties: { ticker: { type: 'string' }, scenarios: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, growth_rate: { type: 'number', description: 'Annual growth rate as decimal (e.g. 0.15 for 15%)' } }, required: ['name', 'growth_rate'] } } }, required: ['ticker', 'scenarios'] } },
@@ -10097,7 +10210,7 @@ async function executeAgentTool(name, input) {
         return JSON.stringify({ success: true });
       }
       case 'add_text_overlay': {
-        wbSaveState();
+        wbSaveState('Add text overlay');
         const sz = input.size || 24;
         wbX.font = 'bold ' + sz + 'px system-ui';
         wbX.fillStyle = '#ffffff';
@@ -10112,7 +10225,7 @@ async function executeAgentTool(name, input) {
         return JSON.stringify({ success: true });
       }
       case 'clear_draw_pane': {
-        wbSaveState();
+        wbSaveState('Clear draw pane');
         wbX.clearRect(0, 0, wbC.width, wbC.height);
         wbLayers = []; wbRenderLayers();
         // Grid is on separate overlay canvas, no redraw needed
@@ -10120,6 +10233,8 @@ async function executeAgentTool(name, input) {
         return JSON.stringify({ success: true });
       }
       case 'show_toast': { toast(input.message); return JSON.stringify({ success: true }); }
+      case 'wb_undo_agent': { undoLastAgentAction(); return JSON.stringify({ success: true, message: 'Reverted last agent whiteboard action' }); }
+      case 'wb_redo_agent': { redoLastAgentAction(); return JSON.stringify({ success: true, message: 'Re-applied last agent whiteboard action' }); }
 
       // ANALYSIS TOOLS
       case 'run_scenario': {
