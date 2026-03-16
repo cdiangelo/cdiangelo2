@@ -4,12 +4,20 @@
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── AI API key: held server-side only, never sent to browser ──
 const ADMIN_PASSWORD = 'animalcrackers'; // Must match workspace.html
 let storedApiKey = process.env.ANTHROPIC_API_KEY || '';
+// Fallback: read from file if env var not set (survives process restarts)
+if (!storedApiKey) {
+  try { storedApiKey = fs.readFileSync('.ai_key', 'utf8').trim(); } catch(_) {}
+}
+if (!storedApiKey) {
+  console.log('[AI Proxy] No API key found. Set ANTHROPIC_API_KEY env var (recommended for Render) or save via admin panel.');
+}
 
 // In-memory cache: Map<url, {data, ts, contentType}>
 const cache = new Map();
@@ -112,6 +120,8 @@ app.post('/proxy/ai/key', (req, res) => {
     return res.status(400).json({ error: true, message: 'Invalid API key format' });
   }
   storedApiKey = apiKey;
+  // Persist to file so key survives process restarts
+  try { fs.writeFileSync('.ai_key', apiKey); } catch(_) {}
   console.log('[AI Proxy] API key updated by admin (last 4: ...' + apiKey.slice(-4) + ')');
   res.json({ ok: true, message: 'API key stored on server', last4: apiKey.slice(-4) });
 });
@@ -415,6 +425,49 @@ async function refreshRobinhoodToken() {
     return false;
   }
 }
+
+// ═══════════════════════════════════════════
+// ADMIN TRACKING — server-side usage & access requests
+// ═══════════════════════════════════════════
+
+const userUsage = new Map();   // userName -> {prompts, tokens, lastActive}
+const accessRequests = [];     // [{name, contact, message, ts}]
+
+// POST /proxy/admin/log-usage — Client reports usage after each AI call
+app.post('/proxy/admin/log-usage', (req, res) => {
+  const { userName, tokensUsed } = req.body || {};
+  if (!userName) return res.status(400).json({ error: true, message: 'Missing userName' });
+  const existing = userUsage.get(userName) || { prompts: 0, tokens: 0, lastActive: null };
+  existing.prompts++;
+  existing.tokens += (tokensUsed || 0);
+  existing.lastActive = new Date().toISOString();
+  userUsage.set(userName, existing);
+  res.json({ ok: true });
+});
+
+// GET /proxy/admin/users — Returns all user usage (admin-protected)
+app.get('/proxy/admin/users', (req, res) => {
+  const pw = req.query.password;
+  if (pw !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Invalid admin password' });
+  const users = {};
+  userUsage.forEach((data, name) => { users[name] = data; });
+  res.json(users);
+});
+
+// POST /proxy/admin/request-access — User submits access request
+app.post('/proxy/admin/request-access', (req, res) => {
+  const { name, contact, message } = req.body || {};
+  if (!name) return res.status(400).json({ error: true, message: 'Missing name' });
+  accessRequests.push({ name, contact: contact || '', message: message || '', ts: new Date().toISOString() });
+  res.json({ ok: true });
+});
+
+// GET /proxy/admin/requests — Returns access requests (admin-protected)
+app.get('/proxy/admin/requests', (req, res) => {
+  const pw = req.query.password;
+  if (pw !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Invalid admin password' });
+  res.json(accessRequests);
+});
 
 // Serve static files (HTML, JS, CSS) from project root — after API routes so they take priority
 app.use(express.static(path.join(__dirname)));

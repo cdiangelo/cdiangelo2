@@ -2049,7 +2049,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-body">
       <div class="toolbar">
         <select id="newsMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
-          <option value="quick">Quick</option>
           <option value="verified">Verified</option>
         </select>
         <select id="newsOpenMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);" title="How to open articles">
@@ -2066,7 +2065,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div id="newsFeed" style="flex:1;overflow-y:auto;padding:10px;">
         <div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">
           Search for keywords or push stocks from the Stocks panel to see related news &amp; market coverage.<br>
-          <b>Quick</b>: Simulated headlines with links to real source sections.<br>
           <b>Verified</b>: Fetches real articles from Google News RSS.<br>
           <b>Deep Research</b>: Claude agent scans sources and generates a PDF report.
         </div>
@@ -2099,9 +2097,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
       <button class="p-btn" data-expand="q-media" title="Expand">&#x2922;</button>
     </div>
-    <div class="p-body" style="position:relative;background:#0a0a0a;display:flex;align-items:center;justify-content:center;">
-      <div id="mediaPanePlayer" style="width:100%;height:100%;position:relative;"></div>
-      <div id="mediaPaneEmpty" style="text-align:center;color:var(--text-dim);font-size:.7rem;">
+    <div class="p-body" style="position:relative;background:#0a0a0a;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+      <div id="mediaPanePlayer" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>
+      <div id="mediaPaneEmpty" style="text-align:center;color:var(--text-dim);font-size:.7rem;position:absolute;">
         <div style="font-size:2rem;margin-bottom:8px;">&#9654;</div>
         No video playing.<br>Click <b>Media</b> in the header or add a video above.
       </div>
@@ -2551,10 +2549,18 @@ function trackUserUsage(tokensIn, tokensOut, model) {
   data.log.push({ ts: data.lastActive, model, tokIn: tokensIn, tokOut: tokensOut, cost: reqCost });
   if (data.log.length > 500) data.log = data.log.slice(-500); // Cap at 500 entries
   localStorage.setItem(key, JSON.stringify(data));
+  // Also report to server for cross-browser admin visibility
+  try {
+    fetch(PROXY_BASE + '/proxy/admin/log-usage', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userName: name, tokensUsed: tokensIn + tokensOut })
+    }).catch(() => {});
+  } catch(_) {}
 }
 
-/* Admin: get all user usage data */
-function getAllUserUsage() {
+/* Admin: get all user usage data (local + server) */
+async function getAllUserUsage() {
+  // Local data (same browser)
   const users = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -2564,6 +2570,19 @@ function getAllUserUsage() {
       users.push({ name, ...data });
     }
   }
+  // Merge server data (cross-browser)
+  try {
+    const r = await fetch(PROXY_BASE + '/proxy/admin/users?password=' + encodeURIComponent(ADMIN_PASSWORD), { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      const serverUsers = await r.json();
+      const localNames = new Set(users.map(u => u.name));
+      for (const [name, data] of Object.entries(serverUsers)) {
+        if (!localNames.has(name)) {
+          users.push({ name, requests: data.prompts || 0, tokensIn: 0, tokensOut: 0, cost: 0, lastActive: data.lastActive, serverOnly: true });
+        }
+      }
+    }
+  } catch(_) {}
   return users.sort((a, b) => (b.cost || 0) - (a.cost || 0));
 }
 
@@ -7817,180 +7836,16 @@ $('#browseFilterSize').onchange = renderBrowseList;
 $('#browseSearch').addEventListener('input', renderBrowseList);
 
 /* ═══════════════════════════════════════════
-   NEWS & MARKET COVERAGE (Simulated)
+   NEWS & MARKET COVERAGE
    ═══════════════════════════════════════════ */
-const NEWS_SOURCES = ['Reuters', 'Bloomberg', 'CNBC', 'Financial Times', 'WSJ', 'MarketWatch', 'Barron\'s', 'Seeking Alpha'];
-const SOURCE_SECTION_URLS = {
-  'Reuters': {
-    'Technology': 'https://www.reuters.com/technology/',
-    'Financial Services': 'https://www.reuters.com/business/finance/',
-    'Healthcare': 'https://www.reuters.com/business/healthcare-pharmaceuticals/',
-    'Energy': 'https://www.reuters.com/business/energy/',
-    'Consumer Cyclical': 'https://www.reuters.com/business/retail-consumer/',
-    'Consumer Defensive': 'https://www.reuters.com/business/retail-consumer/',
-    'Industrials': 'https://www.reuters.com/business/aerospace-defense/',
-    'Communication Services': 'https://www.reuters.com/technology/media-telecom/',
-    '_default': 'https://www.reuters.com/markets/us/'
-  },
-  'Bloomberg': {
-    'Technology': 'https://www.bloomberg.com/technology',
-    'Financial Services': 'https://www.bloomberg.com/markets',
-    'Healthcare': 'https://www.bloomberg.com/pursuits/health',
-    'Energy': 'https://www.bloomberg.com/energy',
-    '_default': 'https://www.bloomberg.com/markets'
-  },
-  'CNBC': {
-    'Technology': 'https://www.cnbc.com/technology/',
-    'Financial Services': 'https://www.cnbc.com/finance/',
-    'Healthcare': 'https://www.cnbc.com/health-and-science/',
-    'Energy': 'https://www.cnbc.com/energy/',
-    '_default': 'https://www.cnbc.com/markets/'
-  },
-  'Financial Times': {
-    'Technology': 'https://www.ft.com/technology',
-    'Financial Services': 'https://www.ft.com/financial-services',
-    'Healthcare': 'https://www.ft.com/health',
-    'Energy': 'https://www.ft.com/energy',
-    '_default': 'https://www.ft.com/markets'
-  },
-  'WSJ': {
-    'Technology': 'https://www.wsj.com/tech',
-    'Financial Services': 'https://www.wsj.com/finance',
-    'Healthcare': 'https://www.wsj.com/health',
-    'Energy': 'https://www.wsj.com/business/energy-oil',
-    '_default': 'https://www.wsj.com/market-data'
-  },
-  'MarketWatch': {
-    'Technology': 'https://www.marketwatch.com/investing/stocks?mod=mw_lnav',
-    '_default': 'https://www.marketwatch.com/markets'
-  },
-  "Barron's": {
-    'Technology': 'https://www.barrons.com/topics/technology',
-    '_default': 'https://www.barrons.com/market-data'
-  },
-  'Seeking Alpha': {
-    'Technology': 'https://seekingalpha.com/sector/technology',
-    'Financial Services': 'https://seekingalpha.com/sector/financial',
-    'Healthcare': 'https://seekingalpha.com/sector/healthcare',
-    'Energy': 'https://seekingalpha.com/sector/energy',
-    '_default': 'https://seekingalpha.com/market-news'
-  }
-};
-const NEWS_TEMPLATES = [
-  { title: '{company} Reports Strong Q{q} Earnings, Beats Estimates', snippet: '{company} posted quarterly revenue of ${rev}B, surpassing analyst expectations of ${exp}B. The stock moved {dir} {pct}% in after-hours trading.' },
-  { title: '{company} Announces Strategic Partnership with {partner}', snippet: 'The deal is expected to generate ${val}B in combined revenue over the next three years, focusing on {sector} innovation.' },
-  { title: 'Analysts Upgrade {ticker} to "Buy" with ${target} Price Target', snippet: 'Multiple Wall Street firms have raised their outlook on {company}, citing strong fundamentals and growth potential in {sector}.' },
-  { title: '{company} Unveils New {product} Platform, Shares Rally', snippet: 'The announcement drove a {pct}% increase in share price as investors responded positively to the company\'s strategic direction in {sector}.' },
-  { title: '{sector} Sector Outlook: {company} Positioned for Growth', snippet: 'Industry analysts point to {company}\'s market position and recent investments as key drivers for anticipated {pct}% growth in the coming fiscal year.' },
-  { title: '{company} CEO Discusses {topic} Strategy in Investor Call', snippet: 'Leadership outlined plans to invest ${val}B in {topic} initiatives, expecting returns within 18-24 months. Analysts reacted {reaction}.' },
-  { title: 'Breaking: {company} to Acquire {target_co} for ${val}B', snippet: 'The acquisition would expand {company}\'s footprint in {sector} and is expected to close in Q{q} pending regulatory approval.' },
-  { title: '{ticker} Options Activity Surges Ahead of Earnings', snippet: 'Unusual options volume detected for {company} with {vol}K contracts traded, suggesting institutional positioning ahead of the Q{q} report.' },
-  { title: 'Market Movers: {company} Leads {sector} Rally', snippet: '{ticker} gained {pct}% today as the broader {sector} index advanced on positive economic data and strong corporate guidance.' },
-  { title: '{company} Expands Global Operations, Opens {region} Hub', snippet: 'The new facility represents a ${val}B investment and is expected to create {jobs} jobs over the next two years.' },
-];
-const TOPICS = ['AI', 'cloud computing', 'sustainability', 'digital transformation', 'supply chain', 'market expansion', 'R&D', 'automation'];
-const PRODUCTS = ['AI-powered', 'next-gen', 'enterprise', 'cloud-native', 'integrated', 'modular'];
-const REGIONS = ['Asia-Pacific', 'European', 'Latin American', 'Middle Eastern', 'Indian'];
-const REACTIONS = ['favorably', 'cautiously optimistic', 'with enthusiasm', 'with measured approval'];
-const PARTNERS = ['Microsoft', 'Google', 'Amazon', 'Samsung', 'Intel', 'IBM', 'Oracle', 'SAP'];
-
-function genNews(keyword) {
-  // Seed from keyword
-  let seed = 0;
-  for (let i = 0; i < keyword.length; i++) seed = (seed * 37 + keyword.charCodeAt(i)) & 0x7fffffff;
-  function rand() { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; }
-
-  const company = COMPANY_DB.find(c => c.ticker === keyword.toUpperCase()) || { ticker: keyword.toUpperCase(), name: keyword, sector: 'Technology', exchange: 'NYSE' };
-  const articles = [];
-  const usedTemplates = new Set();
-
-  for (let i = 0; i < 8; i++) {
-    let tIdx;
-    do { tIdx = Math.floor(rand() * NEWS_TEMPLATES.length); } while (usedTemplates.has(tIdx) && usedTemplates.size < NEWS_TEMPLATES.length);
-    usedTemplates.add(tIdx);
-    const t = NEWS_TEMPLATES[tIdx];
-    const vars = {
-      company: company.name, ticker: company.ticker, sector: company.sector,
-      q: Math.floor(rand() * 4) + 1, rev: (rand() * 50 + 5).toFixed(1), exp: (rand() * 45 + 4).toFixed(1),
-      dir: rand() > 0.5 ? 'up' : 'down', pct: (rand() * 8 + 0.5).toFixed(1),
-      val: (rand() * 20 + 1).toFixed(1), target: Math.floor(rand() * 300 + 50),
-      product: PRODUCTS[Math.floor(rand() * PRODUCTS.length)],
-      topic: TOPICS[Math.floor(rand() * TOPICS.length)],
-      partner: PARTNERS.filter(p => p !== company.name)[Math.floor(rand() * (PARTNERS.length - 1))],
-      target_co: 'TechVenture ' + String.fromCharCode(65 + Math.floor(rand() * 26)),
-      reaction: REACTIONS[Math.floor(rand() * REACTIONS.length)],
-      region: REGIONS[Math.floor(rand() * REGIONS.length)],
-      vol: Math.floor(rand() * 500 + 10), jobs: Math.floor(rand() * 5000 + 200),
-    };
-    let title = t.title, snippet = t.snippet;
-    Object.keys(vars).forEach(k => {
-      title = title.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
-      snippet = snippet.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
-    });
-    const hoursAgo = Math.floor(rand() * 72);
-    const source = NEWS_SOURCES[Math.floor(rand() * NEWS_SOURCES.length)];
-    // Build a Google News search URL scoped to source domain for real, specific articles
-    const SOURCE_DOMAIN_NAMES = { 'Reuters': 'reuters.com', 'Bloomberg': 'bloomberg.com', 'CNBC': 'cnbc.com', 'Financial Times': 'ft.com', 'WSJ': 'wsj.com', 'MarketWatch': 'marketwatch.com', "Barron's": 'barrons.com', 'Seeking Alpha': 'seekingalpha.com' };
-    const siteDomain = SOURCE_DOMAIN_NAMES[source] || 'reuters.com';
-    // Also keep a direct section URL for the "Direct" link
-    const sectionMap = SOURCE_SECTION_URLS[source] || SOURCE_SECTION_URLS['Reuters'];
-    const sectionUrl = sectionMap[company.sector] || sectionMap['_default'];
-    // Search URL finds real articles matching the topic on that specific source
-    const searchTerms = company.name + ' ' + (company.sector || '');
-    const url = 'https://news.google.com/search?q=' + encodeURIComponent(searchTerms + ' site:' + siteDomain) + '&hl=en';
-    const directUrl = sectionUrl;
-    articles.push({ title, snippet, source, hoursAgo, tags: [company.ticker, company.sector], url, directUrl });
-  }
-  return articles.sort((a, b) => a.hoursAgo - b.hoursAgo);
-}
 
 let newsTickerWatchlist = LS('newsTickers') || [];
 
 function renderNewsFeed() {
-  const mode = $('#newsMode').value;
-  if (mode === 'verified') { renderVerifiedNewsFeed(); return; }
-  renderQuickNewsFeed();
+  renderVerifiedNewsFeed();
 }
 
-function renderQuickNewsFeed() {
-  const feed = $('#newsFeed');
-  const query = $('#newsSearch').value.trim();
-  const allKeywords = [...new Set([...newsTickerWatchlist, ...(query ? [query] : [])])];
-
-  if (!allKeywords.length) {
-    feed.innerHTML = '<div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">Search for keywords or push stocks from the Stocks panel to see related news &amp; market coverage.<br><b>Quick mode</b>: Simulated headlines linked to real source sections.</div>';
-    return;
-  }
-
-  let allArticles = [];
-  allKeywords.forEach(kw => { allArticles = allArticles.concat(genNews(kw)); });
-  allArticles.sort((a, b) => a.hoursAgo - b.hoursAgo);
-
-  feed.innerHTML = '<div style="font-size:.58rem;color:var(--text-dim);padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;">&#9888; Quick mode — simulated headlines, real source links. Switch to <b>Verified</b> for real articles.</div>';
-  allArticles.forEach(a => {
-    const div = document.createElement('div');
-    div.className = 'news-item';
-    const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? a.hoursAgo + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
-    div.innerHTML =
-      '<div class="news-source">' + a.source + ' <span style="font-size:.48rem;opacity:.5;padding:1px 4px;border:1px solid var(--border);border-radius:3px;">SIM</span></div>' +
-      '<div class="news-title">' + a.title + '</div>' +
-      '<div class="news-snippet">' + a.snippet + '</div>' +
-      '<div class="news-meta"><span>' + timeStr + '</span>' +
-      a.tags.map(t => '<span class="news-tag">' + t + '</span>').join('') +
-      '<span class="news-direct" data-action="source" style="font-size:.6rem;color:var(--text-dim);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Source</span>' +
-      '<span class="news-search" data-action="search" style="font-size:.6rem;color:var(--accent2);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Search</span>' +
-      '</div>';
-    div.onclick = (e) => {
-      const action = e.target.dataset?.action;
-      if (action === 'source') { openNewsArticle(a.title, a.directUrl || a.url); return; }
-      if (action === 'search') { openNewsArticle(a.title, a.url); return; }
-      openNewsArticle(a.title, a.url);
-    };
-    feed.appendChild(div);
-  });
-}
-
-// ── Verified news via Google News RSS (CORS proxy: api.allorigins.win) ──
+// ── Verified news via Google News RSS (CORS proxy) ──
 async function renderVerifiedNewsFeed() {
   const feed = $('#newsFeed');
   const query = $('#newsSearch').value.trim();
@@ -8655,11 +8510,11 @@ function showUserDrillIn(userName) {
   renderDrillIn();
 }
 
-$('#aiUsageDashBtn').onclick = () => {
+$('#aiUsageDashBtn').onclick = async () => {
   const panel = $('#aiUsageDash');
   closeAllAdminPanels('aiUsageDash');
   if (panel.style.display === 'none') {
-    const users = getAllUserUsage();
+    const users = await getAllUserUsage();
     const el = $('#aiUsageDashContent');
     if (!users.length) {
       el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:10px;">No user usage data tracked yet.</div>';
@@ -8696,10 +8551,19 @@ $('#aiUsageDashBtn').onclick = () => {
 };
 $('#aiAccessReqBtn').onclick = renderAccessRequestsPanel;
 // Show pending request count badge for admin
-(function updateAccessBadge() {
+(async function updateAccessBadge() {
   if (!wsIsAdmin) return;
   const reqs = JSON.parse(localStorage.getItem('ws_accessRequests') || '[]');
-  const pending = reqs.filter(r => r.status === 'pending').length;
+  let pending = reqs.filter(r => r.status === 'pending').length;
+  // Also check server for requests from other browsers
+  try {
+    const r = await fetch(PROXY_BASE + '/proxy/admin/requests?password=' + encodeURIComponent(ADMIN_PASSWORD), { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      const serverReqs = await r.json();
+      const localNames = new Set(reqs.map(req => req.name));
+      pending += serverReqs.filter(sr => !localNames.has(sr.name)).length;
+    }
+  } catch(_) {}
   const btn = document.getElementById('aiAccessReqBtn');
   if (btn && pending > 0) btn.textContent = 'Requests (' + pending + ')';
   setTimeout(updateAccessBadge, 10000); // Refresh every 10s
@@ -9458,8 +9322,19 @@ async function executeAgentTool(name, input) {
         return JSON.stringify({ ticker: t, name: company ? company.name : t, sector: company ? company.sector : 'Unknown', ...metrics });
       }
       case 'get_news': {
-        const articles = genNews(input.keyword).slice(0, input.limit || 5);
-        return JSON.stringify(articles.map(a => ({ title: a.title, snippet: a.snippet, source: a.source, hours_ago: a.hoursAgo, tags: a.tags })));
+        const kw = input.keyword;
+        const limit = input.limit || 5;
+        const articles = [];
+        try {
+          const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(kw) + '&hl=en-US&gl=US&ceid=US:en';
+          let resp; try { resp = await fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) { resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl)); }
+          const doc = new DOMParser().parseFromString(await resp.text(), 'text/xml');
+          doc.querySelectorAll('item').forEach((item, idx) => {
+            if (idx < limit) articles.push({ title: item.querySelector('title')?.textContent || '', snippet: item.querySelector('description')?.textContent || '', source: item.querySelector('source')?.textContent || '', pubDate: item.querySelector('pubDate')?.textContent || '' });
+          });
+        } catch(e) {}
+        if (rhLoggedIn) { try { const rh = await fetchRobinhoodNews(kw); rh.slice(0, 3).forEach(a => articles.push({ title: a.title, snippet: a.summary || '', source: a.source || 'Robinhood', pubDate: a.published_at || '' })); } catch(_) {} }
+        return JSON.stringify(articles.length ? articles : [{ title: 'No articles found for "' + kw + '"', source: 'Error', snippet: '' }]);
       }
       case 'get_concept_map': return JSON.stringify({ nodes: cmNodes.map(n => ({ id: n.id, title: n.title, desc: n.desc })), edges: cmEdges.map(e => ({ from: e.from, to: e.to })) });
       case 'get_portfolio': {
@@ -9669,7 +9544,7 @@ async function executeAgentTool(name, input) {
           doc.querySelectorAll('item').forEach((item, idx) => { if (idx < 5) articles_bt.push({ title: item.querySelector('title')?.textContent || '', source: item.querySelector('source')?.textContent || '' }); });
           if (articles_bt.length > 0) newsSource_bt = 'Google News (live)';
         } catch(e) {}
-        if (!articles_bt.length) articles_bt = genNews(t).slice(0, 5);
+        if (!articles_bt.length) articles_bt = [{ title: 'No recent news found for ' + t, source: '' }];
         const thesis = {
           ticker: t, company: company ? company.name : t, sector: company ? company.sector : 'Unknown',
           current_price: metrics.price.toFixed(2), market_cap: formatCap(metrics.mktCap),
@@ -9690,7 +9565,7 @@ async function executeAgentTool(name, input) {
           doc.querySelectorAll('item').forEach((item, idx) => { if (idx < 15) articles_ss.push({ title: item.querySelector('title')?.textContent || '', snippet: item.querySelector('title')?.textContent || '', source: item.querySelector('source')?.textContent || '' }); });
           if (articles_ss.length > 0) newsSource_ss = 'Google News (live)';
         } catch(e) {}
-        if (!articles_ss.length) articles_ss = genNews(input.keyword);
+        if (!articles_ss.length) articles_ss = [{ title: 'No recent news found for ' + input.keyword, snippet: '', source: '' }];
         const positive = ['strong', 'growth', 'beat', 'surge', 'rally', 'record', 'expands', 'innovation', 'upgrade', 'bullish', 'outperform', 'gain', 'profit', 'soar', 'boost'];
         const negative = ['fall', 'decline', 'risk', 'cut', 'warning', 'probe', 'layoff', 'miss', 'downgrade', 'bearish', 'loss', 'crash', 'slump', 'weak', 'concern'];
         let posCount = 0, negCount = 0;
@@ -10139,14 +10014,22 @@ function storeAccessRequest() {
   const requests = JSON.parse(localStorage.getItem('ws_accessRequests') || '[]');
   const existing = requests.find(r => r.name === wsUserName && r.status === 'pending');
   if (existing) return; // Already pending
+  const name = wsUserName || 'Anonymous';
   requests.push({
     id: Date.now(),
-    name: wsUserName || 'Anonymous',
+    name,
     timestamp: new Date().toISOString(),
     status: 'pending',
     promptsUsed: 3
   });
   localStorage.setItem('ws_accessRequests', JSON.stringify(requests));
+  // Also send to server for cross-browser admin visibility
+  try {
+    fetch(PROXY_BASE + '/proxy/admin/request-access', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, contact: localStorage.getItem('ws_userContact') || '', message: 'Requesting more prompts' })
+    }).catch(() => {});
+  } catch(_) {}
 }
 
 function grantUserAccess(userName, extraPrompts) {
@@ -10221,7 +10104,7 @@ function getAllKnownUsers() {
 }
 
 // Admin: Access requests panel
-function renderAccessRequestsPanel() {
+async function renderAccessRequestsPanel() {
   let panel = document.getElementById('aiAccessPanel');
   if (panel) { panel.remove(); return; }
   closeAllAdminPanels('aiAccessPanel');
@@ -10229,6 +10112,19 @@ function renderAccessRequestsPanel() {
   panel.id = 'aiAccessPanel';
   panel.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:30;background:var(--bg);overflow-y:auto;padding:12px;font-size:.6rem;';
   const requests = JSON.parse(localStorage.getItem('ws_accessRequests') || '[]');
+  // Merge server-side requests
+  try {
+    const r = await fetch(PROXY_BASE + '/proxy/admin/requests?password=' + encodeURIComponent(ADMIN_PASSWORD), { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      const serverReqs = await r.json();
+      const localNames = new Set(requests.map(req => req.name));
+      serverReqs.forEach(sr => {
+        if (!localNames.has(sr.name)) {
+          requests.push({ id: Date.now(), name: sr.name, timestamp: sr.ts, status: 'pending', promptsUsed: 0, contact: sr.contact, serverOnly: true });
+        }
+      });
+    }
+  } catch(_) {}
   const pending = requests.filter(r => r.status === 'pending');
   const granted = requests.filter(r => r.status === 'granted');
 
