@@ -454,10 +454,10 @@ body.light .fun-btn { background: var(--accent); }
   18%, 48% { transform: rotate(-8deg) translateX(-3px); }
 }
 /* Desk lamp */
-.desk-light { position: absolute; right: 8px; top: -7px; width: 8px; height: 8px; border-radius: 50%; background: #444; border: 1px solid #333; transition: all 0.4s ease; z-index: 5; }
+.desk-light { position: absolute; right: 8px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: #444; border: 1px solid #333; transition: all 0.4s ease; z-index: 5; }
 .desk-light.on { background: #4CAF50; box-shadow: 0 0 8px #4CAF50, 0 0 16px rgba(76,175,80,.3); }
-/* Robot work timer — hovers above the green light */
-.robot-timer { position: absolute; right: -10px; top: -32px; z-index: 10; display: flex; align-items: center; gap: 4px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+/* Robot work timer — on the front of the desk next to the green light */
+.robot-timer { position: absolute; right: 18px; top: 2px; z-index: 10; display: flex; align-items: center; gap: 4px; opacity: 0; transition: opacity .3s; pointer-events: none; }
 .robot-timer.active { opacity: 1; }
 .timer-clock { font-family: 'Courier New', monospace; font-size: .62rem; font-weight: 700; color: #4CAF50; background: rgba(0,0,0,.65); border: 1px solid rgba(76,175,80,.35); border-radius: 4px; padding: 1px 4px; text-shadow: 0 0 4px rgba(76,175,80,.5); white-space: nowrap; line-height: 1.2; }
 .timer-stats { display: flex; flex-direction: column; gap: 0; line-height: 1.1; }
@@ -1339,6 +1339,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 </style>
 <!-- ADDED — Phase 6: Chart.js for whiteboard chart tool -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Google Identity Services for OAuth 2.0 -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- ADDED — Phase 5: Load extracted tool module -->
 <script type="module" src="./tools.js"></script>
 <!-- ADDED — Phase 11: Orchestrator module -->
@@ -1436,9 +1438,17 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <div style="display:flex;align-items:center;gap:6px;">
             <svg width="14" height="14" viewBox="0 0 48 48" style="flex-shrink:0;"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.01 24.01 0 0 0 0 21.56l7.98-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
             <span id="gmailStatus" style="font-size:.68rem;color:var(--text-dim);flex:1;">Not signed in</span>
-            <button class="btn-sm" id="googleSignIn" style="background:rgba(66,133,244,.8);color:#fff;font-size:.65rem;">Sign in with Gmail</button>
+            <button class="btn-sm" id="googleSignIn" style="background:rgba(66,133,244,.8);color:#fff;font-size:.65rem;">Sign in with Google</button>
             <button class="btn-sm" id="googleSignOut" style="display:none;background:var(--panel-inset);color:var(--text);border:1px solid var(--border);font-size:.65rem;">Sign out</button>
           </div>
+          <div id="googleClientIdRow" style="display:none;margin-top:6px;">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input type="text" id="googleClientId" placeholder="Google OAuth Client ID" style="flex:1;font-size:.6rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);" />
+              <button class="btn-sm" id="googleClientIdSave" style="font-size:.6rem;background:rgba(66,133,244,.6);color:#fff;">Save</button>
+            </div>
+            <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Required for YouTube/Google API access. Get from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent);">Google Cloud Console</a>.</div>
+          </div>
+          <div id="googleScopes" style="display:none;margin-top:4px;font-size:.55rem;color:var(--text-dim);"></div>
         </div>
       </div>
     </div>
@@ -1618,6 +1628,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div class="ai-msgs" id="aiMsgs"></div>
       <div class="ai-input-row">
         <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="2"></textarea>
+        <button id="aiNudge" title="Nudge Claude — push to delegate, try a different approach, or take action" style="background:rgba(255,152,0,.7);color:#fff;font-size:.7rem;padding:6px 10px;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">Nudge</button>
         <button id="aiSend">Send</button>
       </div>
       <div class="robot-scene-resize" id="robotSceneResize" title="Drag to resize robot scene"></div>
@@ -7020,79 +7031,197 @@ $('#wsExport').onclick = () => {
 renderWSList();
 
 /* ═══════════════════════════════════════════
-   GOOGLE / GMAIL SIGN-IN (simple popup — no client ID required)
-   Enables: YouTube Premium (ad-free embeds), future integrations
+   GOOGLE SIGN-IN (OAuth 2.0 via Google Identity Services)
+   Enables: YouTube Premium (ad-free embeds), YouTube TV, Google API access
+   Uses GIS library for proper token-based auth with configurable scopes
    ═══════════════════════════════════════════ */
 (function() {
   let gmailSignedIn = localStorage.getItem('gmailSignedIn') === 'true';
   let gmailEmail = localStorage.getItem('gmailEmail') || '';
+  let googleAccessToken = sessionStorage.getItem('googleAccessToken') || '';
+  let googleTokenExpiry = parseInt(sessionStorage.getItem('googleTokenExpiry') || '0', 10);
+  let googleClientIdVal = localStorage.getItem('googleClientId') || '';
+  let tokenClient = null;
+
+  // Scopes for Google API access — YouTube, profile, email
+  const GOOGLE_SCOPES = 'openid email profile https://www.googleapis.com/auth/youtube.readonly';
 
   function updateGmailUI() {
     const signIn = $('#googleSignIn');
     const signOut = $('#googleSignOut');
     const status = $('#gmailStatus');
+    const clientIdRow = $('#googleClientIdRow');
+    const scopesEl = $('#googleScopes');
     if (gmailSignedIn) {
       signIn.style.display = 'none';
       signOut.style.display = '';
       status.textContent = gmailEmail || 'Signed in';
       status.style.color = 'var(--accent2)';
+      if (clientIdRow) clientIdRow.style.display = 'none';
       // Enable YouTube Premium globally
       ytSignedIn = true;
       ytPremium = true;
       localStorage.setItem('ytPremium', 'true');
       ytUserName = gmailEmail;
       localStorage.setItem('ytUserName', ytUserName);
+      // Show active scopes
+      if (scopesEl && googleAccessToken) {
+        scopesEl.style.display = 'block';
+        scopesEl.innerHTML = '<span style="color:var(--accent2);">&#10003;</span> Authenticated with Google OAuth &mdash; YouTube API access enabled';
+      }
     } else {
       signIn.style.display = '';
       signOut.style.display = 'none';
       status.textContent = 'Not signed in';
       status.style.color = 'var(--text-dim)';
       ytSignedIn = false;
+      if (scopesEl) { scopesEl.style.display = 'none'; scopesEl.innerHTML = ''; }
+      // Show client ID config for admin
+      if (clientIdRow && wsIsAdmin) clientIdRow.style.display = 'block';
     }
   }
 
   window.isGoogleSignedIn = () => gmailSignedIn;
+  window.getGoogleAccessToken = () => {
+    if (googleAccessToken && Date.now() < googleTokenExpiry) return googleAccessToken;
+    return null;
+  };
 
-  // Sign in — open Gmail login popup, then confirm
+  // Initialize GIS token client when library is loaded
+  function initTokenClient() {
+    if (!googleClientIdVal || typeof google === 'undefined' || !google.accounts) return;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: googleClientIdVal,
+      scope: GOOGLE_SCOPES,
+      callback: handleTokenResponse,
+    });
+  }
+
+  function handleTokenResponse(resp) {
+    if (resp.error) {
+      console.error('[Google OAuth] Error:', resp.error, resp.error_description);
+      toast('Google sign-in failed: ' + (resp.error_description || resp.error));
+      return;
+    }
+    googleAccessToken = resp.access_token;
+    const expiresIn = (resp.expires_in || 3600) * 1000;
+    googleTokenExpiry = Date.now() + expiresIn;
+    sessionStorage.setItem('googleAccessToken', googleAccessToken);
+    sessionStorage.setItem('googleTokenExpiry', String(googleTokenExpiry));
+
+    // Fetch user profile with the token
+    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + googleAccessToken }
+    }).then(r => r.json()).then(profile => {
+      gmailEmail = profile.email || '';
+      gmailSignedIn = true;
+      localStorage.setItem('gmailSignedIn', 'true');
+      localStorage.setItem('gmailEmail', gmailEmail);
+      updateGmailUI();
+      toast('Signed in as ' + gmailEmail);
+      if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
+    }).catch(err => {
+      // Token works but profile fetch failed — still mark signed in
+      gmailSignedIn = true;
+      localStorage.setItem('gmailSignedIn', 'true');
+      updateGmailUI();
+      toast('Signed in with Google');
+    });
+  }
+
+  // Sign in button
   $('#googleSignIn').onclick = () => {
-    const popup = window.open(
-      'https://accounts.google.com/ServiceLogin?continue=https://myaccount.google.com/',
-      'gmailLogin',
-      'width=500,height=600,left=' + (screen.width / 2 - 250) + ',top=' + (screen.height / 2 - 300)
-    );
-    // Poll for popup close
-    const check = setInterval(() => {
-      if (!popup || popup.closed) {
-        clearInterval(check);
-        // Ask user to confirm sign-in
-        const email = prompt('Enter your Gmail address to confirm sign-in:');
-        if (email && email.includes('@')) {
-          gmailSignedIn = true;
-          gmailEmail = email;
-          localStorage.setItem('gmailSignedIn', 'true');
-          localStorage.setItem('gmailEmail', email);
-          updateGmailUI();
-          toast('Signed in as ' + email);
-          // Reload video if playing to switch to youtube.com domain
-          if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
+    if (!googleClientIdVal) {
+      // No client ID — fall back to simple popup flow
+      const popup = window.open(
+        'https://accounts.google.com/ServiceLogin?continue=https://myaccount.google.com/',
+        'gmailLogin',
+        'width=500,height=600,left=' + (screen.width / 2 - 250) + ',top=' + (screen.height / 2 - 300)
+      );
+      const check = setInterval(() => {
+        if (!popup || popup.closed) {
+          clearInterval(check);
+          const email = prompt('Enter your Gmail address to confirm sign-in:');
+          if (email && email.includes('@')) {
+            gmailSignedIn = true;
+            gmailEmail = email;
+            localStorage.setItem('gmailSignedIn', 'true');
+            localStorage.setItem('gmailEmail', email);
+            updateGmailUI();
+            toast('Signed in as ' + email + ' (basic mode — add a Google Client ID for full API access)');
+            if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
+          }
         }
-      }
-    }, 500);
+      }, 500);
+      return;
+    }
+    // OAuth flow via GIS
+    if (!tokenClient) initTokenClient();
+    if (tokenClient) {
+      tokenClient.requestAccessToken();
+    } else {
+      toast('Google Identity Services not loaded yet. Try again in a moment.');
+    }
   };
 
   // Sign out
   $('#googleSignOut').onclick = () => {
+    // Revoke token if we have one
+    if (googleAccessToken && typeof google !== 'undefined' && google.accounts) {
+      google.accounts.oauth2.revoke(googleAccessToken, () => {});
+    }
     gmailSignedIn = false;
     gmailEmail = '';
+    googleAccessToken = '';
+    googleTokenExpiry = 0;
     localStorage.removeItem('gmailSignedIn');
     localStorage.removeItem('gmailEmail');
+    sessionStorage.removeItem('googleAccessToken');
+    sessionStorage.removeItem('googleTokenExpiry');
     updateGmailUI();
     toast('Signed out of Google');
     if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
   };
 
+  // Client ID save
+  const clientIdSave = $('#googleClientIdSave');
+  if (clientIdSave) {
+    clientIdSave.onclick = () => {
+      const val = ($('#googleClientId') || {}).value || '';
+      if (val.trim()) {
+        googleClientIdVal = val.trim();
+        localStorage.setItem('googleClientId', googleClientIdVal);
+        initTokenClient();
+        toast('Google Client ID saved');
+      }
+    };
+  }
+  // Pre-fill client ID input
+  const clientIdInput = $('#googleClientId');
+  if (clientIdInput && googleClientIdVal) clientIdInput.value = googleClientIdVal;
+
+  // Auto-refresh token before expiry
+  setInterval(() => {
+    if (gmailSignedIn && googleAccessToken && googleClientIdVal && Date.now() > googleTokenExpiry - 300000) {
+      // Token expires in < 5 min — silently refresh
+      if (tokenClient) {
+        tokenClient.requestAccessToken({ prompt: '' });
+      }
+    }
+  }, 60000);
+
   // Init on load
   updateGmailUI();
+  // Wait for GIS library to load, then init token client
+  if (googleClientIdVal) {
+    const gisCheck = setInterval(() => {
+      if (typeof google !== 'undefined' && google.accounts) {
+        clearInterval(gisCheck);
+        initTokenClient();
+      }
+    }, 200);
+    setTimeout(() => clearInterval(gisCheck), 10000); // Give up after 10s
+  }
 })();
 
 /* ═══════════════════════════════════════════
@@ -10336,6 +10465,26 @@ $('#aiSend').onclick = sendAgentMessage;
 $('#aiInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); }
 });
+
+// ── Nudge button — pushes Claude to delegate, change approach, or take action ──
+$('#aiNudge').onclick = function() {
+  if (!aiStreaming) {
+    // Not currently running — inject a nudge as a user message
+    const nudgePrompt = 'You seem to be stuck or not making progress on the task. Please try a different approach: delegate sub-tasks using your tools, break the problem into smaller steps, or just take direct action with the workspace tools (write_cells, write_note, draw_shape, etc.) instead of explaining. Do NOT repeat what you already said — try something new.';
+    $('#aiInput').value = nudgePrompt;
+    sendAgentMessage();
+    toast('Nudged Claude to take action');
+  } else {
+    // Currently streaming/working — show a nudge alert in chat
+    const nudgeDiv = document.createElement('div');
+    nudgeDiv.className = 'ai-msg system';
+    nudgeDiv.style.cssText = 'color:#FF9800;font-size:.62rem;padding:6px 10px;background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.25);border-radius:6px;margin:4px 0;';
+    nudgeDiv.innerHTML = '<b>Nudge:</b> Claude is still working on the current request. If it seems stuck, wait for it to finish or clear the chat to start fresh.';
+    $('#aiMsgs').appendChild(nudgeDiv);
+    $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+    toast('Claude is still working...');
+  }
+};
 
 // ADDED — Phase 11: Expose globals for orchestrator module
 window.executeAgentTool = executeAgentTool;
