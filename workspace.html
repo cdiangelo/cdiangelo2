@@ -1627,9 +1627,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div id="aiUsageDashContent"></div>
       </div>
       <div class="ai-msgs" id="aiMsgs"></div>
-      <div style="display:flex;align-items:center;gap:4px;padding:0 8px;">
+      <div style="display:flex;align-items:center;gap:6px;padding:0 8px;">
         <span id="personaIndicator" style="font-size:.52rem;color:var(--text-dim);white-space:nowrap;"></span>
+        <button id="contextBadge" style="font-size:.5rem;color:var(--text-dim);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;white-space:nowrap;">&#128206; Context</button>
       </div>
+      <div id="contextDrawer" style="display:none;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--panel-inset);max-height:200px;overflow-y:auto;font-size:.55rem;"></div>
       <div class="ai-input-row">
         <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="2"></textarea>
         <button id="aiNudge" title="Nudge Claude — push to delegate, try a different approach, or take action" style="background:rgba(255,152,0,.7);color:#fff;font-size:.7rem;padding:6px 10px;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">Nudge</button>
@@ -8251,6 +8253,168 @@ Object.entries(_customPersonas).forEach(([key, data]) => {
   if (PERSONA_MODES[key]) PERSONA_MODES[key].systemPrompt = data.systemPrompt;
 });
 
+// ── Persona context injection (slot system) ──
+const CONTEXT_SLOTS_CONFIG = { maxSlots: 5, maxCharsPerSlot: 3000, maxTotalChars: 8000 };
+let contextSlots = LS('compplan_context_slots') || []; // [{ id, label, content, scope, createdAt, pinned }]
+
+function saveContextSlots() {
+  LS('compplan_context_slots', contextSlots.filter(s => s.pinned));
+}
+
+function addContextSlot(label, content, scope, pinned) {
+  if (contextSlots.length >= CONTEXT_SLOTS_CONFIG.maxSlots) { toast('Max ' + CONTEXT_SLOTS_CONFIG.maxSlots + ' context slots'); return false; }
+  if (content.length > CONTEXT_SLOTS_CONFIG.maxCharsPerSlot) content = content.substring(0, CONTEXT_SLOTS_CONFIG.maxCharsPerSlot);
+  const slot = { id: Date.now(), label, content, scope: scope || 'global', createdAt: new Date().toISOString(), pinned: !!pinned };
+  contextSlots.push(slot);
+  saveContextSlots();
+  updateContextUI();
+  return true;
+}
+
+function removeContextSlot(id) {
+  contextSlots = contextSlots.filter(s => s.id !== id);
+  saveContextSlots();
+  updateContextUI();
+}
+
+function toggleContextSlotPin(id) {
+  const slot = contextSlots.find(s => s.id === id);
+  if (slot) { slot.pinned = !slot.pinned; saveContextSlots(); updateContextUI(); }
+}
+
+function getActiveContextSlots() {
+  return contextSlots.filter(s => {
+    if (s.scope === 'global') return true;
+    if (s.scope === 'persona:' + activePersonaKey) return true;
+    return false;
+  });
+}
+
+function buildContextInjection() {
+  const active = getActiveContextSlots();
+  if (!active.length) return '';
+  let totalChars = 0;
+  const blocks = [];
+  // Prioritize pinned first, then by creation date
+  const sorted = [...active].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || new Date(b.createdAt) - new Date(a.createdAt));
+  let truncated = false;
+  for (const slot of sorted) {
+    if (totalChars + slot.content.length > CONTEXT_SLOTS_CONFIG.maxTotalChars) {
+      truncated = true;
+      break;
+    }
+    blocks.push('[Label: ' + slot.label + ' | Scope: ' + slot.scope + ']\n' + slot.content);
+    totalChars += slot.content.length;
+  }
+  let result = '\n\n---INJECTED CONTEXT---\n' + blocks.join('\n\n') + '\n---END CONTEXT---';
+  if (truncated) result += '\n[Note: Some context was truncated due to length limits]';
+  console.log('[CONTEXT] Injecting ' + blocks.length + ' slots, ~' + totalChars + ' chars into system prompt');
+  return result;
+}
+
+function getContextSlotTemplateForPersona(personaKey) {
+  const templates = {
+    'stock_analyst': { label: 'Investment Thesis', placeholder: 'Company: \nTicker: \nThesis: \nKey Metrics to Watch: \nCatalysts: \nRisks: ' },
+    'financial_modeler': { label: 'Model Assumptions', placeholder: 'Revenue Growth Rate: \nGross Margin Target: \nDiscount Rate (WACC): \nTerminal Growth Rate: \nProjection Period: ' },
+    'presentation_builder': { label: 'Audience & Objectives', placeholder: 'Audience: \nDecision Being Made: \nKey Message: \nTone: \nLength/Format Constraints: ' },
+    'planning_analyst': { label: 'Budget Context', placeholder: 'Entity/Department: \nFiscal Year: \nBudget Period: \nKey Variance Drivers: \nCFO Priorities: ' },
+    'general': { label: 'Background Context', placeholder: 'Paste any reference material, background info, or instructions here...' }
+  };
+  return templates[personaKey] || templates['general'];
+}
+
+function updateContextUI() {
+  const badge = document.getElementById('contextBadge');
+  const active = getActiveContextSlots();
+  if (badge) {
+    badge.textContent = active.length ? '\uD83D\uDCCE ' + active.length + ' context slot' + (active.length > 1 ? 's' : '') + ' active' : '\uD83D\uDCCE Context';
+    badge.style.color = active.length ? 'var(--accent)' : 'var(--text-dim)';
+  }
+  // Render drawer contents if open
+  const drawer = document.getElementById('contextDrawer');
+  if (drawer && drawer.style.display !== 'none') renderContextDrawerContents(drawer);
+}
+
+function renderContextDrawerContents(drawer) {
+  const active = getActiveContextSlots();
+  const totalChars = active.reduce((sum, s) => sum + s.content.length, 0);
+  const pct = Math.round(totalChars / CONTEXT_SLOTS_CONFIG.maxTotalChars * 100);
+  const budgetColor = pct < 50 ? '#4CAF50' : pct < 80 ? '#FF9800' : '#ef4444';
+
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+    '<span style="font-weight:700;font-size:.62rem;">Context Slots</span>' +
+    '<div style="display:flex;gap:4px;align-items:center;">' +
+    '<span style="font-size:.5rem;color:' + budgetColor + ';">~' + Math.round(totalChars / 1000) + 'k of ' + (CONTEXT_SLOTS_CONFIG.maxTotalChars / 1000) + 'k chars</span>' +
+    '<button id="contextAddBtn" style="padding:2px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.52rem;">+ Add Context</button>' +
+    '<button id="contextClearAll" style="padding:2px 8px;border:1px solid var(--danger);border-radius:4px;background:none;color:var(--danger);cursor:pointer;font-size:.52rem;">Clear All</button>' +
+    '</div></div>';
+
+  if (!contextSlots.length) {
+    html += '<div style="color:var(--text-dim);text-align:center;padding:12px;font-size:.55rem;">No context slots. Add persistent context to enhance Claude\'s responses.</div>';
+  } else {
+    contextSlots.forEach(s => {
+      const isActive = active.some(a => a.id === s.id);
+      html += '<div style="padding:4px 6px;margin:3px 0;border:1px solid var(--border);border-radius:4px;background:' + (isActive ? 'rgba(59,130,246,.06)' : 'transparent') + ';font-size:.55rem;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-weight:600;">' + s.label + '</span>' +
+        '<div style="display:flex;gap:3px;align-items:center;">' +
+        '<span style="font-size:.45rem;color:var(--text-dim);">' + s.content.length + ' chars</span>' +
+        '<span style="font-size:.45rem;padding:1px 4px;border-radius:2px;background:rgba(255,255,255,.06);color:var(--text-dim);">' + s.scope + '</span>' +
+        '<button onclick="toggleContextSlotPin(' + s.id + ')" style="border:none;background:none;cursor:pointer;font-size:.5rem;color:' + (s.pinned ? 'var(--accent)' : 'var(--text-dim)') + ';" title="' + (s.pinned ? 'Unpin' : 'Pin') + '">' + (s.pinned ? '\uD83D\uDCCC' : '\u25CB') + '</button>' +
+        '<button onclick="removeContextSlot(' + s.id + ')" style="border:none;background:none;cursor:pointer;font-size:.5rem;color:var(--danger);" title="Remove">&times;</button>' +
+        '</div></div></div>';
+    });
+  }
+  drawer.innerHTML = html;
+
+  // Wire add button
+  const addBtn = document.getElementById('contextAddBtn');
+  if (addBtn) addBtn.onclick = () => renderContextAddForm(drawer);
+  const clearBtn = document.getElementById('contextClearAll');
+  if (clearBtn) clearBtn.onclick = () => {
+    if (!confirm('Clear all context slots?')) return;
+    contextSlots = [];
+    saveContextSlots();
+    updateContextUI();
+  };
+}
+
+function renderContextAddForm(drawer) {
+  const tmpl = getContextSlotTemplateForPersona(activePersonaKey);
+  let html = '<div style="border:1px solid var(--border);border-radius:4px;padding:8px;margin:4px 0;font-size:.55rem;">' +
+    '<div style="font-weight:700;margin-bottom:4px;">Add Context Slot</div>' +
+    '<input id="ctxSlotLabel" type="text" value="' + tmpl.label + '" placeholder="Label" style="width:100%;padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:var(--bg);color:var(--text);font-size:.55rem;margin-bottom:4px;" />' +
+    '<select id="ctxSlotScope" style="width:100%;padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:var(--bg);color:var(--text);font-size:.55rem;margin-bottom:4px;">' +
+    '<option value="global">Global (all personas)</option>' +
+    '<option value="persona:' + activePersonaKey + '">Current Persona Only (' + getActivePersona().label + ')</option>' +
+    '</select>' +
+    '<textarea id="ctxSlotContent" rows="6" placeholder="' + tmpl.placeholder.replace(/"/g, '&quot;') + '" style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:3px;background:var(--bg);color:var(--text);font-size:.55rem;font-family:inherit;resize:vertical;"></textarea>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">' +
+    '<span id="ctxSlotCharCount" style="font-size:.48rem;color:var(--text-dim);">0 / ' + CONTEXT_SLOTS_CONFIG.maxCharsPerSlot + '</span>' +
+    '<label style="display:flex;align-items:center;gap:3px;font-size:.5rem;color:var(--text-dim);cursor:pointer;"><input type="checkbox" id="ctxSlotPinned" style="width:10px;height:10px;"> Pin (persist across sessions)</label>' +
+    '</div>' +
+    '<div style="display:flex;gap:4px;margin-top:6px;">' +
+    '<button id="ctxSlotSave" style="padding:3px 10px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.52rem;">Save</button>' +
+    '<button id="ctxSlotCancel" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.52rem;">Cancel</button>' +
+    '</div></div>';
+  drawer.innerHTML += html;
+  const textarea = document.getElementById('ctxSlotContent');
+  const charCount = document.getElementById('ctxSlotCharCount');
+  if (textarea && charCount) {
+    textarea.addEventListener('input', () => { charCount.textContent = textarea.value.length + ' / ' + CONTEXT_SLOTS_CONFIG.maxCharsPerSlot; });
+  }
+  document.getElementById('ctxSlotSave').onclick = () => {
+    const label = document.getElementById('ctxSlotLabel').value.trim() || 'Untitled';
+    const content = document.getElementById('ctxSlotContent').value;
+    const scope = document.getElementById('ctxSlotScope').value;
+    const pinned = document.getElementById('ctxSlotPinned').checked;
+    if (!content.trim()) { toast('Content cannot be empty'); return; }
+    addContextSlot(label, content, scope, pinned);
+    renderContextDrawerContents(drawer);
+  };
+  document.getElementById('ctxSlotCancel').onclick = () => renderContextDrawerContents(drawer);
+}
+
 let activePersonaKey = localStorage.getItem('compplan_active_persona') || 'general';
 function getActivePersona() { return PERSONA_MODES[activePersonaKey] || PERSONA_MODES['general']; }
 function setActivePersona(key) {
@@ -10567,9 +10731,11 @@ async function sendAgentMessage() {
       }
     }
 
-    // Build combined system prompt: persona → tier → base
+    // Build combined system prompt: persona → tier → base → context
     const personaPrompt = getActivePersona().systemPrompt || '';
-    const assembledSystemPrompt = (personaPrompt ? personaPrompt + '\n\n' : '') + (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + AI_SYSTEM_PROMPT;
+    const contextInjection = buildContextInjection();
+    const assembledSystemPrompt = (personaPrompt ? personaPrompt + '\n\n' : '') + (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + AI_SYSTEM_PROMPT + contextInjection;
+    console.log('[API] System prompt: ~' + Math.round(assembledSystemPrompt.length / 1000) + 'k chars | Persona: ' + getActivePersona().label + ' | Tier: ' + TASK_TIERS[currentTierKey].label + ' | Context slots: ' + getActiveContextSlots().length);
 
     let iterations = 0;
     const MAX_ITERATIONS = 10;
@@ -10865,6 +11031,27 @@ $('#aiInput').addEventListener('keydown', e => {
     });
   }
   updatePersonaUI();
+})();
+
+// ── Context drawer toggle ──
+(function initContextDrawer() {
+  const badge = document.getElementById('contextBadge');
+  const drawer = document.getElementById('contextDrawer');
+  if (!badge || !drawer) return;
+  badge.onclick = () => {
+    if (drawer.style.display === 'none') {
+      drawer.style.display = '';
+      renderContextDrawerContents(drawer);
+    } else {
+      drawer.style.display = 'none';
+    }
+  };
+  updateContextUI();
+  // Show system message if context slots are active on load
+  const active = getActiveContextSlots();
+  if (active.length) {
+    addAiMsg('system', '\uD83D\uDCCE Context active: ' + active.map(s => s.label).join(', ') + '. The assistant will reference this context throughout the conversation.');
+  }
 })();
 
 // ── Nudge button — pushes Claude to delegate, change approach, or take action ──
