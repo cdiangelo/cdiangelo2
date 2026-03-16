@@ -9189,6 +9189,39 @@ function buildProfileInjection(profile) {
   return text;
 }
 
+// ── Analysis output clarification ──
+// Tracks output preference per task to avoid re-asking on follow-ups
+let _lastOutputPref = { taskId: null, mode: null };
+
+function showOutputClarification(taskId) {
+  // Reuse preference for follow-up on same task
+  if (_lastOutputPref.taskId === taskId && _lastOutputPref.mode) {
+    return Promise.resolve(_lastOutputPref.mode);
+  }
+  return new Promise(resolve => {
+    const div = document.createElement('div');
+    div.className = 'ai-msg system';
+    div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--panel-inset);font-size:.62rem;';
+    div.innerHTML = '<div style="font-weight:700;margin-bottom:8px;">How would you like this analysis delivered?</div>' +
+      '<div style="display:flex;gap:8px;">' +
+      '<button id="outputPrefSheet" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;font-size:.62rem;display:flex;align-items:center;gap:4px;">\uD83D\uDCCA Spreadsheet Data</button>' +
+      '<button id="outputPrefWB" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;font-size:.62rem;display:flex;align-items:center;gap:4px;">\uD83D\uDDBC\uFE0F Whiteboard Visuals</button>' +
+      '</div>';
+    $('#aiMsgs').appendChild(div);
+    $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+    div.querySelector('#outputPrefSheet').onclick = () => {
+      _lastOutputPref = { taskId, mode: 'spreadsheet' };
+      div.innerHTML = '<div style="color:var(--text-dim);">\uD83D\uDCCA Delivering as spreadsheet data</div>';
+      resolve('spreadsheet');
+    };
+    div.querySelector('#outputPrefWB').onclick = () => {
+      _lastOutputPref = { taskId, mode: 'whiteboard' };
+      div.innerHTML = '<div style="color:var(--text-dim);">\uD83D\uDDBC\uFE0F Delivering as whiteboard visuals</div>';
+      resolve('whiteboard');
+    };
+  });
+}
+
 // Extract ticker(s) from a prompt
 function extractTickers(prompt) {
   const matches = prompt.match(/\b[A-Z]{2,5}\b/g) || [];
@@ -11443,6 +11476,20 @@ async function sendAgentMessage() {
       if (companyProfileInjection) {
         contextMsg.content = companyProfileInjection + '\n' + contextMsg.content;
       }
+    }
+  }
+
+  // ── Output format clarification (for analysis tasks) ──
+  let outputPrefPrompt = '';
+  if (classifyAsAnalysisTask(input)) {
+    const outputMode = await showOutputClarification(taskId);
+    if (outputMode === 'spreadsheet') {
+      outputPrefPrompt = '\nOutput preference: structured data. Format all metrics, comparisons, and time-series as tables. Push numerical output to the spreadsheet using write_cells. Keep chat summary to 3-5 sentences only.\n';
+    } else if (outputMode === 'whiteboard') {
+      outputPrefPrompt = '\nOutput preference: visual exhibits. Build whiteboard cards for key findings using draw_summary_card. Use concept map layout for relationships. Prefer labeled diagrams over tables. Add a summary card with the main thesis.\n';
+    }
+    if (outputPrefPrompt) {
+      contextMsg.content += outputPrefPrompt;
     }
   }
 
