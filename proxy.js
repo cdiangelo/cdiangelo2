@@ -3,8 +3,12 @@
 // Start: node proxy.js — listens on port 3001
 
 const express = require('express');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Serve static files (HTML, JS, CSS) from project root
+app.use(express.static(path.join(__dirname)));
 
 // ── AI API key: held server-side only, never sent to browser ──
 const ADMIN_PASSWORD = 'animalcrackers'; // Must match workspace.html
