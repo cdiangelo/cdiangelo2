@@ -1091,13 +1091,14 @@ body.light .fun-btn { background: var(--accent); }
 .stat-card {
   background: var(--panel-inset); border: 1px solid var(--border);
   border-radius: 6px; padding: 8px 10px; min-width: 100px;
+  overflow: hidden; clip-path: inset(0);
 }
 .stat-card .sc-label { font-size: .65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; }
 .stat-card .sc-value { font-size: 1.1rem; font-weight: 700; color: var(--text); margin: 2px 0; }
 .stat-card .sc-change { font-size: .7rem; font-weight: 600; }
 .sc-up { color: var(--success); }
 .sc-down { color: var(--danger); }
-.stat-card canvas { display: block; margin-top: 4px; }
+.stat-card canvas { display: block; margin-top: 4px; width: 100%; max-width: 100%; }
 
 /* Expanded pane: bigger charts */
 .pane.expanded .stat-card { min-width: 220px; }
@@ -6454,7 +6455,9 @@ async function renderStockDash() {
     const cvs = card.querySelector('canvas');
     const isExpanded = document.getElementById('q-map').classList.contains('expanded');
     const dpr = window.devicePixelRatio || 1;
-    const dispW = isExpanded ? Math.min(card.offsetWidth - 20, 400) : 180;
+    // Clamp sparkline to actual card width — prevents rendering beyond container
+    const cardW = card.offsetWidth - 20; // account for card padding
+    const dispW = Math.max(60, Math.min(cardW > 0 ? cardW : 180, isExpanded ? 400 : 180));
     const dispH = isExpanded ? 80 : 50;
     cvs.width = dispW * dpr; cvs.height = dispH * dpr;
     cvs.style.width = dispW + 'px'; cvs.style.height = dispH + 'px';
