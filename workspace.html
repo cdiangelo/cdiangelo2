@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Interactive Workspace</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* ═══ COLOR SCHEME ENGINE ═══ */
 :root {
@@ -10723,26 +10724,51 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
 
 // ── Robinhood Login UI ──
 (function() {
+  // Restore saved email
+  const savedEmail = LS('rhEmail') || '';
+
   // Create modal overlay
   const overlay = document.createElement('div');
   overlay.id = 'rhModal';
   overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;';
   overlay.innerHTML = `
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:340px;max-width:90vw;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:360px;max-width:90vw;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <span style="font-size:.85rem;font-weight:700;color:var(--text);">Robinhood Login</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:1.1rem;">&#x1F4C8;</span>
+          <span style="font-size:.85rem;font-weight:700;color:var(--text);">Robinhood</span>
+        </div>
         <span id="rhModalClose" style="cursor:pointer;font-size:1rem;color:var(--text-dim);">&times;</span>
       </div>
+
+      <!-- Google Sign-In section -->
+      <div id="rhGoogleSection" style="margin-bottom:12px;">
+        <button id="rhGoogleBtn" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:border-color .15s;">
+          <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Sign in with Google
+        </button>
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 0;">
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+          <span style="font-size:.6rem;color:var(--text-dim);text-transform:uppercase;">or use email</span>
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+        </div>
+      </div>
+
       <div id="rhLoginForm">
-        <input type="text" id="rhUsername" placeholder="Email" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.75rem;" />
-        <input type="password" id="rhPassword" placeholder="Password" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.75rem;" />
+        <input type="email" id="rhUsername" placeholder="Email address" value="${savedEmail}" autocomplete="email" style="width:100%;margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.75rem;box-sizing:border-box;" />
+        <input type="password" id="rhPassword" placeholder="Password" autocomplete="current-password" style="width:100%;margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.75rem;box-sizing:border-box;" />
         <div id="rhMfaWrap" style="display:none;">
-          <input type="text" id="rhMfaCode" placeholder="MFA Code" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.75rem;" />
+          <div style="font-size:.62rem;color:var(--text-dim);margin-bottom:4px;">Enter the code from your authenticator app or SMS:</div>
+          <input type="text" id="rhMfaCode" placeholder="6-digit code" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" style="width:100%;margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.85rem;font-weight:600;letter-spacing:.2em;text-align:center;box-sizing:border-box;" />
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <input type="checkbox" id="rhRemember" ${savedEmail ? 'checked' : ''} style="margin:0;" />
+          <label for="rhRemember" style="font-size:.62rem;color:var(--text-dim);cursor:pointer;">Remember email</label>
         </div>
         <div id="rhLoginMsg" style="font-size:.65rem;color:var(--text-dim);margin-bottom:8px;min-height:16px;"></div>
         <div style="display:flex;gap:8px;">
-          <button id="rhLoginSubmit" style="flex:1;padding:8px;border:none;border-radius:6px;background:#22c55e;color:#fff;font-size:.75rem;font-weight:600;cursor:pointer;">Login</button>
-          <button id="rhLogoutSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text-dim);font-size:.75rem;cursor:pointer;display:none;">Logout</button>
+          <button id="rhLoginSubmit" style="flex:1;padding:10px;border:none;border-radius:6px;background:#22c55e;color:#fff;font-size:.75rem;font-weight:600;cursor:pointer;transition:opacity .15s;">Login</button>
+          <button id="rhLogoutSubmit" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text-dim);font-size:.75rem;cursor:pointer;display:none;">Logout</button>
         </div>
       </div>
       <div id="rhPortfolioSummary" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
@@ -10755,21 +10781,120 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
 
   let rhChallengeId = '';
 
+  // ── Google Sign-In handler ──
+  window.handleRhGoogleSignIn = function(response) {
+    // Decode the JWT to get the email
+    try {
+      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+      if (payload.email) {
+        $('#rhUsername').value = payload.email;
+        LS('rhEmail', payload.email);
+        $('#rhRemember').checked = true;
+        $('#rhLoginMsg').textContent = 'Google email filled: ' + payload.email + '. Enter your Robinhood password.';
+        $('#rhLoginMsg').style.color = '#22c55e';
+        $('#rhPassword').focus();
+      }
+    } catch(e) {
+      $('#rhLoginMsg').textContent = 'Google sign-in failed: ' + e.message;
+      $('#rhLoginMsg').style.color = '#ef4444';
+    }
+  };
+
+  // Initialize Google Sign-In button
+  function initGoogleSignIn() {
+    if (typeof google === 'undefined' || !google.accounts) {
+      // Retry after script loads
+      setTimeout(initGoogleSignIn, 500);
+      return;
+    }
+    try {
+      google.accounts.id.initialize({
+        client_id: LS('googleClientId') || '',
+        callback: window.handleRhGoogleSignIn,
+        auto_select: false
+      });
+    } catch(e) {}
+  }
+
+  $('#rhGoogleBtn').onclick = () => {
+    const clientId = LS('googleClientId');
+    if (!clientId) {
+      // Prompt for Google Client ID if not set
+      const id = prompt('Enter your Google OAuth Client ID:\n(Create one at console.cloud.google.com → Credentials → OAuth 2.0 Client ID)\n\nThis is saved locally for future use.');
+      if (id && id.includes('.apps.googleusercontent.com')) {
+        LS('googleClientId', id);
+        try {
+          google.accounts.id.initialize({
+            client_id: id,
+            callback: window.handleRhGoogleSignIn,
+            auto_select: false
+          });
+          google.accounts.id.prompt();
+        } catch(e) {
+          $('#rhLoginMsg').textContent = 'Google SDK not loaded. Check your connection.';
+          $('#rhLoginMsg').style.color = '#ef4444';
+        }
+      } else if (id) {
+        $('#rhLoginMsg').textContent = 'Invalid Client ID format. Must end in .apps.googleusercontent.com';
+        $('#rhLoginMsg').style.color = '#ef4444';
+      }
+    } else {
+      try {
+        google.accounts.id.initialize({
+          client_id: clientId,
+          callback: window.handleRhGoogleSignIn,
+          auto_select: false
+        });
+        google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // Fallback: use the One Tap or redirect
+            $('#rhLoginMsg').textContent = 'Google popup blocked. Allow popups or enter email manually.';
+            $('#rhLoginMsg').style.color = '#f59e0b';
+          }
+        });
+      } catch(e) {
+        $('#rhLoginMsg').textContent = 'Google SDK error. Enter email manually.';
+        $('#rhLoginMsg').style.color = '#ef4444';
+      }
+    }
+  };
+
+  // Hover effect
+  $('#rhGoogleBtn').onmouseover = function() { this.style.borderColor = '#4285F4'; };
+  $('#rhGoogleBtn').onmouseout = function() { this.style.borderColor = 'var(--border)'; };
+
   $('#rhLoginBtn').onclick = () => {
     overlay.style.display = 'flex';
     if (rhLoggedIn) {
       $('#rhLogoutSubmit').style.display = 'block';
       $('#rhLoginSubmit').textContent = 'Refresh';
+      $('#rhGoogleSection').style.display = 'none';
       loadPortfolioSummary();
     } else {
       $('#rhLogoutSubmit').style.display = 'none';
       $('#rhLoginSubmit').textContent = 'Login';
+      $('#rhGoogleSection').style.display = 'block';
       $('#rhPortfolioSummary').style.display = 'none';
+      // Restore saved email
+      const saved = LS('rhEmail');
+      if (saved) $('#rhUsername').value = saved;
     }
   };
 
   $('#rhModalClose').onclick = () => { overlay.style.display = 'none'; };
   overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display = 'none'; };
+
+  // Submit on Enter in password or MFA fields
+  $('#rhPassword').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
+  $('#rhMfaCode').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
+
+  // Auto-submit MFA when 6 digits are entered
+  $('#rhMfaCode').oninput = function() {
+    this.value = this.value.replace(/\D/g, '').slice(0, 6);
+    if (this.value.length === 6) {
+      setTimeout(() => $('#rhLoginSubmit').click(), 200);
+    }
+  };
 
   $('#rhLoginSubmit').onclick = async () => {
     const msg = $('#rhLoginMsg');
@@ -10777,7 +10902,15 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     const password = $('#rhPassword').value;
     const mfaCode = $('#rhMfaCode').value.trim();
     if (!username || !password) { msg.textContent = 'Email and password required'; msg.style.color = '#ef4444'; return; }
+
+    // Save email if remember is checked
+    if ($('#rhRemember').checked) LS('rhEmail', username);
+    else LS('rhEmail', '');
+
     msg.textContent = 'Logging in...'; msg.style.color = 'var(--text-dim)';
+    $('#rhLoginSubmit').disabled = true;
+    $('#rhLoginSubmit').style.opacity = '0.6';
+
     try {
       const body = { username, password };
       if (mfaCode) body.mfa_code = mfaCode;
@@ -10790,27 +10923,37 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       const data = await resp.json();
       if (data.ok) {
         rhLoggedIn = true;
-        msg.textContent = 'Logged in successfully!'; msg.style.color = '#22c55e';
+        msg.textContent = 'Connected to Robinhood!'; msg.style.color = '#22c55e';
         updateRhLoginUI();
         $('#rhLogoutSubmit').style.display = 'block';
         $('#rhMfaWrap').style.display = 'none';
+        $('#rhGoogleSection').style.display = 'none';
         rhChallengeId = '';
         loadPortfolioSummary();
-        // Refresh stock data with Robinhood historicals
         renderStockDash();
         renderNewsFeed();
       } else if (data.mfa_required) {
         $('#rhMfaWrap').style.display = 'block';
-        msg.textContent = 'MFA code sent via ' + (data.mfa_type || 'SMS') + '. Enter it above.'; msg.style.color = '#f59e0b';
+        $('#rhMfaCode').value = '';
+        $('#rhMfaCode').focus();
+        const mfaLabel = data.mfa_type === 'app' ? 'authenticator app (Google Authenticator, Authy, etc.)' : (data.mfa_type || 'SMS');
+        msg.innerHTML = '<span style="color:#f59e0b;">&#128274;</span> Enter the code from your <b>' + mfaLabel + '</b>';
+        msg.style.color = '#f59e0b';
       } else if (data.challenge) {
         rhChallengeId = data.challenge_id;
         $('#rhMfaWrap').style.display = 'block';
-        msg.textContent = 'Challenge required (' + data.challenge_type + '). Enter code above.'; msg.style.color = '#f59e0b';
+        $('#rhMfaCode').value = '';
+        $('#rhMfaCode').focus();
+        msg.innerHTML = '<span style="color:#f59e0b;">&#128274;</span> Security challenge (' + data.challenge_type + '). Check your device.';
+        msg.style.color = '#f59e0b';
       } else {
         msg.textContent = data.message || 'Login failed'; msg.style.color = '#ef4444';
       }
     } catch(e) {
-      msg.textContent = 'Connection error: ' + e.message; msg.style.color = '#ef4444';
+      msg.textContent = 'Connection error — is proxy.js running?'; msg.style.color = '#ef4444';
+    } finally {
+      $('#rhLoginSubmit').disabled = false;
+      $('#rhLoginSubmit').style.opacity = '1';
     }
   };
 
@@ -10824,6 +10967,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     $('#rhLoginMsg').style.color = 'var(--text-dim)';
     $('#rhLogoutSubmit').style.display = 'none';
     $('#rhLoginSubmit').textContent = 'Login';
+    $('#rhGoogleSection').style.display = 'block';
     $('#rhPortfolioSummary').style.display = 'none';
   };
 
@@ -10863,6 +11007,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
 
   // Check RH status on load
   checkRobinhoodStatus();
+  setTimeout(initGoogleSignIn, 1000);
 })();
 
 </script>
