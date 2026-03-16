@@ -4285,8 +4285,16 @@ function ssRenderSelection() {
     brTd.appendChild(handle);
     handle.addEventListener('mousedown', e => {
       e.preventDefault(); e.stopPropagation();
-      const startR = ssSel.r1, startC = ssSel.c1;
-      const srcVal = ssD[startR][startC] || '';
+      const srcSel = ssSelRange();
+      const srcRows = srcSel.maxR - srcSel.minR + 1;
+      const srcCols = srcSel.maxC - srcSel.minC + 1;
+      // Collect source data for pattern detection
+      const srcData = [];
+      for (let r = srcSel.minR; r <= srcSel.maxR; r++) {
+        const row = [];
+        for (let c = srcSel.minC; c <= srcSel.maxC; c++) row.push(ssD[r][c] || '');
+        srcData.push(row);
+      }
       function onMove(ev) {
         const el = document.elementFromPoint(ev.clientX, ev.clientY);
         if (el && el.classList.contains('ci')) {
@@ -4299,17 +4307,35 @@ function ssRenderSelection() {
         t.querySelectorAll('td').forEach(td => td.style.outline = '');
         const el = document.elementFromPoint(ev.clientX, ev.clientY);
         if (el && el.classList.contains('ci')) {
+          ssPushUndo();
           const endR = +el.dataset.r, endC = +el.dataset.c;
-          if (endC === startC && endR !== startR) {
-            const dir = endR > startR ? 1 : -1;
-            for (let fr = startR + dir; dir > 0 ? fr <= endR : fr >= endR; fr += dir) {
-              ssD[fr][startC] = ssFillAdjust(srcVal, fr - startR, 0);
+          // Fill down
+          if (endR > srcSel.maxR) {
+            for (let r = srcSel.maxR + 1; r <= Math.min(endR, ssR-1); r++) {
+              for (let c = srcSel.minC; c <= srcSel.maxC; c++) {
+                const srcVal = srcData[(r - srcSel.minR) % srcRows][c - srcSel.minC];
+                ssD[r][c] = ssFillAdjust(srcVal, r - srcSel.minR, 0);
+              }
             }
-          } else if (endR === startR && endC !== startC) {
-            const dir = endC > startC ? 1 : -1;
-            for (let fc = startC + dir; dir > 0 ? fc <= endC : fc >= endC; fc += dir) {
-              ssD[startR][fc] = ssFillAdjust(srcVal, 0, fc - startC);
+          }
+          // Fill right
+          if (endC > srcSel.maxC) {
+            for (let r = srcSel.minR; r <= srcSel.maxR; r++) {
+              for (let c = srcSel.maxC + 1; c <= Math.min(endC, ssC-1); c++) {
+                const srcVal = srcData[r - srcSel.minR][(c - srcSel.minC) % srcCols];
+                ssD[r][c] = ssFillAdjust(srcVal, 0, c - srcSel.minC);
+              }
             }
+          }
+          // Fill up (clear)
+          if (endR < srcSel.minR) {
+            for (let r = endR; r < srcSel.minR; r++)
+              for (let c = srcSel.minC; c <= srcSel.maxC; c++) ssD[r][c] = '';
+          }
+          // Fill left (clear)
+          if (endC < srcSel.minC) {
+            for (let r = srcSel.minR; r <= srcSel.maxR; r++)
+              for (let c = endC; c < srcSel.minC; c++) ssD[r][c] = '';
           }
           LS('sheet', ssD); ssRender(); toast('Filled');
         }
@@ -5095,31 +5121,51 @@ function ssRender() {
       LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); toast('Cut');
       return;
     }
-    // Ctrl+V: paste from clipboard
+    // Ctrl+V: paste from clipboard — fills selected range
     if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
       e.preventDefault();
+      function ssPasteData(clipData) {
+        ssPushUndo();
+        const sel = ssSelRange();
+        const selRows = sel.maxR - sel.minR + 1;
+        const selCols = sel.maxC - sel.minC + 1;
+        const clipRows = clipData.length;
+        const clipCols = clipData[0] ? clipData[0].length : 1;
+        const isSingleVal = clipRows === 1 && clipCols === 1;
+        // Determine paste region
+        let pasteRows, pasteCols;
+        if (selRows === 1 && selCols === 1) {
+          // Single cell selected — expand to fit clipboard
+          pasteRows = clipRows; pasteCols = clipCols;
+        } else if (isSingleVal) {
+          // Single value — fill entire selection
+          pasteRows = selRows; pasteCols = selCols;
+        } else {
+          // Multi-cell clipboard + multi-cell selection — tile/expand
+          pasteRows = Math.max(selRows, clipRows);
+          pasteCols = Math.max(selCols, clipCols);
+          if (pasteRows > selRows || pasteCols > selCols) toast('Paste expanded selection to fit content');
+        }
+        for (let ri = 0; ri < pasteRows; ri++) {
+          for (let ci = 0; ci < pasteCols; ci++) {
+            const tr = sel.minR + ri, tc = sel.minC + ci;
+            if (tr >= ssR || tc >= ssC) continue;
+            const val = clipData[ri % clipRows][ci % clipCols];
+            ssD[tr][tc] = val || '';
+          }
+        }
+        // Update selection to cover pasted region
+        ssSel.r2 = Math.min(sel.minR + pasteRows - 1, ssR - 1);
+        ssSel.c2 = Math.min(sel.minC + pasteCols - 1, ssC - 1);
+        LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
+        toast('Pasted to ' + colN(sel.minC) + (sel.minR+1) + ':' + colN(ssSel.c2) + (ssSel.r2+1));
+      }
       navigator.clipboard.readText().then(text => {
         const rows = text.split('\n').filter(r => r.length);
-        if (rows.length > 0) {
-          rows.forEach((rowStr, ri) => {
-            const cells = rowStr.split('\t');
-            cells.forEach((val, ci) => {
-              const tr = ssSel.r1 + ri, tc = ssSel.c1 + ci;
-              if (tr < ssR && tc < ssC) ssD[tr][tc] = val;
-            });
-          });
-        }
-        LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); toast('Pasted');
+        const clipData = rows.map(r => r.split('\t'));
+        ssPasteData(clipData);
       }).catch(() => {
-        if (ssClipboardRange) {
-          ssClipboardRange.data.forEach((row, ri) => {
-            row.forEach((val, ci) => {
-              const tr = ssSel.r1 + ri, tc = ssSel.c1 + ci;
-              if (tr < ssR && tc < ssC) ssD[tr][tc] = val;
-            });
-          });
-          LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); toast('Pasted');
-        }
+        if (ssClipboardRange) ssPasteData(ssClipboardRange.data);
       });
       return;
     }
