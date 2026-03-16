@@ -2420,11 +2420,9 @@ function applyRolePermissions() {
   if (wsIsAdmin) {
     adminShowElements.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; });
     showLogoutButton();
-    // Ensure RH token tab is visible for admin
+    // Ensure RH tab bar is visible for admin
     const rhTabBar = document.getElementById('rhTabBar');
     if (rhTabBar) rhTabBar.style.display = 'flex';
-    const rhSetCredsWrap = document.getElementById('rhSetCredsWrap');
-    if (rhSetCredsWrap) rhSetCredsWrap.style.display = 'block';
     // Activate genie mode for admin
     if (typeof activateGenieMode === 'function') setTimeout(activateGenieMode, 300);
   } else if (wsUserName) {
@@ -12474,21 +12472,19 @@ window.fetchRobinhoodAccount = fetchRobinhoodAccount;
 window.fetchRobinhoodOrders = fetchRobinhoodOrders;
 window.fetchRobinhoodNews = fetchRobinhoodNews;
 
-// ── Robinhood Login UI ──
+// ── Robinhood Connection Status Modal ──
 (function() {
-  const savedEmail = LS('rhEmail') || '';
-
   const overlay = document.createElement('div');
   overlay.id = 'rhModal';
   overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;';
   overlay.innerHTML = `
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:380px;max-width:90vw;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <span style="font-size:.85rem;font-weight:700;color:var(--text);">Robinhood Account Setup</span>
+        <span style="font-size:.85rem;font-weight:700;color:var(--text);">Robinhood Connection</span>
         <span id="rhModalClose" style="cursor:pointer;font-size:1rem;color:var(--text-dim);">&times;</span>
       </div>
 
-      <!-- Connection Status Badge (always visible) -->
+      <!-- Connection Status Badge -->
       <div id="rhStatusBadge" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel-inset);margin-bottom:12px;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span id="rhBadgeDot" style="width:10px;height:10px;border-radius:50%;background:#ef4444;flex-shrink:0;"></span>
@@ -12501,56 +12497,18 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
         <div id="rhBadgeHint" style="font-size:.55rem;color:var(--text-dim);margin-top:2px;font-style:italic;"></div>
       </div>
 
-      <!-- Divider -->
-      <div style="border-top:1px solid var(--border);margin:12px 0;"></div>
-
-      <!-- Token Status (server-managed — no client-side input) -->
+      <!-- Server Token Status -->
       <div id="rhTokenForm">
-        <label style="font-size:.65rem;font-weight:600;color:var(--text);display:block;margin-bottom:6px;">Token Status</label>
+        <label style="font-size:.65rem;font-weight:600;color:var(--text);display:block;margin-bottom:6px;">Server Status</label>
         <div id="rhTokenServerStatus" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);font-size:.6rem;color:var(--text-dim);">
           Checking server configuration...
         </div>
         <div style="font-size:.48rem;color:var(--text-dim);margin-top:6px;font-style:italic;">
-          Token is managed server-side &mdash; contact your admin to update it.
+          Robinhood token is managed server-side via the secure proxy.
         </div>
-        <div id="rhTokenMsg" style="font-size:.62rem;color:var(--text-dim);margin-top:6px;min-height:14px;"></div>
       </div>
 
-      <!-- Divider -->
-      <div style="border-top:1px solid var(--border);margin:12px 0;"></div>
-
-      <!-- Login Form (secondary method, collapsible) -->
-      <details id="rhLoginDetails">
-        <summary style="font-size:.62rem;font-weight:600;color:var(--text);cursor:pointer;margin-bottom:8px;">Email / Password Login</summary>
-        <div id="rhLoginForm" style="margin-top:8px;">
-          <div style="font-size:.55rem;color:var(--text-dim);margin-bottom:8px;">Sign in with your Robinhood email and password. MFA will be requested if enabled.</div>
-          <input type="email" id="rhUsername" placeholder="Email" value="${savedEmail}" autocomplete="email" style="width:100%;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
-          <div style="position:relative;">
-            <input type="password" id="rhPassword" placeholder="Password" autocomplete="current-password" style="width:100%;margin-bottom:6px;padding:8px 32px 8px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
-            <span id="rhShowPw" style="position:absolute;right:8px;top:7px;cursor:pointer;font-size:.7rem;color:var(--text-dim);user-select:none;" title="Show password">&#128065;</span>
-          </div>
-          <div id="rhMfaWrap" style="display:none;">
-            <input type="text" id="rhMfaCode" placeholder="MFA code" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" style="width:100%;margin-bottom:6px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.85rem;font-weight:600;letter-spacing:.2em;text-align:center;box-sizing:border-box;" />
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-            <input type="checkbox" id="rhRemember" ${savedEmail ? 'checked' : ''} style="margin:0;" />
-            <label for="rhRemember" style="font-size:.6rem;color:var(--text-dim);cursor:pointer;">Remember email</label>
-          </div>
-          <div id="rhLoginMsg" style="font-size:.62rem;color:var(--text-dim);margin-bottom:6px;min-height:14px;"></div>
-          <div style="display:flex;gap:8px;">
-            <button id="rhLoginSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;cursor:pointer;">Login</button>
-            <button id="rhLogoutSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;display:none;">Logout</button>
-          </div>
-          <button id="rhQuickLogin" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid #22c55e40;border-radius:6px;background:#22c55e15;color:#22c55e;font-size:.72rem;cursor:pointer;font-weight:600;">Quick Login (Stored Credentials)</button>
-          <div id="rhSetCredsWrap" style="display:none;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">
-            <div style="font-size:.55rem;color:var(--text-dim);margin-bottom:4px;">Store credentials server-side for quick login:</div>
-            <input type="email" id="rhSetEmail" placeholder="RH Email" style="width:100%;margin-bottom:4px;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;box-sizing:border-box;" />
-            <input type="password" id="rhSetPw" placeholder="RH Password" style="width:100%;margin-bottom:4px;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;box-sizing:border-box;" />
-            <button id="rhSaveCreds" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;cursor:pointer;">Save Credentials</button>
-            <div id="rhSetCredsMsg" style="font-size:.55rem;color:var(--text-dim);margin-top:4px;min-height:12px;"></div>
-          </div>
-        </div>
-      </details>
+      <!-- Portfolio Summary (shown when connected) -->
       <div id="rhPortfolioSummary" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
         <div style="font-size:.7rem;font-weight:600;color:var(--text);margin-bottom:8px;">Portfolio</div>
         <div id="rhPortfolioContent" style="font-size:.65rem;color:var(--text-dim);"></div>
@@ -12558,8 +12516,6 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     </div>
   `;
   document.body.appendChild(overlay);
-
-  let rhChallengeId = '';
 
   // ── Connection status badge update ──
   function updateRhBadge() {
@@ -12641,212 +12597,16 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     }
   }
 
-  // Populate status on modal open
-  function populateStoredToken() {
+  // Open modal — just show status
+  $('#rhLoginBtn').onclick = () => {
+    overlay.style.display = 'flex';
     updateRhBadge();
     updateRhTokenServerStatus();
-  }
-
-  // Show/hide password toggle
-  $('#rhShowPw').onclick = () => {
-    const pw = $('#rhPassword');
-    const show = pw.type === 'password';
-    pw.type = show ? 'text' : 'password';
-    $('#rhShowPw').style.opacity = show ? '1' : '.5';
-  };
-
-  function onLoginSuccess() {
-    $('#rhLoginMsg').textContent = 'Connected!'; $('#rhLoginMsg').style.color = '#22c55e';
-    RH_SESSION.isConnected = true;
-    RH_SESSION.authLevel = 'authenticated';
-    RH_SESSION.lastChecked = Date.now();
-    RH_SESSION.status = 'active';
-    RH_SESSION.validatedAt = Date.now();
-    RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments', 'historicals', 'positions', 'account', 'orders', 'ratings', 'earnings'];
-    updateRhConnectionStatus();
-    updateRhLoginUI();
-    updateRhBadge();
-    $('#rhLogoutSubmit').style.display = 'block';
-    $('#rhMfaWrap').style.display = 'none';
-    rhChallengeId = '';
-    renderStockDash();
-    renderNewsFeed();
-  }
-
-  $('#rhLoginBtn').onclick = async () => {
-    overlay.style.display = 'flex';
-    populateStoredToken();
-    if (rhLoggedIn) {
-      $('#rhLogoutSubmit').style.display = 'block';
-    } else {
-      $('#rhLogoutSubmit').style.display = 'none';
-      const saved = LS('rhEmail');
-      if (saved) $('#rhUsername').value = saved;
-      $('#rhLoginMsg').textContent = '';
-      $('#rhMfaWrap').style.display = 'none';
-    }
-    // Show/hide quick-login for admin with stored credentials
-    const qlBtn = $('#rhQuickLogin');
-    if (qlBtn) {
-      if (wsIsAdmin && !rhLoggedIn) {
-        try {
-          const st = await fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
-          const sd = await safeParseJson(st, 'RH status check');
-          qlBtn.style.display = sd.has_stored_credentials ? 'block' : 'none';
-        } catch(_) { qlBtn.style.display = 'none'; }
-      } else {
-        qlBtn.style.display = 'none';
-      }
-    }
+    if (rhLoggedIn) loadPortfolioSummary();
   };
 
   $('#rhModalClose').onclick = () => { overlay.style.display = 'none'; };
   overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display = 'none'; };
-
-  // Enter key submits
-  $('#rhPassword').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
-  $('#rhMfaCode').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
-
-  // Auto-submit MFA on 6 digits
-  $('#rhMfaCode').oninput = function() {
-    this.value = this.value.replace(/\D/g, '').slice(0, 6);
-    if (this.value.length === 6) setTimeout(() => $('#rhLoginSubmit').click(), 200);
-  };
-
-  $('#rhLoginSubmit').onclick = async () => {
-    const msg = $('#rhLoginMsg');
-    const username = $('#rhUsername').value.trim();
-    const password = $('#rhPassword').value;
-    const mfaCode = $('#rhMfaCode').value.trim();
-    if (!username || !password) { msg.textContent = 'Email and password required'; msg.style.color = '#ef4444'; return; }
-    if ($('#rhRemember').checked) LS('rhEmail', username); else LS('rhEmail', '');
-    msg.textContent = 'Logging in...'; msg.style.color = 'var(--text-dim)';
-    $('#rhLoginSubmit').disabled = true; $('#rhLoginSubmit').style.opacity = '0.6';
-    try {
-      const alive = await checkProxyHealth();
-      if (!alive) throw proxyDownError();
-      const body = { username, password };
-      if (mfaCode) body.mfa_code = mfaCode;
-      if (rhChallengeId) body.challenge_id = rhChallengeId;
-      const resp = await fetch(PROXY_BASE + '/proxy/robinhood/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15000)
-      });
-      const data = await safeParseJson(resp, 'RH login');
-      if (data.ok) {
-        rhLoggedIn = true;
-        onLoginSuccess();
-      } else if (data.mfa_required) {
-        $('#rhMfaWrap').style.display = 'block';
-        $('#rhMfaCode').value = ''; $('#rhMfaCode').focus();
-        msg.textContent = 'Enter your ' + (data.mfa_type === 'app' ? 'authenticator' : data.mfa_type || 'MFA') + ' code';
-        msg.style.color = '#f59e0b';
-      } else if (data.challenge) {
-        rhChallengeId = data.challenge_id;
-        $('#rhMfaWrap').style.display = 'block';
-        $('#rhMfaCode').value = ''; $('#rhMfaCode').focus();
-        msg.textContent = 'Security challenge sent. Enter code.'; msg.style.color = '#f59e0b';
-      } else {
-        msg.textContent = data.message || 'Login failed'; msg.style.color = '#ef4444';
-      }
-    } catch(e) {
-      const hint = e.name === 'TimeoutError' ? 'Timed out' : 'Connection error';
-      msg.textContent = hint + ' — is proxy.js running on ' + PROXY_BASE + '?'; msg.style.color = '#ef4444';
-      console.error('[RH Login]', e.message, 'PROXY_BASE=' + PROXY_BASE);
-    } finally {
-      $('#rhLoginSubmit').disabled = false; $('#rhLoginSubmit').style.opacity = '1';
-    }
-  };
-
-  $('#rhLogoutSubmit').onclick = async () => {
-    try { await fetch(PROXY_BASE + '/proxy/robinhood/logout', { method: 'POST' }); } catch(e) {}
-    rhLoggedIn = false;
-    RH_SESSION.status = 'none';
-    RH_SESSION.token = null;
-    RH_SESSION.validatedAt = null;
-    RH_SESSION.accountMask = null;
-    RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments'];
-    updateRhConnectionStatus();
-    updateRhLoginUI();
-    updateRhBadge();
-    $('#rhLoginMsg').textContent = 'Logged out.'; $('#rhLoginMsg').style.color = 'var(--text-dim)';
-    $('#rhLogoutSubmit').style.display = 'none';
-    $('#rhPortfolioSummary').style.display = 'none';
-  };
-
-  // ── Quick Login (admin only, uses stored credentials) ──
-  let qlChallengeId = '';
-  $('#rhQuickLogin').onclick = async () => {
-    const msg = $('#rhLoginMsg');
-    msg.textContent = 'Logging in with stored credentials...'; msg.style.color = 'var(--text-dim)';
-    $('#rhQuickLogin').disabled = true; $('#rhQuickLogin').style.opacity = '0.6';
-    try {
-      const alive = await checkProxyHealth();
-      if (!alive) throw proxyDownError();
-      const mfaCode = $('#rhMfaCode').value.trim();
-      const body = { password: ADMIN_PASSWORD };
-      if (mfaCode) body.mfa_code = mfaCode;
-      if (qlChallengeId) body.challenge_id = qlChallengeId;
-      const resp = await fetch(PROXY_BASE + '/proxy/robinhood/quick-login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15000)
-      });
-      const data = await safeParseJson(resp, 'RH quick-login');
-      if (data.ok) {
-        rhLoggedIn = true;
-        qlChallengeId = '';
-        onLoginSuccess();
-      } else if (data.mfa_required) {
-        $('#rhMfaWrap').style.display = 'block';
-        $('#rhMfaCode').value = ''; $('#rhMfaCode').focus();
-        msg.textContent = 'Enter your ' + (data.mfa_type === 'app' ? 'authenticator' : data.mfa_type || 'MFA') + ' code, then click Quick Login again';
-        msg.style.color = '#f59e0b';
-      } else if (data.challenge) {
-        qlChallengeId = data.challenge_id;
-        $('#rhMfaWrap').style.display = 'block';
-        $('#rhMfaCode').value = ''; $('#rhMfaCode').focus();
-        msg.textContent = 'Security challenge sent. Enter code, then click Quick Login again.'; msg.style.color = '#f59e0b';
-      } else {
-        msg.textContent = data.message || 'Login failed'; msg.style.color = '#ef4444';
-      }
-    } catch(e) {
-      const hint = e.name === 'TimeoutError' ? 'Timed out' : 'Connection error';
-      msg.textContent = hint; msg.style.color = '#ef4444';
-    } finally {
-      $('#rhQuickLogin').disabled = false; $('#rhQuickLogin').style.opacity = '1';
-    }
-  };
-
-  // ── Store Credentials (admin only) ──
-  if (wsIsAdmin) {
-    const setCredsWrap = $('#rhSetCredsWrap');
-    if (setCredsWrap) setCredsWrap.style.display = 'block';
-  }
-  $('#rhSaveCreds').onclick = async () => {
-    const msg = $('#rhSetCredsMsg');
-    const email = $('#rhSetEmail').value.trim();
-    const pw = $('#rhSetPw').value;
-    if (!email || !pw) { msg.textContent = 'Both fields required'; msg.style.color = '#ef4444'; return; }
-    try {
-      const alive = await checkProxyHealth();
-      if (!alive) throw proxyDownError();
-      const resp = await fetch(PROXY_BASE + '/proxy/robinhood/set-credentials', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: ADMIN_PASSWORD, rh_username: email, rh_password: pw }),
-        signal: AbortSignal.timeout(5000)
-      });
-      const data = await safeParseJson(resp, 'set-credentials');
-      if (data.ok) {
-        msg.textContent = 'Saved!'; msg.style.color = '#22c55e';
-        $('#rhSetEmail').value = ''; $('#rhSetPw').value = '';
-        $('#rhQuickLogin').style.display = 'block';
-      } else {
-        msg.textContent = data.message || 'Failed'; msg.style.color = '#ef4444';
-      }
-    } catch(e) {
-      msg.textContent = 'Error: ' + e.message; msg.style.color = '#ef4444';
-    }
-  };
 
   async function loadPortfolioSummary() {
     if (!rhLoggedIn) return;
