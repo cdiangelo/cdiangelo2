@@ -2141,6 +2141,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 </div>
 <div class="toast" id="toast"></div>
 <script>
+// ── App initialization tracking ──
+window.__appReady = false;
+window.__initErrors = [];
+
 /* ═══════════════════════════════════════════
    AUTH GATE
    ═══════════════════════════════════════════ */
@@ -3495,9 +3499,11 @@ $('#npTimestamp').onclick = () => {
 };
 
 // Load saved — init active page
-const initNpPage = npPages.find(p => p.id === npActivePageId) || npPages[0];
-if (initNpPage) { npActivePageId = initNpPage.id; np.innerHTML = initNpPage.content; npUpdateWords(); }
-renderNpTabs();
+try {
+  const initNpPage = npPages.find(p => p.id === npActivePageId) || npPages[0];
+  if (initNpPage) { npActivePageId = initNpPage.id; np.innerHTML = initNpPage.content; npUpdateWords(); }
+  renderNpTabs();
+} catch(e) { console.error('[INIT] Notepad init failed:', e.message); window.__initErrors.push('notepad: ' + e.message); }
 
 // ADDED — Phase 4: Agent Memory tab
 (function initAgentMemory() {
@@ -3954,20 +3960,22 @@ function renderWbTabs() {
 
 // Init whiteboard page
 setTimeout(() => {
-  const initWbPage = wbPages.find(p => p.id === wbActivePageId) || wbPages[0];
-  if (initWbPage) {
-    wbActivePageId = initWbPage.id;
-    wbLayers = JSON.parse(JSON.stringify(initWbPage.layers || []));
-    wbRenderLayers();
-    validateExhibitImages(); // Check for dead image URLs on load
-    if (initWbPage.dataUrl) {
-      const img = new Image();
-      img.onload = () => { wbX.drawImage(img, 0, 0); };
-      img.onerror = () => { console.warn('[WB] Failed to restore whiteboard canvas from dataUrl'); };
-      img.src = initWbPage.dataUrl;
+  try {
+    const initWbPage = wbPages.find(p => p.id === wbActivePageId) || wbPages[0];
+    if (initWbPage) {
+      wbActivePageId = initWbPage.id;
+      wbLayers = JSON.parse(JSON.stringify(initWbPage.layers || []));
+      wbRenderLayers();
+      validateExhibitImages(); // Check for dead image URLs on load
+      if (initWbPage.dataUrl) {
+        const img = new Image();
+        img.onload = () => { wbX.drawImage(img, 0, 0); };
+        img.onerror = () => { console.warn('[WB] Failed to restore whiteboard canvas from dataUrl'); };
+        img.src = initWbPage.dataUrl;
+      }
     }
-  }
-  renderWbTabs();
+    renderWbTabs();
+  } catch(e) { console.error('[INIT] Whiteboard init failed:', e.message); window.__initErrors.push('whiteboard: ' + e.message); }
 }, 200);
 
 function wbAddLayer(type, content, opts) {
@@ -5332,8 +5340,8 @@ function ssShowHint() {
     hint.remove();
   }
 }
-ssInit();
-ssShowHint();
+try { ssInit(); } catch(e) { console.error('[INIT] Spreadsheet init failed:', e.message); window.__initErrors.push('spreadsheet: ' + e.message); }
+try { ssShowHint(); } catch(e) {}
 
 /* ═══════════════════════════════════════════
    CONCEPT MAP
@@ -11849,6 +11857,25 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
 
   checkRobinhoodStatus();
 })();
+
+// ── App ready flag + safety-net re-render ──
+window.__appReady = true;
+console.log('[INIT] App initialization complete');
+
+// Safety-net: re-render active pane after a brief delay to catch any
+// transient first-load errors caused by init ordering. This is a bandage;
+// the real fix is the try/catch wrapping on individual init functions.
+setTimeout(() => {
+  try {
+    // Re-render the active pane to recover from any first-load DOM issues
+    const activeQ4 = document.querySelector('#q4Tabs button.active');
+    if (activeQ4 && activeQ4.dataset.q4 === 'stocks' && typeof renderStockDash === 'function') renderStockDash();
+    if (typeof resizeWB === 'function') resizeWB();
+    if (typeof resizeCM === 'function') resizeCM();
+    if (typeof resizeGC === 'function') resizeGC();
+    if (window.__initErrors.length) console.warn('[INIT] Recovered from init errors:', window.__initErrors);
+  } catch(e) { console.warn('[INIT] Safety-net re-render error:', e.message); }
+}, 150);
 
 </script>
 </body>
