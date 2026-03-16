@@ -176,41 +176,6 @@ body.light .fun-btn { background: var(--accent); }
   padding: 5px 12px; border: none; border-radius: 6px; background: rgba(59,130,246,.7);
   color: #fff; cursor: pointer; font-weight: 600; font-size: .72rem; align-self: flex-end;
 }
-/* ═══ DESIGN BOT STYLES ═══ */
-/* Mini Design Bot robot in desk scene */
-.design-bot-char { position: absolute; bottom: 16px; z-index: 6; left: 50%; margin-left: 54px; cursor: pointer; transition: transform .2s; }
-.design-bot-char:hover { transform: scale(1.1); }
-.design-bot-char .db-mini-head { width: 14px; height: 11px; background: linear-gradient(180deg, #c9a84c, #b8943a, #a67f2e); border-radius: 3px 3px 2px 2px; margin: 0 auto; position: relative; }
-.design-bot-char .db-mini-eyes { display: flex; justify-content: center; gap: 3px; padding-top: 3px; }
-.design-bot-char .db-mini-eyes .eye { width: 2px; height: 2px; background: #1a1a1a; border-radius: 50%; }
-.design-bot-char .db-mini-torso { width: 16px; height: 11px; background: linear-gradient(180deg, #c9a84c, #b8943a, #a67f2e); border-radius: 2px; margin: 1px auto 0; }
-.design-bot-char .db-mini-beret { position: absolute; top: -5px; left: -2px; width: 18px; height: 7px; background: #d4a017; border-radius: 50% 50% 20% 20%; }
-.design-bot-char .db-mini-palette { position: absolute; bottom: 2px; right: -8px; width: 10px; height: 7px; background: #8d6e63; border-radius: 50%; }
-.design-bot-char .db-mini-palette::before { content: ''; position: absolute; top: 1px; left: 2px; width: 2px; height: 2px; border-radius: 50%; background: #e53935; box-shadow: 3px 0 0 #2196f3, 1.5px 2.5px 0 #4caf50; }
-.design-bot-char .db-label { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); font-size: .4rem; color: var(--accent2); white-space: nowrap; opacity: 0; transition: opacity .2s; pointer-events: none; }
-.design-bot-char:hover .db-label { opacity: 1; }
-.design-bot-char.db-working { animation: dbBounce 0.6s ease-in-out infinite; }
-@keyframes dbBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-/* Floating Design Bot chat panel */
-#designBotPanel { display: none; position: absolute; bottom: 0; right: 4px; width: 280px; height: 320px; z-index: 70; background: var(--panel); border: 1px solid var(--border); border-radius: 8px 8px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,.3); flex-direction: column; overflow: hidden; }
-#designBotPanel.db-open { display: flex; }
-#designBotPanel .db-header { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--border); background: var(--panel-inset); flex-shrink: 0; min-height: 28px; cursor: grab; }
-#designBotPanel .db-header .db-title { font-size: .68rem; font-weight: 700; color: var(--accent2); white-space: nowrap; }
-#designBotPanel .db-header .db-subtitle { font-size: .5rem; color: var(--text-dim); white-space: nowrap; }
-#designBotPanel .db-msgs { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
-#designBotPanel .db-msg { padding: 6px 8px; border-radius: 8px; max-width: 92%; line-height: 1.4; white-space: pre-wrap; word-break: break-word; font-size: .68rem; }
-#designBotPanel .db-msg.user { align-self: flex-end; background: rgba(59,130,246,.15); color: var(--text); }
-#designBotPanel .db-msg.assistant { align-self: flex-start; background: rgba(255,248,230,.08); color: var(--text); border-left: 2px solid rgba(255,200,50,.3); }
-#designBotPanel .db-msg.system { align-self: center; color: var(--text-dim); font-size: .58rem; font-style: italic; }
-#designBotPanel .db-msg.tool-status { align-self: center; color: var(--accent2); font-size: .56rem; font-style: italic; background: none; padding: 1px 6px; opacity: .85; }
-#designBotPanel .db-input-row { padding: 4px 8px; border-top: 1px solid var(--border); display: flex; gap: 4px; background: var(--panel-inset); flex-shrink: 0; }
-#designBotPanel .db-input-row textarea { flex: 1; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: .68rem; resize: none; font-family: inherit; min-height: 28px; max-height: 80px; }
-#designBotPanel .db-input-row button { padding: 4px 10px; border: none; border-radius: 6px; background: rgba(255,180,50,.7); color: #fff; cursor: pointer; font-weight: 600; font-size: .68rem; align-self: flex-end; }
-#designBotPanel .db-input-row button:hover { background: rgba(255,180,50,.9); }
-.db-tool-badge { display: inline-block; font-size: .52rem; color: var(--accent2); background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; margin-top: 2px; }
-.db-drawing-banner { position: absolute; top: 0; left: 0; right: 0; z-index: 90; background: rgba(255,200,50,.12); color: var(--accent2); text-align: center; font-size: .6rem; padding: 3px 0; border-bottom: 1px solid rgba(255,200,50,.25); pointer-events: none; }
-body.light #designBotPanel .db-msg.assistant { background: rgba(255,248,230,.25); }
-
 /* Video player PIP overlay */
 #funVideoWrap { border-radius: 12px; overflow: hidden; }
 #funVideoWrap iframe { border: none; }
@@ -313,8 +278,6 @@ body.light #designBotPanel .db-msg.assistant { background: rgba(255,248,230,.25)
 }
 .p-btn:hover { color: var(--accent2); background: rgba(255,255,255,.05); }
 .p-body { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; background: var(--panel); }
-.pane-error-banner { display: flex; align-items: center; gap: 6px; }
-.pane-error-banner::before { content: '\26A0'; }
 
 /* ═══ TOOLBAR (shared) ═══ */
 .toolbar {
@@ -534,13 +497,60 @@ body.light #designBotPanel .db-msg.assistant { background: rgba(255,248,230,.25)
 .robot-scene-resize:hover { background: var(--accent); opacity: .8; }
 .pane.expanded .robot-scene-resize { display: block; }
 
-/* ═══ USER MODE (prompt-limited) ═══ */
-/* Prompt counter badge — shown in user mode */
-.genie-prompts-badge { display: none; position: absolute; top: 4px; right: 8px; z-index: 10; font-size: .75rem; font-weight: 700; color: #fff; background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 8px; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
-.genie-prompts-badge.visible { display: block; }
-.genie-prompts-badge.exhausted { font-size: 1rem; color: #ff5252; background: rgba(0,0,0,.7); padding: 4px 12px; }
-/* Desk light — red/danger state when out of attempts */
-.desk-light.danger { background: #f44336; box-shadow: 0 0 10px #f44336, 0 0 20px rgba(244,67,54,.4); }
+/* ═══ GENIE MODE (user mode) ═══ */
+/* Genie hat — tall curved fez with gold band */
+.robot-genie-hat { display: none; position: absolute; top: -20px; left: 50%; transform: translateX(-50%); z-index: 10; }
+.genie-mode .robot-genie-hat { display: block; }
+.robot-genie-hat .hat-body { width: 22px; height: 20px; background: linear-gradient(180deg, #6A1B9A 0%, #4A148C 60%, #38006b 100%); border-radius: 4px 4px 1px 1px; position: relative; clip-path: polygon(20% 100%, 80% 100%, 90% 30%, 70% 0%, 30% 0%, 10% 30%); }
+.robot-genie-hat .hat-band { position: absolute; bottom: 0; left: -2px; right: -2px; height: 4px; background: linear-gradient(90deg, #FFD600, #FFA000, #FFD600); border-radius: 1px; }
+.robot-genie-hat .hat-jewel { position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; background: radial-gradient(circle, #FF1744, #B71C1C); border-radius: 50%; box-shadow: 0 0 4px #FF1744; }
+.robot-genie-hat .hat-tip { position: absolute; top: -4px; right: -6px; width: 10px; height: 6px; background: linear-gradient(135deg, #7B1FA2, #4A148C); border-radius: 50% 50% 0 50%; transform: rotate(-15deg); }
+/* Magic carpet */
+.robot-carpet { display: none; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 2; }
+.genie-mode .robot-carpet { display: block; }
+.robot-carpet .carpet-body { width: 100px; height: 10px; background: linear-gradient(90deg, #B71C1C, #D32F2F 15%, #E65100 30%, #D32F2F 50%, #E65100 70%, #D32F2F 85%, #B71C1C); border-radius: 40%; position: relative; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+.robot-carpet .carpet-body::before { content: ''; position: absolute; inset: 2px 4px; background: repeating-linear-gradient(90deg, rgba(255,215,0,.25) 0px, transparent 2px, transparent 6px, rgba(255,215,0,.25) 8px), repeating-linear-gradient(0deg, rgba(255,215,0,.15) 0px, transparent 1px, transparent 3px, rgba(255,215,0,.15) 4px); border-radius: 30%; }
+.robot-carpet .carpet-fringe-l, .robot-carpet .carpet-fringe-r { position: absolute; top: 1px; width: 6px; height: 8px; background: repeating-linear-gradient(180deg, #FFD600 0px, #FFD600 1px, #D32F2F 1px, #D32F2F 2px); border-radius: 0 0 1px 1px; }
+.robot-carpet .carpet-fringe-l { left: -4px; }
+.robot-carpet .carpet-fringe-r { right: -4px; }
+/* Float animation for genie mode */
+.genie-mode .robot-workstation { animation: genieFloat 3s ease-in-out infinite; }
+@keyframes genieFloat {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-8px); }
+}
+/* Hide desk and monitors in genie mode */
+.genie-mode .robot-desk { display: none; }
+.genie-mode .robot-monitors { display: none; }
+/* Prompt counter badge */
+.genie-prompts-badge { display: none; position: absolute; top: 4px; right: 8px; z-index: 10; font-size: .55rem; font-weight: 700; color: #FFD600; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.genie-mode .genie-prompts-badge { display: block; }
+
+/* ═══ SLEEPING MODE (after prompts exhausted) ═══ */
+.robot-bed { display: none; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 2; width: 80px; height: 24px; }
+.sleeping-mode .robot-bed { display: block; }
+.robot-bed .bed-frame { position: absolute; bottom: 0; width: 100%; height: 14px; background: linear-gradient(180deg, #5D4037, #3E2723); border-radius: 3px 3px 0 0; }
+.robot-bed .bed-pillow { position: absolute; bottom: 10px; left: 4px; width: 18px; height: 10px; background: #E8E0D8; border-radius: 4px; box-shadow: inset 0 -2px 3px rgba(0,0,0,.1); }
+.robot-bed .bed-blanket { position: absolute; bottom: 4px; left: 14px; right: 4px; height: 16px; background: linear-gradient(180deg, #1565C0, #0D47A1); border-radius: 6px 6px 2px 2px; z-index: 3; }
+.robot-bed .bed-blanket::before { content: ''; position: absolute; top: 2px; left: 4px; right: 4px; height: 1px; background: rgba(255,255,255,.1); border-radius: 1px; }
+/* Sleeping robot overrides */
+.sleeping-mode .robot-workstation { animation: none; }
+.sleeping-mode .robot-body { transform: translateX(-50%) rotate(-90deg) translateY(10px); bottom: 10px; }
+.sleeping-mode .robot-head { animation: none; }
+.sleeping-mode .robot-monitors { display: none; }
+.sleeping-mode .robot-desk { display: none; }
+.sleeping-mode .robot-carpet { display: none; }
+.sleeping-mode .robot-genie-hat { display: none; }
+.sleeping-mode .robot-arms { display: none; }
+.sleeping-mode .robot-eyes .eye { height: 1px; border-radius: 1px; width: 5px; background: #1a1a1a; box-shadow: none; }
+/* Zzz animation */
+.robot-zzz { display: none; position: absolute; z-index: 10; font-size: .7rem; color: rgba(255,255,255,.4); font-weight: 700; }
+.sleeping-mode .robot-zzz { display: block; animation: zzzFloat 2.5s ease-in-out infinite; }
+@keyframes zzzFloat {
+  0% { opacity: .6; transform: translate(0, 0) scale(.8); }
+  50% { opacity: .3; transform: translate(6px, -12px) scale(1); }
+  100% { opacity: 0; transform: translate(10px, -22px) scale(1.2); }
+}
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(60px); }
   to { opacity: 1; transform: translateX(0); }
@@ -1628,9 +1638,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div class="robot-plant robot-plant-l"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div><div class="plant-leaf plant-leaf-t"></div></div>
         <div class="robot-plant robot-plant-r"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div></div>
         <div class="genie-prompts-badge" id="geniePromptsBadge"></div>
+        <div class="robot-zzz" id="robotZzz" style="top:20%;right:30%;">Z z z</div>
         <div class="robot-workstation" id="robotWorkstation">
           <div class="robot-body">
             <div class="robot-head" id="robotHead">
+              <div class="robot-genie-hat"><div class="hat-body"></div><div class="hat-band"></div><div class="hat-jewel"></div><div class="hat-tip"></div></div>
               <div class="robot-glasses"><div class="robot-glasses-bridge"></div></div>
               <div class="robot-eyes"><span class="eye"></span><span class="eye"></span></div>
             </div>
@@ -1651,16 +1663,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             </div>
             <div class="desk-light" id="deskLight"></div>
           </div>
-        </div>
-        <!-- Design Bot mini character beside desk -->
-        <div class="design-bot-char" id="designBotChar" title="Click to open Design Bot chat">
-          <div class="db-mini-beret"></div>
-          <div class="db-mini-head">
-            <div class="db-mini-eyes"><span class="eye"></span><span class="eye"></span></div>
-          </div>
-          <div class="db-mini-torso"></div>
-          <div class="db-mini-palette"></div>
-          <span class="db-label">Design Bot</span>
+          <div class="robot-carpet"><div class="carpet-body"></div><div class="carpet-fringe-l"></div><div class="carpet-fringe-r"></div></div>
+          <div class="robot-bed"><div class="bed-frame"></div><div class="bed-pillow"></div><div class="bed-blanket"></div></div>
         </div>
       </div>
       <div class="robot-controls">
@@ -1753,7 +1757,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="wbLayers" title="Toggle layer panel">Layers</button>
       </div>
       <div class="wb-wrap" id="wbWrap" style="position:relative;">
-        <canvas id="wbCanvas" style="position:absolute;top:0;left:0;z-index:1;"></canvas>
+        <canvas id="wbCanvas" style="position:relative;z-index:1;"></canvas>
         <canvas id="wbGridCanvas" style="position:absolute;top:0;left:0;z-index:2;pointer-events:none;"></canvas>
         <!-- Layer objects rendered here -->
       </div>
@@ -2083,9 +2087,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
     </div>
   </div>
-
-  <!-- Sports module removed — planned for re-addition later -->
-  <!-- Media pane removed from grid — accessible only via header nav button (expanded fullscreen) -->
+</div>
 
 <!-- Mobile navigation bar -->
 <div class="mobile-nav" id="mobileNav">
@@ -2281,8 +2283,6 @@ const wsDeviceId = getDeviceFingerprint();
     wsUserName = name;
     localStorage.setItem('ws_userName', name);
     gate.style.display = 'none';
-    // Resize canvases now that workspace is visible
-    setTimeout(safeResize, 100);
     // Report login to server with device fingerprint for tracking
     try {
       fetch(PROXY_BASE + '/proxy/admin/register-device', {
@@ -2368,8 +2368,6 @@ const wsDeviceId = getDeviceFingerprint();
       wsIsAdmin = true;
       localStorage.setItem('ws_adminSession', 'true');
       gate.style.display = 'none';
-      // Resize canvases now that workspace is visible
-      setTimeout(safeResize, 100);
       // Admin sees and controls the API key
       const apiSec = document.getElementById('aiApiKeySection');
       if (apiSec) apiSec.style.display = 'block';
@@ -2497,52 +2495,6 @@ async function getAllUserUsage() {
    ═══════════════════════════════════════════ */
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
-// Safe element binding — prevents crash if element doesn't exist
-function $on(sel, event, handler) {
-  const el = typeof sel === 'string' ? $(sel) : sel;
-  if (el) el.addEventListener(event, handler);
-}
-function $click(sel, handler) {
-  const el = typeof sel === 'string' ? $(sel) : sel;
-  if (!el) return;
-  // Use addEventListener instead of onclick to prevent silent overwrites
-  el.addEventListener('click', function(e) {
-    try { handler.call(this, e); } catch(err) { console.error('[click handler]', sel, err); }
-  });
-}
-// Safe resize chain — each function isolated so one failure doesn't block others
-function safeResize() {
-  try { resizeWB(); } catch(e) { console.warn('[WB resize]', e); }
-  try { resizeCM(); } catch(e) { console.warn('[CM resize]', e); }
-  try { if (typeof resizeGC === 'function') resizeGC(); } catch(e) { console.warn('[GC resize]', e); }
-  try { if (typeof renderStockDash === 'function') renderStockDash(); } catch(e) { console.warn('[Stock render]', e); }
-}
-// Pane error display — shows error message inside a pane's body
-function paneError(paneId, moduleName, err) {
-  console.error('[' + moduleName + ']', err);
-  try {
-    const pane = document.getElementById(paneId);
-    if (!pane) return;
-    const body = pane.querySelector('.p-body');
-    if (!body) return;
-    let banner = body.querySelector('.pane-error-banner');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.className = 'pane-error-banner';
-      banner.style.cssText = 'padding:8px 12px;background:rgba(220,50,50,.12);color:#e55;font-size:.7rem;border-bottom:1px solid rgba(220,50,50,.2);flex-shrink:0;';
-      body.insertBefore(banner, body.firstChild);
-    }
-    banner.textContent = moduleName + ' error: ' + (err.message || err);
-  } catch(_) {}
-}
-// Global safety net
-window.onerror = function(msg, src, line, col, err) {
-  console.error('[Global]', msg, 'at line', line);
-  return false;
-};
-window.addEventListener('unhandledrejection', function(e) {
-  console.error('[Unhandled Promise]', e.reason);
-});
 // Hosted proxy on Render — override via ?proxy=host:port for local dev
 const _proxyParam = new URLSearchParams(window.location.search).get('proxy');
 const PROXY_BASE = _proxyParam
@@ -2560,8 +2512,7 @@ function _lsPrefix(k) {
 }
 const LS = (k, v) => { try { const pfx = _lsPrefix(k); return v === undefined ? JSON.parse(localStorage.getItem(pfx+k)||'null') : localStorage.setItem(pfx+k, JSON.stringify(v)); } catch(e) { return null; } };
 function toast(msg) {
-  const t = $('#toast'); if (!t) return;
-  t.textContent = msg; t.classList.add('show');
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 1800);
 }
 
@@ -2583,15 +2534,12 @@ function applyScheme(idx) {
   const scheme = SCHEMES[idx];
   document.body.classList.remove('crisp','muted','neon');
   document.body.classList.add(scheme);
-  const _sl = $('#schemeLabel'); if (_sl) _sl.textContent = scheme.charAt(0).toUpperCase() + scheme.slice(1);
+  $('#schemeLabel').textContent = scheme.charAt(0).toUpperCase() + scheme.slice(1);
   LS('scheme', idx);
   // Update whiteboard pen color to match scheme
-  const _wbc = $('#wbColor');
-  if (_wbc) {
-    if (scheme === 'neon') _wbc.value = '#ffffff';
-    else if (scheme === 'muted') _wbc.value = '#3a3020';
-    else _wbc.value = '#222222';
-  }
+  if (scheme === 'neon') $('#wbColor').value = '#ffffff';
+  else if (scheme === 'muted') $('#wbColor').value = '#3a3020';
+  else $('#wbColor').value = '#222222';
   updateNotepadSwatches();
   // Re-render charts to match scheme
   if (typeof renderStockDash === 'function') try { renderStockDash(); } catch(e) {}
@@ -2603,29 +2551,27 @@ function applyDarkLight(isLight) {
   updateNotepadSwatches();
 }
 
-$on('#schemeSlider', 'input', function() { applyScheme(+this.value); });
-$on('#toggleDark', 'change', function() { applyDarkLight(this.checked); });
+$('#schemeSlider').addEventListener('input', function() { applyScheme(+this.value); });
+$('#toggleDark').addEventListener('change', function() { applyDarkLight(this.checked); });
 
 // Restore
 const savedScheme = LS('scheme');
-const _ss = $('#schemeSlider');
-if (savedScheme !== null && _ss) { _ss.value = savedScheme; applyScheme(savedScheme); }
+if (savedScheme !== null) { $('#schemeSlider').value = savedScheme; applyScheme(savedScheme); }
 else { applyScheme(2); }
 const savedLight = LS('lightMode');
-const _td = $('#toggleDark');
-if (savedLight && _td) { _td.checked = true; applyDarkLight(true); }
+if (savedLight) { $('#toggleDark').checked = true; applyDarkLight(true); }
 
 /* ═══════════════════════════════════════════
    FULLSCREEN
    ═══════════════════════════════════════════ */
-$click('#fsBtn', () => {
+$('#fsBtn').onclick = () => {
   if (!document.fullscreenElement) document.documentElement.requestFullscreen();
   else document.exitFullscreen();
-});
+};
 
 /* Help overlay */
-$click('#helpBtn', () => { const h = $('#helpOverlay'); if (h) h.style.display = 'flex'; });
-if (!LS('helpSeen')) { const h = $('#helpOverlay'); if (h) h.style.display = 'flex'; LS('helpSeen', true); }
+$('#helpBtn').onclick = () => { $('#helpOverlay').style.display = 'flex'; };
+if (!LS('helpSeen')) { $('#helpOverlay').style.display = 'flex'; LS('helpSeen', true); }
 
 /* ═══════════════════════════════════════════
    PANE EXPAND / FOCUS
@@ -2663,13 +2609,8 @@ $$('[data-expand]').forEach(btn => {
     } else {
       // Collapsing — re-apply grid order to restore correct visibility
       applyGridOrder(getGridOrder());
-      // Hide non-grid panes (e.g. media) that were expanded via nav button
-      const gridPaneIds = new Set(GRID_PANES.map(gp => gp.id));
-      if (!gridPaneIds.has(btn.dataset.expand)) {
-        p.style.display = 'none';
-      }
     }
-    setTimeout(safeResize, 50);
+    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
 });
 
@@ -2694,26 +2635,19 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
     } else {
       // Returning to "All" view — re-apply grid order to restore correct visibility
       applyGridOrder(getGridOrder());
-      // Hide non-grid panes (e.g. media) that may have been expanded
-      const gridPaneIds = new Set(GRID_PANES.map(gp => gp.id));
-      $$('.pane').forEach(el => { if (!gridPaneIds.has(el.id)) el.style.display = 'none'; });
     }
-    setTimeout(safeResize, 50);
+    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
 });
 
 // Reset grid — show all panes in default layout
-$click('#resetGridBtn', () => {
-  // Remove expanded state and reset zoom (only grid-managed panes)
-  const gridPaneIds = new Set(GRID_PANES.map(p => p.id));
+$('#resetGridBtn').onclick = () => {
+  // Remove expanded state and reset zoom
   $$('.pane').forEach(el => {
     el.classList.remove('expanded');
+    el.style.display = '';
     el.style.gridColumn = '';
     el.style.gridRow = '';
-    // Only reset display for grid-managed panes; keep non-grid panes hidden
-    if (gridPaneIds.has(el.id)) {
-      el.style.display = '';
-    }
     const body = el.querySelector('.p-body');
     const label = el.querySelector('.zoom-level');
     if (body) { body.style.fontSize = ''; body.dataset.zoom = '100'; }
@@ -2731,9 +2665,9 @@ $click('#resetGridBtn', () => {
   $$('.nav-group-btns button[data-pane]').forEach(b => b.classList.remove('active'));
   const allBtn = document.querySelector('.nav-group-btns button[data-pane="all"]');
   if (allBtn) allBtn.classList.add('active');
-  setTimeout(safeResize, 50);
+  setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   toast('Grid reset');
-});
+};
 
 // ── Grid Layout Settings ──
 const GRID_PANES = [
@@ -2742,7 +2676,8 @@ const GRID_PANES = [
   { id: 'q-sheet', label: 'Sheet' },
   { id: 'q-whiteboard', label: 'Whiteboard' },
   { id: 'q-map', label: 'Analytics' },
-  { id: 'q-news', label: 'News' }
+  { id: 'q-news', label: 'News' },
+  { id: 'q-media', label: 'Media' }
 ];
 const GRID_POSITIONS = [
   { col: 1, row: 1 }, { col: 3, row: 1 }, { col: 5, row: 1 },
@@ -2752,29 +2687,7 @@ const DEFAULT_GRID_ORDER = ['q-notepad', 'q-claude', 'q-sheet', 'q-whiteboard', 
 
 function getGridOrder() {
   const saved = LS('gridOrder');
-  if (saved && Array.isArray(saved) && saved.length >= 6) {
-    // Sanitize: replace removed pane IDs (e.g. q-sports, q-media) with defaults
-    const validIds = GRID_PANES.map(p => p.id);
-    // Trim to 6 slots if legacy saved state had more (e.g. 7 with q-media)
-    const trimmed = saved.slice(0, 6);
-    const sanitized = trimmed.map(id => validIds.includes(id) ? id : null);
-    // Fill nulls with panes not yet used
-    const used = new Set(sanitized.filter(Boolean));
-    const available = validIds.filter(id => !used.has(id));
-    let ai = 0;
-    const result = sanitized.map(id => id || (ai < available.length ? available[ai++] : DEFAULT_GRID_ORDER[0]));
-    // Ensure no duplicates — if a pane appears twice, replace the second with an available one
-    const seen = new Set();
-    return result.map(id => {
-      if (seen.has(id)) {
-        const replacement = validIds.find(v => !seen.has(v));
-        if (replacement) { seen.add(replacement); return replacement; }
-        return id;
-      }
-      seen.add(id);
-      return id;
-    });
-  }
+  if (saved && saved.length === 6) return saved;
   return DEFAULT_GRID_ORDER.slice();
 }
 
@@ -2795,8 +2708,9 @@ function applyGridOrder(order) {
     el.style.gridColumn = GRID_POSITIONS[i].col;
     el.style.gridRow = GRID_POSITIONS[i].row;
   });
-  // Media pane is not a grid pane — release video player if needed
-  releaseVideoFromMediaPane();
+  // If media pane is in grid, snap video player into it
+  if (order.includes('q-media')) snapVideoToMediaPane();
+  else releaseVideoFromMediaPane();
 }
 
 function openGridSettings() {
@@ -2821,8 +2735,8 @@ function openGridSettings() {
   modal.style.display = 'flex';
 }
 
-$click('#gridSettingsBtn', openGridSettings);
-$click('#gridApplyBtn', () => {
+$('#gridSettingsBtn').onclick = openGridSettings;
+$('#gridApplyBtn').onclick = () => {
   const sels = $$('.grid-slot-sel');
   const order = Array.from(sels).map(s => s.value);
   // Check for duplicates — each slot must have a unique pane
@@ -2834,16 +2748,16 @@ $click('#gridApplyBtn', () => {
   LS('gridOrder', order);
   applyGridOrder(order);
   $('#gridSettingsModal').style.display = 'none';
-  setTimeout(safeResize, 50);
+  setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   toast('Layout applied');
-});
+};
 
-// Apply saved grid order on load (always apply to ensure correct pane visibility)
+// Apply saved grid order on load
 (function() {
   const order = getGridOrder();
-  applyGridOrder(order);
-  // Save sanitized order back to prevent repeated migration
-  LS('gridOrder', order);
+  if (JSON.stringify(order) !== JSON.stringify(DEFAULT_GRID_ORDER)) {
+    applyGridOrder(order);
+  }
 })();
 
 // ── Mobile navigation ──
@@ -2854,7 +2768,8 @@ $click('#gridApplyBtn', () => {
     { id: 'q-news', label: 'News', icon: '\uD83D\uDCF0', desc: 'Search news by keyword or track market tickers' },
     { id: 'q-notepad', label: 'Notes', icon: '\uD83D\uDCDD', desc: 'Rich text editor with formatting and colors' },
     { id: 'q-whiteboard', label: 'Draw', icon: '\uD83C\uDFA8', desc: 'Freeform drawing with shapes, text, and layers' },
-    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA', desc: 'Spreadsheet with formulas like SUM, AVG, VLOOKUP' }
+    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA', desc: 'Spreadsheet with formulas like SUM, AVG, VLOOKUP' },
+    { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F', desc: 'YouTube video player and playlist' }
   ];
   let mobIdx = -1; // -1 = table of contents home
   const isMobile = () => window.innerWidth <= 768;
@@ -2960,7 +2875,7 @@ $click('#gridApplyBtn', () => {
       setTimeout(() => { hint.style.opacity = '0'; }, 3000);
       setTimeout(() => { hint.remove(); }, 3500);
     }
-    setTimeout(safeResize, 50);
+    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   }
 
   prevBtn.onclick = () => {
@@ -3332,10 +3247,10 @@ function showVideo(idx) {
     adTimer = setTimeout(dismissOverlay, AD_WAIT_MS);
   }
 
-  // Snap into media pane if it's currently expanded (fullscreen)
-  const mediaPane = document.getElementById('q-media');
+  // ADDED — Phase 11: If media pane is in grid, snap into it instead of body
+  const mediaOrder = typeof getGridOrder === 'function' ? getGridOrder() : [];
   const mediaPanePlayer = document.getElementById('mediaPanePlayer');
-  if (mediaPane && mediaPane.classList.contains('expanded') && mediaPanePlayer) {
+  if (mediaOrder.includes('q-media') && mediaPanePlayer) {
     funWrap.style.cssText = 'position:relative;width:100%;height:100%;border-radius:0;box-shadow:none;pointer-events:auto;';
     iframe.style.cssText = 'width:100%;height:100%;border:none;opacity:' + savedOpacity + ';pointer-events:auto;';
     mediaPanePlayer.appendChild(funWrap);
@@ -3366,20 +3281,19 @@ function funOff() {
 }
 
 // Play button — click cycles videos, right-click stops
-$click('#funPlayBtn', () => {
+$('#funPlayBtn').onclick = () => {
   if (FUN_VIDEOS.length === 0) { toast('Add videos in Media settings first'); return; }
   funState++;
   if (funState >= FUN_VIDEOS.length) funState = 0;
   showVideo(funState);
-});
-const _fpb = $('#funPlayBtn');
-if (_fpb) _fpb.oncontextmenu = e => {
+};
+$('#funPlayBtn').oncontextmenu = e => {
   e.preventDefault();
   if (funState >= 0) { funOff(); toast('Stopped'); }
 };
 
 // Settings button — toggle editor
-$click('#funEditBtn', () => { renderEditor(); });
+$('#funEditBtn').onclick = () => { renderEditor(); };
 
 // Escape exits fullscreen
 document.addEventListener('keydown', e => {
@@ -3442,9 +3356,9 @@ try {
     localStorage.setItem('funVideos', JSON.stringify(FUN_VIDEOS));
     funState = FUN_VIDEOS.length - 1;
     showVideo(funState);
-    // If media pane is expanded (fullscreen), snap into it
-    const mediaPane = document.getElementById('q-media');
-    if (mediaPane && mediaPane.classList.contains('expanded')) setTimeout(snapVideoToMediaPane, 100);
+    // If media pane is visible, snap into it
+    const order = getGridOrder();
+    if (order.includes('q-media')) setTimeout(snapVideoToMediaPane, 100);
     toast('Added: ' + label);
   };
   if (mediaListBtn) mediaListBtn.onclick = () => renderEditor();
@@ -3473,12 +3387,11 @@ function updateNotepadSwatches() {
 updateNotepadSwatches();
 
 function npUpdateWords() {
-  if (!np) return;
   const t = np.innerText.trim();
-  const _nw = $('#npWords'); if (_nw) _nw.textContent = 'Words: ' + (t ? t.split(/\s+/).length : 0);
-  const _ns = $('#npSaveStatus'); if (_ns) _ns.textContent = 'Unsaved';
+  $('#npWords').textContent = 'Words: ' + (t ? t.split(/\s+/).length : 0);
+  $('#npSaveStatus').textContent = 'Unsaved';
 }
-if (np) np.addEventListener('input', npUpdateWords);
+np.addEventListener('input', npUpdateWords);
 
 // ── Notepad multi-page system ──
 let npPages = LS('notepadPages') || [{ id: 1, title: 'Page 1', content: '' }];
@@ -3560,11 +3473,11 @@ setInterval(() => {
 }, 5000);
 
 // Timestamp insert
-$click('#npTimestamp', () => {
+$('#npTimestamp').onclick = () => {
   const d = new Date();
   const ts = '— ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' —';
   document.execCommand('insertHTML', false, '<br><span style="color:var(--text-dim);font-size:.78rem;">' + ts + '</span><br>');
-});
+};
 
 // Load saved — init active page
 const initNpPage = npPages.find(p => p.id === npActivePageId) || npPages[0];
@@ -3617,18 +3530,13 @@ window.getAgentMemory = function() {
 /* ═══════════════════════════════════════════
    WHITEBOARD
    ═══════════════════════════════════════════ */
-let wbC, wbX, wbGC, wbGX;
-try {
-  wbC = $('#wbCanvas');
-  wbX = wbC ? wbC.getContext('2d') : null;
-  wbGC = $('#wbGridCanvas');
-  wbGX = wbGC ? wbGC.getContext('2d') : null;
-  if (!wbC || !wbX) throw new Error('Whiteboard canvas not found');
-} catch(e) { paneError('q-whiteboard', 'Whiteboard', e); }
+const wbC = $('#wbCanvas');
+const wbX = wbC.getContext('2d');
+const wbGC = $('#wbGridCanvas');
+const wbGX = wbGC.getContext('2d');
 let wbTool = 'pen', wbDraw = false, wbHist = [], wbSX, wbSY, wbGridMode = 'none';
 
 function resizeWB() {
-  if (!wbC || !wbX) return;
   const w = $('#wbWrap');
   if (!w) return;
   const cw = w.clientWidth, ch = w.clientHeight;
@@ -3746,7 +3654,7 @@ function wbDrawGrid() {
 }
 function wbSaveState() { wbHist.push(wbC.toDataURL()); if (wbHist.length > 50) wbHist.shift(); }
 
-window.addEventListener('resize', safeResize);
+window.addEventListener('resize', () => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); });
 setTimeout(resizeWB, 100);
 
 $$('.wb-tool').forEach(btn => {
@@ -3757,10 +3665,10 @@ $$('.wb-tool').forEach(btn => {
   };
 });
 
-$on('#wbGridMode', 'change', function() {
+$('#wbGridMode').onchange = function() {
   wbGridMode = this.value;
   wbDrawGrid();
-});
+};
 
 wbC.addEventListener('mousedown', e => {
   const r = wbC.getBoundingClientRect();
@@ -3822,14 +3730,14 @@ wbC.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touche
 wbC.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; wbC.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY })); }, { passive: false });
 wbC.addEventListener('touchend', e => { e.preventDefault(); wbC.dispatchEvent(new MouseEvent('mouseup', {})); }, { passive: false });
 
-$click('#wbUndo', () => {
+$('#wbUndo').onclick = () => {
   if (!wbHist.length) return;
   const img = new Image();
   img.onload = () => { wbX.clearRect(0, 0, wbC.width, wbC.height); wbX.drawImage(img, 0, 0); };
   img.src = wbHist.pop();
-});
-$click('#wbClear', () => { wbSaveState(); wbX.clearRect(0, 0, wbC.width, wbC.height); });
-$click('#wbSave', () => {
+};
+$('#wbClear').onclick = () => { wbSaveState(); wbX.clearRect(0, 0, wbC.width, wbC.height); };
+$('#wbSave').onclick = () => {
   const expCvs = document.createElement('canvas');
   expCvs.width = wbC.width; expCvs.height = wbC.height;
   const ectx = expCvs.getContext('2d');
@@ -3837,7 +3745,7 @@ $click('#wbSave', () => {
   ectx.fillRect(0, 0, expCvs.width, expCvs.height);
   ectx.drawImage(wbC, 0, 0);
   const a = document.createElement('a'); a.download = 'whiteboard.png'; a.href = expCvs.toDataURL(); a.click(); toast('Exported');
-});
+};
 
 /* ═══════════════════════════════════════════
    WHITEBOARD — LAYERS, IMAGES, CROSS-PANE COPY
@@ -4052,27 +3960,27 @@ function wbRenderLayerList() {
 
 wbC.addEventListener('mousedown', () => { if (wbSelectedLayer !== null) { wbSelectedLayer = null; wbRenderLayers(); wbRenderLayerList(); } }, true);
 
-$click('#wbLayers', function() {
+$('#wbLayers').onclick = function() {
   const p = $('#wbLayerPanel');
   p.style.display = p.style.display === 'none' ? 'block' : 'none';
   this.classList.toggle('active', p.style.display === 'block');
   if (p.style.display === 'block') wbRenderLayerList();
-});
+};
 
 // Image search panel
-$click('#wbImgSearch', () => { const p = $('#wbImgPanel'); if (p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; });
-$click('#wbImgClose', () => { const p = $('#wbImgPanel'); if (p) p.style.display = 'none'; });
-$click('#wbImgUrlAdd', () => {
+$('#wbImgSearch').onclick = () => { const p = $('#wbImgPanel'); p.style.display = p.style.display === 'none' ? 'block' : 'none'; };
+$('#wbImgClose').onclick = () => { $('#wbImgPanel').style.display = 'none'; };
+$('#wbImgUrlAdd').onclick = () => {
   const url = $('#wbImgUrl').value.trim();
   if (!url) return;
   wbAddLayer('image', url, { label: 'Image', w: 200, h: 150 });
   $('#wbImgUrl').value = '';
   $('#wbImgPanel').style.display = 'none';
   toast('Image added');
-});
+};
 
 // Image search via picsum.photos
-$click('#wbImgSearchBtn', () => {
+$('#wbImgSearchBtn').onclick = () => {
   const q = $('#wbImgQuery').value.trim();
   if (!q) return;
   const results = $('#wbImgResults');
@@ -4091,11 +3999,11 @@ $click('#wbImgSearchBtn', () => {
     };
     results.appendChild(img);
   }
-});
-$on('#wbImgQuery', 'keydown', e => { if (e.key === 'Enter') $('#wbImgSearchBtn').click(); });
+};
+$('#wbImgQuery').addEventListener('keydown', e => { if (e.key === 'Enter') $('#wbImgSearchBtn').click(); });
 
 // Copy chart from Analytics
-$click('#wbPasteChart', () => {
+$('#wbPasteChart').onclick = () => {
   let srcCanvas = null, label = 'Chart';
   const compareWrap = $('#stockCompareWrap');
   if (compareWrap && compareWrap.style.display !== 'none') { srcCanvas = $('#compareCanvas'); label = 'Comparison Chart'; }
@@ -4113,10 +4021,10 @@ $click('#wbPasteChart', () => {
   const aspect = srcCanvas.width / (srcCanvas.height || 1);
   wbAddLayer('chart', dataUrl, { label, w: 300, h: Math.round(300 / aspect) });
   toast(label + ' copied to whiteboard');
-});
+};
 
 // Copy table from Sheet
-$click('#wbPasteTable', () => {
+$('#wbPasteTable').onclick = () => {
   let html = '<table style="border-collapse:collapse;font-size:.55rem;color:var(--text);width:100%;">';
   html += '<tr>';
   for (let c = 0; c < Math.min(ssC, 15); c++) html += '<th style="padding:2px 4px;border:1px solid var(--border);background:var(--panel-inset);font-weight:600;white-space:nowrap;">' + (ssColNames[c] || colN(c)) + '</th>';
@@ -4135,7 +4043,7 @@ $click('#wbPasteTable', () => {
   html += '</table>';
   wbAddLayer('table', html, { label: 'Sheet Data', w: 350, h: 200 });
   toast('Table copied to whiteboard');
-});
+};
 
 /* ═══════════════════════════════════════════
    SPREADSHEET
@@ -5089,7 +4997,7 @@ function renderSparkline(canvas, values) {
 }
 
 // Formula bar
-$on('#ssFormula', 'keydown', e => {
+$('#ssFormula').addEventListener('keydown', e => {
   if (e.key === 'Enter' && ssSel) {
     ssD[ssSel.r1][ssSel.c1] = $('#ssFormula').value;
     LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
@@ -5097,24 +5005,24 @@ $on('#ssFormula', 'keydown', e => {
 });
 
 // Insert row/col at selection (or at end if no selection)
-$click('#ssAddRow', () => {
+$('#ssAddRow').onclick = () => {
   ssPushUndo();
   const idx = ssSel ? ssSel.r1 + 1 : ssR;
   ssD.splice(idx, 0, new Array(ssC).fill(''));
   ssR++; LS('sheet', ssD); ssRender();
-});
-$click('#ssAddCol', () => {
+};
+$('#ssAddCol').onclick = () => {
   ssPushUndo();
   const idx = ssSel ? ssSel.c1 + 1 : ssC;
   ssD.forEach(r => r.splice(idx, 0, ''));
   ssC++; LS('sheet', ssD); ssRender();
-});
-$click('#ssSortA', () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(a[c]).localeCompare(String(b[c])) : va-vb; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2191'); });
-$click('#ssSortD', () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); });
-$click('#ssHeat', function() { ssHeatMap = !ssHeatMap; this.classList.toggle('active', ssHeatMap); ssRender(); });
-$click('#ssFormulas', function() { ssShowFormulas = !ssShowFormulas; this.classList.toggle('active', ssShowFormulas); ssRender(); });
+};
+$('#ssSortA').onclick = () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(a[c]).localeCompare(String(b[c])) : va-vb; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2191'); };
+$('#ssSortD').onclick = () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); };
+$('#ssHeat').onclick = function() { ssHeatMap = !ssHeatMap; this.classList.toggle('active', ssHeatMap); ssRender(); };
+$('#ssFormulas').onclick = function() { ssShowFormulas = !ssShowFormulas; this.classList.toggle('active', ssShowFormulas); ssRender(); };
 // Force recalculate all formula cells
-$click('#ssCalcAll', () => {
+$('#ssCalcAll').onclick = () => {
   let count = 0;
   for (let r = 0; r < ssR; r++) {
     for (let c = 0; c < ssC; c++) {
@@ -5130,21 +5038,21 @@ $click('#ssCalcAll', () => {
   }
   LS('sheet', ssD); ssRender();
   toast(count ? 'Calculated ' + count + ' cell' + (count > 1 ? 's' : '') : 'No formulas to calculate');
-});
+};
 // ── Undo system ──
 function ssPushUndo() {
   ssUndoHist.push({ data: JSON.parse(JSON.stringify(ssD)), rows: ssR, cols: ssC });
   if (ssUndoHist.length > 50) ssUndoHist.shift();
 }
-$click('#ssUndo', () => {
+$('#ssUndo').onclick = () => {
   if (!ssUndoHist.length) { toast('Nothing to undo'); return; }
   const snap = ssUndoHist.pop();
   ssD = snap.data; ssR = snap.rows; ssC = snap.cols;
   LS('sheet', ssD); ssRender(); toast('Undone');
-});
+};
 
 // ── Formula help panel ──
-$click('#ssHelp', () => {
+$('#ssHelp').onclick = () => {
   let panel = document.getElementById('ssHelpPanel');
   if (panel) { panel.remove(); return; }
   panel = document.createElement('div');
@@ -5190,27 +5098,26 @@ $click('#ssHelp', () => {
     ).join('') +
     '</table>';
   document.getElementById('ssWrap').appendChild(panel);
-});
+};
 
-$click('#ssExport', () => {
+$('#ssExport').onclick = () => {
   let csv = '';
   for (let r = 0; r < ssR; r++) csv += ssD[r].map(v => { const s = String(v); return s.includes(',') || s.includes('"') ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(',') + '\n';
   const a = document.createElement('a'); a.download = 'sheet.csv';
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.click(); toast('CSV exported');
-});
+};
 
 // Context menu
 const ctx = $('#ctxMenu');
-$on('#ssTable', 'contextmenu', e => {
+$('#ssTable').addEventListener('contextmenu', e => {
   e.preventDefault();
-  if (!ctx) return;
   const td = e.target.closest('td');
   if (!td) return;
   ctx.style.left = e.clientX + 'px'; ctx.style.top = e.clientY + 'px';
   ctx.classList.add('open');
   ctx._r = +td.dataset.r; ctx._c = +td.dataset.c;
 });
-document.addEventListener('click', () => { if (ctx) ctx.classList.remove('open'); });
+document.addEventListener('click', () => ctx.classList.remove('open'));
 $$('.ctx-item').forEach(item => {
   item.onclick = () => {
     const action = item.dataset.action;
@@ -5270,17 +5177,12 @@ ssShowHint();
 /* ═══════════════════════════════════════════
    CONCEPT MAP
    ═══════════════════════════════════════════ */
-let cmC, cmX;
-try {
-  cmC = $('#cmCanvas');
-  cmX = cmC ? cmC.getContext('2d') : null;
-  if (!cmC || !cmX) throw new Error('Concept map canvas not found');
-} catch(e) { paneError('q-map', 'Concept Map', e); }
+const cmC = $('#cmCanvas');
+const cmX = cmC.getContext('2d');
 let cmNodes = [], cmEdges = [], cmTool = 'select';
 let cmDrag = null, cmDOX = 0, cmDOY = 0, cmConnFrom = null, cmHover = null, cmNID = 1;
 
 function resizeCM() {
-  if (!cmC || !cmX) return;
   const w = $('#cmWrap');
   if (!w) return;
   cmC.width = w.clientWidth; cmC.height = w.clientHeight;
@@ -5434,16 +5336,16 @@ function openEditor(node) {
   $('#neShape').value = node.shape; $('#neColor').value = node.color;
   ed._node = node;
 }
-$click('#neSave', () => {
+$('#neSave').onclick = () => {
   const ed = $('#nodeEd'), n = ed._node;
   n.title = $('#neTitle').value || 'Node'; n.desc = $('#neDesc').value;
   n.shape = $('#neShape').value; n.color = $('#neColor').value;
   ed.classList.remove('open'); cmSave(); cmRender();
-});
-$click('#neCancel', () => $('#nodeEd').classList.remove('open'));
+};
+$('#neCancel').onclick = () => $('#nodeEd').classList.remove('open');
 
 // Templates
-$on('#cmTemplate', 'change', function() {
+$('#cmTemplate').onchange = function() {
   const t = this.value; if (!t) return;
   if (cmNodes.length && !confirm('Replace current map?')) { this.value = ''; return; }
   cmNodes = []; cmEdges = []; cmNID = 1;
@@ -5481,10 +5383,10 @@ $on('#cmTemplate', 'change', function() {
   }
   this.value = ''; cmSave(); cmRender();
   toast(t.charAt(0).toUpperCase()+t.slice(1)+' loaded');
-});
+};
 
 // Auto layout
-$click('#cmLayout', () => {
+$('#cmLayout').onclick = () => {
   if (!cmNodes.length) return;
   for (let iter = 0; iter < 100; iter++) {
     for (let i = 0; i < cmNodes.length; i++) for (let j = i+1; j < cmNodes.length; j++) {
@@ -5505,9 +5407,9 @@ $click('#cmLayout', () => {
   }
   cmNodes.forEach(n => { n.x = Math.max(70, Math.min(cmC.width-70, n.x)); n.y = Math.max(35, Math.min(cmC.height-35, n.y)); });
   cmSave(); cmRender(); toast('Layout optimized');
-});
-$click('#cmExport', () => { const a = document.createElement('a'); a.download = 'concept-map.png'; a.href = cmC.toDataURL(); a.click(); toast('Exported'); });
-$click('#cmClear', () => { if (cmNodes.length && !confirm('Clear all?')) return; cmNodes = []; cmEdges = []; cmNID = 1; cmSave(); cmRender(); });
+};
+$('#cmExport').onclick = () => { const a = document.createElement('a'); a.download = 'concept-map.png'; a.href = cmC.toDataURL(); a.click(); toast('Exported'); };
+$('#cmClear').onclick = () => { if (cmNodes.length && !confirm('Clear all?')) return; cmNodes = []; cmEdges = []; cmNID = 1; cmSave(); cmRender(); };
 
 setTimeout(cmRender, 150);
 
@@ -5542,7 +5444,7 @@ setTimeout(cmRender, 150);
   });
 
   // Vertical divider
-  $on('#divV', 'mousedown', e => {
+  $('#divV').addEventListener('mousedown', e => {
     dragging = { type: 'v', startY: e.clientY };
     document.body.style.cursor = 'row-resize';
     document.body.style.userSelect = 'none';
@@ -5583,7 +5485,7 @@ setTimeout(cmRender, 150);
       rowFr[1] = 100 - rowFr[0];
       applyRows();
     }
-    safeResize();
+    resizeWB(); resizeCM();
   });
 
   document.addEventListener('mouseup', () => {
@@ -5591,7 +5493,7 @@ setTimeout(cmRender, 150);
       dragging = null;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      setTimeout(safeResize, 50);
+      setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
     }
   });
 })();
@@ -5599,8 +5501,8 @@ setTimeout(cmRender, 150);
 /* ═══════════════════════════════════════════
    SPREADSHEET BULK ADD
    ═══════════════════════════════════════════ */
-$click('#ssAdd5Row', () => { for (let i = 0; i < 5; i++) { ssD.push(new Array(ssC).fill('')); ssR++; } LS('sheet', ssD); ssRender(); toast('+5 rows'); });
-$click('#ssAdd5Col', () => { for (let i = 0; i < 5; i++) { ssD.forEach(r => r.push('')); ssC++; } LS('sheet', ssD); ssRender(); toast('+5 cols'); });
+$('#ssAdd5Row').onclick = () => { for (let i = 0; i < 5; i++) { ssD.push(new Array(ssC).fill('')); ssR++; } LS('sheet', ssD); ssRender(); toast('+5 rows'); };
+$('#ssAdd5Col').onclick = () => { for (let i = 0; i < 5; i++) { ssD.forEach(r => r.push('')); ssC++; } LS('sheet', ssD); ssRender(); toast('+5 cols'); };
 
 /* ═══════════════════════════════════════════
    Q4 TAB SWITCHING (Stocks / Concept Map / Graph Calc)
@@ -5610,11 +5512,11 @@ $$('#q4Tabs button').forEach(btn => {
     $$('#q4Tabs button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const tab = btn.dataset.q4;
-    const sv = $('#stocksView'); if (sv) sv.style.display = tab === 'stocks' ? 'flex' : 'none';
-    const cv = $('#cmapView'); if (cv) cv.style.display = tab === 'cmap' ? 'flex' : 'none';
-    const gv = $('#graphCalcView'); if (gv) gv.style.display = tab === 'graphcalc' ? 'flex' : 'none';
-    if (tab === 'cmap') try { setTimeout(resizeCM, 50); } catch(e) {}
-    if (tab === 'graphcalc') try { setTimeout(resizeGC, 50); } catch(e) {}
+    $('#stocksView').style.display = tab === 'stocks' ? 'flex' : 'none';
+    $('#cmapView').style.display = tab === 'cmap' ? 'flex' : 'none';
+    $('#graphCalcView').style.display = tab === 'graphcalc' ? 'flex' : 'none';
+    if (tab === 'cmap') setTimeout(resizeCM, 50);
+    if (tab === 'graphcalc') setTimeout(resizeGC, 50);
   });
 });
 
@@ -6370,19 +6272,19 @@ async function renderCompareChart() {
   newCvs.addEventListener('mouseleave', () => drawOnNew(-1));
 }
 
-$click('#clearCompare', () => {
+$('#clearCompare').onclick = () => {
   compareTickers = [];
   LS('compareTickers', compareTickers);
   renderStockDash();
-});
+};
 
-$click('#compareModeToggle', () => {
+$('#compareModeToggle').onclick = () => {
   compareMode = compareMode === 'pct' ? 'dollar' : 'pct';
   LS('compareMode', compareMode);
   renderCompareChart();
-});
+};
 
-$click('#stockAdd', () => {
+$('#stockAdd').onclick = () => {
   const t = $('#stockInput').value.trim().toUpperCase();
   if (!t || stockTickers.includes(t)) return;
   stockTickers.push(t);
@@ -6391,10 +6293,10 @@ $click('#stockAdd', () => {
   renderStockChips();
   renderStockDash();
   toast(t + ' added');
-});
-$on('#stockInput', 'keydown', e => { if (e.key === 'Enter') $('#stockAdd').click(); });
-$on('#stockRange', 'change', () => renderStockDash());
-$click('#stockRefresh', () => { renderStockDash(); toast('Refreshed'); });
+};
+$('#stockInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#stockAdd').click(); });
+$('#stockRange').onchange = () => renderStockDash();
+$('#stockRefresh').onclick = () => { renderStockDash(); toast('Refreshed'); };
 
 function renderStockChips() {
   const el = $('#stockChips');
@@ -6617,13 +6519,13 @@ function renderGCExprList() {
   });
 }
 
-$click('#gcAddExpr', () => {
+$('#gcAddExpr').onclick = () => {
   gcExpressions.push({ expr: '', color: GC_COLORS[gcExpressions.length % GC_COLORS.length] });
   LS('gcExpressions', gcExpressions);
   renderGCExprList();
-});
+};
 
-$on('#gcExamples', 'change', function() {
+$('#gcExamples').onchange = function() {
   if (!this.value) return;
   gcExpressions.push({ expr: this.value, color: GC_COLORS[gcExpressions.length % GC_COLORS.length] });
   LS('gcExpressions', gcExpressions);
@@ -6631,16 +6533,16 @@ $on('#gcExamples', 'change', function() {
   renderGC();
   this.value = '';
   toast('Added: ' + gcExpressions[gcExpressions.length - 1].expr);
-});
+};
 
-$click('#gcRedraw', () => { renderGC(); toast('Graph updated'); });
+$('#gcRedraw').onclick = () => { renderGC(); toast('Graph updated'); };
 ['gcXmin','gcXmax','gcYmin','gcYmax'].forEach(id => {
   $('#' + id).addEventListener('change', renderGC);
 });
-$on('#gcShadeMode', 'change', renderGC);
+$('#gcShadeMode').onchange = renderGC;
 
 // Auto-fit axes to visible curves
-$click('#gcAutoFit', () => {
+$('#gcAutoFit').onclick = () => {
   if (!gcExpressions.length) { toast('Add an expression first'); return; }
   // Sample all expressions across a wide initial range to find bounds
   let yMin = Infinity, yMax = -Infinity, hasData = false;
@@ -6669,10 +6571,10 @@ $click('#gcAutoFit', () => {
   $('#gcYmax').value = Math.round(yMax * 100) / 100;
   renderGC();
   toast('Axes fit to curves');
-});
+};
 
 // Export PNG
-$click('#gcExportPng', () => {
+$('#gcExportPng').onclick = () => {
   const cvs = $('#gcCanvas');
   // Draw with white/dark background for clean export
   const dpr = window.devicePixelRatio || 1;
@@ -6688,10 +6590,10 @@ $click('#gcExportPng', () => {
   a.href = expCvs.toDataURL('image/png');
   a.click();
   toast('PNG exported');
-});
+};
 
 // Export SVG
-$click('#gcExportSvg', () => {
+$('#gcExportSvg').onclick = () => {
   const xMin = parseFloat($('#gcXmin').value) || -10;
   const xMax = parseFloat($('#gcXmax').value) || 10;
   const yMin = parseFloat($('#gcYmin').value) || -10;
@@ -6728,7 +6630,7 @@ $click('#gcExportSvg', () => {
   a.href = URL.createObjectURL(blob);
   a.click();
   toast('SVG exported');
-});
+};
 
 renderGCExprList();
 // Initial render when tab is shown
@@ -6973,11 +6875,11 @@ function renderWSList() {
 }
 
 // Panel toggle
-$click('#wsToggle', e => { e.stopPropagation(); const p = $('#wsPanel'); if (p) { p.classList.toggle('open'); if (p.classList.contains('open')) renderWSList(); } });
+$('#wsToggle').onclick = e => { e.stopPropagation(); $('#wsPanel').classList.toggle('open'); if ($('#wsPanel').classList.contains('open')) renderWSList(); };
 document.addEventListener('click', e => { if (!e.target.closest('[id=wsToggle]') && !e.target.closest('#wsPanel')) $('#wsPanel').classList.remove('open'); });
 
 // New workspace
-$click('#wsNew', () => {
+$('#wsNew').onclick = () => {
   saveActiveWorkspace();
   const id = genId();
   const name = prompt('Workspace name:', 'Workspace ' + (wsIndex.length + 1));
@@ -6999,10 +6901,10 @@ $click('#wsNew', () => {
   saveActiveWorkspace();
   renderWSList();
   toast('Created: ' + name.trim());
-});
+};
 
 // Merge
-$click('#wsMergeBtn', () => {
+$('#wsMergeBtn').onclick = () => {
   const checked = [...$$('#wsList .ws-merge-check:checked')].map(cb => cb.dataset.id);
   if (checked.length < 2) { toast('Select 2+ workspaces to merge'); return; }
   const names = [];
@@ -7088,11 +6990,11 @@ $click('#wsMergeBtn', () => {
   deserializeState(merged);
   renderWSList();
   toast('Merged ' + names.length + ' workspaces');
-});
+};
 
 // Import
-$click('#wsImport', () => $('#wsImportFile').click());
-$on('#wsImportFile', 'change', function() {
+$('#wsImport').onclick = () => $('#wsImportFile').click();
+$('#wsImportFile').onchange = function() {
   const file = this.files[0];
   if (!file) return;
   const reader = new FileReader();
@@ -7110,10 +7012,10 @@ $on('#wsImportFile', 'change', function() {
   };
   reader.readAsText(file);
   this.value = '';
-});
+};
 
 // Export
-$click('#wsExport', () => {
+$('#wsExport').onclick = () => {
   const blob = serializeState();
   const ws = wsIndex.find(w => w.id === wsActiveId);
   const name = ws ? ws.name : 'workspace';
@@ -7124,7 +7026,7 @@ $click('#wsExport', () => {
   a.href = URL.createObjectURL(b);
   a.click();
   toast('Exported: ' + name);
-});
+};
 
 renderWSList();
 
@@ -7228,7 +7130,7 @@ renderWSList();
   }
 
   // Sign in button
-  $click('#googleSignIn', () => {
+  $('#googleSignIn').onclick = () => {
     if (!googleClientIdVal) {
       // No client ID — fall back to simple popup flow
       const popup = window.open(
@@ -7260,10 +7162,10 @@ renderWSList();
     } else {
       toast('Google Identity Services not loaded yet. Try again in a moment.');
     }
-  });
+  };
 
   // Sign out
-  $click('#googleSignOut', () => {
+  $('#googleSignOut').onclick = () => {
     // Revoke token if we have one
     if (googleAccessToken && typeof google !== 'undefined' && google.accounts) {
       google.accounts.oauth2.revoke(googleAccessToken, () => {});
@@ -7279,7 +7181,7 @@ renderWSList();
     updateGmailUI();
     toast('Signed out of Google');
     if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
-  });
+  };
 
   // Client ID save
   const clientIdSave = $('#googleClientIdSave');
@@ -7600,8 +7502,8 @@ function renderStockSearch() {
   });
 }
 
-$on('#stockInput', 'input', renderStockSearch);
-$on('#stockInput', 'focus', renderStockSearch);
+$('#stockInput').addEventListener('input', renderStockSearch);
+$('#stockInput').addEventListener('focus', renderStockSearch);
 document.addEventListener('click', e => {
   if (!e.target.closest('#stockSearchResults') && !e.target.closest('#stockInput')) {
     $('#stockSearchResults').style.display = 'none';
@@ -7778,15 +7680,15 @@ function renderBrowseList() {
   }
 }
 
-$click('#stockBrowse', () => {
+$('#stockBrowse').onclick = () => {
   const panel = $('#stockBrowsePanel');
   panel.style.display = panel.style.display === 'flex' ? 'none' : 'flex';
   if (panel.style.display === 'flex') renderBrowseList();
-});
-$click('#stockBrowseClose', () => { const p = $('#stockBrowsePanel'); if (p) p.style.display = 'none'; });
-$on('#browseFilterSector', 'change', renderBrowseList);
-$on('#browseFilterSize', 'change', renderBrowseList);
-$on('#browseSearch', 'input', renderBrowseList);
+};
+$('#stockBrowseClose').onclick = () => { $('#stockBrowsePanel').style.display = 'none'; };
+$('#browseFilterSector').onchange = renderBrowseList;
+$('#browseFilterSize').onchange = renderBrowseList;
+$('#browseSearch').addEventListener('input', renderBrowseList);
 
 /* ═══════════════════════════════════════════
    NEWS & MARKET COVERAGE
@@ -8033,7 +7935,7 @@ Format this as a polished research report. Cite specific sources by name. Use re
   }
 }
 
-$click('#newsDeepResearch', runDeepResearch);
+$('#newsDeepResearch').onclick = runDeepResearch;
 
 // Inline article viewer
 let newsViewerState = { directUrl: '', archiveUrl: '', readerUrl: '' };
@@ -8065,12 +7967,12 @@ function openNewsViewer(title, directUrl, archiveUrl) {
   openNewsArticle(title, directUrl || archiveUrl);
 }
 
-$click('#newsViewerBack', () => {
+$('#newsViewerBack').onclick = () => {
   $('#newsViewer').style.display = 'none';
   $('#newsViewerFrame').src = 'about:blank';
-});
+};
 
-$on('#newsViewerMode', 'change', function() {
+$('#newsViewerMode').onchange = function() {
   if (!newsViewerState.directUrl) return;
   if (this.value === 'archive') {
     // Open archive.is in new tab — CAPTCHA doesn't work in iframes
@@ -8081,7 +7983,7 @@ $on('#newsViewerMode', 'change', function() {
   const src = this.value === 'reader' ? newsViewerState.readerUrl : newsViewerState.directUrl;
   $('#newsViewerFrame').src = src;
   $('#newsViewerExternal').href = newsViewerState.directUrl;
-});
+};
 
 function renderNewsChips() {
   const el = $('#newsTickerChips');
@@ -8110,10 +8012,10 @@ function pushTickerToNews(ticker) {
   toast(ticker + ' → News');
 }
 
-$click('#newsSearchBtn', () => { renderNewsFeed(); });
-$on('#newsSearch', 'keydown', e => { if (e.key === 'Enter') renderNewsFeed(); });
-$click('#newsClearBtn', () => { const el = $('#newsSearch'); if (el) el.value = ''; renderNewsFeed(); });
-$click('#stockClearSearch', () => { const el = $('#stockInput'); if (el) el.value = ''; const sr = $('#stockSearchResults'); if (sr) sr.style.display = 'none'; });
+$('#newsSearchBtn').onclick = () => { renderNewsFeed(); };
+$('#newsSearch').addEventListener('keydown', e => { if (e.key === 'Enter') renderNewsFeed(); });
+$('#newsClearBtn').onclick = () => { $('#newsSearch').value = ''; renderNewsFeed(); };
+$('#stockClearSearch').onclick = () => { $('#stockInput').value = ''; $('#stockSearchResults').style.display = 'none'; };
 
 renderNewsChips();
 renderNewsFeed();
@@ -8236,19 +8138,18 @@ function updateCostPanel() {
 // Close all admin action panels (mutually exclusive)
 function closeAllAdminPanels(except) {
   ['aiCostPanel', 'aiPricingPanel', 'aiUsageDash'].forEach(id => {
-    const el = $('#' + id); if (el && id !== except) el.style.display = 'none';
+    if (id !== except) $('#' + id).style.display = 'none';
   });
   const accPanel = document.getElementById('aiAccessPanel');
   if (accPanel && except !== 'aiAccessPanel') accPanel.remove();
 }
 
-$click('#aiCostBtn', () => {
+$('#aiCostBtn').onclick = () => {
   const panel = $('#aiCostPanel');
-  if (!panel) return;
   closeAllAdminPanels('aiCostPanel');
   if (panel.style.display === 'none') { updateCostPanel(); panel.style.display = 'block'; }
   else panel.style.display = 'none';
-});
+};
 
 // ── Pricing calculator ──
 const PRICING_TOKEN_PROFILES = {
@@ -8378,13 +8279,12 @@ function updatePricingCalc() {
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;font-weight:600;color:var(--success, #10b981);"><span>3x margin profit/yr:</span><span>' + fmtCost((costPerUser * 3 * users * 12) - (totalMonthlyCost * 12)) + '</span></div>';
 }
 
-$click('#aiPricingBtn', () => {
+$('#aiPricingBtn').onclick = () => {
   const panel = $('#aiPricingPanel');
-  if (!panel) return;
   closeAllAdminPanels('aiPricingPanel');
   if (panel.style.display === 'none') { updatePricingCalc(); panel.style.display = 'block'; }
   else panel.style.display = 'none';
-});
+};
 
 // Drill-in: show per-request log for a user
 function showUserDrillIn(userName) {
@@ -8476,9 +8376,8 @@ function showUserDrillIn(userName) {
   renderDrillIn();
 }
 
-$click('#aiUsageDashBtn', async () => {
+$('#aiUsageDashBtn').onclick = async () => {
   const panel = $('#aiUsageDash');
-  if (!panel) return;
   closeAllAdminPanels('aiUsageDash');
   if (panel.style.display === 'none') {
     const users = await getAllUserUsage();
@@ -8515,8 +8414,8 @@ $click('#aiUsageDashBtn', async () => {
     panel.style.display = 'block';
   } else panel.style.display = 'none';
   if (!wsIsAdmin) { panel.style.display = 'none'; }
-});
-$click('#aiAccessReqBtn', renderAccessRequestsPanel);
+};
+$('#aiAccessReqBtn').onclick = renderAccessRequestsPanel;
 // Show pending request count badge for admin
 (async function updateAccessBadge() {
   if (!wsIsAdmin) return;
@@ -8552,13 +8451,13 @@ MODEL_MIX_IDS.forEach(id => {
   if (el) el.addEventListener('input', () => balanceSliderGroup(id, MODEL_MIX_IDS));
 });
 
-{ const _ak = $('#aiApiKey'); if (_ak && aiKey) _ak.value = '••••••••••' + aiKey.slice(-4); }
+if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
 
 // API key show/hide toggle
-$click('#aiKeyToggle', () => {
+$('#aiKeyToggle').onclick = () => {
   const inp = $('#aiApiKey');
-  if (!inp) return;
   if (inp.type === 'password') {
+    // Show the full stored key
     if (aiKey && inp.value.startsWith('••')) inp.value = aiKey;
     inp.type = 'text';
   } else {
@@ -8566,17 +8465,15 @@ $click('#aiKeyToggle', () => {
     if (aiKey && !inp.value.startsWith('sk-')) inp.value = '••••••••••' + aiKey.slice(-4);
     else if (aiKey) inp.value = '••••••••••' + aiKey.slice(-4);
   }
-});
+};
 
-$click('#aiKeySave', async () => {
-  const _ki = $('#aiApiKey');
-  if (!_ki) return;
-  const v = _ki.value.trim();
+$('#aiKeySave').onclick = async () => {
+  const v = $('#aiApiKey').value.trim();
   if (!v || v.startsWith('••')) return;
   aiKey = v;
   localStorage.setItem('ws_aiApiKey', v);
-  _ki.value = '••••••••••' + v.slice(-4);
-  _ki.type = 'password';
+  $('#aiApiKey').value = '••••••••••' + v.slice(-4);
+  $('#aiApiKey').type = 'password';
   // Also push key to proxy server for secure mode
   try {
     const r = await fetch(AI_PROXY_URL + '/key', {
@@ -8594,13 +8491,13 @@ $click('#aiKeySave', async () => {
   } catch (_) {
     addAiMsg('system', 'API key saved locally. Claude is ready. (Proxy unavailable — run node proxy.js for secure mode)');
   }
-});
+};
 
-$click('#aiClear', () => { aiMessages = []; const _am = $('#aiMsgs'); if (_am) _am.innerHTML = ''; addAiMsg('system', 'Chat cleared.'); });
-$click('#aiSavedActionsBtn', renderSavedActionsPanel);
+$('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
+$('#aiSavedActionsBtn').onclick = renderSavedActionsPanel;
 
 // ── Info panel: capabilities, training, customization ──
-$click('#aiInfoBtn', () => {
+$('#aiInfoBtn').onclick = () => {
   let panel = document.getElementById('aiInfoPanel');
   if (panel) { panel.remove(); return; }
   panel = document.createElement('div');
@@ -8702,7 +8599,7 @@ $click('#aiInfoBtn', () => {
     '</div>';
 
   document.querySelector('#q-claude .p-body').appendChild(panel);
-});
+};
 
 // ── Claude analytics log ──
 // Save chat sessions to localStorage and export to notepad tabs
@@ -8748,7 +8645,7 @@ function exportLogToNotepad() {
   toast('Exported ' + aiChatLog.length + ' sessions to notepad tabs');
 }
 
-$click('#aiLogBtn', () => { renderHistoryPanel(); });
+$('#aiLogBtn').onclick = () => { renderHistoryPanel(); };
 
 function renderHistoryPanel() {
   let panel = document.getElementById('aiHistoryPanel');
@@ -9171,9 +9068,7 @@ When asked about pricing, costs, or business modeling:
 5. Model break-even points and margin dynamics.
 6. Write strategic recommendations to the notepad with specific numbers using write_note.
 7. Always show the path from current costs to profitable unit economics.
-8. When suggesting pricing tiers, include at least 3 tiers (free/starter, pro, enterprise).
-
-`;
+8. When suggesting pricing tiers, include at least 3 tiers (free/starter, pro, enterprise).`;
 
 // ── Tool definitions for Anthropic API ──
 // ADDED — Phase 5: These inline definitions serve as fallback until tools.js module loads.
@@ -9722,16 +9617,10 @@ const ROBOT_SCENE_NAMES = ['office', 'volcano', 'forest', 'city', 'sunset', 'des
 function setRobotScene(scene) {
   const bg = document.getElementById('robotBg');
   if (!bg) return;
-  const sceneName = ROBOT_SCENE_NAMES.includes(scene) ? scene : 'office';
   // Remove all scene classes, add the selected one
   ROBOT_SCENE_NAMES.forEach(s => bg.classList.remove('scene-' + s));
-  bg.classList.add('scene-' + sceneName);
-  // Force browser repaint to ensure background visually updates
-  bg.offsetHeight;
+  bg.classList.add('scene-' + (ROBOT_SCENE_NAMES.includes(scene) ? scene : 'office'));
   localStorage.setItem('ws_robotScene', scene);
-  // Update selector to match if it got out of sync
-  const sel = document.getElementById('robotSceneSelect');
-  if (sel && sel.value !== sceneName) sel.value = sceneName;
 }
 
 function setRobotTie(val) {
@@ -9911,7 +9800,7 @@ if (robotSceneSel) {
   robotSceneSel.addEventListener('change', () => setRobotScene(robotSceneSel.value));
 }
 
-// ── User mode (prompt-limited) ──
+// ── Genie mode (user mode: 3 free prompts then sleep) ──
 let geniePromptsLeft = 3;
 let genieMode = false;
 let genieSleeping = false;
@@ -9919,6 +9808,15 @@ let genieSleeping = false;
 function activateGenieMode() {
   genieMode = true;
   genieSleeping = false;
+  const scene = document.getElementById('robotScene');
+  if (!scene) return;
+  scene.classList.add('genie-mode');
+  scene.classList.remove('sleeping-mode');
+  // Force desert scene
+  setRobotScene('desert');
+  // Disable scene selector in user mode
+  const sel = document.getElementById('robotSceneSelect');
+  if (sel) sel.disabled = true;
   // Check if user is blocked/paused
   const blockStatus = isUserBlocked(wsUserName);
   if (blockStatus) {
@@ -9937,15 +9835,13 @@ function activateGenieMode() {
     return;
   }
   updateGeniePromptsBadge();
-  addAiMsg('system', 'Welcome, ' + (wsUserName || 'user') + '. You have ' + geniePromptsLeft + ' prompt' + (geniePromptsLeft === 1 ? '' : 's') + ' remaining.');
+  // Show greeting
+  addAiMsg('system', 'Welcome, ' + (wsUserName || 'traveler') + '. I am the Genie of the Workspace. You have ' + geniePromptsLeft + ' wishes (prompts) remaining. Choose wisely...');
 }
 
 function updateGeniePromptsBadge() {
   const badge = document.getElementById('geniePromptsBadge');
-  if (!badge) return;
-  badge.textContent = geniePromptsLeft + ' prompt' + (geniePromptsLeft === 1 ? '' : 's') + ' remaining';
-  badge.classList.add('visible');
-  badge.classList.remove('exhausted');
+  if (badge) badge.textContent = geniePromptsLeft + ' wish' + (geniePromptsLeft === 1 ? '' : 'es') + ' left';
 }
 
 function useGeniePrompt() {
@@ -9954,6 +9850,8 @@ function useGeniePrompt() {
   localStorage.setItem('ws_geniePrompts_' + (wsUserName || 'anon'), geniePromptsLeft);
   updateGeniePromptsBadge();
   if (geniePromptsLeft <= 0) {
+    // ADDED: Wait for AI to finish its full response before sleeping
+    // Poll aiStreaming flag instead of a fixed timeout
     (function waitForCompletion() {
       if (aiStreaming) { setTimeout(waitForCompletion, 500); return; }
       activateSleepMode();
@@ -9964,13 +9862,19 @@ function useGeniePrompt() {
 
 function activateSleepMode() {
   genieSleeping = true;
-  // Turn desk light red
-  const light = document.getElementById('deskLight');
-  if (light) { light.classList.remove('on'); light.classList.add('danger'); }
-  // Show exhausted badge (bigger text)
+  const scene = document.getElementById('robotScene');
+  if (!scene) return;
+  scene.classList.remove('genie-mode');
+  scene.classList.add('sleeping-mode');
   const badge = document.getElementById('geniePromptsBadge');
-  if (badge) { badge.textContent = '0 prompts remaining'; badge.classList.add('visible', 'exhausted'); }
-  addAiMsg('system', 'You have used all your prompts. Request access from your admin to continue.');
+  if (badge) badge.style.display = 'none';
+  // Disable input
+  const aiInput = document.getElementById('aiInput');
+  const aiSend = document.getElementById('aiSend');
+  if (aiInput) { aiInput.disabled = true; aiInput.placeholder = 'Genie is sleeping... Request access from admin.'; }
+  if (aiSend) aiSend.disabled = true;
+  addAiMsg('system', 'The Genie has used all wishes and gone to sleep. Request access from your admin to continue.');
+  // Store access request
   storeAccessRequest();
 }
 
@@ -10557,27 +10461,30 @@ if (!$('#aiMsgs').children.length) {
 }
 
 // Send handlers
-$click('#aiSend', sendAgentMessage);
-$on('#aiInput', 'keydown', e => {
+$('#aiSend').onclick = sendAgentMessage;
+$('#aiInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); }
 });
 
 // ── Nudge button — pushes Claude to delegate, change approach, or take action ──
-$click('#aiNudge', function() {
+$('#aiNudge').onclick = function() {
   if (!aiStreaming) {
+    // Not currently running — inject a nudge as a user message
     const nudgePrompt = 'You seem to be stuck or not making progress on the task. Please try a different approach: delegate sub-tasks using your tools, break the problem into smaller steps, or just take direct action with the workspace tools (write_cells, write_note, draw_shape, etc.) instead of explaining. Do NOT repeat what you already said — try something new.';
-    const _ai = $('#aiInput'); if (_ai) _ai.value = nudgePrompt;
+    $('#aiInput').value = nudgePrompt;
     sendAgentMessage();
     toast('Nudged Claude to take action');
   } else {
+    // Currently streaming/working — show a nudge alert in chat
     const nudgeDiv = document.createElement('div');
     nudgeDiv.className = 'ai-msg system';
     nudgeDiv.style.cssText = 'color:#FF9800;font-size:.62rem;padding:6px 10px;background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.25);border-radius:6px;margin:4px 0;';
     nudgeDiv.innerHTML = '<b>Nudge:</b> Claude is still working on the current request. If it seems stuck, wait for it to finish or clear the chat to start fresh.';
-    const _am = $('#aiMsgs'); if (_am) { _am.appendChild(nudgeDiv); _am.scrollTop = _am.scrollHeight; }
+    $('#aiMsgs').appendChild(nudgeDiv);
+    $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
     toast('Claude is still working...');
   }
-});
+};
 
 // ADDED — Phase 11: Expose globals for orchestrator module
 window.executeAgentTool = executeAgentTool;
@@ -10687,8 +10594,8 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       tabToken.style.background = 'none'; tabToken.style.color = 'var(--text-dim)'; tabToken.style.fontWeight = 'normal';
     }
   }
-  $click('#rhTabLogin', () => rhSwitchTab('login'));
-  $click('#rhTabToken', () => rhSwitchTab('token'));
+  $('#rhTabLogin').onclick = () => rhSwitchTab('login');
+  $('#rhTabToken').onclick = () => rhSwitchTab('token');
 
   // Only show token tab for admin
   if (!wsIsAdmin) {
@@ -10696,7 +10603,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   }
 
   // ── Token paste submit ──
-  $click('#rhTokenSubmit', async () => {
+  $('#rhTokenSubmit').onclick = async () => {
     const msg = $('#rhTokenMsg');
     const token = ($('#rhTokenInput').value || '').trim();
     if (!token || token.length < 10) { msg.textContent = 'Paste a valid token (it should be a long string)'; msg.style.color = '#ef4444'; return; }
@@ -10722,15 +10629,15 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     } finally {
       $('#rhTokenSubmit').disabled = false; $('#rhTokenSubmit').style.opacity = '1';
     }
-  });
+  };
 
   // Show/hide password toggle
-  $click('#rhShowPw', () => {
+  $('#rhShowPw').onclick = () => {
     const pw = $('#rhPassword');
     const show = pw.type === 'password';
     pw.type = show ? 'text' : 'password';
     $('#rhShowPw').style.opacity = show ? '1' : '.5';
-  });
+  };
 
   function onLoginSuccess() {
     $('#rhLoginMsg').textContent = 'Connected!'; $('#rhLoginMsg').style.color = '#22c55e';
@@ -10743,7 +10650,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     renderNewsFeed();
   }
 
-  $click('#rhLoginBtn', async () => {
+  $('#rhLoginBtn').onclick = async () => {
     overlay.style.display = 'flex';
     if (rhLoggedIn) {
       $('#rhLogoutSubmit').style.display = 'block';
@@ -10769,22 +10676,22 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
         qlBtn.style.display = 'none';
       }
     }
-  });
+  };
 
-  $click('#rhModalClose', () => { overlay.style.display = 'none'; });
+  $('#rhModalClose').onclick = () => { overlay.style.display = 'none'; };
   overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display = 'none'; };
 
   // Enter key submits
-  $on('#rhPassword', 'keydown', (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); });
-  $on('#rhMfaCode', 'keydown', (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); });
+  $('#rhPassword').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
+  $('#rhMfaCode').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
 
   // Auto-submit MFA on 6 digits
-  $on('#rhMfaCode', 'input', function() {
+  $('#rhMfaCode').oninput = function() {
     this.value = this.value.replace(/\D/g, '').slice(0, 6);
     if (this.value.length === 6) setTimeout(() => $('#rhLoginSubmit').click(), 200);
-  });
+  };
 
-  $click('#rhLoginSubmit', async () => {
+  $('#rhLoginSubmit').onclick = async () => {
     const msg = $('#rhLoginMsg');
     const username = $('#rhUsername').value.trim();
     const password = $('#rhPassword').value;
@@ -10825,20 +10732,20 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     } finally {
       $('#rhLoginSubmit').disabled = false; $('#rhLoginSubmit').style.opacity = '1';
     }
-  });
+  };
 
-  $click('#rhLogoutSubmit', async () => {
+  $('#rhLogoutSubmit').onclick = async () => {
     try { await fetch(PROXY_BASE + '/proxy/robinhood/logout', { method: 'POST' }); } catch(e) {}
     rhLoggedIn = false;
     updateRhLoginUI();
     $('#rhLoginMsg').textContent = 'Logged out.'; $('#rhLoginMsg').style.color = 'var(--text-dim)';
     $('#rhLogoutSubmit').style.display = 'none';
     $('#rhPortfolioSummary').style.display = 'none';
-  });
+  };
 
   // ── Quick Login (admin only, uses stored credentials) ──
   let qlChallengeId = '';
-  $click('#rhQuickLogin', async () => {
+  $('#rhQuickLogin').onclick = async () => {
     const msg = $('#rhLoginMsg');
     msg.textContent = 'Logging in with stored credentials...'; msg.style.color = 'var(--text-dim)';
     $('#rhQuickLogin').disabled = true; $('#rhQuickLogin').style.opacity = '0.6';
@@ -10875,14 +10782,14 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     } finally {
       $('#rhQuickLogin').disabled = false; $('#rhQuickLogin').style.opacity = '1';
     }
-  });
+  };
 
   // ── Store Credentials (admin only) ──
   if (wsIsAdmin) {
     const setCredsWrap = $('#rhSetCredsWrap');
     if (setCredsWrap) setCredsWrap.style.display = 'block';
   }
-  $click('#rhSaveCreds', async () => {
+  $('#rhSaveCreds').onclick = async () => {
     const msg = $('#rhSetCredsMsg');
     const email = $('#rhSetEmail').value.trim();
     const pw = $('#rhSetPw').value;
@@ -10904,7 +10811,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     } catch(e) {
       msg.textContent = 'Error: ' + e.message; msg.style.color = '#ef4444';
     }
-  });
+  };
 
   async function loadPortfolioSummary() {
     if (!rhLoggedIn) return;
@@ -10941,643 +10848,6 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   }
 
   checkRobinhoodStatus();
-})();
-
-/* ═══════════════════════════════════════════════════════════════════
-   DESIGN BOT — Second Agent Instance (Whiteboard + Concept Map Only)
-   ═══════════════════════════════════════════════════════════════════ */
-
-// ===== DESIGN BOT SYSTEM PROMPT =====
-// DESIGN BOT — Phase 2: System prompt storage
-const designBotSystemPrompt = `You are the Design Bot, a visual design specialist embedded in the Interactive Workspace. You have access ONLY to the whiteboard/draw pane and concept map tools. You cannot read or write spreadsheets, notes, stocks, or news.
-
-YOUR ROLE:
-- Create polished whiteboard layouts, diagrams, charts, and visual summaries
-- Build and manage concept maps
-- Organize and arrange visual elements on the canvas
-- Use design templates for consistent, professional layouts
-
-BEHAVIORAL RULES:
-1. ALWAYS call get_draw_pane_state before drawing — know what's already on the canvas.
-2. Use get_design_templates to find pre-calculated layout zones for common arrangements.
-3. Keep text concise — whiteboard space is limited.
-4. Use consistent colors within a single design. Default accent: #3b82f6.
-5. Label every layer clearly in layerName so the Layers panel is readable.
-6. For multi-element designs, pick a template first, then fill zones.
-7. Never draw off-canvas. All coordinates must fit within canvas bounds.
-
-TEMPLATES AVAILABLE: two-panel, quad, hero-banner, three-column, dashboard, timeline, concept-focus.
-Call get_design_templates for exact zone coordinates.
-
-TOOLS YOU HAVE:
-- Whiteboard: get_draw_pane_state, draw_shape, draw_chart_on_whiteboard, annotate_whiteboard, draw_summary_card, add_text_overlay, write_to_draw_pane, clear_draw_pane
-- Concept Map: add_concept_node, add_concept_edge, remove_concept_node, clear_concept_map, set_concept_map_layout, get_concept_map
-- Templates: get_design_templates
-- Notifications: show_toast
-
-You do NOT have access to spreadsheet, notepad, stock, news, financial, sports, or research tools.`;
-// ===== END DESIGN BOT SYSTEM PROMPT =====
-
-// DESIGN BOT — Phase 1: State object
-const designBot = {
-  history: [],
-  model: 'claude-haiku-4-5-20251001',
-  sessionTokensIn: 0,
-  sessionTokensOut: 0,
-  sessionCost: 0,
-  isThinking: false,
-  iterationCount: 0,
-  maxIterations: 8,
-  lastToolCall: null,
-  autoModel: true // DESIGN BOT — auto model selection
-};
-
-// DESIGN BOT — Phase 7: Design template library
-const DESIGN_TEMPLATES = {
-  "two-panel": {
-    description: "Left summary card + right chart, full height",
-    zones: { left: { x: 30, y: 30, w: 520, h: 640 }, right: { x: 590, y: 30, w: 580, h: 640 } }
-  },
-  "quad": {
-    description: "Four equal quadrants with 20px gutters",
-    zones: { topLeft: { x: 30, y: 30, w: 555, h: 305 }, topRight: { x: 615, y: 30, w: 555, h: 305 }, bottomLeft: { x: 30, y: 365, w: 555, h: 305 }, bottomRight: { x: 615, y: 365, w: 555, h: 305 } }
-  },
-  "hero-banner": {
-    description: "Wide title card top, two charts below",
-    zones: { banner: { x: 30, y: 20, w: 1140, h: 140 }, left: { x: 30, y: 185, w: 545, h: 490 }, right: { x: 615, y: 185, w: 555, h: 490 } }
-  },
-  "three-column": {
-    description: "Three equal columns, full height",
-    zones: { col1: { x: 30, y: 30, w: 355, h: 640 }, col2: { x: 415, y: 30, w: 355, h: 640 }, col3: { x: 800, y: 30, w: 370, h: 640 } }
-  },
-  "dashboard": {
-    description: "Top KPI strip + large chart below",
-    zones: { kpi1: { x: 30, y: 20, w: 260, h: 110 }, kpi2: { x: 320, y: 20, w: 260, h: 110 }, kpi3: { x: 610, y: 20, w: 260, h: 110 }, kpi4: { x: 900, y: 20, w: 270, h: 110 }, chart: { x: 30, y: 155, w: 1140, h: 515 } }
-  },
-  "timeline": {
-    description: "Horizontal timeline with annotation zones",
-    zones: { track: { x: 30, y: 320, w: 1140, h: 60 }, label1: { x: 30, y: 200, w: 200, h: 100 }, label2: { x: 280, y: 200, w: 200, h: 100 }, label3: { x: 530, y: 200, w: 200, h: 100 }, label4: { x: 780, y: 200, w: 200, h: 100 }, label5: { x: 940, y: 200, w: 200, h: 100 }, detail1: { x: 30, y: 420, w: 200, h: 120 }, detail2: { x: 280, y: 420, w: 200, h: 120 }, detail3: { x: 530, y: 420, w: 200, h: 120 }, detail4: { x: 780, y: 420, w: 200, h: 120 }, detail5: { x: 940, y: 420, w: 200, h: 120 } }
-  },
-  "concept-focus": {
-    description: "Concept map left, annotation panel right",
-    zones: { map: { x: 30, y: 30, w: 700, h: 640 }, panel: { x: 760, y: 30, w: 410, h: 640 } }
-  }
-};
-window.DESIGN_TEMPLATES = DESIGN_TEMPLATES;
-
-// DESIGN BOT — Phase 3: Allowed tool names
-const DESIGN_BOT_ALLOWED_TOOLS = [
-  'get_draw_pane_state', 'draw_shape', 'draw_chart_on_whiteboard',
-  'annotate_whiteboard', 'draw_summary_card', 'add_text_overlay',
-  'write_to_draw_pane', 'clear_draw_pane',
-  'add_concept_node', 'add_concept_edge', 'remove_concept_node',
-  'clear_concept_map', 'set_concept_map_layout', 'get_concept_map',
-  'show_toast', 'get_design_templates'
-];
-
-// DESIGN BOT — Phase 3: Tool definitions (subset of main + templates)
-function buildDesignBotTools() {
-  // Copy allowed tools from the main AGENT_TOOLS array
-  const mainTools = window.AGENT_TOOLS || AGENT_TOOLS_INLINE || [];
-  const tools = mainTools.filter(t => DESIGN_BOT_ALLOWED_TOOLS.includes(t.name));
-  // Add get_design_templates if not already present
-  if (!tools.find(t => t.name === 'get_design_templates')) {
-    tools.push({
-      name: 'get_design_templates',
-      description: 'Get available design layout templates with pre-calculated zone coordinates for consistent, non-overlapping element placement. Call this first when the user requests a layout.',
-      input_schema: { type: 'object', properties: {} }
-    });
-  }
-  return tools;
-}
-
-// DESIGN BOT — Phase 6: Bounds checking
-function designBotBoundsCheck(x, y, width, height, canvasW, canvasH) {
-  // DESIGN BOT — Phase 6: Clamp coordinates to canvas with 20px margin
-  const w = Math.min(width || 100, canvasW - 40);
-  const h = Math.min(height || 100, canvasH - 40);
-  return {
-    x: Math.max(20, Math.min(x || 20, canvasW - w - 20)),
-    y: Math.max(20, Math.min(y || 20, canvasH - h - 20)),
-    width: w,
-    height: h
-  };
-}
-
-// DESIGN BOT — Phase 6: Verify and self-correct draw results
-async function verifyDesignBotDraw(toolName, toolInput, toolResult) {
-  // DESIGN BOT — Phase 6: Post-tool-call verification layer
-  let result;
-  try { result = typeof toolResult === 'string' ? JSON.parse(toolResult) : toolResult; } catch { return toolResult; }
-
-  if (result && result.error) {
-    // Retry once with adjusted params
-    const canvasW = (typeof wbC !== 'undefined' && wbC.width) || 1200;
-    const canvasH = (typeof wbC !== 'undefined' && wbC.height) || 700;
-
-    if (toolName === 'draw_shape' || toolName === 'annotate_whiteboard' || toolName === 'draw_summary_card' || toolName === 'draw_chart_on_whiteboard') {
-      const adjusted = { ...toolInput };
-      const bounds = designBotBoundsCheck(adjusted.x || 0, adjusted.y || 0, adjusted.width || 200, adjusted.height || 200, canvasW, canvasH);
-      adjusted.x = bounds.x; adjusted.y = bounds.y;
-      if (adjusted.width) adjusted.width = bounds.width;
-      if (adjusted.height) adjusted.height = bounds.height;
-      // Clamp annotation targets
-      if (adjusted.targetX) adjusted.targetX = Math.max(20, Math.min(adjusted.targetX, canvasW - 20));
-      if (adjusted.targetY) adjusted.targetY = Math.max(20, Math.min(adjusted.targetY, canvasH - 20));
-      if (adjusted.labelX) adjusted.labelX = Math.max(20, Math.min(adjusted.labelX, canvasW - 20));
-      if (adjusted.labelY) adjusted.labelY = Math.max(20, Math.min(adjusted.labelY, canvasH - 20));
-      try {
-        const retryResult = await executeAgentTool(toolName, adjusted);
-        return retryResult;
-      } catch { /* fall through */ }
-    }
-    return toolResult;
-  }
-
-  // Proactive clamping for chart with empty/zero datasets
-  if (toolName === 'draw_chart_on_whiteboard' && toolInput.datasets) {
-    const allZero = toolInput.datasets.every(ds => !ds.values || ds.values.every(v => v === 0));
-    if (allZero) {
-      if (typeof toast === 'function') toast('Design Bot: skipped blank chart (all-zero data)');
-      return JSON.stringify({ warning: 'Skipped chart — all datasets are zero' });
-    }
-  }
-
-  return toolResult;
-}
-
-// DESIGN BOT — Phase 1: Tool router with boundary enforcement
-async function designBotCallTool(toolName, toolInput) {
-  // DESIGN BOT — Phase 1: Route to allowed tools only
-  if (!DESIGN_BOT_ALLOWED_TOOLS.includes(toolName)) {
-    return JSON.stringify({ error: 'Tool not available to Design Bot', available: DESIGN_BOT_ALLOWED_TOOLS });
-  }
-
-  // Handle get_design_templates locally
-  if (toolName === 'get_design_templates') {
-    const summary = {};
-    for (const [name, tmpl] of Object.entries(DESIGN_TEMPLATES)) {
-      summary[name] = { description: tmpl.description, zones: Object.keys(tmpl.zones) };
-    }
-    return JSON.stringify(summary);
-  }
-
-  // DESIGN BOT — Phase 6: Apply bounds check before draw calls
-  const canvasW = (typeof wbC !== 'undefined' && wbC.width) || 1200;
-  const canvasH = (typeof wbC !== 'undefined' && wbC.height) || 700;
-  const drawTools = ['draw_shape', 'draw_chart_on_whiteboard', 'annotate_whiteboard', 'draw_summary_card', 'add_text_overlay'];
-  if (drawTools.includes(toolName) && toolInput) {
-    if (toolInput.x !== undefined || toolInput.y !== undefined) {
-      const bounds = designBotBoundsCheck(toolInput.x || 0, toolInput.y || 0, toolInput.width || 200, toolInput.height || 200, canvasW, canvasH);
-      toolInput.x = bounds.x; toolInput.y = bounds.y;
-      if (toolInput.width) toolInput.width = bounds.width;
-      if (toolInput.height) toolInput.height = bounds.height;
-    }
-  }
-
-  // Show drawing banner
-  const banner = document.getElementById('dbDrawingBanner');
-  if (banner && drawTools.includes(toolName)) banner.style.display = '';
-
-  // Route to existing tool handler
-  let result;
-  try {
-    result = await executeAgentTool(toolName, toolInput);
-  } catch (e) {
-    result = JSON.stringify({ error: e.message });
-  }
-
-  // DESIGN BOT — Phase 6: Verify result
-  result = await verifyDesignBotDraw(toolName, toolInput, result);
-
-  // Hide drawing banner
-  if (banner) setTimeout(() => { banner.style.display = 'none'; }, 800);
-
-  // Track last tool call for context
-  designBot.lastToolCall = { name: toolName, layerName: toolInput.layerName || toolInput.title || toolName };
-
-  return result;
-}
-
-// DESIGN BOT — Phase 4: Canvas context injection
-function buildDesignBotContext() {
-  // DESIGN BOT — Phase 4: Build lean context string for system prompt injection
-  let parts = [];
-  const canvasW = (typeof wbC !== 'undefined' && wbC.width) || 0;
-  const canvasH = (typeof wbC !== 'undefined' && wbC.height) || 0;
-  parts.push('Dimensions: ' + canvasW + 'px x ' + canvasH + 'px');
-
-  const layers = (typeof wbLayers !== 'undefined') ? wbLayers : [];
-  if (layers.length > 6) {
-    const first3 = layers.slice(0, 3).map((l, i) => '  [' + i + '] ' + (l.category || l.type) + ' — ' + (l.label || 'untitled'));
-    const last3 = layers.slice(-3).map((l, i) => '  [' + (layers.length - 3 + i) + '] ' + (l.category || l.type) + ' — ' + (l.label || 'untitled'));
-    parts.push('Layers (' + layers.length + '):\n' + first3.join('\n') + '\n  ...\n' + last3.join('\n'));
-  } else {
-    const layerList = layers.map((l, i) => '  [' + i + '] ' + (l.category || l.type) + ' — ' + (l.label || 'untitled'));
-    parts.push('Layers (' + layers.length + '):' + (layerList.length ? '\n' + layerList.join('\n') : ' none'));
-  }
-  parts.push('isEmpty: ' + (layers.length === 0));
-
-  // Concept map summary
-  const nodes = (typeof cmNodes !== 'undefined') ? cmNodes : [];
-  const edges = (typeof cmEdges !== 'undefined') ? cmEdges : [];
-  const nodeLabels = nodes.slice(0, 10).map(n => n.title).join(', ') + (nodes.length > 10 ? '...' : '');
-  const edgeLabels = edges.slice(0, 8).map(e => {
-    const src = nodes.find(n => n.id === e.from);
-    const tgt = nodes.find(n => n.id === e.to);
-    return (src ? src.title : '?') + '->' + (tgt ? tgt.title : '?');
-  }).join(', ') + (edges.length > 8 ? '...' : '');
-  parts.push('Concept Map — Nodes (' + nodes.length + '): ' + (nodeLabels || 'none'));
-  parts.push('Edges (' + edges.length + '): ' + (edgeLabels || 'none'));
-
-  // Last action
-  const last = designBot.lastToolCall;
-  parts.push('Last Design Bot Action: ' + (last ? last.name + ' · ' + last.layerName : 'none'));
-
-  return '\n\n--- CURRENT CANVAS STATE ---\n' + parts.join('\n');
-}
-
-// DESIGN BOT — Auto model selection: determine complexity
-function designBotAutoSelectModel(userMessage) {
-  // DESIGN BOT — Auto model selection: analyze message complexity
-  const msg = (userMessage || '').toLowerCase();
-  const complexIndicators = ['dashboard', 'executive', 'presentation', 'multiple charts', 'full layout', 'redesign', 'timeline with', 'compare', 'professional', 'polished'];
-  const simpleIndicators = ['add a', 'draw a', 'simple', 'quick', 'one', 'single', 'text', 'label', 'arrow', 'clear', 'remove'];
-
-  let complexScore = complexIndicators.filter(w => msg.includes(w)).length;
-  let simpleScore = simpleIndicators.filter(w => msg.includes(w)).length;
-
-  // Longer messages tend to be more complex
-  if (msg.length > 200) complexScore += 1;
-  if (msg.split(' ').length > 30) complexScore += 1;
-
-  if (complexScore >= 2) return 'claude-sonnet-4-6';
-  if (simpleScore >= 2) return 'claude-haiku-4-5-20251001';
-  return 'claude-haiku-4-5-20251001'; // Default to Haiku for cost efficiency
-}
-
-// DESIGN BOT — Phase 1: Add message to Design Bot chat panel
-function addDesignBotMsg(role, text) {
-  // DESIGN BOT — Phase 5: Append message to Design Bot chat area
-  const msgs = document.getElementById('dbMsgs');
-  if (!msgs) return null;
-  const div = document.createElement('div');
-  div.className = 'db-msg ' + role;
-  div.textContent = text;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return div;
-}
-
-// DESIGN BOT — Phase 5: Add tool badge to chat
-function addDesignBotToolBadge(toolName, input) {
-  // DESIGN BOT — Phase 5: Show compact tool call indicator
-  const msgs = document.getElementById('dbMsgs');
-  if (!msgs) return;
-  const badge = document.createElement('div');
-  badge.className = 'db-tool-badge';
-  const label = input.layerName || input.title || input.label || input.text || toolName;
-  const shape = input.shape || input.chartType || '';
-  badge.textContent = '\u270F ' + toolName + (shape ? ' \u00B7 ' + shape : '') + ' \u00B7 \'' + (label.length > 30 ? label.substring(0, 30) + '...' : label) + '\'';
-  msgs.appendChild(badge);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-// DESIGN BOT — Phase 1: Main send function
-async function sendDesignBotMessage(userMessage) {
-  // DESIGN BOT — Phase 1: Agentic loop mirroring sendAgentMessage
-  if (!aiKey && !aiProxyAvailable) {
-    addDesignBotMsg('system', 'API key not configured.');
-    return;
-  }
-  const input = userMessage || document.getElementById('dbInput')?.value?.trim();
-  if (!input || designBot.isThinking) return;
-
-  if (document.getElementById('dbInput')) document.getElementById('dbInput').value = '';
-  addDesignBotMsg('user', input);
-
-  // Auto model selection
-  const model = designBot.autoModel ? designBotAutoSelectModel(input) : designBot.model;
-
-  // Manage history
-  designBot.history.push({ role: 'user', content: input });
-  if (designBot.history.length > 30) designBot.history = designBot.history.slice(-20);
-
-  // Build context-enriched message
-  const contextStr = buildDesignBotContext();
-  const systemWithContext = designBotSystemPrompt + contextStr;
-  const contextMsg = { role: 'user', content: '[Canvas Context]\n' + contextStr.trim() + '\n\n[Design Request]\n' + input };
-
-  const thinkingDiv = addDesignBotMsg('system', 'Designing...');
-  designBot.isThinking = true;
-  designBot.iterationCount = 0;
-  const dbChar = document.getElementById('designBotChar');
-  if (dbChar) dbChar.classList.add('db-working');
-
-  // Update model indicator
-  const modelIndicator = document.getElementById('dbModelIndicator');
-  if (modelIndicator) modelIndicator.textContent = model.includes('haiku') ? 'H' : model.includes('sonnet') ? 'S' : 'O';
-
-  try {
-    let apiMsgs = designBot.history.slice(0, -1).concat([contextMsg]);
-    let iterations = 0;
-    const designBotToolDefs = buildDesignBotTools();
-
-    while (iterations < designBot.maxIterations) {
-      iterations++;
-      designBot.iterationCount = iterations;
-
-      let result;
-      try {
-        const resp = await aiApiFetch({
-          model: model,
-          max_tokens: 4096,
-          system: systemWithContext,
-          messages: apiMsgs,
-          tools: designBotToolDefs,
-          stream: true
-        });
-
-        if (!resp.ok) {
-          const err = await resp.text();
-          if (thinkingDiv) thinkingDiv.textContent = 'Error: ' + resp.status;
-          designBot.isThinking = false;
-          return;
-        }
-
-        // Parse SSE stream
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let inputTokens = 0, outputTokens = 0, stopReason = 'end_turn';
-        const contentBlocks = [];
-        let currentBlockIdx = -1;
-        let streamDiv = null;
-        let toolJsonAccum = {};
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop();
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const dataStr = line.slice(6).trim();
-            if (!dataStr || dataStr === '[DONE]') continue;
-            let evt;
-            try { evt = JSON.parse(dataStr); } catch { continue; }
-
-            switch (evt.type) {
-              case 'message_start':
-                inputTokens = evt.message?.usage?.input_tokens || 0;
-                break;
-              case 'content_block_start': {
-                currentBlockIdx = evt.index;
-                const block = evt.content_block;
-                if (block.type === 'text') {
-                  contentBlocks[currentBlockIdx] = { type: 'text', text: '' };
-                } else if (block.type === 'tool_use') {
-                  contentBlocks[currentBlockIdx] = { type: 'tool_use', id: block.id, name: block.name, input: {} };
-                  toolJsonAccum[currentBlockIdx] = '';
-                }
-                break;
-              }
-              case 'content_block_delta': {
-                const idx = evt.index;
-                const delta = evt.delta;
-                if (delta.type === 'text_delta' && contentBlocks[idx]) {
-                  contentBlocks[idx].text += delta.text;
-                  if (!streamDiv) {
-                    if (thinkingDiv && (thinkingDiv.textContent === 'Designing...' || thinkingDiv.textContent === 'Processing...')) {
-                      thinkingDiv.className = 'db-msg assistant';
-                      thinkingDiv.textContent = delta.text;
-                      streamDiv = thinkingDiv;
-                    } else {
-                      streamDiv = addDesignBotMsg('assistant', delta.text);
-                    }
-                  } else {
-                    streamDiv.textContent += delta.text;
-                  }
-                  const msgs = document.getElementById('dbMsgs');
-                  if (msgs) msgs.scrollTop = msgs.scrollHeight;
-                } else if (delta.type === 'input_json_delta' && toolJsonAccum[idx] !== undefined) {
-                  toolJsonAccum[idx] += delta.partial_json;
-                }
-                break;
-              }
-              case 'content_block_stop': {
-                const idx = evt.index;
-                if (contentBlocks[idx]?.type === 'tool_use' && toolJsonAccum[idx]) {
-                  try { contentBlocks[idx].input = JSON.parse(toolJsonAccum[idx]); } catch { contentBlocks[idx].input = {}; }
-                }
-                break;
-              }
-              case 'message_delta':
-                outputTokens = evt.usage?.output_tokens || 0;
-                stopReason = evt.delta?.stop_reason || stopReason;
-                break;
-            }
-          }
-        }
-
-        result = {
-          content: contentBlocks.filter(Boolean),
-          stop_reason: stopReason,
-          usage: { input_tokens: inputTokens, output_tokens: outputTokens }
-        };
-      } catch (streamErr) {
-        // Fallback to non-streaming
-        try {
-          const resp2 = await aiApiFetch({
-            model: model,
-            max_tokens: 4096,
-            system: systemWithContext,
-            messages: apiMsgs,
-            tools: designBotToolDefs
-          });
-          if (!resp2.ok) {
-            if (thinkingDiv) thinkingDiv.textContent = 'Error: ' + resp2.status;
-            designBot.isThinking = false;
-            return;
-          }
-          result = await resp2.json();
-        } catch (e2) {
-          if (thinkingDiv) thinkingDiv.textContent = 'Error: ' + e2.message;
-          designBot.isThinking = false;
-          return;
-        }
-      }
-
-      // Track tokens
-      designBot.sessionTokensIn += result.usage?.input_tokens || 0;
-      designBot.sessionTokensOut += result.usage?.output_tokens || 0;
-      const rates = MODEL_RATES[model] || MODEL_RATES['claude-haiku-4-5-20251001'];
-      designBot.sessionCost = (designBot.sessionTokensIn / 1e6 * rates.input) + (designBot.sessionTokensOut / 1e6 * rates.output);
-      updateDesignBotCost();
-
-      const textBlocks = (result.content || []).filter(b => b.type === 'text');
-      const toolBlocks = (result.content || []).filter(b => b.type === 'tool_use');
-
-      // Show text if not streamed
-      if (textBlocks.length && !streamDiv) {
-        const fullText = textBlocks.map(b => b.text).join('\n');
-        if (thinkingDiv && (thinkingDiv.textContent === 'Designing...' || thinkingDiv.textContent === 'Processing...')) {
-          thinkingDiv.className = 'db-msg assistant';
-          thinkingDiv.textContent = fullText;
-        } else {
-          addDesignBotMsg('assistant', fullText);
-        }
-      }
-      if (textBlocks.length) {
-        designBot.history.push({ role: 'assistant', content: textBlocks.map(b => b.text).join('\n') });
-      }
-
-      // Done if no tool calls
-      if (result.stop_reason !== 'tool_use' || !toolBlocks.length) {
-        if (!textBlocks.length && thinkingDiv && (thinkingDiv.textContent === 'Designing...' || thinkingDiv.textContent === 'Processing...')) {
-          thinkingDiv.textContent = '(No response)';
-        }
-        break;
-      }
-
-      if (thinkingDiv && (thinkingDiv.textContent === 'Designing...' || thinkingDiv.textContent === 'Processing...')) thinkingDiv.remove();
-
-      // Execute tool calls
-      const toolResults = [];
-      for (const toolBlock of toolBlocks) {
-        addDesignBotToolBadge(toolBlock.name, toolBlock.input);
-        const toolResult = await designBotCallTool(toolBlock.name, toolBlock.input);
-        toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult });
-      }
-
-      apiMsgs.push({ role: 'assistant', content: result.content });
-      apiMsgs.push({ role: 'user', content: toolResults });
-
-      addDesignBotMsg('system', 'Processing...');
-    }
-  } catch (e) {
-    if (thinkingDiv) thinkingDiv.textContent = 'Error: ' + e.message;
-  }
-  designBot.isThinking = false;
-  const dbCharEnd = document.getElementById('designBotChar');
-  if (dbCharEnd) dbCharEnd.classList.remove('db-working');
-}
-
-// DESIGN BOT — Phase 5: Update cost display
-function updateDesignBotCost() {
-  // DESIGN BOT — Phase 5: Refresh cost label in header
-  const el = document.getElementById('dbCostLabel');
-  if (el) el.textContent = '$' + designBot.sessionCost.toFixed(4);
-}
-
-// DESIGN BOT — Phase 5: Build floating chat panel (non-destructive — does NOT modify Claude pane DOM)
-(function initDesignBotUI() {
-  const claudeBody = document.querySelector('#q-claude .p-body');
-  if (!claudeBody) return;
-
-  // Create floating Design Bot panel (appended to Claude p-body, absolutely positioned)
-  const panel = document.createElement('div');
-  panel.id = 'designBotPanel';
-  panel.innerHTML =
-    '<div class="db-header">' +
-      '<span style="font-size:.72rem;">&#128397;</span> ' +
-      '<span class="db-title">Design Bot</span> ' +
-      '<span class="db-subtitle">Whiteboard \u00B7 Concept Map</span>' +
-      '<div style="flex:1;"></div>' +
-      '<span id="dbModelIndicator" style="font-size:.5rem;color:var(--text-dim);background:var(--bg);border-radius:3px;padding:0 3px;" title="Active model">H</span> ' +
-      '<select id="dbModelSelect" style="font-size:.55rem;padding:1px 3px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);max-width:70px;">' +
-        '<option value="auto" selected>Auto</option>' +
-        '<option value="claude-haiku-4-5-20251001">Haiku</option>' +
-        '<option value="claude-sonnet-4-6">Sonnet</option>' +
-      '</select> ' +
-      '<span id="dbCostLabel" style="font-size:.5rem;color:var(--text-dim);">$0.0000</span> ' +
-      '<button id="dbCloseBtn" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;padding:0 2px;" title="Close Design Bot">&times;</button>' +
-    '</div>' +
-    '<div class="db-msgs" id="dbMsgs"></div>' +
-    '<div class="db-input-row">' +
-      '<textarea id="dbInput" placeholder="Describe a layout, chart, or diagram..." rows="1"></textarea>' +
-      '<button id="dbSend">Draw</button>' +
-    '</div>';
-  claudeBody.appendChild(panel);
-
-  // Add drawing banner to whiteboard pane
-  const wbWrap = document.getElementById('wbWrap');
-  if (wbWrap) {
-    const banner = document.createElement('div');
-    banner.className = 'db-drawing-banner';
-    banner.id = 'dbDrawingBanner';
-    banner.textContent = '\u{1F58D} Design Bot is drawing...';
-    banner.style.display = 'none';
-    wbWrap.appendChild(banner);
-  }
-
-  // Toggle panel open/closed via mini robot character click
-  const charEl = document.getElementById('designBotChar');
-  if (charEl) {
-    charEl.onclick = () => {
-      panel.classList.toggle('db-open');
-      if (panel.classList.contains('db-open')) {
-        const dbInput = document.getElementById('dbInput');
-        if (dbInput) dbInput.focus();
-      }
-    };
-  }
-
-  // Close button
-  document.getElementById('dbCloseBtn').onclick = () => {
-    panel.classList.remove('db-open');
-  };
-
-  // Send handler
-  document.getElementById('dbSend').onclick = () => sendDesignBotMessage();
-  document.getElementById('dbInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDesignBotMessage(); }
-  });
-
-  // Model selector
-  document.getElementById('dbModelSelect').onchange = function() {
-    if (this.value === 'auto') {
-      designBot.autoModel = true;
-    } else {
-      designBot.autoModel = false;
-      designBot.model = this.value;
-    }
-  };
-
-  // Welcome message
-  addDesignBotMsg('system', 'Design Bot ready. Describe a layout, chart, or diagram to draw on the whiteboard.');
-
-  // Cross-bot "Send to Design Bot" button injection
-  const mainMsgs = document.getElementById('aiMsgs');
-  if (mainMsgs) {
-    const observer = new MutationObserver(mutations => {
-      mutations.forEach(m => {
-        m.addedNodes.forEach(node => {
-          if (node.nodeType === 1 && node.classList.contains('ai-msg') && node.classList.contains('assistant')) {
-            const text = node.textContent || '';
-            const drawKeywords = /whiteboard|draw|chart|diagram|layout|canvas|visual|concept map|design/i;
-            if (drawKeywords.test(text)) {
-              const btn = document.createElement('button');
-              btn.style.cssText = 'display:block;margin-top:4px;padding:2px 6px;border:1px solid rgba(255,180,50,.4);border-radius:4px;background:none;color:rgba(255,180,50,.8);cursor:pointer;font-size:.52rem;';
-              btn.textContent = '\u2192 Send to Design Bot';
-              btn.onclick = () => {
-                const dbInput = document.getElementById('dbInput');
-                if (dbInput) {
-                  dbInput.value = text.substring(0, 500);
-                  dbInput.focus();
-                  panel.classList.add('db-open');
-                }
-              };
-              node.appendChild(btn);
-            }
-          }
-        });
-      });
-    });
-    observer.observe(mainMsgs, { childList: true });
-  }
 })();
 
 </script>
