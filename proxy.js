@@ -386,6 +386,36 @@ app.get('/proxy/robinhood/status', (req, res) => {
   res.json({ logged_in: !!rhToken, has_stored_credentials: !!(rhStoredUsername && rhStoredPassword) });
 });
 
+// POST /proxy/robinhood/set-token — Paste a browser token directly (admin only)
+app.post('/proxy/robinhood/set-token', async (req, res) => {
+  const { password, token } = req.body || {};
+  if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Admin password required' });
+  if (!token || token.length < 10) return res.status(400).json({ error: true, message: 'Valid token required' });
+
+  // Verify the token works by hitting a simple authenticated endpoint
+  try {
+    const check = await fetch('https://api.robinhood.com/accounts/', {
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'User-Agent': RH_USER_AGENT,
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!check.ok) {
+      const raw = await check.text();
+      console.error(`[Robinhood] Token verify failed HTTP ${check.status}: ${raw.substring(0, 300)}`);
+      return res.status(401).json({ error: true, message: 'Token rejected by Robinhood (HTTP ' + check.status + '). Make sure you copied the full cookie value.' });
+    }
+    rhToken = token;
+    rhRefreshToken = ''; // browser tokens don't have a refresh token
+    console.log('[Robinhood] Token set via paste — verified OK');
+    return res.json({ ok: true, message: 'Token verified and saved. You are logged in.' });
+  } catch (e) {
+    return res.status(502).json({ error: true, message: 'Token verify error: ' + e.message });
+  }
+});
+
 // POST /proxy/robinhood/set-credentials — Store credentials server-side (admin only)
 app.post('/proxy/robinhood/set-credentials', (req, res) => {
   const { password, rh_username, rh_password } = req.body || {};

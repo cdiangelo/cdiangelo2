@@ -10541,6 +10541,25 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
         <span style="font-size:.85rem;font-weight:700;color:var(--text);">Robinhood Account</span>
         <span id="rhModalClose" style="cursor:pointer;font-size:1rem;color:var(--text-dim);">&times;</span>
       </div>
+      <div id="rhTabBar" style="display:flex;gap:0;margin-bottom:12px;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+        <button id="rhTabLogin" class="rh-tab-active" style="flex:1;padding:6px;border:none;font-size:.65rem;cursor:pointer;background:var(--panel-inset);color:var(--text);font-weight:600;">Login</button>
+        <button id="rhTabToken" style="flex:1;padding:6px;border:none;border-left:1px solid var(--border);font-size:.65rem;cursor:pointer;background:none;color:var(--text-dim);">Paste Token</button>
+      </div>
+      <div id="rhTokenForm" style="display:none;">
+        <div style="font-size:.58rem;color:var(--text-dim);margin-bottom:10px;line-height:1.5;">
+          <div style="font-weight:600;margin-bottom:4px;color:var(--text);font-size:.62rem;">How to get your token:</div>
+          <div style="padding-left:8px;">
+            1. Open <a href="https://robinhood.com" target="_blank" style="color:#22c55e;">robinhood.com</a> and log in normally<br>
+            2. Press <kbd style="font-size:.5rem;padding:1px 4px;border:1px solid var(--border);border-radius:3px;background:var(--panel-inset);">F12</kbd> to open Developer Tools<br>
+            3. Click <b>Application</b> tab &rarr; <b>Cookies</b> &rarr; <b>https://robinhood.com</b><br>
+            4. Find <code style="font-size:.52rem;background:var(--panel-inset);padding:1px 3px;border-radius:2px;">__Host-Web-App-Secondary-Access-Token</code><br>
+            5. Double-click the <b>Value</b>, copy it, and paste below
+          </div>
+        </div>
+        <textarea id="rhTokenInput" placeholder="Paste token here..." rows="3" spellcheck="false" style="width:100%;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.65rem;font-family:monospace;box-sizing:border-box;resize:vertical;"></textarea>
+        <div id="rhTokenMsg" style="font-size:.62rem;color:var(--text-dim);margin-bottom:6px;min-height:14px;"></div>
+        <button id="rhTokenSubmit" style="width:100%;padding:8px;border:1px solid #22c55e40;border-radius:6px;background:#22c55e15;color:#22c55e;font-size:.72rem;cursor:pointer;font-weight:600;">Verify &amp; Connect</button>
+      </div>
       <div id="rhLoginForm">
         <div style="font-size:.58rem;color:var(--text-dim);margin-bottom:8px;">Sign in with your Robinhood email and password. MFA will be requested if enabled.</div>
         <input type="email" id="rhUsername" placeholder="Email" value="${savedEmail}" autocomplete="email" style="width:100%;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
@@ -10578,6 +10597,61 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   document.body.appendChild(overlay);
 
   let rhChallengeId = '';
+
+  // ── Tab switching: Login vs Paste Token ──
+  function rhSwitchTab(tab) {
+    const loginForm = $('#rhLoginForm');
+    const tokenForm = $('#rhTokenForm');
+    const tabLogin = $('#rhTabLogin');
+    const tabToken = $('#rhTabToken');
+    if (tab === 'token') {
+      loginForm.style.display = 'none';
+      tokenForm.style.display = 'block';
+      tabToken.style.background = 'var(--panel-inset)'; tabToken.style.color = 'var(--text)'; tabToken.style.fontWeight = '600';
+      tabLogin.style.background = 'none'; tabLogin.style.color = 'var(--text-dim)'; tabLogin.style.fontWeight = 'normal';
+    } else {
+      loginForm.style.display = 'block';
+      tokenForm.style.display = 'none';
+      tabLogin.style.background = 'var(--panel-inset)'; tabLogin.style.color = 'var(--text)'; tabLogin.style.fontWeight = '600';
+      tabToken.style.background = 'none'; tabToken.style.color = 'var(--text-dim)'; tabToken.style.fontWeight = 'normal';
+    }
+  }
+  $('#rhTabLogin').onclick = () => rhSwitchTab('login');
+  $('#rhTabToken').onclick = () => rhSwitchTab('token');
+
+  // Only show token tab for admin
+  if (!wsIsAdmin) {
+    $('#rhTabBar').style.display = 'none';
+  }
+
+  // ── Token paste submit ──
+  $('#rhTokenSubmit').onclick = async () => {
+    const msg = $('#rhTokenMsg');
+    const token = ($('#rhTokenInput').value || '').trim();
+    if (!token || token.length < 10) { msg.textContent = 'Paste a valid token (it should be a long string)'; msg.style.color = '#ef4444'; return; }
+    msg.textContent = 'Verifying token with Robinhood...'; msg.style.color = 'var(--text-dim)';
+    $('#rhTokenSubmit').disabled = true; $('#rhTokenSubmit').style.opacity = '0.6';
+    try {
+      const resp = await fetch(PROXY_BASE + '/proxy/robinhood/set-token', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: ADMIN_PASSWORD, token }),
+        signal: AbortSignal.timeout(15000)
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        rhLoggedIn = true;
+        msg.textContent = 'Connected!'; msg.style.color = '#22c55e';
+        $('#rhTokenInput').value = '';
+        onLoginSuccess();
+      } else {
+        msg.textContent = data.message || 'Token rejected'; msg.style.color = '#ef4444';
+      }
+    } catch(e) {
+      msg.textContent = (e.name === 'TimeoutError' ? 'Timed out' : 'Error') + ': ' + e.message; msg.style.color = '#ef4444';
+    } finally {
+      $('#rhTokenSubmit').disabled = false; $('#rhTokenSubmit').style.opacity = '1';
+    }
+  };
 
   // Show/hide password toggle
   $('#rhShowPw').onclick = () => {
