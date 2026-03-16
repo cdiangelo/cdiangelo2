@@ -1337,8 +1337,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   #aiApiKeySection button, #aiApiKeyLocked button { min-height: 36px; font-size: .72rem !important; }
 }
 </style>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://apis.google.com/js/api.js" async defer></script>
 <!-- ADDED — Phase 6: Chart.js for whiteboard chart tool -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <!-- ADDED — Phase 5: Load extracted tool module -->
@@ -1435,28 +1433,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div id="wsList" style="max-height:200px;overflow-y:auto;"></div>
         <input type="file" id="wsImportFile" accept=".json" style="display:none;" />
         <div id="googleSection" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;">
             <svg width="14" height="14" viewBox="0 0 48 48" style="flex-shrink:0;"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.01 24.01 0 0 0 0 21.56l7.98-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-            <span style="font-size:.72rem;font-weight:600;color:var(--accent2);">Google Account</span>
-            <div style="flex:1;"></div>
+            <span id="gmailStatus" style="font-size:.68rem;color:var(--text-dim);flex:1;">Not signed in</span>
             <button class="btn-sm" id="googleSignIn" style="background:rgba(66,133,244,.8);color:#fff;font-size:.65rem;">Sign in with Gmail</button>
             <button class="btn-sm" id="googleSignOut" style="display:none;background:var(--panel-inset);color:var(--text);border:1px solid var(--border);font-size:.65rem;">Sign out</button>
-          </div>
-          <div id="googleUser" style="display:none;font-size:.65rem;color:var(--text-dim);margin-bottom:4px;"></div>
-          <div id="googlePerks" style="display:none;font-size:.6rem;color:var(--text-dim);margin-bottom:6px;line-height:1.4;">YouTube Premium (ad-free) &bull; Google Drive sync</div>
-          <div id="driveActions" style="display:none;">
-            <div style="display:flex;gap:4px;margin-bottom:6px;">
-              <button class="btn-sm" id="driveSave" style="background:rgba(66,133,244,.7);color:#fff;font-size:.65rem;flex:1;">&#8593; Save to Drive</button>
-              <button class="btn-sm" id="driveLink" style="background:var(--panel-inset);color:var(--text);border:1px solid var(--border);font-size:.65rem;" title="Copy share link">&#128279; Share Link</button>
-            </div>
-            <div id="driveFileList" style="max-height:150px;overflow-y:auto;"></div>
-          </div>
-          <div id="googleConfig" style="display:none;margin-top:6px;">
-            <label style="font-size:.62rem;color:var(--text-dim);display:block;margin-bottom:2px;">Google Client ID (from console.cloud.google.com)</label>
-            <div style="display:flex;gap:4px;">
-              <input type="text" id="driveClientId" placeholder="your-client-id.apps.googleusercontent.com" style="flex:1;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:.65rem;" />
-              <button class="btn-sm" id="driveConfigSave" style="background:var(--accent);color:#fff;font-size:.65rem;">Save</button>
-            </div>
           </div>
         </div>
       </div>
@@ -2511,7 +2492,7 @@ const PROXY_BASE = _proxyParam
     ? 'http://localhost:3001'
     : window.location.origin;
 // Per-profile scoped localStorage — user data is isolated from admin
-const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','registeredUsers','adminSession','userName','deviceId','aiApiKey','accessRequests','blockedUsers','driveClientId']);
+const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','registeredUsers','adminSession','userName','deviceId','aiApiKey','accessRequests','blockedUsers','gmailSignedIn','gmailEmail']);
 function _lsPrefix(k) {
   if (LS_GLOBAL_KEYS.has(k) || k.startsWith('usage_') || k.startsWith('geniePrompts_')) return 'ws_';
   if (wsIsAdmin) return 'ws_admin_';
@@ -5922,6 +5903,38 @@ async function renderStockDash() {
       pushTickerToNews(ticker);
     };
 
+    // Robinhood enriched metrics (only when logged in)
+    if (rhLoggedIn) {
+      (async () => {
+        try {
+          const [fund, quote] = await Promise.all([
+            fetchRobinhoodFundamentals(ticker),
+            fetchRobinhoodQuote(ticker)
+          ]);
+          const metrics = [];
+          if (fund) {
+            if (fund.pe_ratio) metrics.push('P/E: ' + parseFloat(fund.pe_ratio).toFixed(1));
+            if (fund.market_cap) {
+              const mc = parseFloat(fund.market_cap);
+              metrics.push('MCap: ' + (mc >= 1e12 ? (mc/1e12).toFixed(1) + 'T' : mc >= 1e9 ? (mc/1e9).toFixed(1) + 'B' : (mc/1e6).toFixed(0) + 'M'));
+            }
+            if (fund.dividend_yield) { const dy = parseFloat(fund.dividend_yield); if (dy > 0) metrics.push('Div: ' + (dy * 100).toFixed(2) + '%'); }
+          }
+          if (quote) {
+            if (quote.bid_price && quote.ask_price) metrics.push('Bid/Ask: ' + parseFloat(quote.bid_price).toFixed(2) + '/' + parseFloat(quote.ask_price).toFixed(2));
+            if (quote.last_extended_hours_trade_price) metrics.push('AH: $' + parseFloat(quote.last_extended_hours_trade_price).toFixed(2));
+          }
+          if (metrics.length) {
+            const metricsEl = document.createElement('div');
+            metricsEl.style.cssText = 'font-size:.55rem;color:var(--text-dim);line-height:1.4;margin-top:2px;padding-top:3px;border-top:1px solid var(--border);';
+            metricsEl.textContent = metrics.join(' \u2022 ');
+            const canvas = card.querySelector('canvas');
+            if (canvas) card.insertBefore(metricsEl, canvas);
+          }
+        } catch(e) {}
+      })();
+    }
+
     // Draw sparkline chart (DPR-aware, with hover tooltip)
     const cvs = card.querySelector('canvas');
     const isExpanded = document.getElementById('q-map').classList.contains('expanded');
@@ -6067,11 +6080,19 @@ async function renderCompareChart() {
   const plotH = h - pad.top - pad.bottom;
   // Fetch raw data for all tickers, then transform based on compareMode
   const allRawSeries = [];
+  const allVolumes = []; // volume data for enhanced tooltips (Robinhood)
+  const allHighs = [];
+  const allLows = [];
   for (const t of compareTickers) {
     let data = genStockData(t, range);
     const realData = await fetchRealStockData(t, range);
     if (realData && realData.length >= 2) data = realData;
     allRawSeries.push(data);
+    // Pull cached OHLCV for this ticker
+    const cEntry = stockDataCache[t + '_' + range];
+    allVolumes.push(cEntry ? cEntry.volume : null);
+    allHighs.push(cEntry ? cEntry.high : null);
+    allLows.push(cEntry ? cEntry.low : null);
   }
   // Update toggle button label
   const modeBtn = document.getElementById('compareModeToggle');
@@ -6217,7 +6238,16 @@ async function renderCompareChart() {
         ctx2.fillStyle = color; ctx2.fill();
         ctx2.strokeStyle = '#000'; ctx2.lineWidth = 1; ctx2.stroke();
         ctx2.font = (baseFontSize - 1) + 'px system-ui'; ctx2.fillStyle = color; ctx2.textAlign = 'left';
-        ctx2.fillText(compareTickers[si] + ': ' + valuePrefix + (isDollarMode ? v.toFixed(2) : v.toFixed(1)) + valueSuffix, hx + 8, hy + 3 + si * (baseFontSize + 2));
+        let tipText = compareTickers[si] + ': ' + valuePrefix + (isDollarMode ? v.toFixed(2) : v.toFixed(1)) + valueSuffix;
+        // Show extra data (H/L, Vol) when Robinhood data available
+        if (isDollarMode && allHighs[si] && allHighs[si][hoverIdx] != null && allLows[si] && allLows[si][hoverIdx] != null) {
+          tipText += '  H:' + parseFloat(allHighs[si][hoverIdx]).toFixed(2) + ' L:' + parseFloat(allLows[si][hoverIdx]).toFixed(2);
+        }
+        if (allVolumes[si] && allVolumes[si][hoverIdx]) {
+          const vol = allVolumes[si][hoverIdx];
+          tipText += '  Vol:' + (vol >= 1e6 ? (vol/1e6).toFixed(1) + 'M' : vol >= 1e3 ? (vol/1e3).toFixed(0) + 'K' : vol);
+        }
+        ctx2.fillText(tipText, hx + 8, hy + 3 + si * (baseFontSize + 2));
       });
     }
   }
@@ -6235,6 +6265,12 @@ $('#clearCompare').onclick = () => {
   compareTickers = [];
   LS('compareTickers', compareTickers);
   renderStockDash();
+};
+
+$('#compareModeToggle').onclick = () => {
+  compareMode = compareMode === 'pct' ? 'dollar' : 'pct';
+  LS('compareMode', compareMode);
+  renderCompareChart();
 };
 
 $('#stockAdd').onclick = () => {
@@ -6984,355 +7020,79 @@ $('#wsExport').onclick = () => {
 renderWSList();
 
 /* ═══════════════════════════════════════════
-   GOOGLE ACCOUNT (Gmail sign-in for Drive, YouTube Premium, etc.)
+   GOOGLE / GMAIL SIGN-IN (simple popup — no client ID required)
+   Enables: YouTube Premium (ad-free embeds), future integrations
    ═══════════════════════════════════════════ */
 (function() {
-  const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/youtube.readonly';
-  const APP_FOLDER = 'InteractiveWorkspace';
-  let googleToken = null;
-  let googleClientId = localStorage.getItem('ws_driveClientId') || '';
-  let googleReady = false;
-  let tokenClient = null;
-  let googleUserInfo = null;
+  let gmailSignedIn = localStorage.getItem('gmailSignedIn') === 'true';
+  let gmailEmail = localStorage.getItem('gmailEmail') || '';
 
-  // Update all UI elements based on sign-in state
-  function updateGoogleUI() {
-    const hasId = !!googleClientId;
-    const el = (s) => { try { return $(s); } catch(e) { return null; } };
-    const cfg = el('#googleConfig'); if (cfg) cfg.style.display = hasId ? 'none' : 'block';
-    const signIn = el('#googleSignIn'); if (signIn) signIn.style.display = hasId && !googleToken ? '' : 'none';
-    const signOut = el('#googleSignOut'); if (signOut) signOut.style.display = googleToken ? '' : 'none';
-    const actions = el('#driveActions'); if (actions) actions.style.display = googleToken ? '' : 'none';
-    const user = el('#googleUser'); if (user) user.style.display = googleToken ? '' : 'none';
-    const perks = el('#googlePerks'); if (perks) perks.style.display = googleToken ? '' : 'none';
-    // Update YouTube Premium state globally
-    if (googleToken) {
+  function updateGmailUI() {
+    const signIn = $('#googleSignIn');
+    const signOut = $('#googleSignOut');
+    const status = $('#gmailStatus');
+    if (gmailSignedIn) {
+      signIn.style.display = 'none';
+      signOut.style.display = '';
+      status.textContent = gmailEmail || 'Signed in';
+      status.style.color = 'var(--accent2)';
+      // Enable YouTube Premium globally
       ytSignedIn = true;
       ytPremium = true;
       localStorage.setItem('ytPremium', 'true');
-      if (googleUserInfo) {
-        ytUserName = googleUserInfo.name || googleUserInfo.email || '';
-        localStorage.setItem('ytUserName', ytUserName);
-      }
+      ytUserName = gmailEmail;
+      localStorage.setItem('ytUserName', ytUserName);
     } else {
+      signIn.style.display = '';
+      signOut.style.display = 'none';
+      status.textContent = 'Not signed in';
+      status.style.color = 'var(--text-dim)';
       ytSignedIn = false;
     }
   }
 
-  // Expose token globally for other features
-  window.getGoogleToken = () => googleToken;
-  window.getGoogleUser = () => googleUserInfo;
-  window.isGoogleSignedIn = () => !!googleToken;
+  window.isGoogleSignedIn = () => gmailSignedIn;
 
-  // Save client ID
-  $('#driveConfigSave').onclick = () => {
-    const v = $('#driveClientId').value.trim();
-    if (!v) return;
-    googleClientId = v;
-    localStorage.setItem('ws_driveClientId', v);
-    updateGoogleUI();
-    initGapi();
-    toast('Client ID saved');
-  };
-  if (googleClientId) $('#driveClientId').value = googleClientId;
-
-  // Initialize Google API client
-  function initGapi() {
-    if (!googleClientId || googleReady) return;
-    if (typeof gapi === 'undefined') { setTimeout(initGapi, 500); return; }
-    gapi.load('client', async () => {
-      await gapi.client.init({});
-      await gapi.client.load('drive', 'v3');
-      googleReady = true;
-      initTokenClient();
-    });
-  }
-
-  function initTokenClient() {
-    if (typeof google === 'undefined' || !google.accounts) { setTimeout(initTokenClient, 500); return; }
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: googleClientId,
-      scope: GOOGLE_SCOPES,
-      callback: (resp) => {
-        if (resp.error) { toast('Sign-in failed: ' + resp.error); return; }
-        googleToken = resp.access_token;
-        gapi.client.setToken({ access_token: googleToken });
-        fetchGoogleUser();
-        updateGoogleUI();
-        listDriveFiles();
-        toast('Signed in with Google');
-        // Reload current video if playing to apply YouTube Premium
-        if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
-      }
-    });
-  }
-
-  // Sign in
+  // Sign in — open Gmail login popup, then confirm
   $('#googleSignIn').onclick = () => {
-    if (!googleClientId) { toast('Set a Google Client ID first'); return; }
-    if (!googleReady) { initGapi(); toast('Loading Google API...'); return; }
-    if (!tokenClient) { initTokenClient(); toast('Initializing...'); return; }
-    tokenClient.requestAccessToken();
+    const popup = window.open(
+      'https://accounts.google.com/ServiceLogin?continue=https://myaccount.google.com/',
+      'gmailLogin',
+      'width=500,height=600,left=' + (screen.width / 2 - 250) + ',top=' + (screen.height / 2 - 300)
+    );
+    // Poll for popup close
+    const check = setInterval(() => {
+      if (!popup || popup.closed) {
+        clearInterval(check);
+        // Ask user to confirm sign-in
+        const email = prompt('Enter your Gmail address to confirm sign-in:');
+        if (email && email.includes('@')) {
+          gmailSignedIn = true;
+          gmailEmail = email;
+          localStorage.setItem('gmailSignedIn', 'true');
+          localStorage.setItem('gmailEmail', email);
+          updateGmailUI();
+          toast('Signed in as ' + email);
+          // Reload video if playing to switch to youtube.com domain
+          if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
+        }
+      }
+    }, 500);
   };
 
   // Sign out
   $('#googleSignOut').onclick = () => {
-    if (googleToken) {
-      google.accounts.oauth2.revoke(googleToken);
-      googleToken = null;
-      gapi.client.setToken(null);
-    }
-    googleUserInfo = null;
-    $('#googleUser').textContent = '';
-    $('#driveFileList').innerHTML = '';
-    updateGoogleUI();
+    gmailSignedIn = false;
+    gmailEmail = '';
+    localStorage.removeItem('gmailSignedIn');
+    localStorage.removeItem('gmailEmail');
+    updateGmailUI();
     toast('Signed out of Google');
     if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
   };
 
-  async function fetchGoogleUser() {
-    try {
-      const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { Authorization: 'Bearer ' + googleToken }
-      });
-      const u = await r.json();
-      googleUserInfo = u;
-      $('#googleUser').textContent = (u.email || u.name || 'Signed in');
-      ytUserName = u.name || u.email || 'Google User';
-      localStorage.setItem('ytUserName', ytUserName);
-    } catch(e) { $('#googleUser').textContent = 'Signed in'; }
-  }
-
-  // Get or create app folder
-  async function getAppFolder() {
-    const resp = await gapi.client.drive.files.list({
-      q: "name='" + APP_FOLDER + "' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-      fields: 'files(id)',
-      spaces: 'drive'
-    });
-    if (resp.result.files.length) return resp.result.files[0].id;
-    const cr = await gapi.client.drive.files.create({
-      resource: { name: APP_FOLDER, mimeType: 'application/vnd.google-apps.folder' },
-      fields: 'id'
-    });
-    return cr.result.id;
-  }
-
-  // Save workspace to Drive
-  $('#driveSave').onclick = async () => {
-    if (!googleToken) { toast('Sign in with Google first'); return; }
-    try {
-      toast('Saving to Drive...');
-      const folderId = await getAppFolder();
-      const ws = wsIndex.find(w => w.id === wsActiveId);
-      const name = (ws ? ws.name : 'Workspace') + '.json';
-      const state = serializeState();
-      state._wsName = ws ? ws.name : 'Workspace';
-      state._savedAt = Date.now();
-      state._sourceId = wsActiveId;
-      const json = JSON.stringify(state);
-
-      // Check if this workspace was already saved (by sourceId in appProperties)
-      const existing = await gapi.client.drive.files.list({
-        q: "'" + folderId + "' in parents and trashed=false and appProperties has { key='wsSourceId' and value='" + wsActiveId + "' }",
-        fields: 'files(id,name)',
-        spaces: 'drive'
-      });
-
-      let fileId;
-      if (existing.result.files.length) {
-        // Update existing file
-        fileId = existing.result.files[0].id;
-        await fetch('https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=media', {
-          method: 'PATCH',
-          headers: { Authorization: 'Bearer ' + googleToken, 'Content-Type': 'application/json' },
-          body: json
-        });
-        await gapi.client.drive.files.update({ fileId, resource: { name } });
-      } else {
-        // Create new file
-        const metadata = {
-          name,
-          parents: [folderId],
-          mimeType: 'application/json',
-          appProperties: { wsSourceId: wsActiveId }
-        };
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', new Blob([json], { type: 'application/json' }));
-        const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + googleToken },
-          body: form
-        });
-        const created = await r.json();
-        fileId = created.id;
-      }
-
-      // Mark locally that this workspace is synced
-      if (ws) { ws.driveFileId = fileId; LS('workspaces', wsIndex); }
-      toast('Saved to Drive');
-      listDriveFiles();
-    } catch(e) { console.error(e); toast('Drive save failed: ' + (e.message || e)); }
-  };
-
-  // Share link — create a reader-permission link
-  $('#driveLink').onclick = async () => {
-    if (!googleToken) { toast('Sign in with Google first'); return; }
-    const ws = wsIndex.find(w => w.id === wsActiveId);
-    if (!ws || !ws.driveFileId) { toast('Save to Drive first'); return; }
-    try {
-      // Set file to "anyone with link can read"
-      await gapi.client.drive.permissions.create({
-        fileId: ws.driveFileId,
-        resource: { role: 'reader', type: 'anyone' }
-      });
-      const link = location.origin + location.pathname + '?ws=' + ws.driveFileId;
-      await navigator.clipboard.writeText(link);
-      toast('Share link copied! Recipients get their own copy.');
-    } catch(e) {
-      console.error(e);
-      toast('Could not create share link');
-    }
-  };
-
-  // List Drive files
-  async function listDriveFiles() {
-    if (!googleToken) return;
-    try {
-      const folderId = await getAppFolder();
-      const resp = await gapi.client.drive.files.list({
-        q: "'" + folderId + "' in parents and trashed=false",
-        fields: 'files(id,name,modifiedTime,appProperties)',
-        orderBy: 'modifiedTime desc',
-        pageSize: 20,
-        spaces: 'drive'
-      });
-      renderDriveList(resp.result.files || []);
-    } catch(e) { console.error(e); }
-  }
-
-  function renderDriveList(files) {
-    const el = $('#driveFileList');
-    el.innerHTML = '';
-    if (!files.length) {
-      el.innerHTML = '<div style="text-align:center;padding:8px;color:var(--text-dim);font-size:.65rem;">No saved workspaces in Drive</div>';
-      return;
-    }
-    files.forEach(f => {
-      const div = document.createElement('div');
-      div.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 6px;border-bottom:1px solid var(--border);font-size:.65rem;';
-      const name = f.name.replace(/\.json$/i, '');
-      const date = new Date(f.modifiedTime);
-      const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      div.innerHTML =
-        '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);" title="' + name + '">' + name + '</span>' +
-        '<span style="color:var(--text-dim);font-size:.6rem;white-space:nowrap;">' + dateStr + '</span>' +
-        '<button class="drive-load" title="Load as new workspace" style="background:none;border:none;color:var(--accent2);cursor:pointer;font-size:.7rem;padding:0 2px;">&#8595;</button>' +
-        '<button class="drive-del" title="Delete from Drive" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:.8rem;padding:0 2px;">&times;</button>';
-
-      div.querySelector('.drive-load').onclick = async () => {
-        try {
-          toast('Loading from Drive...');
-          const resp = await fetch('https://www.googleapis.com/drive/v3/files/' + f.id + '?alt=media', {
-            headers: { Authorization: 'Bearer ' + googleToken }
-          });
-          const state = await resp.json();
-          // Create as new unique local workspace instance
-          const id = genId();
-          const wsName = (state._wsName || name) + ' (Cloud)';
-          delete state._wsName; delete state._savedAt; delete state._sourceId;
-          wsIndex.push({ id, name: wsName, driveFileId: f.id, createdAt: Date.now(), updatedAt: Date.now() });
-          LS('workspaces', wsIndex);
-          LS('workspace_' + id, state);
-          switchWorkspace(id);
-          toast('Loaded: ' + wsName);
-        } catch(e) { toast('Load failed'); console.error(e); }
-      };
-
-      div.querySelector('.drive-del').onclick = async () => {
-        if (!confirm('Delete "' + name + '" from Drive?')) return;
-        try {
-          await gapi.client.drive.files.delete({ fileId: f.id });
-          // Remove driveFileId from local ws
-          wsIndex.forEach(w => { if (w.driveFileId === f.id) delete w.driveFileId; });
-          LS('workspaces', wsIndex);
-          listDriveFiles();
-          toast('Deleted from Drive');
-        } catch(e) { toast('Delete failed'); console.error(e); }
-      };
-
-      el.appendChild(div);
-    });
-  }
-
-  // Load shared workspace from URL parameter ?ws=DRIVE_FILE_ID
-  async function loadSharedWorkspace() {
-    const params = new URLSearchParams(location.search);
-    const wsFileId = params.get('ws');
-    if (!wsFileId) return;
-
-    // Clear the URL param so refreshes don't re-load
-    history.replaceState(null, '', location.pathname);
-
-    // Check if we already loaded this file
-    const existing = wsIndex.find(w => w.driveFileId === wsFileId);
-    if (existing) {
-      switchWorkspace(existing.id);
-      toast('Switched to previously loaded workspace');
-      return;
-    }
-
-    // Try loading as public file (no auth needed for shared files)
-    try {
-      toast('Loading shared workspace...');
-      const resp = await fetch('https://www.googleapis.com/drive/v3/files/' + wsFileId + '?alt=media&key=' + (googleClientId ? googleClientId.split('.')[0] : ''), {
-        headers: googleToken ? { Authorization: 'Bearer ' + googleToken } : {}
-      });
-      if (!resp.ok) {
-        // Try with API key fallback
-        const resp2 = await fetch('https://www.googleapis.com/drive/v3/files/' + wsFileId + '?alt=media');
-        if (!resp2.ok) { toast('Cannot access shared workspace — sign in or check link'); return; }
-        var state = await resp2.json();
-      } else {
-        var state = await resp.json();
-      }
-      // Create unique local instance from shared data
-      const id = genId();
-      const wsName = (state._wsName || 'Shared') + ' (Shared)';
-      delete state._wsName; delete state._savedAt; delete state._sourceId;
-      saveActiveWorkspace();
-      wsIndex.push({ id, name: wsName, driveFileId: wsFileId, createdAt: Date.now(), updatedAt: Date.now() });
-      LS('workspaces', wsIndex);
-      LS('workspace_' + id, state);
-      wsActiveId = id;
-      LS('activeWorkspace', id);
-      deserializeState(state);
-      renderWSList();
-      toast('Loaded shared workspace as your own copy: ' + wsName);
-    } catch(e) {
-      console.error(e);
-      toast('Could not load shared workspace');
-    }
-  }
-
-  // Auto-clear shell: warn on unload if workspace not saved to Drive
-  let shellCleared = false;
-  window.addEventListener('beforeunload', e => {
-    const ws = wsIndex.find(w => w.id === wsActiveId);
-    if (ws && !ws.driveFileId) {
-      // Workspace not saved to Drive — show warning
-      e.preventDefault();
-      e.returnValue = 'Unsaved workspace changes will be available locally but not synced to cloud.';
-    }
-  });
-
   // Init on load
-  updateGoogleUI();
-  if (googleClientId) initGapi();
-
-  // Check for shared workspace link on load
-  setTimeout(loadSharedWorkspace, 1500);
+  updateGmailUI();
 })();
 
 /* ═══════════════════════════════════════════
