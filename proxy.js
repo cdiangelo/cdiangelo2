@@ -669,6 +669,136 @@ async function refreshRobinhoodToken() {
 }
 
 // ═══════════════════════════════════════════
+// SPORTS MODULE — Phase 1: ESPN + Odds API proxy routes
+// ═══════════════════════════════════════════
+
+// Sport path mappings for ESPN API
+const ESPN_SPORT_PATHS = {
+  nba: 'basketball/nba',
+  ncaab: 'basketball/mens-college-basketball',
+  mlb: 'baseball/mlb',
+  nhl: 'hockey/nhl'
+};
+
+// Sport key mappings for The Odds API
+const ODDS_SPORT_KEYS = {
+  nba: 'basketball_nba',
+  ncaab: 'basketball_ncaab',
+  mlb: 'baseball_mlb',
+  nhl: 'icehockey_nhl'
+};
+
+// Sports-specific cache with configurable TTL
+const sportsCache = new Map();
+function getSportsCached(key, ttlMs) {
+  const entry = sportsCache.get(key);
+  if (entry && Date.now() - entry.ts < ttlMs) return entry;
+  if (entry) sportsCache.delete(key);
+  return null;
+}
+function setSportsCache(key, data) {
+  sportsCache.set(key, { data, ts: Date.now() });
+}
+
+// SPORTS MODULE — Phase 1: ESPN unofficial API proxy
+// GET /proxy/espn?sport=<sport>&endpoint=<path>
+app.get('/proxy/espn', async (req, res) => {
+  const sport = (req.query.sport || '').toLowerCase();
+  const endpoint = req.query.endpoint || '';
+  const sportPath = ESPN_SPORT_PATHS[sport];
+  if (!sportPath) return res.status(400).json({ error: true, message: 'Invalid sport. Use: nba, ncaab, mlb, nhl' });
+  if (!endpoint) return res.status(400).json({ error: true, message: 'Missing endpoint parameter' });
+
+  const url = 'https://site.api.espn.com/apis/site/v2/sports/' + sportPath + '/' + endpoint;
+  // Cache TTL: 60 min for standings/teams, 5 min for scores/news
+  const isLongCache = endpoint.startsWith('standings') || endpoint.startsWith('teams');
+  const ttl = isLongCache ? 60 * 60 * 1000 : 5 * 60 * 1000;
+  const cacheKey = 'espn:' + sport + ':' + endpoint;
+
+  const cached = getSportsCached(cacheKey, ttl);
+  if (cached) {
+    res.setHeader('Content-Type', 'application/json');
+    return res.send(cached.data);
+  }
+
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!resp.ok) {
+      return res.status(resp.status).json({ error: true, source: 'espn', status: resp.status, url });
+    }
+    const data = await resp.text();
+    setSportsCache(cacheKey, data);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(data);
+  } catch (e) {
+    res.status(502).json({ error: true, source: 'espn', message: e.message });
+  }
+});
+
+// SPORTS MODULE — Phase 1: The Odds API proxy
+// GET /proxy/odds?sport=<sport_key>&apiKey=<key>
+app.get('/proxy/odds', async (req, res) => {
+  const sport = (req.query.sport || '').toLowerCase();
+  const apiKey = req.query.apiKey;
+  const oddsKey = ODDS_SPORT_KEYS[sport];
+  if (!oddsKey) return res.status(400).json({ error: true, message: 'Invalid sport. Use: nba, ncaab, mlb, nhl' });
+  if (!apiKey) return res.status(400).json({ error: true, message: 'Missing apiKey parameter' });
+
+  const cacheKey = 'odds:' + sport;
+  const cached = getSportsCached(cacheKey, 60 * 60 * 1000); // 60 min cache
+  if (cached) {
+    res.setHeader('Content-Type', 'application/json');
+    return res.send(cached.data);
+  }
+
+  const url = 'https://api.the-odds-api.com/v4/sports/' + oddsKey + '/odds?apiKey=' + encodeURIComponent(apiKey) + '&regions=us&markets=h2h,spreads,totals&oddsFormat=american';
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      return res.status(resp.status).json({ error: true, source: 'odds-api', status: resp.status, message: errText.substring(0, 300) });
+    }
+    const data = await resp.json();
+    const quotaRemaining = parseInt(resp.headers.get('x-requests-remaining') || '0', 10);
+    const quotaUsed = parseInt(resp.headers.get('x-requests-used') || '0', 10);
+    const result = JSON.stringify({ data, quotaRemaining, quotaUsed });
+    setSportsCache(cacheKey, result);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(result);
+  } catch (e) {
+    res.status(502).json({ error: true, source: 'odds-api', message: e.message });
+  }
+});
+
+// SPORTS MODULE — Phase 1: Odds API sports list
+// GET /proxy/odds-sports?apiKey=<key>
+app.get('/proxy/odds-sports', async (req, res) => {
+  const apiKey = req.query.apiKey;
+  if (!apiKey) return res.status(400).json({ error: true, message: 'Missing apiKey parameter' });
+
+  const cacheKey = 'odds-sports';
+  const cached = getSportsCached(cacheKey, 60 * 60 * 1000);
+  if (cached) {
+    res.setHeader('Content-Type', 'application/json');
+    return res.send(cached.data);
+  }
+
+  try {
+    const resp = await fetch('https://api.the-odds-api.com/v4/sports?apiKey=' + encodeURIComponent(apiKey), { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) return res.status(resp.status).json({ error: true, source: 'odds-api', status: resp.status });
+    const data = await resp.text();
+    setSportsCache(cacheKey, data);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(data);
+  } catch (e) {
+    res.status(502).json({ error: true, source: 'odds-api', message: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════
 // ADMIN TRACKING — server-side usage, device/IP tracking & access requests
 // ═══════════════════════════════════════════
 
@@ -798,5 +928,7 @@ app.listen(PORT, () => {
   console.log('  RH Auth:    http://localhost:' + PORT + '/proxy/robinhood/auth?endpoint=...');
   console.log('  RH Login:   http://localhost:' + PORT + '/proxy/robinhood/login (POST)');
   console.log('  RH Status:  http://localhost:' + PORT + '/proxy/robinhood/status');
+  console.log('  ESPN:       http://localhost:' + PORT + '/proxy/espn?sport=nba&endpoint=scoreboard');
+  console.log('  Odds:       http://localhost:' + PORT + '/proxy/odds?sport=nba&apiKey=...');
   if (storedApiKey) console.log('  API key pre-loaded from ANTHROPIC_API_KEY env var');
 });
