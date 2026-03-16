@@ -819,6 +819,9 @@ app.use((req, res, next) => {
       .replace('</head>', `<script>window.__BUILD_VERSION="${BUILD_VERSION}";</script>\n</head>`);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
     res.send(versioned);
   });
 });
