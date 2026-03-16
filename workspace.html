@@ -2077,19 +2077,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <b>Deep Research</b>: Claude agent scans sources and generates a PDF report.
         </div>
       </div>
-      <!-- Inline article viewer (archive.is sub-browser) -->
-      <div id="newsViewer" style="display:none;flex-direction:column;position:absolute;inset:0;z-index:50;background:var(--panel);">
-        <div style="display:flex;align-items:center;padding:6px 10px;gap:6px;border-bottom:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
-          <button id="newsViewerBack" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);cursor:pointer;font-size:.72rem;">&larr; Back</button>
-          <span id="newsViewerTitle" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;color:var(--text);font-weight:600;"></span>
-          <div id="viewerModeToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;font-size:.6rem;">
-            <button data-mode="archive" style="padding:2px 8px;border:none;cursor:pointer;font-size:.6rem;">Archive</button>
-            <button data-mode="direct" style="padding:2px 8px;border:none;cursor:pointer;font-size:.6rem;">Direct</button>
-          </div>
-          <a id="newsViewerExternal" href="#" target="_blank" style="font-size:.65rem;color:var(--accent2);text-decoration:none;padding:2px 6px;border:1px solid var(--border);border-radius:3px;" title="Open in new tab">&#8599; New Tab</a>
-        </div>
-        <iframe id="newsViewerFrame" style="flex:1;border:none;width:100%;background:#fff;" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
-      </div>
+      <!-- Inline viewer removed — both modes now open new tabs -->
     </div>
   </div>
 </div>
@@ -8648,7 +8636,7 @@ function initLinkModeToggle(containerId) {
   });
 }
 function updateLinkModeToggles() {
-  ['linkModeToggle', 'viewerModeToggle'].forEach(id => {
+  ['linkModeToggle'].forEach(id => {
     const wrap = document.getElementById(id);
     if (!wrap) return;
     wrap.querySelectorAll('button').forEach(btn => {
@@ -8659,40 +8647,28 @@ function updateLinkModeToggles() {
   });
 }
 initLinkModeToggle('linkModeToggle');
-initLinkModeToggle('viewerModeToggle');
 updateLinkModeToggles();
 
-// Inline article viewer
-let newsViewerState = { directUrl: '', archiveUrl: '' };
-
 function openNewsArticle(title, url) {
-  if (currentLinkMode === 'archive') {
-    // Open archive.org save page in new tab + copy to clipboard
-    const archiveUrl = 'https://web.archive.org/save/' + url;
-    window.open(archiveUrl, '_blank');
-    navigator.clipboard.writeText(archiveUrl).then(
-      () => toast('Archive tab opened \u2014 URL copied to clipboard'),
-      () => toast('Archive tab opened \u2014 clipboard unavailable, paste manually')
-    );
+  if (currentLinkMode === 'direct') {
+    // Direct mode — open the actual article in a new tab
+    window.open(url, '_blank');
     return;
   }
-  // Direct mode — open in inline viewer
-  newsViewerState = { directUrl: url, archiveUrl: 'https://web.archive.org/save/' + url };
-  $('#newsViewerTitle').textContent = title;
-  $('#newsViewerExternal').href = url;
-  $('#newsViewerFrame').src = url;
-  $('#newsViewer').style.display = 'flex';
+  // Archive mode — open archive.is version, copy original article link to clipboard
+  const archiveUrl = 'https://archive.is/' + url;
+  window.open(archiveUrl, '_blank');
+  navigator.clipboard.writeText(url).then(
+    () => toast('Archive tab opened \u2014 article link copied to clipboard'),
+    () => toast('Archive tab opened \u2014 clipboard unavailable')
+  );
 }
 
+// Legacy compat
 // Legacy compat
 function openNewsViewer(title, directUrl, archiveUrl) {
   openNewsArticle(title, directUrl || archiveUrl);
 }
-
-$('#newsViewerBack').onclick = () => {
-  $('#newsViewer').style.display = 'none';
-  $('#newsViewerFrame').src = 'about:blank';
-};
 
 function renderNewsChips() {
   const el = $('#newsTickerChips');
