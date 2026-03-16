@@ -9,6 +9,7 @@
 // GLOBAL DEP: cmNodes, cmEdges, cmNID, cmSave, cmRender (concept map)
 // GLOBAL DEP: wbC, wbX, wbLayers, wbAddLayer, wbRenderLayers, wbRenderLayerList, wbSaveState, wbLayerIdCounter (whiteboard)
 // GLOBAL DEP: COMPANY_DB, getCompanyMetrics, getCompanyMetricsReal, getCompanyMetricsSimulated, genStockData, fetchRealStockData, genNews, formatCap (data)
+// GLOBAL DEP: rhLoggedIn, fetchRobinhoodQuote, fetchRobinhoodFundamentals, searchRobinhoodInstruments, fetchRobinhoodPositions, fetchRobinhoodAccount, fetchRobinhoodOrders, fetchRobinhoodNews (robinhood)
 // GLOBAL DEP: toast, addAiMsg, LS, $, MODEL_RATES, PRICING_TOKEN_PROFILES (utilities)
 // GLOBAL DEP: window.appendAgentMemory, window.getAgentMemory (agent memory)
 
@@ -22,6 +23,9 @@ export const toolDefinitions = [
   { name: 'get_stock_fundamentals', description: 'Get fundamental metrics for a stock: price, market cap, PE, growth, sector.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
   { name: 'get_news', description: 'Get news articles for a keyword/ticker. Returns titles, snippets, sources, sentiment.', input_schema: { type: 'object', properties: { keyword: { type: 'string' }, limit: { type: 'number', description: 'Max articles to return (default 5)' } }, required: ['keyword'] } },
   { name: 'get_concept_map', description: 'Get concept map nodes and edges.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_portfolio', description: 'Get Robinhood portfolio positions, account balance, and buying power. Requires Robinhood login.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_orders', description: 'Get recent Robinhood order history. Requires Robinhood login.', input_schema: { type: 'object', properties: { limit: { type: 'number', description: 'Max orders to return (default 20)' } } } },
+  { name: 'search_ticker', description: 'Search for stock tickers and company names via Robinhood instrument search. Returns matching symbols, names, and types.', input_schema: { type: 'object', properties: { query: { type: 'string', description: 'Search query (company name or ticker)' } }, required: ['query'] } },
 
   // WRITE TOOLS
   { name: 'write_cells', description: 'Write values or formulas to specific spreadsheet cells. Auto-creates a new sheet tab for your output.', input_schema: { type: 'object', properties: { cells: { type: 'array', items: { type: 'object', properties: { ref: { type: 'string', description: 'Cell reference (e.g. A1, B2)' }, value: { type: 'string', description: 'Value or formula (e.g. "Hello", "42", "=SUM(A1:A5)")' } }, required: ['ref', 'value'] } }, label: { type: 'string', description: 'Label for the new sheet tab (e.g. "Stock Analysis")' }, use_current_tab: { type: 'boolean', description: 'Set true to write to the current tab instead of creating a new one' } }, required: ['cells'] } },
@@ -174,6 +178,59 @@ export const toolHandlers = {
   },
 
   get_concept_map: async () => JSON.stringify({ nodes: cmNodes.map(n => ({ id: n.id, title: n.title, desc: n.desc })), edges: cmEdges.map(e => ({ from: e.from, to: e.to, label: e.label || '' })) }),
+
+  get_portfolio: async () => {
+    if (!rhLoggedIn) return JSON.stringify({ error: true, message: 'Not logged in to Robinhood. Use the RH Login button in the stocks toolbar to connect your account.' });
+    try {
+      const [acct, positions] = await Promise.all([fetchRobinhoodAccount(), fetchRobinhoodPositions()]);
+      return JSON.stringify({
+        account: acct || { error: 'Could not fetch account' },
+        positions: positions || [],
+        logged_in: true,
+        instruction: 'Present the portfolio data clearly. Build a portfolio summary table in the sheet using create_table with columns: Ticker, Shares, Avg Cost, Current Price, Market Value, Gain/Loss %, Weight. Write analysis insights to the notepad.'
+      });
+    } catch(e) {
+      return JSON.stringify({ error: true, message: 'Failed to fetch portfolio: ' + e.message });
+    }
+  },
+
+  get_orders: async (input) => {
+    if (!rhLoggedIn) return JSON.stringify({ error: true, message: 'Not logged in to Robinhood. Use the RH Login button in the stocks toolbar to connect your account.' });
+    try {
+      const orders = await fetchRobinhoodOrders(input.limit || 20);
+      return JSON.stringify({ orders: orders || [], logged_in: true });
+    } catch(e) {
+      return JSON.stringify({ error: true, message: 'Failed to fetch orders: ' + e.message });
+    }
+  },
+
+  search_ticker: async (input) => {
+    try {
+      const results = await searchRobinhoodInstruments(input.query);
+      const tickers = results.slice(0, 15).map(r => ({
+        symbol: r.symbol,
+        name: r.simple_name || r.name,
+        type: r.type,
+        tradeable: r.tradeable
+      }));
+      // Also check COMPANY_DB for local matches
+      const localMatches = (typeof COMPANY_DB !== 'undefined' ? COMPANY_DB : [])
+        .filter(c => c.ticker.toLowerCase().includes(input.query.toLowerCase()) || c.name.toLowerCase().includes(input.query.toLowerCase()))
+        .slice(0, 5)
+        .map(c => ({ symbol: c.ticker, name: c.name, type: 'stock', tradeable: true, source: 'local_db' }));
+      // Merge, dedup by symbol
+      const seen = new Set(tickers.map(t => t.symbol));
+      localMatches.forEach(m => { if (!seen.has(m.symbol)) tickers.push(m); });
+      return JSON.stringify({ query: input.query, results: tickers, source: results.length > 0 ? 'robinhood' : 'local_db' });
+    } catch(e) {
+      // Fallback to local DB only
+      const localMatches = (typeof COMPANY_DB !== 'undefined' ? COMPANY_DB : [])
+        .filter(c => c.ticker.toLowerCase().includes(input.query.toLowerCase()) || c.name.toLowerCase().includes(input.query.toLowerCase()))
+        .slice(0, 15)
+        .map(c => ({ symbol: c.ticker, name: c.name, type: 'stock', tradeable: true }));
+      return JSON.stringify({ query: input.query, results: localMatches, source: 'local_db' });
+    }
+  },
 
   // WRITE TOOLS
   write_cells: async (input) => {

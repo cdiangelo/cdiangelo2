@@ -99,7 +99,7 @@ const PLANNER_SYSTEM = `You are a task planner for a workspace app with tools fo
 Decompose the user's request into independent sub-tasks. Each sub-task should be a focused unit of work.
 
 Available tool categories:
-- READ: get_sheet_range, get_note, get_graph_state, get_watchlist, get_stock_data, get_stock_fundamentals, get_news, get_concept_map, get_draw_pane_state
+- READ: get_sheet_range, get_note, get_graph_state, get_watchlist, get_stock_data, get_stock_fundamentals, get_news, get_concept_map, get_draw_pane_state, get_portfolio, get_orders, search_ticker
 - WRITE: write_cells, clear_range, create_table, write_note, update_graph, add_stock, remove_stock, set_comparison, add_news_ticker, add_concept_node, write_to_draw_pane, add_text_overlay, clear_draw_pane, show_toast
 - ANALYSIS: run_scenario, build_thesis, sentiment_summary, create_template, pricing_analysis
 - WHITEBOARD: draw_shape, draw_chart_on_whiteboard, annotate_whiteboard, draw_summary_card, draw_table, apply_whiteboard_template

@@ -1882,6 +1882,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <option value="5Y">5Y</option>
           </select>
           <button id="stockRefresh">Refresh</button>
+          <button id="rhLoginBtn" title="Login to Robinhood" style="font-size:.62rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;">RH: Login</button>
         </div>
         <!-- Comparison chart (big overlay) -->
         <div id="stockCompareWrap" style="display:none;flex-direction:column;border-bottom:1px solid var(--border);min-height:0;">
@@ -4616,14 +4617,71 @@ function evalF(formula, visited) {
       return parts.join('');
     }
 
-    // Cell ref arithmetic
+    // SQRT(value)
+    const sqrtM = f.match(/^SQRT\((.+)\)$/);
+    if (sqrtM) {
+      let arg = sqrtM[1].trim();
+      const ref = parseRef(arg);
+      let val = ref ? cellVal(ref.row, ref.col, new Set(visited)) : parseFloat(arg);
+      if (typeof val !== 'number') val = parseFloat(val) || 0;
+      return val >= 0 ? Math.sqrt(val) : '#NUM!';
+    }
+
+    // POWER(base, exponent)
+    const powerM = f.match(/^POWER\((.+?)\s*,\s*(.+)\)$/);
+    if (powerM) {
+      let base = powerM[1].trim(), exp = powerM[2].trim();
+      const bRef = parseRef(base), eRef = parseRef(exp);
+      let bVal = bRef ? cellVal(bRef.row, bRef.col, new Set(visited)) : parseFloat(base);
+      let eVal = eRef ? cellVal(eRef.row, eRef.col, new Set(visited)) : parseFloat(exp);
+      if (typeof bVal !== 'number') bVal = parseFloat(bVal) || 0;
+      if (typeof eVal !== 'number') eVal = parseFloat(eVal) || 0;
+      return Math.pow(bVal, eVal);
+    }
+
+    // LOG(value, [base])
+    const logM = f.match(/^LOG\((.+?)(?:\s*,\s*(.+))?\)$/);
+    if (logM) {
+      let arg = logM[1].trim();
+      const ref = parseRef(arg);
+      let val = ref ? cellVal(ref.row, ref.col, new Set(visited)) : parseFloat(arg);
+      if (typeof val !== 'number') val = parseFloat(val) || 0;
+      if (val <= 0) return '#NUM!';
+      if (logM[2]) {
+        let base = logM[2].trim();
+        const bRef = parseRef(base);
+        let bVal = bRef ? cellVal(bRef.row, bRef.col, new Set(visited)) : parseFloat(base);
+        if (typeof bVal !== 'number') bVal = parseFloat(bVal) || 10;
+        return Math.log(val) / Math.log(bVal);
+      }
+      return Math.log10(val);
+    }
+
+    // MOD(number, divisor)
+    const modM = f.match(/^MOD\((.+?)\s*,\s*(.+)\)$/);
+    if (modM) {
+      let num = modM[1].trim(), div = modM[2].trim();
+      const nRef = parseRef(num), dRef = parseRef(div);
+      let nVal = nRef ? cellVal(nRef.row, nRef.col, new Set(visited)) : parseFloat(num);
+      let dVal = dRef ? cellVal(dRef.row, dRef.col, new Set(visited)) : parseFloat(div);
+      if (typeof nVal !== 'number') nVal = parseFloat(nVal) || 0;
+      if (typeof dVal !== 'number') dVal = parseFloat(dVal) || 1;
+      return nVal % dVal;
+    }
+
+    // PI()
+    if (f === 'PI()') return Math.PI;
+
+    // Cell ref arithmetic — supports ^ for exponentiation
     let expr = f.replace(/[A-Z]+\d+/g, ref => {
       const p = parseRef(ref);
       if (!p) return '0';
       const v = cellVal(p.row, p.col, new Set(visited));
       return typeof v === 'number' ? v : 0;
     });
-    if (/^[\d\s+\-*/().]+$/.test(expr)) return Function('"use strict"; return ('+expr+')')();
+    // Convert ^ to ** for JavaScript exponentiation
+    expr = expr.replace(/\^/g, '**');
+    if (/^[\d\s+\-*/().e]+$/.test(expr)) return Function('"use strict"; return ('+expr+')')();
     return '#ERR!';
   } catch { return '#ERR!'; }
 }
@@ -5527,7 +5585,7 @@ function genStockData(ticker, range) {
   return data;
 }
 
-// ── Real stock data via Yahoo Finance ──
+// ── Real stock data — Robinhood primary, Yahoo Finance fallback ──
 const stockDataCache = {}; // { 'AAPL_1M': { data: [...], ts: Date.now() } }
 
 async function fetchRealStockData(ticker, range) {
@@ -5535,6 +5593,30 @@ async function fetchRealStockData(ticker, range) {
   const cached = stockDataCache[cacheKey];
   if (cached && Date.now() - cached.ts < 300000) return cached.data; // 5 min cache
 
+  // Tier 2: Try Robinhood historicals first (requires auth)
+  if (rhLoggedIn) {
+    try {
+      const spanMap = { '1D': 'day', '5D': 'week', '1M': 'month', '6M': '3month', '1Y': 'year', '3Y': '5year', '5Y': '5year' };
+      const span = spanMap[range] || 'month';
+      const historicals = await fetchRobinhoodHistoricals(ticker, span);
+      if (historicals && historicals.length >= 2) {
+        const closes = historicals.map(h => parseFloat(h.close_price)).filter(v => !isNaN(v));
+        const volumes = historicals.map(h => parseInt(h.volume) || 0);
+        const highs = historicals.map(h => parseFloat(h.high_price)).filter(v => !isNaN(v));
+        const lows = historicals.map(h => parseFloat(h.low_price)).filter(v => !isNaN(v));
+        const opens = historicals.map(h => parseFloat(h.open_price)).filter(v => !isNaN(v));
+        if (closes.length >= 2) {
+          stockDataCache[cacheKey] = { data: closes, volume: volumes, high: highs, low: lows, open: opens, ts: Date.now(), source: 'robinhood' };
+          return closes;
+        }
+      }
+    } catch(e) {}
+  }
+
+  // Tier 1: Try Robinhood quote for current price (single data point enrichment)
+  // (This doesn't give historical data, but helps enrich current price accuracy)
+
+  // Fallback: Yahoo Finance
   const rangeMap = { '1D': '1d', '5D': '5d', '1M': '1mo', '6M': '6mo', '1Y': '1y', '3Y': '3y', '5Y': '5y' };
   const intervalMap = { '1D': '5m', '5D': '15m', '1M': '1d', '6M': '1d', '1Y': '1d', '3Y': '1wk', '5Y': '1wk' };
   const yRange = rangeMap[range] || '1mo';
@@ -5562,7 +5644,7 @@ async function fetchRealStockData(ticker, range) {
   }
 
   try {
-    const resp = await attemptFetch(2); // up to 2 retries on server errors
+    const resp = await attemptFetch(2);
     const json = await resp.json();
     const result = json.chart?.result?.[0];
     if (!result) throw new Error('No data');
@@ -5572,10 +5654,8 @@ async function fetchRealStockData(ticker, range) {
     const highs = quote.high || [];
     const lows = quote.low || [];
     const opens = quote.open || [];
-    const timestamps = result.timestamp || [];
     const data = closes.filter(v => v != null);
     if (data.length < 2) throw new Error('Insufficient data');
-    // Store enriched data in cache
     const enriched = closes.map((c, i) => c != null ? c : null).filter(v => v != null);
     stockDataCache[cacheKey] = {
       data: enriched,
@@ -5583,12 +5663,230 @@ async function fetchRealStockData(ticker, range) {
       high: highs.filter((v, i) => closes[i] != null),
       low: lows.filter((v, i) => closes[i] != null),
       open: opens.filter((v, i) => closes[i] != null),
-      ts: Date.now()
+      ts: Date.now(),
+      source: 'yahoo'
     };
     return enriched;
   } catch (e) {
-    // Fallback to simulated
     return null;
+  }
+}
+
+// ── Robinhood Data Layer ──
+let rhLoggedIn = false;
+const rhCache = {}; // { key: { data, ts } }
+
+function rhCacheGet(key) {
+  const c = rhCache[key];
+  if (c && Date.now() - c.ts < 300000) return c.data; // 5 min
+  return null;
+}
+
+async function rhFetch(endpoint, auth) {
+  const route = auth ? '/proxy/robinhood/auth' : '/proxy/robinhood';
+  const resp = await fetch('http://localhost:3001' + route + '?endpoint=' + encodeURIComponent(endpoint), {
+    signal: AbortSignal.timeout(8000)
+  });
+  if (!resp.ok) throw new Error('RH ' + resp.status);
+  return resp.json();
+}
+
+// Tier 1: Public quote — no auth needed
+async function fetchRobinhoodQuote(ticker) {
+  const key = 'rh-quote-' + ticker;
+  const cached = rhCacheGet(key);
+  if (cached) return cached;
+  try {
+    const data = await rhFetch('quotes/' + encodeURIComponent(ticker) + '/');
+    if (data && data.last_trade_price) {
+      rhCache[key] = { data, ts: Date.now() };
+      return data;
+    }
+  } catch(e) {}
+  return null;
+}
+
+// Tier 1: Public fundamentals — no auth needed
+async function fetchRobinhoodFundamentals(ticker) {
+  const key = 'rh-fund-' + ticker;
+  const cached = rhCacheGet(key);
+  if (cached) return cached;
+  try {
+    const data = await rhFetch('fundamentals/' + encodeURIComponent(ticker) + '/');
+    if (data && !data.error) {
+      rhCache[key] = { data, ts: Date.now() };
+      return data;
+    }
+  } catch(e) {}
+  return null;
+}
+
+// Tier 1: Instrument search — no auth needed
+async function searchRobinhoodInstruments(query) {
+  const key = 'rh-search-' + query;
+  const cached = rhCacheGet(key);
+  if (cached) return cached;
+  try {
+    const data = await rhFetch('instruments/?query=' + encodeURIComponent(query));
+    if (data && data.results) {
+      rhCache[key] = { data: data.results, ts: Date.now() };
+      return data.results;
+    }
+  } catch(e) {}
+  return [];
+}
+
+// Tier 2: Historical data — requires auth
+async function fetchRobinhoodHistoricals(ticker, span) {
+  if (!rhLoggedIn) return null;
+  const key = 'rh-hist-' + ticker + '-' + span;
+  const cached = rhCacheGet(key);
+  if (cached) return cached;
+  // span: day, week, month, 3month, year, 5year
+  const intervalMap = { day: '5minute', week: '10minute', month: 'day', '3month': 'day', year: 'day', '5year': 'week' };
+  const interval = intervalMap[span] || 'day';
+  try {
+    const data = await rhFetch('marketdata/historicals/' + encodeURIComponent(ticker) + '/?span=' + span + '&interval=' + interval + '&bounds=regular', true);
+    if (data && data.historicals && data.historicals.length > 0) {
+      rhCache[key] = { data: data.historicals, ts: Date.now() };
+      return data.historicals;
+    }
+  } catch(e) {}
+  return null;
+}
+
+// Tier 2: Portfolio positions
+async function fetchRobinhoodPositions() {
+  if (!rhLoggedIn) return null;
+  const cached = rhCacheGet('rh-positions');
+  if (cached) return cached;
+  try {
+    const data = await rhFetch('positions/?nonzero=true', true);
+    if (data && data.results) {
+      // Resolve instrument URLs to get ticker symbols
+      const positions = [];
+      for (const pos of data.results) {
+        try {
+          const instResp = await fetch('http://localhost:3001/proxy/robinhood?endpoint=' + encodeURIComponent(pos.instrument.replace('https://api.robinhood.com/', '')));
+          const inst = await instResp.json();
+          positions.push({
+            ticker: inst.symbol,
+            name: inst.simple_name || inst.name,
+            quantity: parseFloat(pos.quantity),
+            avg_cost: parseFloat(pos.average_buy_price),
+            current_price: parseFloat(pos.last_trade_price || 0),
+            equity: parseFloat(pos.quantity) * parseFloat(pos.last_trade_price || pos.average_buy_price),
+            created: pos.created_at
+          });
+        } catch(e) { /* skip unresolvable */ }
+      }
+      rhCache['rh-positions'] = { data: positions, ts: Date.now() };
+      return positions;
+    }
+  } catch(e) {}
+  return null;
+}
+
+// Tier 2: Account info
+async function fetchRobinhoodAccount() {
+  if (!rhLoggedIn) return null;
+  const cached = rhCacheGet('rh-account');
+  if (cached) return cached;
+  try {
+    const data = await rhFetch('accounts/', true);
+    if (data && data.results && data.results.length > 0) {
+      const acct = data.results[0];
+      const portfolio = await rhFetch('portfolios/' + acct.account_number + '/', true);
+      const result = {
+        buying_power: parseFloat(acct.buying_power || 0),
+        cash: parseFloat(acct.cash || 0),
+        portfolio_value: parseFloat(portfolio?.equity || 0),
+        equity: parseFloat(portfolio?.equity || 0),
+        extended_hours_equity: parseFloat(portfolio?.extended_hours_equity || 0)
+      };
+      rhCache['rh-account'] = { data: result, ts: Date.now() };
+      return result;
+    }
+  } catch(e) {}
+  return null;
+}
+
+// Tier 2: Recent orders
+async function fetchRobinhoodOrders(limit) {
+  if (!rhLoggedIn) return null;
+  const cached = rhCacheGet('rh-orders');
+  if (cached) return cached;
+  try {
+    const data = await rhFetch('orders/?page_size=' + (limit || 20), true);
+    if (data && data.results) {
+      const orders = [];
+      for (const o of data.results.slice(0, limit || 20)) {
+        try {
+          const instResp = await fetch('http://localhost:3001/proxy/robinhood?endpoint=' + encodeURIComponent(o.instrument.replace('https://api.robinhood.com/', '')));
+          const inst = await instResp.json();
+          orders.push({
+            ticker: inst.symbol,
+            side: o.side,
+            quantity: parseFloat(o.quantity),
+            price: parseFloat(o.average_price || o.price || 0),
+            state: o.state,
+            created: o.created_at,
+            type: o.type
+          });
+        } catch(e) { /* skip */ }
+      }
+      rhCache['rh-orders'] = { data: orders, ts: Date.now() };
+      return orders;
+    }
+  } catch(e) {}
+  return null;
+}
+
+// Tier 2: Robinhood news for a ticker
+async function fetchRobinhoodNews(ticker) {
+  if (!rhLoggedIn) return [];
+  const key = 'rh-news-' + ticker;
+  const cached = rhCacheGet(key);
+  if (cached) return cached;
+  try {
+    const data = await rhFetch('midlands/news/' + encodeURIComponent(ticker) + '/?', true);
+    if (data && data.results) {
+      const articles = data.results.slice(0, 10).map(a => ({
+        title: a.title,
+        source: a.source,
+        url: a.url,
+        published_at: a.published_at,
+        summary: (a.summary || '').substring(0, 200),
+        rhSource: true
+      }));
+      rhCache[key] = { data: articles, ts: Date.now() };
+      return articles;
+    }
+  } catch(e) {}
+  return [];
+}
+
+// Check Robinhood login status on load
+async function checkRobinhoodStatus() {
+  try {
+    const resp = await fetch('http://localhost:3001/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
+    const data = await resp.json();
+    rhLoggedIn = data.logged_in;
+    updateRhLoginUI();
+  } catch(e) { rhLoggedIn = false; }
+}
+
+function updateRhLoginUI() {
+  const btn = $('#rhLoginBtn');
+  if (!btn) return;
+  if (rhLoggedIn) {
+    btn.textContent = 'RH: Connected';
+    btn.style.color = '#22c55e';
+    btn.title = 'Logged in to Robinhood — click to logout';
+  } else {
+    btn.textContent = 'RH: Login';
+    btn.style.color = 'var(--text-dim)';
+    btn.title = 'Login to Robinhood for portfolio & historical data';
   }
 }
 
@@ -7354,8 +7652,42 @@ function getCompanyMetricsSimulated(ticker) {
 // Sync alias for callers that don't need real data (browse list, etc.)
 function getCompanyMetrics(ticker) { return getCompanyMetricsSimulated(ticker); }
 
-// ADDED — Phase 3: Async version fetches real Yahoo Finance data via local proxy
+// Async version — Robinhood primary, Yahoo Finance fallback, simulated last resort
 async function getCompanyMetricsReal(ticker) {
+  const sim = getCompanyMetricsSimulated(ticker);
+
+  // Tier 1: Try Robinhood quote + fundamentals (no auth needed)
+  try {
+    const [quote, fund] = await Promise.all([
+      fetchRobinhoodQuote(ticker),
+      fetchRobinhoodFundamentals(ticker)
+    ]);
+    if (quote && quote.last_trade_price) {
+      const price = parseFloat(quote.last_trade_price);
+      const pe = fund?.pe_ratio ? parseFloat(fund.pe_ratio) : null;
+      const mktCap = fund?.market_cap ? parseFloat(fund.market_cap) : sim.mktCap;
+      const sharesOut = fund?.shares_outstanding ? parseFloat(fund.shares_outstanding) : null;
+      return {
+        price: price || sim.price,
+        mktCap: mktCap || sim.mktCap,
+        sizeGroup: sim.sizeGroup,
+        pe: pe,
+        eps: fund?.eps ? parseFloat(fund.eps) : null,
+        revenue: null, // not in RH fundamentals
+        sharesOutstanding: sharesOut,
+        forwardPE: null,
+        priceToBook: null,
+        high_52: fund?.high_52_weeks ? parseFloat(fund.high_52_weeks) : null,
+        low_52: fund?.low_52_weeks ? parseFloat(fund.low_52_weeks) : null,
+        dividend_yield: fund?.dividend_yield ? parseFloat(fund.dividend_yield) : null,
+        bid: quote.bid_price ? parseFloat(quote.bid_price) : null,
+        ask: quote.ask_price ? parseFloat(quote.ask_price) : null,
+        source: 'robinhood'
+      };
+    }
+  } catch(e) {}
+
+  // Fallback: Yahoo Finance
   try {
     const url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' +
       encodeURIComponent(ticker) + '?modules=summaryDetail,defaultKeyStatistics,financialData';
@@ -7373,7 +7705,6 @@ async function getCompanyMetricsReal(ticker) {
     const sd = summary.summaryDetail || {};
     const ks = summary.defaultKeyStatistics || {};
     const fd = summary.financialData || {};
-    const sim = getCompanyMetricsSimulated(ticker);
     return {
       price: fd.currentPrice?.raw || sim.price,
       mktCap: sd.marketCap?.raw || sim.mktCap,
@@ -7384,10 +7715,9 @@ async function getCompanyMetricsReal(ticker) {
       sharesOutstanding: ks.sharesOutstanding?.raw || null,
       forwardPE: ks.forwardPE?.raw || null,
       priceToBook: ks.priceToBook?.raw || null,
-      source: 'real'
+      source: 'yahoo'
     };
   } catch (e) {
-    const sim = getCompanyMetricsSimulated(ticker);
     return { ...sim, pe: null, eps: null, revenue: null, sharesOutstanding: null, forwardPE: null, priceToBook: null, source: 'simulated' };
   }
 }
@@ -7634,7 +7964,7 @@ function renderQuickNewsFeed() {
     div.className = 'news-item';
     const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? a.hoursAgo + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
     div.innerHTML =
-      '<div class="news-source">' + a.source + ' <span style="font-size:.5rem;opacity:.6;">SIMULATED</span></div>' +
+      '<div class="news-source">' + a.source + ' <span style="font-size:.48rem;opacity:.5;padding:1px 4px;border:1px solid var(--border);border-radius:3px;">SIM</span></div>' +
       '<div class="news-title">' + a.title + '</div>' +
       '<div class="news-snippet">' + a.snippet + '</div>' +
       '<div class="news-meta"><span>' + timeStr + '</span>' +
@@ -7699,15 +8029,47 @@ async function renderVerifiedNewsFeed() {
     }
   }
 
+  // Fetch Robinhood news when logged in (Tier 2)
+  if (rhLoggedIn) {
+    for (const kw of allKeywords) {
+      try {
+        const rhArticles = await fetchRobinhoodNews(kw);
+        rhArticles.forEach(a => {
+          const hoursAgo = a.published_at ? Math.max(0, (Date.now() - new Date(a.published_at).getTime()) / 3600000) : 0;
+          allArticles.push({
+            title: a.title,
+            url: a.url,
+            directUrl: a.url,
+            source: a.source || 'Robinhood',
+            snippet: a.summary || '',
+            hoursAgo,
+            tags: [kw.toUpperCase()],
+            verified: true,
+            feedSource: 'robinhood'
+          });
+        });
+      } catch(e) {}
+    }
+  }
+
   allArticles.sort((a, b) => a.hoursAgo - b.hoursAgo);
 
-  feed.innerHTML = '<div style="font-size:.58rem;color:var(--success);padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;">&#10003; Verified mode — ' + allArticles.filter(a => a.verified).length + ' real articles from Google News RSS</div>';
+  const googleCount = allArticles.filter(a => a.verified && a.feedSource !== 'robinhood').length;
+  const rhCount = allArticles.filter(a => a.feedSource === 'robinhood').length;
+  let headerText = '&#10003; Verified mode — ' + googleCount + ' articles from Google News';
+  if (rhCount > 0) headerText += ' + ' + rhCount + ' from Robinhood';
+  feed.innerHTML = '<div style="font-size:.58rem;color:var(--success);padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;">' + headerText + '</div>';
   allArticles.forEach(a => {
     const div = document.createElement('div');
     div.className = 'news-item';
     const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? Math.floor(a.hoursAgo) + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
+    // Source badge styling
+    const isRh = a.feedSource === 'robinhood';
+    const sourceBadge = isRh
+      ? ' <span style="color:#22c55e;font-size:.48rem;font-weight:600;padding:1px 4px;border:1px solid #22c55e;border-radius:3px;">RH</span>'
+      : (a.verified ? ' <span style="color:var(--success);font-size:.48rem;font-weight:600;padding:1px 4px;border:1px solid var(--success);border-radius:3px;">GN</span>' : '');
     div.innerHTML =
-      '<div class="news-source">' + a.source + (a.verified ? ' <span style="color:var(--success);font-size:.5rem;">&#10003; VERIFIED</span>' : '') + '</div>' +
+      '<div class="news-source">' + a.source + sourceBadge + '</div>' +
       '<div class="news-title">' + a.title + '</div>' +
       (a.snippet ? '<div class="news-snippet">' + a.snippet + '</div>' : '') +
       '<div class="news-meta"><span>' + timeStr + '</span>' +
@@ -8907,6 +9269,8 @@ function getWorkspaceContext() {
   } else {
     parts.push('Whiteboard (' + wbC.width + 'x' + wbC.height + '): empty');
   }
+  // Robinhood status
+  parts.push('Robinhood: ' + (rhLoggedIn ? 'Connected (portfolio/orders/historicals available)' : 'Not connected (public quotes/fundamentals only)'));
   // ADDED — Phase 4: Include agent memory in context
   const agentMem = window.getAgentMemory ? window.getAgentMemory().slice(0, 800) : '';
   if (agentMem) parts.push('Agent Memory: ' + agentMem);
@@ -8925,7 +9289,7 @@ BEHAVIORAL RULES:
 4. CITE YOUR INPUTS — When forming a thesis or sentiment summary, reference the data sources, dates, and price events you drew from.
 5. BE CONCISE in chat. Let the workspace do the talking.
 
-SUPPORTED FORMULAS for the sheet: =SUM, =AVG, =MIN, =MAX, =COUNT, =MEDIAN, =PRODUCT, =SUMIF, =COUNTIF, =VLOOKUP, =IF, =LEN, =UPPER, =LOWER, =TRIM, =LEFT, =RIGHT, =MID, =SUBSTITUTE, =CONCAT, =TEXT, =ROUND, =ABS, =SPARK, & concatenation, cell arithmetic (=A1+B1*2).
+SUPPORTED FORMULAS for the sheet: =SUM, =AVG, =MIN, =MAX, =COUNT, =MEDIAN, =PRODUCT, =SUMIF, =COUNTIF, =VLOOKUP, =IF, =LEN, =UPPER, =LOWER, =TRIM, =LEFT, =RIGHT, =MID, =SUBSTITUTE, =CONCAT, =TEXT, =ROUND, =ABS, =SQRT, =POWER, =LOG, =MOD, =PI, =SPARK, & concatenation, ^ exponentiation, cell arithmetic (=A1+B1*2, =A1^2, =A1^(1/3) for cube root).
 
 TEMPLATES you can scaffold: stock_comparison_table, earnings_tracker, portfolio_summary, scenario_model, news_sentiment_board, macro_dashboard.
 
@@ -8979,6 +9343,9 @@ const AGENT_TOOLS_INLINE = [
   { name: 'get_stock_fundamentals', description: 'Get fundamental metrics for a stock: price, market cap, PE, growth, sector.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
   { name: 'get_news', description: 'Get news articles for a keyword/ticker. Returns titles, snippets, sources, sentiment.', input_schema: { type: 'object', properties: { keyword: { type: 'string' }, limit: { type: 'number', description: 'Max articles to return (default 5)' } }, required: ['keyword'] } },
   { name: 'get_concept_map', description: 'Get concept map nodes and edges.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_portfolio', description: 'Get Robinhood portfolio positions, account balance, and buying power. Requires Robinhood login.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_orders', description: 'Get recent Robinhood order history. Requires Robinhood login.', input_schema: { type: 'object', properties: { limit: { type: 'number', description: 'Max orders to return (default 20)' } } } },
+  { name: 'search_ticker', description: 'Search for stock tickers and company names via Robinhood instrument search.', input_schema: { type: 'object', properties: { query: { type: 'string', description: 'Search query' } }, required: ['query'] } },
 
   // WRITE TOOLS
   { name: 'write_cells', description: 'Write values or formulas to specific spreadsheet cells. Auto-creates a new sheet tab for your output.', input_schema: { type: 'object', properties: { cells: { type: 'array', items: { type: 'object', properties: { ref: { type: 'string', description: 'Cell reference (e.g. A1, B2)' }, value: { type: 'string', description: 'Value or formula (e.g. "Hello", "42", "=SUM(A1:A5)")' } }, required: ['ref', 'value'] } }, label: { type: 'string', description: 'Label for the new sheet tab (e.g. "Stock Analysis")' }, use_current_tab: { type: 'boolean', description: 'Set true to write to the current tab instead of creating a new one' } }, required: ['cells'] } },
@@ -9087,6 +9454,21 @@ async function executeAgentTool(name, input) {
         return JSON.stringify(articles.map(a => ({ title: a.title, snippet: a.snippet, source: a.source, hours_ago: a.hoursAgo, tags: a.tags })));
       }
       case 'get_concept_map': return JSON.stringify({ nodes: cmNodes.map(n => ({ id: n.id, title: n.title, desc: n.desc })), edges: cmEdges.map(e => ({ from: e.from, to: e.to })) });
+      case 'get_portfolio': {
+        if (!rhLoggedIn) return JSON.stringify({ error: true, message: 'Not logged in to Robinhood.' });
+        const [acct, positions] = await Promise.all([fetchRobinhoodAccount(), fetchRobinhoodPositions()]);
+        return JSON.stringify({ account: acct || {}, positions: positions || [], logged_in: true, instruction: 'Build a portfolio summary table in the sheet. Write analysis to the notepad.' });
+      }
+      case 'get_orders': {
+        if (!rhLoggedIn) return JSON.stringify({ error: true, message: 'Not logged in to Robinhood.' });
+        const orders = await fetchRobinhoodOrders(input.limit || 20);
+        return JSON.stringify({ orders: orders || [], logged_in: true });
+      }
+      case 'search_ticker': {
+        const results = await searchRobinhoodInstruments(input.query);
+        const tickers = results.slice(0, 15).map(r => ({ symbol: r.symbol, name: r.simple_name || r.name, type: r.type }));
+        return JSON.stringify({ query: input.query, results: tickers });
+      }
 
       // WRITE TOOLS
       case 'write_cells': {
@@ -10329,6 +10711,159 @@ window.aiApiFetch = aiApiFetch;
 window.trackUserUsage = typeof trackUserUsage !== 'undefined' ? trackUserUsage : function() {};
 window.updateCostPanel = typeof updateCostPanel !== 'undefined' ? updateCostPanel : function() {};
 window.MODEL_RATES = MODEL_RATES;
+// Robinhood data layer exports for tools.js
+window.fetchRobinhoodQuote = fetchRobinhoodQuote;
+window.fetchRobinhoodFundamentals = fetchRobinhoodFundamentals;
+window.searchRobinhoodInstruments = searchRobinhoodInstruments;
+window.fetchRobinhoodHistoricals = fetchRobinhoodHistoricals;
+window.fetchRobinhoodPositions = fetchRobinhoodPositions;
+window.fetchRobinhoodAccount = fetchRobinhoodAccount;
+window.fetchRobinhoodOrders = fetchRobinhoodOrders;
+window.fetchRobinhoodNews = fetchRobinhoodNews;
+
+// ── Robinhood Login UI ──
+(function() {
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'rhModal';
+  overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:340px;max-width:90vw;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <span style="font-size:.85rem;font-weight:700;color:var(--text);">Robinhood Login</span>
+        <span id="rhModalClose" style="cursor:pointer;font-size:1rem;color:var(--text-dim);">&times;</span>
+      </div>
+      <div id="rhLoginForm">
+        <input type="text" id="rhUsername" placeholder="Email" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.75rem;" />
+        <input type="password" id="rhPassword" placeholder="Password" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.75rem;" />
+        <div id="rhMfaWrap" style="display:none;">
+          <input type="text" id="rhMfaCode" placeholder="MFA Code" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.75rem;" />
+        </div>
+        <div id="rhLoginMsg" style="font-size:.65rem;color:var(--text-dim);margin-bottom:8px;min-height:16px;"></div>
+        <div style="display:flex;gap:8px;">
+          <button id="rhLoginSubmit" style="flex:1;padding:8px;border:none;border-radius:6px;background:#22c55e;color:#fff;font-size:.75rem;font-weight:600;cursor:pointer;">Login</button>
+          <button id="rhLogoutSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text-dim);font-size:.75rem;cursor:pointer;display:none;">Logout</button>
+        </div>
+      </div>
+      <div id="rhPortfolioSummary" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:.7rem;font-weight:600;color:var(--text);margin-bottom:8px;">Portfolio Overview</div>
+        <div id="rhPortfolioContent" style="font-size:.65rem;color:var(--text-dim);"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  let rhChallengeId = '';
+
+  $('#rhLoginBtn').onclick = () => {
+    overlay.style.display = 'flex';
+    if (rhLoggedIn) {
+      $('#rhLogoutSubmit').style.display = 'block';
+      $('#rhLoginSubmit').textContent = 'Refresh';
+      loadPortfolioSummary();
+    } else {
+      $('#rhLogoutSubmit').style.display = 'none';
+      $('#rhLoginSubmit').textContent = 'Login';
+      $('#rhPortfolioSummary').style.display = 'none';
+    }
+  };
+
+  $('#rhModalClose').onclick = () => { overlay.style.display = 'none'; };
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display = 'none'; };
+
+  $('#rhLoginSubmit').onclick = async () => {
+    const msg = $('#rhLoginMsg');
+    const username = $('#rhUsername').value.trim();
+    const password = $('#rhPassword').value;
+    const mfaCode = $('#rhMfaCode').value.trim();
+    if (!username || !password) { msg.textContent = 'Email and password required'; msg.style.color = '#ef4444'; return; }
+    msg.textContent = 'Logging in...'; msg.style.color = 'var(--text-dim)';
+    try {
+      const body = { username, password };
+      if (mfaCode) body.mfa_code = mfaCode;
+      if (rhChallengeId) body.challenge_id = rhChallengeId;
+      const resp = await fetch('http://localhost:3001/proxy/robinhood/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        rhLoggedIn = true;
+        msg.textContent = 'Logged in successfully!'; msg.style.color = '#22c55e';
+        updateRhLoginUI();
+        $('#rhLogoutSubmit').style.display = 'block';
+        $('#rhMfaWrap').style.display = 'none';
+        rhChallengeId = '';
+        loadPortfolioSummary();
+        // Refresh stock data with Robinhood historicals
+        renderStockDash();
+        renderNewsFeed();
+      } else if (data.mfa_required) {
+        $('#rhMfaWrap').style.display = 'block';
+        msg.textContent = 'MFA code sent via ' + (data.mfa_type || 'SMS') + '. Enter it above.'; msg.style.color = '#f59e0b';
+      } else if (data.challenge) {
+        rhChallengeId = data.challenge_id;
+        $('#rhMfaWrap').style.display = 'block';
+        msg.textContent = 'Challenge required (' + data.challenge_type + '). Enter code above.'; msg.style.color = '#f59e0b';
+      } else {
+        msg.textContent = data.message || 'Login failed'; msg.style.color = '#ef4444';
+      }
+    } catch(e) {
+      msg.textContent = 'Connection error: ' + e.message; msg.style.color = '#ef4444';
+    }
+  };
+
+  $('#rhLogoutSubmit').onclick = async () => {
+    try {
+      await fetch('http://localhost:3001/proxy/robinhood/logout', { method: 'POST' });
+    } catch(e) {}
+    rhLoggedIn = false;
+    updateRhLoginUI();
+    $('#rhLoginMsg').textContent = 'Logged out.';
+    $('#rhLoginMsg').style.color = 'var(--text-dim)';
+    $('#rhLogoutSubmit').style.display = 'none';
+    $('#rhLoginSubmit').textContent = 'Login';
+    $('#rhPortfolioSummary').style.display = 'none';
+  };
+
+  async function loadPortfolioSummary() {
+    if (!rhLoggedIn) return;
+    const content = $('#rhPortfolioContent');
+    content.innerHTML = 'Loading...';
+    $('#rhPortfolioSummary').style.display = 'block';
+    try {
+      const [acct, positions] = await Promise.all([fetchRobinhoodAccount(), fetchRobinhoodPositions()]);
+      let html = '';
+      if (acct) {
+        html += '<div style="display:flex;gap:12px;margin-bottom:8px;">';
+        html += '<div><b>Portfolio:</b> $' + acct.portfolio_value.toLocaleString(undefined, {minimumFractionDigits:2}) + '</div>';
+        html += '<div><b>Cash:</b> $' + acct.cash.toLocaleString(undefined, {minimumFractionDigits:2}) + '</div>';
+        html += '</div>';
+      }
+      if (positions && positions.length) {
+        html += '<div style="max-height:120px;overflow-y:auto;">';
+        positions.forEach(p => {
+          const gain = ((p.current_price - p.avg_cost) / p.avg_cost * 100);
+          const color = gain >= 0 ? '#22c55e' : '#ef4444';
+          html += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border);">';
+          html += '<span><b>' + p.ticker + '</b> x' + p.quantity.toFixed(2) + '</span>';
+          html += '<span style="color:' + color + ';">' + (gain >= 0 ? '+' : '') + gain.toFixed(1) + '%</span>';
+          html += '</div>';
+        });
+        html += '</div>';
+      } else {
+        html += '<div>No positions found</div>';
+      }
+      content.innerHTML = html;
+    } catch(e) {
+      content.innerHTML = 'Failed to load portfolio: ' + e.message;
+    }
+  }
+
+  // Check RH status on load
+  checkRobinhoodStatus();
+})();
 
 </script>
 </body>

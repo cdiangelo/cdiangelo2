@@ -179,12 +179,202 @@ app.post('/proxy/ai/messages', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════
+// ROBINHOOD PROXY — Tier 1 (public) & Tier 2 (auth)
+// ═══════════════════════════════════════════
+
+let rhToken = ''; // Robinhood OAuth token (set via login)
+let rhRefreshToken = '';
+let rhDeviceToken = ''; // persistent device token for MFA
+
+// GET /proxy/robinhood?endpoint=<path> — Public Robinhood API (no auth)
+app.get('/proxy/robinhood', async (req, res) => {
+  const endpoint = req.query.endpoint;
+  if (!endpoint) return res.status(400).json({ error: true, message: 'Missing endpoint parameter' });
+
+  const url = 'https://api.robinhood.com/' + endpoint;
+  const cached = getCached('rh:' + url);
+  if (cached) {
+    res.setHeader('Content-Type', 'application/json');
+    return res.send(cached.data);
+  }
+
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!resp.ok) return res.status(resp.status).json({ error: true, source: 'robinhood', status: resp.status });
+    const data = await resp.text();
+    setCache('rh:' + url, data, 'application/json');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(data);
+  } catch (e) {
+    res.status(502).json({ error: true, source: 'robinhood', message: e.message });
+  }
+});
+
+// GET /proxy/robinhood/auth?endpoint=<path> — Authenticated Robinhood API (Tier 2)
+app.get('/proxy/robinhood/auth', async (req, res) => {
+  const endpoint = req.query.endpoint;
+  if (!endpoint) return res.status(400).json({ error: true, message: 'Missing endpoint parameter' });
+  if (!rhToken) return res.status(401).json({ error: true, message: 'Not logged in to Robinhood' });
+
+  const url = 'https://api.robinhood.com/' + endpoint;
+  const cacheKey = 'rh-auth:' + url;
+  const cached = getCached(cacheKey);
+  if (cached) {
+    res.setHeader('Content-Type', 'application/json');
+    return res.send(cached.data);
+  }
+
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        'Authorization': 'Bearer ' + rhToken,
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!resp.ok) {
+      if (resp.status === 401) {
+        // Try token refresh
+        const refreshed = await refreshRobinhoodToken();
+        if (refreshed) {
+          const retryResp = await fetch(url, {
+            headers: { 'Authorization': 'Bearer ' + rhToken, 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(10000)
+          });
+          if (retryResp.ok) {
+            const data = await retryResp.text();
+            setCache(cacheKey, data, 'application/json');
+            res.setHeader('Content-Type', 'application/json');
+            return res.send(data);
+          }
+        }
+        rhToken = '';
+        return res.status(401).json({ error: true, message: 'Session expired. Please log in again.' });
+      }
+      return res.status(resp.status).json({ error: true, source: 'robinhood', status: resp.status });
+    }
+    const data = await resp.text();
+    setCache(cacheKey, data, 'application/json');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(data);
+  } catch (e) {
+    res.status(502).json({ error: true, source: 'robinhood', message: e.message });
+  }
+});
+
+// POST /proxy/robinhood/login — Login to Robinhood (username/password + optional MFA)
+app.post('/proxy/robinhood/login', async (req, res) => {
+  const { username, password, mfa_code, challenge_id } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: true, message: 'Username and password required' });
+
+  if (!rhDeviceToken) {
+    const crypto = require('crypto');
+    rhDeviceToken = crypto.randomUUID();
+  }
+
+  const body = {
+    grant_type: 'password',
+    scope: 'internal',
+    client_id: 'c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS',
+    device_token: rhDeviceToken,
+    username,
+    password
+  };
+  if (mfa_code) body.mfa_code = mfa_code;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0',
+    'Accept': 'application/json',
+    'X-Robinhood-API-Version': '1.431.4'
+  };
+  if (challenge_id) headers['X-Robinhood-Challenge-ID'] = challenge_id;
+
+  try {
+    const resp = await fetch('https://api.robinhood.com/oauth2/token/', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000)
+    });
+    const data = await resp.json();
+
+    if (data.access_token) {
+      rhToken = data.access_token;
+      rhRefreshToken = data.refresh_token || '';
+      console.log('[Robinhood] Login successful');
+      return res.json({ ok: true, message: 'Logged in to Robinhood', expires_in: data.expires_in });
+    }
+    if (data.mfa_required || data.mfa_type) {
+      return res.json({ mfa_required: true, mfa_type: data.mfa_type || 'sms', message: 'MFA code required' });
+    }
+    if (data.challenge) {
+      return res.json({ challenge: true, challenge_id: data.challenge.id, challenge_type: data.challenge.type, message: 'Challenge verification required' });
+    }
+    return res.status(401).json({ error: true, message: data.detail || 'Login failed', data });
+  } catch (e) {
+    res.status(502).json({ error: true, message: 'Login error: ' + e.message });
+  }
+});
+
+// POST /proxy/robinhood/logout — Clear Robinhood session
+app.post('/proxy/robinhood/logout', (req, res) => {
+  rhToken = '';
+  rhRefreshToken = '';
+  console.log('[Robinhood] Logged out');
+  res.json({ ok: true, message: 'Logged out' });
+});
+
+// GET /proxy/robinhood/status — Check Robinhood login status
+app.get('/proxy/robinhood/status', (req, res) => {
+  res.json({ logged_in: !!rhToken });
+});
+
+async function refreshRobinhoodToken() {
+  if (!rhRefreshToken) return false;
+  try {
+    const resp = await fetch('https://api.robinhood.com/oauth2/token/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+      body: JSON.stringify({
+        grant_type: 'refresh_token',
+        refresh_token: rhRefreshToken,
+        scope: 'internal',
+        client_id: 'c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS',
+        device_token: rhDeviceToken
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+    const data = await resp.json();
+    if (data.access_token) {
+      rhToken = data.access_token;
+      rhRefreshToken = data.refresh_token || rhRefreshToken;
+      console.log('[Robinhood] Token refreshed');
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('[Robinhood] Refresh failed:', e.message);
+    return false;
+  }
+}
+
 app.listen(PORT, () => {
   console.log('CORS proxy running on http://localhost:' + PORT);
-  console.log('  Yahoo:     http://localhost:' + PORT + '/proxy/yahoo?url=...');
-  console.log('  News:      http://localhost:' + PORT + '/proxy/news?url=...');
-  console.log('  AI Proxy:  http://localhost:' + PORT + '/proxy/ai/messages');
-  console.log('  AI Key:    http://localhost:' + PORT + '/proxy/ai/key (POST, admin only)');
-  console.log('  AI Status: http://localhost:' + PORT + '/proxy/ai/status');
+  console.log('  Yahoo:      http://localhost:' + PORT + '/proxy/yahoo?url=...');
+  console.log('  News:       http://localhost:' + PORT + '/proxy/news?url=...');
+  console.log('  AI Proxy:   http://localhost:' + PORT + '/proxy/ai/messages');
+  console.log('  Robinhood:  http://localhost:' + PORT + '/proxy/robinhood?endpoint=...');
+  console.log('  RH Auth:    http://localhost:' + PORT + '/proxy/robinhood/auth?endpoint=...');
+  console.log('  RH Login:   http://localhost:' + PORT + '/proxy/robinhood/login (POST)');
+  console.log('  RH Status:  http://localhost:' + PORT + '/proxy/robinhood/status');
   if (storedApiKey) console.log('  API key pre-loaded from ANTHROPIC_API_KEY env var');
 });
