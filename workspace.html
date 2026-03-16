@@ -8880,6 +8880,68 @@ function autoSaveChatLog() {
   }
 }
 
+// ── Task attempt versioning ──
+const aiTaskAttempts = {}; // { taskId: { attempts: [{ version, timestamp, triggerReason, status, output }] } }
+let aiCurrentTaskId = null;
+
+function startTaskAttempt(taskId, triggerReason) {
+  if (!aiTaskAttempts[taskId]) aiTaskAttempts[taskId] = { attempts: [] };
+  const version = aiTaskAttempts[taskId].attempts.length + 1;
+  const attempt = { version, timestamp: new Date().toISOString(), triggerReason: triggerReason || 'initial', status: 'running', output: '' };
+  aiTaskAttempts[taskId].attempts.push(attempt);
+  aiCurrentTaskId = taskId;
+  return attempt;
+}
+
+function updateTaskAttemptStatus(taskId, status) {
+  const task = aiTaskAttempts[taskId];
+  if (!task || !task.attempts.length) return;
+  task.attempts[task.attempts.length - 1].status = status;
+}
+
+function appendTaskAttemptOutput(taskId, text) {
+  const task = aiTaskAttempts[taskId];
+  if (!task || !task.attempts.length) return;
+  task.attempts[task.attempts.length - 1].output += text;
+}
+
+function getTaskAttemptVersion(taskId) {
+  const task = aiTaskAttempts[taskId];
+  return task ? task.attempts.length : 0;
+}
+
+function renderTaskAttemptHeaders(taskId, containerEl) {
+  const task = aiTaskAttempts[taskId];
+  if (!task || task.attempts.length <= 1) return;
+  // Build collapsible headers for each attempt
+  const wrapper = document.createElement('div');
+  wrapper.className = 'task-attempts-wrapper';
+  wrapper.style.cssText = 'margin-bottom:6px;';
+  task.attempts.forEach((att, idx) => {
+    const isLatest = idx === task.attempts.length - 1;
+    const header = document.createElement('div');
+    header.style.cssText = 'cursor:pointer;padding:3px 8px;margin:2px 0;border-radius:4px;font-size:.58rem;background:rgba(255,255,255,.04);border:1px solid var(--border);display:flex;align-items:center;gap:6px;';
+    const arrow = isLatest ? '\u25BE' : '\u25B8';
+    const reasonLabel = { initial: 'Initial', manual_retry: 'Manual Retry', bot_escalation: 'Bot Escalation', error_fallback: 'Error Fallback' }[att.triggerReason] || att.triggerReason;
+    const statusColor = att.status === 'completed' ? 'var(--success, #4CAF50)' : att.status === 'error' ? 'var(--danger, #ef4444)' : 'var(--accent)';
+    const time = new Date(att.timestamp).toLocaleTimeString();
+    header.innerHTML = '<span>' + arrow + '</span><span style="font-weight:600;">Attempt v' + att.version + '</span><span style="color:var(--text-dim);">' + time + '</span><span style="color:' + statusColor + ';">' + att.status + '</span>' + (att.triggerReason !== 'initial' ? '<span style="color:var(--accent2);">' + reasonLabel + '</span>' : '');
+    const body = document.createElement('div');
+    body.style.cssText = 'padding:4px 8px;font-size:.6rem;white-space:pre-wrap;' + (isLatest ? '' : 'display:none;');
+    body.textContent = att.output || '(no output)';
+    header.onclick = () => { body.style.display = body.style.display === 'none' ? '' : 'none'; header.querySelector('span').textContent = body.style.display === 'none' ? '\u25B8' : '\u25BE'; };
+    wrapper.appendChild(header);
+    wrapper.appendChild(body);
+  });
+  containerEl.prepend(wrapper);
+}
+
+function getTaskVersionBadge(taskId) {
+  const v = getTaskAttemptVersion(taskId);
+  if (v <= 1) return '';
+  return ' <span style="font-size:.48rem;font-weight:700;color:#fff;background:var(--accent);padding:1px 4px;border-radius:3px;vertical-align:middle;">v' + v + '</span>';
+}
+
 // ── Per-inquiry log with artifacts ──
 let aiInquiryLog = LS('aiInquiryLog') || [];
 
@@ -10152,6 +10214,11 @@ async function sendAgentMessage() {
   addAiMsg('user', input);
   $('#aiInput').value = '';
 
+  // Task attempt versioning
+  const taskId = Date.now();
+  const triggerReason = arguments[0] === '_retry' ? 'manual_retry' : arguments[0] === '_escalate' ? 'bot_escalation' : 'initial';
+  startTaskAttempt(taskId, triggerReason);
+
   // Add workspace context to the latest user message
   const ctx = getWorkspaceContext();
   const deepOn = $('#aiDeepToggle') && $('#aiDeepToggle').checked;
@@ -10404,10 +10471,11 @@ async function sendAgentMessage() {
           addAiMsg('assistant', fullText);
         }
       }
-      // Save text to history
+      // Save text to history + capture for attempt versioning
       if (textBlocks.length) {
         const fullText = textBlocks.map(b => b.text).join('\n');
         aiMessages.push({ role: 'assistant', content: fullText });
+        appendTaskAttemptOutput(taskId, fullText + '\n');
       }
 
       // If no tool calls, we're done
@@ -10447,10 +10515,18 @@ async function sendAgentMessage() {
 
   } catch (e) {
     if (!_stall.aborted) thinkingDiv.textContent = 'Error: ' + e.message;
+    updateTaskAttemptStatus(taskId, 'error');
+    appendTaskAttemptOutput(taskId, 'Error: ' + e.message);
   }
   clearInterval(_stall.timer);
   aiStreaming = false;
   setRobotWorking(false);
+  if (aiTaskAttempts[taskId]?.attempts?.length) {
+    const lastAtt = aiTaskAttempts[taskId].attempts[aiTaskAttempts[taskId].attempts.length - 1];
+    if (lastAtt.status === 'running') lastAtt.status = 'completed';
+  }
+  // Render attempt headers if multiple attempts exist
+  renderTaskAttemptHeaders(taskId, $('#aiMsgs'));
   // Save this inquiry as a granular log entry
   saveInquiryLog(input, model, inquiryActions);
 }
