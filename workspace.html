@@ -10230,121 +10230,159 @@ $('#aiInfoBtn').onclick = () => {
     '<span style="font-weight:700;font-size:.8rem;">Claude Agent — Capabilities & Settings</span>' +
     '<button onclick="this.closest(\'#aiInfoPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button></div>' +
 
-    // Current Capabilities
+    // ── KEY USE CASES ──
     '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Current Capabilities</div>' +
+    '<div style="' + headStyle + '">Key Use Cases</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">' +
+    '<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">' +
+      '<div style="font-weight:700;font-size:.6rem;color:#6366f1;margin-bottom:3px;">Investment Research</div>' +
+      '<div style="font-size:.52rem;color:var(--text-dim);">Thesis building, scenario modeling, sentiment analysis, multi-source news aggregation</div></div>' +
+    '<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">' +
+      '<div style="font-weight:700;font-size:.6rem;color:#10b981;margin-bottom:3px;">Data & Visualization</div>' +
+      '<div style="font-size:.52rem;color:var(--text-dim);">Spreadsheet tables, comparison charts, whiteboard diagrams, concept maps</div></div>' +
+    '<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">' +
+      '<div style="font-weight:700;font-size:.6rem;color:#f59e0b;margin-bottom:3px;">Content & Notes</div>' +
+      '<div style="font-size:.52rem;color:var(--text-dim);">Professional note-taking with structured headings, bullet points, research consolidation</div></div>' +
+    '<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">' +
+      '<div style="font-weight:700;font-size:.6rem;color:#8b5cf6;margin-bottom:3px;">Workspace Cleanup</div>' +
+      '<div style="font-size:.52rem;color:var(--text-dim);">AI-powered layout optimization, typography fixing, design quality enforcement with undo</div></div>' +
+    '</div></div>' +
+
+    // ── CAPABILITIES ──
+    '<div style="' + sectionStyle + '">' +
+    '<div style="' + headStyle + '">Capabilities</div>' +
+
     '<div style="' + subHeadStyle + '">Reading & Analysis</div>' +
     '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Read spreadsheet data, notes, graph expressions, concept maps</li>' +
-    '<li style="' + liStyle + '">Fetch live stock prices (Yahoo Finance) with OHLCV data</li>' +
+    '<li style="' + liStyle + '">Read spreadsheet data, notes, graph expressions, concept maps, whiteboard layer state</li>' +
+    '<li style="' + liStyle + '">Fetch live stock prices (Yahoo Finance) and Robinhood authenticated data (positions, orders, fundamentals)</li>' +
     '<li style="' + liStyle + '">Multi-source news pipeline — Google RSS, Yahoo RSS, GNews API, NewsAPI with link validation &amp; scoring</li>' +
-    '<li style="' + liStyle + '">Deep research mode — aggregates multiple article sources on a topic with automatic tier escalation</li>' +
-    '<li style="' + liStyle + '">Get stock fundamentals: P/E, market cap, revenue growth, sector</li>' +
+    '<li style="' + liStyle + '">Deep research mode — aggregates multiple sources with automatic Tier 3 escalation</li>' +
     '</ul>' +
+
     '<div style="' + subHeadStyle + '">Writing & Creation</div>' +
     '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Write cells, formulas, and formatted tables to spreadsheet (auto-tabs)</li>' +
-    '<li style="' + liStyle + '">Write rich content to notepad with auto-tab creation</li>' +
-    '<li style="' + liStyle + '">Plot math expressions on the graph calculator</li>' +
-    '<li style="' + liStyle + '">Manage stock watchlist and comparison charts</li>' +
-    '<li style="' + liStyle + '">Add nodes to concept map, images/text to whiteboard</li>' +
+    '<li style="' + liStyle + '">Write cells, formulas, and formatted tables to spreadsheet (auto-creates tabs)</li>' +
+    '<li style="' + liStyle + '">Write rich, professionally formatted notes with auto-tab creation</li>' +
+    '<li style="' + liStyle + '">Add draggable/resizable text, images, and charts to the whiteboard as layers</li>' +
+    '<li style="' + liStyle + '">Build concept map nodes and connections</li>' +
+    '<li style="' + liStyle + '">Plot math expressions, manage stock watchlist &amp; comparison charts</li>' +
     '<li style="' + liStyle + '">Generate memes via imgflip API (12+ templates)</li>' +
     '</ul>' +
+
     '<div style="' + subHeadStyle + '">Analysis Tools</div>' +
     '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Run bull/base/bear scenario projections for any stock</li>' +
-    '<li style="' + liStyle + '">Build investment theses synthesizing price + fundamentals + news</li>' +
-    '<li style="' + liStyle + '">Sentiment scoring across multiple news sources</li>' +
-    '<li style="' + liStyle + '">Scaffold templates: stock comparison, earnings, portfolio, macro dashboard</li>' +
+    '<li style="' + liStyle + '">Bull/base/bear scenario projections for any stock</li>' +
+    '<li style="' + liStyle + '">Investment thesis synthesis (price + fundamentals + news)</li>' +
+    '<li style="' + liStyle + '">Sentiment scoring with multi-source headline analysis</li>' +
+    '<li style="' + liStyle + '">Template scaffolds: stock comparison, earnings, portfolio, macro dashboard, scenario model</li>' +
     '<li style="' + liStyle + '">Pricing/business model analysis with unit economics</li>' +
-    '</ul>' +
-    '<div style="' + subHeadStyle + '">Persona Modes</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">5 built-in personas: Default, Analyst, Creative Writer, Tutor, Devil\'s Advocate</li>' +
-    '<li style="' + liStyle + '">Each persona applies a tailored system prompt that shapes tone, focus, and output style</li>' +
-    '<li style="' + liStyle + '">Admin-editable: customize any persona\'s system prompt via the Personas panel</li>' +
-    '<li style="' + liStyle + '">Persona indicator badge shows active mode in the chat header</li>' +
-    '</ul>' +
-    '<div style="' + subHeadStyle + '">Context Injection</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Persistent context slots injected into every Claude request</li>' +
-    '<li style="' + liStyle + '">Global slots apply to all personas; per-persona slots apply only when that persona is active</li>' +
-    '<li style="' + liStyle + '">Manage via the context drawer — add, edit, delete, toggle slots</li>' +
-    '<li style="' + liStyle + '">Context badge shows active slot count in the chat header</li>' +
-    '</ul>' +
-    '<div style="' + subHeadStyle + '">Tiered Agent Execution</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Automatic task classification: Tier 1 (Fast), Tier 2 (Standard), Tier 3 (Deep Research)</li>' +
-    '<li style="' + liStyle + '">Tier 1 uses Haiku for simple Q&A — lowest cost, fastest response</li>' +
-    '<li style="' + liStyle + '">Tier 2 uses selected model for tool-using tasks</li>' +
-    '<li style="' + liStyle + '">Tier 3 auto-escalates for thesis, deep research, multi-source analysis — higher iteration limit + extended system prompt</li>' +
-    '<li style="' + liStyle + '">Stock deep research automatically triggers multi-source news aggregation</li>' +
-    '</ul>' +
-    '<div style="' + subHeadStyle + '">Task Attempt Versioning</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Every agent task is tracked as a versioned attempt with status (running/done/error/stalled)</li>' +
-    '<li style="' + liStyle + '">Attempt headers show in chat with timing, tool count, and tier used</li>' +
-    '<li style="' + liStyle + '">Nudge button retries stalled tasks as a new attempt version</li>' +
     '</ul></div>' +
 
-    // What You Can Do
-    '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">What You Can Ask</div>' +
+    // ── CLEANUP BOT ──
+    '<div style="' + sectionStyle + ';padding:8px 10px;border:1px solid #8b5cf630;border-radius:8px;background:#8b5cf608;">' +
+    '<div style="' + headStyle + '">Cleanup Bot</div>' +
+    '<p style="font-size:.58rem;color:var(--text-dim);margin:0 0 6px;">The cleanup button (broom icon) runs an AI-powered design quality pass on the active tab. It analyzes layout, typography, and visual hierarchy, then applies fixes with full undo support.</p>' +
+    '<div style="' + subHeadStyle + '">What It Fixes</div>' +
     '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">"Analyze AAPL and build me an investment thesis" <span style="' + dimStyle + '">(auto Tier 3)</span></li>' +
-    '<li style="' + liStyle + '">"Compare MSFT, GOOG, AMZN in a table with key metrics"</li>' +
-    '<li style="' + liStyle + '">"Run bull/base/bear scenarios for TSLA" <span style="' + dimStyle + '">(auto Tier 3)</span></li>' +
-    '<li style="' + liStyle + '">"Research the latest on AI chip stocks and summarize" <span style="' + dimStyle + '">(multi-source news)</span></li>' +
-    '<li style="' + liStyle + '">"Create a portfolio tracker template in the sheet"</li>' +
-    '<li style="' + liStyle + '">"Plot sin(x), cos(x), and x^2 on the graph"</li>' +
-    '<li style="' + liStyle + '">"Make a stonks meme about buying the dip"</li>' +
-    '<li style="' + liStyle + '">"What\'s the sentiment on NVDA right now?" <span style="' + dimStyle + '">(multi-source news)</span></li>' +
-    '<li style="' + liStyle + '">"Switch to Analyst persona and review my portfolio"</li>' +
-    '<li style="' + liStyle + '">"What sector is AAPL in?" <span style="' + dimStyle + '">(auto Tier 1 / Haiku)</span></li>' +
+    '<li style="' + liStyle + '"><b>Whiteboard:</b> Repositions overlapping layers, resizes text boxes to prevent overflow, grid-aligns elements, enforces consistent sizing, applies soft color palettes</li>' +
+    '<li style="' + liStyle + '"><b>Concept Map:</b> Distributes nodes with breathing room, resolves overlaps, enforces hierarchy flow (root top, children below)</li>' +
+    '<li style="' + liStyle + '"><b>Notepad:</b> Converts messy text into professional format with &lt;h2&gt; section headings, &lt;h4&gt; sub-labels, bullet lists, blockquote callouts, and &lt;hr&gt; dividers. Removes inline style overrides.</li>' +
+    '<li style="' + liStyle + '"><b>Scratch Sheet:</b> Flags broken references, normalizes cell formatting</li>' +
+    '</ul>' +
+    '<div style="' + subHeadStyle + '">Design Preferences</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">Text must never extend outside its container — the #1 defect it targets</li>' +
+    '<li style="' + liStyle + '">Fonts: 11-14px body, 16-20px titles, system sans-serif stack</li>' +
+    '<li style="' + liStyle + '">Colors: muted, sophisticated palette (indigo, violet, cyan, emerald, amber) — never harsh primaries</li>' +
+    '<li style="' + liStyle + '">Minimum 16px spacing between elements, 20px grid gutters on whiteboard</li>' +
+    '<li style="' + liStyle + '">Fully undoable — snapshot taken before every cleanup pass</li>' +
     '</ul></div>' +
 
-    // Training & Customization
+    // ── PERSONAS ──
     '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Training & Customization</div>' +
-    '<p style="' + dimStyle + 'margin:0 0 6px;">Claude\'s behavior can be extended with:</p>' +
+    '<div style="' + headStyle + '">Persona Modes</div>' +
+    '<p style="font-size:.58rem;color:var(--text-dim);margin:0 0 6px;">Each persona applies a tailored system prompt that shapes tone, focus, and output style. Switch via the dropdown or say "switch to [persona]".</p>' +
+    '<table style="width:100%;font-size:.56rem;border-collapse:collapse;">' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;width:90px;color:#6366f1;">Default</td><td style="padding:3px 0;' + dimStyle + '">Balanced general-purpose assistant. Good for multi-step tasks, workspace management, and conversational Q&A.</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;color:#10b981;">Analyst</td><td style="padding:3px 0;' + dimStyle + '">Data-driven financial analyst. Focuses on metrics, comparisons, evidence-based conclusions. Outputs structured tables and theses.</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;color:#f59e0b;">Creative Writer</td><td style="padding:3px 0;' + dimStyle + '">Narrative-focused writer. Great for research summaries, presentation copy, and storytelling with flair. Uses vivid language.</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;color:#06b6d4;">Tutor</td><td style="padding:3px 0;' + dimStyle + '">Patient explainer. Breaks down complex topics step-by-step. Good for learning financial concepts, formulas, and market mechanics.</td></tr>' +
+    '<tr><td style="padding:3px 0;font-weight:700;color:#ef4444;">Devil\\\'s Advocate</td><td style="padding:3px 0;' + dimStyle + '">Challenges assumptions and stress-tests ideas. Great for risk assessment, counter-arguments, and hardening investment theses.</td></tr>' +
+    '</table>' +
+    '<p style="font-size:.5rem;color:var(--text-dim);margin:6px 0 0;font-style:italic;">Admin users can edit persona system prompts and create custom personas via the Personas panel.</p>' +
+    '</div>' +
+
+    // ── WHAT YOU CAN ASK ──
+    '<div style="' + sectionStyle + '">' +
+    '<div style="' + headStyle + '">Example Prompts</div>' +
+    '<div style="' + subHeadStyle + '">Works Great</div>' +
     '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '"><b>Persona modes</b> — Switch personas via dropdown or create custom ones with admin-editable system prompts</li>' +
-    '<li style="' + liStyle + '"><b>Context slots</b> — Add persistent instructions that inject into every request (global or per-persona)</li>' +
-    '<li style="' + liStyle + '"><b>Custom tools</b> — Add new tool definitions to AGENT_TOOLS for domain-specific actions (CRM lookups, internal APIs, custom calculations)</li>' +
-    '<li style="' + liStyle + '"><b>Model selection</b> — Switch between Claude models (Haiku for speed, Sonnet for balance, Opus for depth) via the model dropdown</li>' +
-    '<li style="' + liStyle + '"><b>Tiered execution</b> — Auto-classifies task complexity; override with Deep toggle for forced Tier 3</li>' +
+    '<li style="' + liStyle + '">"Analyze AAPL and build me an investment thesis" <span style="' + dimStyle + '">(auto Tier 3 — reads prices, fundamentals, news, writes thesis to notepad + sheet)</span></li>' +
+    '<li style="' + liStyle + '">"Compare MSFT, GOOG, AMZN in a table with key metrics" <span style="' + dimStyle + '">(builds formatted comparison table)</span></li>' +
+    '<li style="' + liStyle + '">"Run bull/base/bear scenarios for TSLA" <span style="' + dimStyle + '">(generates projections, charts, summary)</span></li>' +
+    '<li style="' + liStyle + '">"Research the latest on AI chip stocks" <span style="' + dimStyle + '">(multi-source news + sentiment scoring)</span></li>' +
+    '<li style="' + liStyle + '">"Create a portfolio tracker template" <span style="' + dimStyle + '">(scaffolds structured sheet)</span></li>' +
+    '<li style="' + liStyle + '">"Draw a summary card on the whiteboard for my NVDA thesis" <span style="' + dimStyle + '">(whiteboard layers)</span></li>' +
+    '<li style="' + liStyle + '">"What sector is AAPL in?" <span style="' + dimStyle + '">(auto Tier 1 / Haiku — fast, cheap)</span></li>' +
+    '</ul>' +
+    '<div style="' + subHeadStyle + '">May Need Guidance</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '"><b>Multi-step visual layouts</b> — Complex whiteboard compositions may need 2-3 prompts to refine placement. Use cleanup bot after.</li>' +
+    '<li style="' + liStyle + '"><b>Very large data sets</b> — Sheet writes over ~200 rows may truncate. Break into multiple writes or use templates.</li>' +
+    '<li style="' + liStyle + '"><b>Real-time data freshness</b> — Stock prices cache for 5 minutes. Say "refresh" to force a new fetch.</li>' +
+    '<li style="' + liStyle + '"><b>Cross-tab coordination</b> — Asking to "put the chart on the whiteboard and the data in the sheet" works but may need a nudge if it stalls on one.</li>' +
+    '<li style="' + liStyle + '"><b>News availability</b> — Some RSS sources may be temporarily unavailable. The pipeline auto-falls back through tiers.</li>' +
+    '<li style="' + liStyle + '"><b>Concept map layouts</b> — Auto-placed nodes may cluster. Use cleanup bot or manually drag to arrange.</li>' +
+    '</ul></div>' +
+
+    // ── TIERED EXECUTION ──
+    '<div style="' + sectionStyle + '">' +
+    '<div style="' + headStyle + '">Tiered Agent Execution</div>' +
+    '<table style="width:100%;font-size:.56rem;border-collapse:collapse;">' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;width:70px;color:#10b981;">Tier 1</td><td style="padding:3px 0;font-weight:600;width:60px;">Fast</td><td style="padding:3px 0;' + dimStyle + '">Haiku — simple Q&A, definitions, quick lookups. Lowest cost, sub-second.</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;color:#6366f1;">Tier 2</td><td style="padding:3px 0;font-weight:600;">Standard</td><td style="padding:3px 0;' + dimStyle + '">Selected model — tool-using tasks, writes, analysis. Balanced cost/quality.</td></tr>' +
+    '<tr><td style="padding:3px 0;font-weight:700;color:#f59e0b;">Tier 3</td><td style="padding:3px 0;font-weight:600;">Deep</td><td style="padding:3px 0;' + dimStyle + '">Auto-escalated for thesis, deep research, multi-source. Higher iteration limit + extended prompts.</td></tr>' +
+    '</table>' +
+    '<p style="font-size:.5rem;color:var(--text-dim);margin:4px 0 0;font-style:italic;">Tasks auto-classify. Override with the Deep toggle for forced Tier 3. Nudge button retries stalled tasks.</p>' +
+    '</div>' +
+
+    // ── CONTEXT & CUSTOMIZATION ──
+    '<div style="' + sectionStyle + '">' +
+    '<div style="' + headStyle + '">Context & Customization</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '"><b>Context slots</b> — Persistent instructions injected into every request. Global slots apply everywhere; per-persona slots apply only when that persona is active.</li>' +
+    '<li style="' + liStyle + '"><b>Model selection</b> — Haiku (speed), Sonnet (balance), Opus (depth) via the model dropdown</li>' +
+    '<li style="' + liStyle + '"><b>Custom tools</b> — Extend AGENT_TOOLS with domain-specific actions (CRM lookups, internal APIs)</li>' +
     '<li style="' + liStyle + '"><b>Template scaffolds</b> — Add new template types for industry-specific workflows</li>' +
-    '<li style="' + liStyle + '"><b>Data source plugins</b> — Extend with additional market data feeds, proprietary databases, or internal endpoints</li>' +
+    '<li style="' + liStyle + '"><b>Character style</b> — Toggle between Office and Genie appearance. Customize ties and background scenes.</li>' +
     '</ul></div>' +
 
-    // Management & Reset
+    // ── MANAGING YOUR AGENT ──
     '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Managing Your Agent</div>' +
-    '<table style="width:100%;font-size:.6rem;border-collapse:collapse;">' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;width:100px;">Clear Chat</td><td style="padding:4px 0;' + dimStyle + '">Trash icon — resets conversation context (model forgets current session)</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Save Log</td><td style="padding:4px 0;' + dimStyle + '">Book icon — saves session to log or exports all logs to notepad tabs</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Actions</td><td style="padding:4px 0;' + dimStyle + '">View and replay past tool outputs (sheet writes, notes, graphs). Auto-saved when Claude uses write tools.</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Personas</td><td style="padding:4px 0;' + dimStyle + '">Switch between 5 built-in personas or edit their system prompts (admin). Active persona shown as badge.</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Context</td><td style="padding:4px 0;' + dimStyle + '">Manage persistent context slots — global or per-persona instructions injected into every request.</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">$ Cost</td><td style="padding:4px 0;' + dimStyle + '">Track API token usage and cost with tier-aware estimates (Tier 1/2/3)</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Users</td><td style="padding:4px 0;' + dimStyle + '">Admin dashboard — view per-user usage stats across all tracked users</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">API Key</td><td style="padding:4px 0;' + dimStyle + '">Set your Anthropic API key (stored locally, never transmitted elsewhere)</td></tr>' +
-    '<tr><td style="padding:4px 0;font-weight:600;">Full Reset</td><td style="padding:4px 0;' + dimStyle + '">Clear browser localStorage to reset all agent data, logs, actions, and preferences</td></tr>' +
+    '<div style="' + headStyle + '">Controls Reference</div>' +
+    '<table style="width:100%;font-size:.56rem;border-collapse:collapse;">' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;width:90px;">Clear Chat</td><td style="padding:3px 0;' + dimStyle + '">Resets conversation context (model forgets current session)</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Save Log</td><td style="padding:3px 0;' + dimStyle + '">Saves session to log, or export all logs to notepad tabs</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Actions</td><td style="padding:3px 0;' + dimStyle + '">View and replay past tool outputs (sheet writes, notes, graphs)</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Personas</td><td style="padding:3px 0;' + dimStyle + '">Switch personas or edit their system prompts (admin)</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Context</td><td style="padding:3px 0;' + dimStyle + '">Manage persistent instruction slots (global or per-persona)</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Cleanup</td><td style="padding:3px 0;' + dimStyle + '">AI design-quality pass on active tab (Whiteboard, Concept Map, Notepad, Sheet). Full undo.</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">$ Cost</td><td style="padding:3px 0;' + dimStyle + '">Track API token usage and cost with tier-aware estimates</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Users</td><td style="padding:3px 0;' + dimStyle + '">Admin dashboard — per-user usage stats</td></tr>' +
+    '<tr><td style="padding:3px 0;font-weight:600;">Full Reset</td><td style="padding:3px 0;' + dimStyle + '">Clear all localStorage to reset agent data, logs, and preferences</td></tr>' +
     '</table></div>' +
 
-    // Saved Data
+    // ── STORED DATA ──
     '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Stored Data (localStorage)</div>' +
-    '<p style="' + dimStyle + 'margin:0 0 4px;">All data stays in your browser. Nothing is sent to external servers except API calls to Anthropic.</p>' +
+    '<div style="' + headStyle + '">Stored Data</div>' +
+    '<p style="' + dimStyle + 'margin:0 0 4px;font-size:.55rem;">All data stays in your browser. API credentials are managed server-side via the secure proxy — never stored client-side.</p>' +
     '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Chat logs & session history</li>' +
-    '<li style="' + liStyle + '">Saved tool actions (replayable)</li>' +
-    '<li style="' + liStyle + '">Per-user usage tracking (admin)</li>' +
-    '<li style="' + liStyle + '">Sheet data, notepad content, graph expressions</li>' +
-    '<li style="' + liStyle + '">Persona configurations & active persona selection</li>' +
-    '<li style="' + liStyle + '">Context injection slots (global & per-persona)</li>' +
-    '<li style="' + liStyle + '">Task attempt history & versioning data</li>' +
-    '<li style="' + liStyle + '">Robot scene, theme, and layout preferences</li>' +
+    '<li style="' + liStyle + '">Chat logs, session history, saved tool actions</li>' +
+    '<li style="' + liStyle + '">Sheet data, notepad content, graph expressions, concept maps</li>' +
+    '<li style="' + liStyle + '">Whiteboard pages with multi-layer state (images, text, charts, tables)</li>' +
+    '<li style="' + liStyle + '">Persona configs, context slots, task attempt history</li>' +
+    '<li style="' + liStyle + '">Robot style, scene, theme, and layout preferences</li>' +
     '</ul>' +
     '<div style="margin-top:8px;"><button onclick="if(confirm(\'Clear ALL stored data? This cannot be undone.\')){ localStorage.clear(); location.reload(); }" style="font-size:.58rem;padding:3px 10px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:4px;cursor:pointer;">Reset All Data</button></div>' +
     '</div>';
