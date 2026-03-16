@@ -321,18 +321,38 @@ body.light .fun-btn { background: var(--accent); }
 
 /* ═══ Q1: NOTEPAD ═══ */
 .np-area {
-  flex: 1; padding: 10px; background: var(--bg); color: var(--text);
-  font-family: Georgia, serif; font-size: .88rem; line-height: 1.6;
-  overflow-y: auto; outline: none; min-height: 60px;
+  flex: 1; padding: 14px 18px; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: .78rem; line-height: 1.55; overflow-y: auto; outline: none; min-height: 60px;
+  letter-spacing: -.01em;
 }
+.np-area h2 { font-size: .92rem; font-weight: 700; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 2px solid var(--accent); color: var(--text); letter-spacing: -.02em; }
+.np-area h4 { font-size: .74rem; font-weight: 600; margin: 10px 0 4px; color: var(--accent2, var(--accent)); text-transform: uppercase; letter-spacing: .04em; }
+.np-area ul, .np-area ol { margin: 4px 0 8px 6px; padding-left: 16px; }
+.np-area li { margin-bottom: 3px; line-height: 1.5; }
+.np-area blockquote { margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--accent); background: var(--panel-inset); border-radius: 0 4px 4px 0; font-size: .74rem; color: var(--text-dim); }
+.np-area hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+.np-area b, .np-area strong { font-weight: 600; }
+.np-area p { margin: 0 0 6px; }
 .np-area:empty::before {
-  content: 'Type your notes here...'; color: var(--text-dim);
-  animation: snCursorBounce 1.2s infinite;
+  content: 'Start typing \2014 use headings, bullets, and dividers for clean notes...';
+  color: var(--text-dim); font-style: italic; opacity: .6;
 }
-@keyframes snCursorBounce {
-  0%, 100% { opacity: .4; }
-  50% { opacity: .8; }
-}
+/* Whiteboard layer selection & resize handles */
+.wb-layer-obj.wb-selected { border: 1.5px solid var(--accent) !important; box-shadow: 0 0 0 2px rgba(99,102,241,.2); }
+.wb-resize-handle { position: absolute; width: 10px; height: 10px; background: var(--accent); border: 1px solid #fff; border-radius: 2px; z-index: 3; opacity: 0; transition: opacity .15s; }
+.wb-layer-obj.wb-selected .wb-resize-handle { opacity: .8; }
+.wb-resize-handle:hover { opacity: 1 !important; transform: scale(1.2); }
+.wb-resize-nw { top: -5px; left: -5px; cursor: nwse-resize; }
+.wb-resize-ne { top: -5px; right: -5px; cursor: nesw-resize; }
+.wb-resize-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+.wb-resize-se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+.wb-resize-n { top: -4px; left: 50%; transform: translateX(-50%); width: 20px; height: 6px; cursor: ns-resize; border-radius: 3px; }
+.wb-resize-s { bottom: -4px; left: 50%; transform: translateX(-50%); width: 20px; height: 6px; cursor: ns-resize; border-radius: 3px; }
+.wb-resize-w { left: -4px; top: 50%; transform: translateY(-50%); width: 6px; height: 20px; cursor: ew-resize; border-radius: 3px; }
+.wb-resize-e { right: -4px; top: 50%; transform: translateY(-50%); width: 6px; height: 20px; cursor: ew-resize; border-radius: 3px; }
+.wb-layer-label { position: absolute; top: -18px; left: 0; font-size: .5rem; color: var(--accent); background: var(--panel); padding: 1px 4px; border-radius: 2px; white-space: nowrap; opacity: 0; transition: opacity .15s; pointer-events: none; }
+.wb-layer-obj.wb-selected .wb-layer-label { opacity: 1; }
 .np-status {
   padding: 3px 8px; background: var(--panel-inset); border-top: 1px solid var(--border);
   font-size: .68rem; color: var(--text-dim); display: flex; justify-content: space-between; flex-shrink: 0;
@@ -1712,6 +1732,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <option value="city">City</option>
           <option value="sunset">Sunset</option>
           <option value="desert">Desert</option>
+        </select>
+        <select id="robotStyleSelect" style="font-size:.5rem;padding:1px 2px;border-radius:3px;background:var(--panel);color:var(--text);border:1px solid var(--border);max-width:60px;" title="Character style">
+          <option value="office">Office</option>
+          <option value="genie">Genie</option>
         </select>
       </div>
       <div id="aiApiKeySection" style="display:none;padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
@@ -3893,11 +3917,22 @@ wbC.addEventListener('mousedown', e => {
   if (wbTool === 'text') {
     const text = prompt('Text:');
     if (text) {
-      wbX.font = (+$('#wbSize').value * 4 + 10) + 'px system-ui';
-      wbX.globalAlpha = +$('#wbOpacity').value / 100;
-      wbX.fillStyle = $('#wbColor').value;
-      wbX.fillText(text, wbSX, wbSY);
-      wbX.globalAlpha = 1;
+      const fontSize = +$('#wbSize').value * 4 + 10;
+      const color = $('#wbColor').value;
+      // Estimate width from text length
+      const estW = Math.max(80, Math.min(400, text.length * fontSize * 0.6));
+      const estH = Math.max(30, fontSize * 1.6);
+      wbAddLayer('text', text, {
+        x: wbSX, y: Math.max(0, wbSY - estH / 2),
+        w: estW, h: estH,
+        label: text.length > 20 ? text.substring(0, 18) + '...' : text,
+        category: 'text'
+      });
+      // Store styling on the layer
+      const newLayer = wbLayers[wbLayers.length - 1];
+      newLayer.fontSize = fontSize;
+      newLayer.color = color;
+      newLayer.fontWeight = '600';
     }
     wbDraw = false; return;
   }
@@ -4132,23 +4167,18 @@ function wbRenderLayers() {
   const wrap = $('#wbWrap');
   wbLayers.forEach(layer => {
     if (!layer.visible) return;
+    const isSelected = wbSelectedLayer === layer.id;
     const el = document.createElement('div');
-    el.className = 'wb-layer-obj';
+    el.className = 'wb-layer-obj' + (isSelected ? ' wb-selected' : '');
     el.dataset.layerId = layer.id;
-    el.style.cssText = 'position:absolute;left:' + layer.x + 'px;top:' + layer.y + 'px;width:' + layer.w + 'px;height:' + layer.h + 'px;z-index:' + layer.zIndex + ';cursor:move;border:1px solid transparent;transition:border-color .15s;overflow:hidden;';
-    if (wbSelectedLayer === layer.id) el.style.borderColor = 'var(--accent)';
+    el.style.cssText = 'position:absolute;left:' + layer.x + 'px;top:' + layer.y + 'px;width:' + layer.w + 'px;height:' + layer.h + 'px;z-index:' + layer.zIndex + ';cursor:move;border:1.5px solid transparent;overflow:' + (layer.type === 'text' ? 'visible' : 'hidden') + ';';
 
     if (layer.type === 'image' || layer.type === 'chart') {
       const img = document.createElement('img');
-      // CORS for external images on canvas
       if (layer.content && !layer.content.startsWith('data:')) img.crossOrigin = 'anonymous';
       img.style.cssText = 'width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;';
       img.draggable = false;
-      img.onerror = function() {
-        // Fall back to placeholder SVG — never show broken image icon
-        this.onerror = null; // prevent infinite loop
-        this.src = generatePlaceholderSVG(layer.label || 'Image unavailable');
-      };
+      img.onerror = function() { this.onerror = null; this.src = generatePlaceholderSVG(layer.label || 'Image unavailable'); };
       img.src = layer.content;
       el.appendChild(img);
     } else if (layer.type === 'table') {
@@ -4156,29 +4186,78 @@ function wbRenderLayers() {
       div.innerHTML = layer.content;
       div.style.cssText = 'width:100%;height:100%;overflow:auto;font-size:.6rem;pointer-events:none;background:var(--panel);border-radius:4px;';
       el.appendChild(div);
+    } else if (layer.type === 'text') {
+      const textDiv = document.createElement('div');
+      const fontSize = layer.fontSize || 14;
+      const textColor = layer.color || '#ffffff';
+      textDiv.textContent = layer.content;
+      textDiv.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:' + (layer.textAlign || 'center') + ';font-size:' + fontSize + 'px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:' + textColor + ';font-weight:' + (layer.fontWeight || '600') + ';line-height:1.3;padding:4px 8px;box-sizing:border-box;pointer-events:none;user-select:none;word-break:break-word;overflow:hidden;text-overflow:ellipsis;';
+      if (layer.bgColor) textDiv.style.background = layer.bgColor;
+      if (layer.borderRadius) textDiv.style.borderRadius = layer.borderRadius + 'px';
+      el.appendChild(textDiv);
     }
 
-    const resH = document.createElement('div');
-    resH.style.cssText = 'position:absolute;bottom:0;right:0;width:12px;height:12px;cursor:nwse-resize;background:var(--accent);opacity:.5;border-radius:2px 0 0 0;z-index:2;';
-    el.appendChild(resH);
+    // Label shown on selection
+    const lbl = document.createElement('div');
+    lbl.className = 'wb-layer-label';
+    lbl.textContent = layer.label || layer.type;
+    el.appendChild(lbl);
 
+    // 8-handle resize system (corners + edges)
+    const handles = ['nw','ne','sw','se','n','s','w','e'];
+    const handleEls = {};
+    handles.forEach(dir => {
+      const h = document.createElement('div');
+      h.className = 'wb-resize-handle wb-resize-' + dir;
+      h.dataset.dir = dir;
+      el.appendChild(h);
+      handleEls[dir] = h;
+    });
+
+    // Drag + resize handler
     el.addEventListener('mousedown', e => {
       if (layer.locked) return;
       e.stopPropagation();
+      e.preventDefault();
       wbSelectedLayer = layer.id;
       wbRenderLayers(); wbRenderLayerList();
-      const isResize = e.target === resH;
+
+      const handleDir = e.target.dataset.dir || null;
+      const isDrag = !handleDir;
       const startX = e.clientX, startY = e.clientY;
       const origX = layer.x, origY = layer.y, origW = layer.w, origH = layer.h;
-      function snapToGrid(val) { const grid = 20, snap = 5; const r = val % grid; return Math.abs(r) < snap ? val - r : Math.abs(r - grid) < snap ? val - r + grid : val; }
+      const MIN_W = 30, MIN_H = 20;
+
+      function snap(val) { const grid = 20, s = 5; const r = val % grid; return Math.abs(r) < s ? val - r : Math.abs(r - grid) < s ? val - r + grid : val; }
+
       function onMove(ev) {
         const dx = ev.clientX - startX, dy = ev.clientY - startY;
-        if (isResize) { layer.w = Math.max(40, origW + dx); layer.h = Math.max(30, origH + dy); }
-        else { layer.x = snapToGrid(origX + dx); layer.y = snapToGrid(origY + dy); }
+        if (isDrag) {
+          layer.x = snap(origX + dx);
+          layer.y = snap(origY + dy);
+        } else {
+          // Resize from any handle direction
+          if (handleDir.includes('e')) layer.w = Math.max(MIN_W, origW + dx);
+          if (handleDir.includes('s')) layer.h = Math.max(MIN_H, origH + dy);
+          if (handleDir.includes('w')) {
+            const newW = Math.max(MIN_W, origW - dx);
+            layer.x = origX + (origW - newW);
+            layer.w = newW;
+          }
+          if (handleDir.includes('n')) {
+            const newH = Math.max(MIN_H, origH - dy);
+            layer.y = origY + (origH - newH);
+            layer.h = newH;
+          }
+        }
         el.style.left = layer.x + 'px'; el.style.top = layer.y + 'px';
         el.style.width = layer.w + 'px'; el.style.height = layer.h + 'px';
       }
-      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        wbSaveCurrentPage();
+      }
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     });
@@ -6890,7 +6969,21 @@ function renderStockChips() {
   stockTickers.forEach((t, i) => {
     const chip = document.createElement('span');
     chip.className = 'ticker-chip';
-    chip.innerHTML = t + ' <span class="tc-del">&times;</span>';
+    const inCompare = compareTickers.includes(t);
+    chip.innerHTML = t +
+      ' <span class="tc-cmp" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart" style="font-size:9px;cursor:pointer;opacity:' + (inCompare ? '1' : '.5') + ';color:' + (inCompare ? 'var(--accent)' : 'inherit') + ';">&#9878;</span>' +
+      ' <span class="tc-del">&times;</span>';
+    chip.querySelector('.tc-cmp').onclick = (e) => {
+      e.stopPropagation();
+      if (compareTickers.includes(t)) {
+        compareTickers = compareTickers.filter(x => x !== t);
+      } else {
+        compareTickers.push(t);
+      }
+      LS('compareTickers', compareTickers);
+      renderStockChips();
+      renderStockDash();
+    };
     chip.querySelector('.tc-del').onclick = () => {
       stockTickers.splice(i, 1);
       LS('stockTickers', stockTickers);
@@ -9811,11 +9904,22 @@ function serializeTabForCleanup(tabInfo) {
       type: 'whiteboard',
       width: wbCanvas.width, height: wbCanvas.height,
       layerCount: layers.length,
-      layers: layers.map(l => ({
-        id: l.id, label: l.label || '', type: l.type || 'unknown',
-        x: l.x || 0, y: l.y || 0, width: l.w || 0, height: l.h || 0,
-        zIndex: l.z || 0, visible: l.visible !== false
-      }))
+      layers: layers.map(l => {
+        const info = {
+          id: l.id, label: l.label || '', type: l.type || 'unknown',
+          x: l.x || 0, y: l.y || 0, width: l.w || 0, height: l.h || 0,
+          zIndex: l.zIndex || 0, visible: l.visible !== false
+        };
+        if (l.type === 'text') {
+          info.text = l.content || '';
+          info.fontSize = l.fontSize || 14;
+          info.color = l.color || '#ffffff';
+          info.bgColor = l.bgColor || null;
+          info.fontWeight = l.fontWeight || '600';
+          info.textCharCount = (l.content || '').length;
+        }
+        return info;
+      })
     };
   } else if (tabInfo.id === 'cmap') {
     const cmCanvas = document.getElementById('cmCanvas');
@@ -9872,10 +9976,30 @@ function applyCleanupResult(tabInfo, patch) {
     });
   } else if (tabInfo.id === 'q-whiteboard' && patch.length) {
     patch.forEach(change => {
-      if (change.change_type === 'flag_error' || change.change_type === 'flag_review') {
-        applied.push((change.change_type === 'flag_error' ? 'Error Flagged' : 'Flagged for Review') + ': ' + (change.description || change.element_id));
+      const layer = typeof wbLayers !== 'undefined' ? wbLayers.find(l => l.id === change.element_id) : null;
+      if (change.change_type === 'reposition' && layer) {
+        if (change.x !== undefined) layer.x = change.x;
+        if (change.y !== undefined) layer.y = change.y;
+        applied.push('Repositioned: ' + (layer.label || layer.id));
+      } else if (change.change_type === 'resize' && layer) {
+        if (change.w !== undefined) layer.w = change.w;
+        if (change.h !== undefined) layer.h = change.h;
+        applied.push('Resized: ' + (layer.label || layer.id));
+      } else if (change.change_type === 'restyle' && layer) {
+        if (change.fontSize !== undefined) layer.fontSize = change.fontSize;
+        if (change.color !== undefined) layer.color = change.color;
+        if (change.bgColor !== undefined) layer.bgColor = change.bgColor;
+        if (change.fontWeight !== undefined) layer.fontWeight = change.fontWeight;
+        if (change.borderRadius !== undefined) layer.borderRadius = change.borderRadius;
+        applied.push('Restyled: ' + (layer.label || layer.id));
+      } else if (change.change_type === 'flag_error') {
+        applied.push('Error Flagged: ' + (change.description || change.element_id));
+      } else if (change.change_type === 'flag_review') {
+        applied.push('Flagged for Review: ' + (change.description || change.element_id));
       }
     });
+    if (typeof wbRenderLayers === 'function') wbRenderLayers();
+    if (typeof wbSaveCurrentPage === 'function') wbSaveCurrentPage();
   }
   return applied;
 }
@@ -9891,6 +10015,8 @@ function showCleanupSummary(tabLabel, summary, appliedChanges) {
   panel.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9000;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px;max-width:380px;max-height:400px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);font-size:.62rem;color:var(--text);';
 
   const repoChanges = appliedChanges.filter(c => c.startsWith('Repositioned'));
+  const resizeChanges = appliedChanges.filter(c => c.startsWith('Resized'));
+  const restyleChanges = appliedChanges.filter(c => c.startsWith('Restyled'));
   const errorChanges = appliedChanges.filter(c => c.startsWith('Error Flagged'));
   const formatChanges = appliedChanges.filter(c => c.startsWith('Formatting Fixed'));
   const reviewChanges = appliedChanges.filter(c => c.startsWith('Flagged for Review'));
@@ -9909,6 +10035,8 @@ function showCleanupSummary(tabLabel, summary, appliedChanges) {
   }
 
   html += section('Repositioned', repoChanges);
+  html += section('Resized', resizeChanges);
+  html += section('Restyled', restyleChanges);
   html += section('Error Flagged', errorChanges);
   html += section('Formatting Fixed', formatChanges);
   html += section('Flagged for Review', reviewChanges);
@@ -9968,31 +10096,69 @@ $('#aiCleanupBtn').onclick = async () => {
   const tabState = serializeTabForCleanup(tabInfo);
   if (!tabState) { toast('Could not read tab state'); return; }
 
-  const cleanupSystemPrompt = `Persona: Senior UX-Aware Technical Editor operating in a visual workspace environment.
+  const cleanupSystemPrompt = `Persona: Senior Visual Designer & UX Editor with strong opinions on typography, layout, and color.
 
-You are performing a non-destructive cleanup pass on a workspace tab. Your job is to identify and resolve visual, structural, and formatting problems in the content provided.
+You are performing a quality-focused cleanup pass on a workspace tab. Your job is to transform messy, overlapping, or poorly formatted content into clean, polished, professional output.
+
+DESIGN PHILOSOPHY:
+  - Clean whitespace > clutter. Elements need breathing room (minimum 16px gap between items).
+  - Typography must be readable: favor 11-14px fonts for body, 16-20px for titles. Never let text overflow its container.
+  - Colors should be soft and harmonious. Prefer muted, sophisticated palettes:
+    Backgrounds: #1e293b, #0f172a, #1a1a2e, #16213e (dark) or #f8fafc, #f1f5f9, #e2e8f0 (light)
+    Accents: #6366f1, #8b5cf6, #06b6d4, #10b981, #f59e0b — never harsh primaries
+    Text: #e2e8f0 on dark, #334155 on light
+  - All text must fit inside its box. If text is too long, the box must be wider or the font smaller. Never allow text clipping.
+  - Alignment matters: left-align groups, distribute evenly, use consistent sizing for related elements.
+  - Visual hierarchy: titles > subtitles > body > captions. Size and weight must reflect importance.
 
 Priority stack (high to low):
-  1. Error visibility — errored or broken elements must be surfaced, never hidden
-  2. Spatial clarity — overlapping or densely packed elements must be resolved
-  3. Visual hierarchy — structure should be immediately scannable at a glance
-  4. Formatting consistency — text-based tabs follow clean normalized conventions
-  5. Preservation — do not remove, reorder semantically, or alter user intent
+  1. TEXT OVERFLOW — words extending outside boxes is the #1 defect. Fix by enlarging container or reducing font.
+  2. Overlap resolution — no two elements should overlap. Reposition with clean spacing.
+  3. Size consistency — related items should share dimensions. Charts ~250-350px wide, text boxes ~140-280px wide.
+  4. Visual hierarchy — scannable at a glance, clear grouping.
+  5. Error surfacing — broken/errored elements must be flagged.
+  6. Preservation — do not remove content or alter user intent.
 
 Operating rules:
   - Work only within the content boundary of the active tab
-  - Do not add new content nodes — only reposition, restyle, flag, or annotate
-  - For each change made, emit a structured entry to the Cleanup Summary log
-  - If a problem is ambiguous (unclear if intentional), flag with change_type "flag_review" but do not auto-fix
-  - Output: a JSON object with two keys:
-    1. "patch": a JSON array of change objects, each with: element_id, change_type (reposition/flag_error/flag_review/replace_html), and relevant fields (x, y, reason, description, new_html)
-    2. "summary": a plain text string summarizing what was done
+  - Do not add new content nodes — only reposition, resize, restyle, flag, or annotate
+  - For each change, emit a structured entry to the patch array
+  - Output: JSON object with two keys:
+    1. "patch": array of change objects with: element_id, change_type, and relevant fields
+    2. "summary": plain text string of what was done
+
+Change types and their fields:
+  - "reposition": element_id, x, y (move element to new position)
+  - "resize": element_id, w, h (resize element — USE THIS to fix text overflow)
+  - "restyle": element_id, fontSize, color, bgColor, fontWeight, borderRadius (visual fixes)
+  - "flag_error": element_id, reason
+  - "flag_review": element_id, reason
+  - "replace_html": new_html, description (for notepad/sheet tabs — include FULL cleaned HTML)
 
 Tab-specific rules:
-  - Whiteboard: fix overlap, z-index, error surfacing, density spacing via layer repositioning
-  - Concept Map: node spacing, hierarchy breathing room, connector routing, error flags
-  - Notepad: heading normalization, list indentation (2-space), max 1 blank line, font consistency. For replace_html changes, include the full cleaned HTML.
-  - Scratch Sheet: same as Notepad plus flag broken embeds or references
+  - WHITEBOARD:
+    * Grid-align layers in clean rows/columns with 20px gutters
+    * Ensure text layers have containers large enough for their content (width >= text length * fontSize * 0.6)
+    * Use consistent sizing: group similar items to identical dimensions
+    * Stack order: background images lowest z-index, text overlays highest
+    * Reposition to avoid all overlap, distribute evenly across available canvas space
+  - CONCEPT MAP:
+    * Node spacing minimum 40px between edges
+    * Hierarchy: root nodes centered top, children flow downward
+    * Breathing room: nodes should not crowd edges of canvas
+  - NOTEPAD:
+    * PROFESSIONAL FORMAT: Convert casual/unstructured text into clean, concise notation
+    * Use <h2> for main section headings (with bottom border implied by CSS)
+    * Use <h4> for subsection labels (uppercase, accent-colored by CSS)
+    * Use <ul>/<li> bullet points for all lists — never raw dashes or asterisks
+    * Use <blockquote> for callouts, key takeaways, or important context
+    * Use <hr> dividers between major sections
+    * Use <b> for key terms, metrics, and emphasis
+    * Keep paragraphs SHORT — 2-3 sentences max, then break
+    * Remove excessive blank lines (max 1 between sections)
+    * Font consistency: remove inline font-size/font-family overrides
+    * Structure: Section Heading → context sentence → bullet details → divider → next section
+  - SCRATCH SHEET: flag broken embeds, normalize cell formatting
 
 IMPORTANT: Return ONLY valid JSON. No markdown fences, no explanation outside the JSON.`;
 
@@ -11150,19 +11316,22 @@ async function executeAgentTool(name, input) {
         return JSON.stringify({ success: true });
       }
       case 'add_text_overlay': {
-        wbSaveState('Add text overlay');
         const sz = input.size || 24;
-        wbX.font = 'bold ' + sz + 'px system-ui';
-        wbX.fillStyle = '#ffffff';
-        wbX.strokeStyle = '#000000';
-        wbX.lineWidth = 3;
-        wbX.textAlign = 'center';
-        let y = sz + 10;
-        if (input.position === 'center') y = wbC.height / 2;
-        else if (input.position === 'bottom') y = wbC.height - 15;
-        wbX.strokeText(input.text, wbC.width / 2, y);
-        wbX.fillText(input.text, wbC.width / 2, y);
-        return JSON.stringify({ success: true });
+        let yPos = 20;
+        if (input.position === 'center') yPos = Math.round(wbC.height / 2 - sz);
+        else if (input.position === 'bottom') yPos = wbC.height - sz * 2 - 20;
+        const estW = Math.max(100, Math.min(wbC.width - 40, input.text.length * sz * 0.55));
+        const estH = Math.max(32, sz * 1.8);
+        const layer = wbAddLayer('text', input.text, {
+          x: Math.round((wbC.width - estW) / 2), y: yPos,
+          w: estW, h: estH,
+          label: input.text.length > 20 ? input.text.substring(0, 18) + '...' : input.text,
+          category: 'text', source: 'bot'
+        });
+        layer.fontSize = sz;
+        layer.color = '#ffffff';
+        layer.fontWeight = 'bold';
+        return JSON.stringify({ success: true, layer_id: layer.id });
       }
       case 'clear_draw_pane': {
         wbSaveState('Clear draw pane');
@@ -11595,6 +11764,25 @@ if (robotSceneSel) {
   robotSceneSel.addEventListener('change', () => setRobotScene(robotSceneSel.value));
 }
 
+// ── Character style toggle (office vs genie appearance — purely visual) ──
+const robotStyleSel = document.getElementById('robotStyleSelect');
+function setRobotStyle(style) {
+  const scene = document.getElementById('robotScene');
+  if (!scene) return;
+  if (style === 'genie') {
+    scene.classList.add('genie-mode');
+  } else {
+    scene.classList.remove('genie-mode');
+  }
+  localStorage.setItem('ws_robotStyle', style);
+}
+if (robotStyleSel) {
+  const savedStyle = localStorage.getItem('ws_robotStyle') || 'office';
+  robotStyleSel.value = savedStyle;
+  setRobotStyle(savedStyle);
+  robotStyleSel.addEventListener('change', () => setRobotStyle(robotStyleSel.value));
+}
+
 // ── Genie mode (user mode: 3 free prompts then sleep) ──
 let geniePromptsLeft = 3;
 let genieMode = false;
@@ -11605,8 +11793,15 @@ function activateGenieMode() {
   genieSleeping = false;
   const scene = document.getElementById('robotScene');
   if (!scene) return;
-  scene.classList.add('genie-mode');
   scene.classList.remove('sleeping-mode');
+  // Apply genie visual style and sync the style toggle
+  const savedStyle = localStorage.getItem('ws_robotStyle') || 'genie';
+  if (savedStyle === 'genie') scene.classList.add('genie-mode');
+  const styleSel = document.getElementById('robotStyleSelect');
+  if (styleSel && !localStorage.getItem('ws_robotStyle')) {
+    styleSel.value = 'genie';
+    setRobotStyle('genie');
+  }
   // Set desert as default scene but allow user to change
   const savedScene = localStorage.getItem('ws_robotScene');
   if (!savedScene) setRobotScene('desert');
