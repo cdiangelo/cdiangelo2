@@ -107,6 +107,117 @@ app.get('/proxy/news', async (req, res) => {
   }
 });
 
+// GET /proxy/article?url=<encoded_url> — Fetch article HTML server-side (bypasses CAPTCHA/paywalls)
+// Returns cleaned article content as HTML fragment for inline viewing
+app.get('/proxy/article', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: true, message: 'Missing url parameter' });
+
+  const cached = getCached('article:' + url);
+  if (cached) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(cached.data);
+  }
+
+  try {
+    // Try archive.is first (best for paywalled content)
+    let html = '';
+    let fetched = false;
+    try {
+      const archiveResp = await fetch('https://archive.is/newest/' + url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'en-US,en;q=0.9'
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(12000)
+      });
+      if (archiveResp.ok) {
+        const archiveHtml = await archiveResp.text();
+        // archive.is returns full page — check if it's actual content (not a CAPTCHA page)
+        if (archiveHtml.length > 5000 && !archiveHtml.includes('g-recaptcha') && !archiveHtml.includes('h-captcha')) {
+          html = archiveHtml;
+          fetched = true;
+        }
+      }
+    } catch (_) { /* archive.is failed, try direct */ }
+
+    // Fallback: fetch article directly
+    if (!fetched) {
+      const directResp = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'en-US,en;q=0.9'
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!directResp.ok) {
+        return res.status(directResp.status).json({ error: true, message: 'Article fetch failed (HTTP ' + directResp.status + ')' });
+      }
+      html = await directResp.text();
+    }
+
+    // Extract readable content: find <article>, or main content block, or body
+    let content = '';
+
+    // Try to extract <article> tag content
+    const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+    if (articleMatch) {
+      content = articleMatch[1];
+    } else {
+      // Try common content selectors by class/id
+      const contentMatch = html.match(/<(?:div|section|main)[^>]*(?:class|id)="[^"]*(?:article|story|content|post|entry|main)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|section|main)>/i);
+      if (contentMatch) {
+        content = contentMatch[1];
+      } else {
+        // Last resort: extract body
+        const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+        content = bodyMatch ? bodyMatch[1] : html;
+      }
+    }
+
+    // Strip scripts, styles, and nav elements
+    content = content
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+      .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+      .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '')
+      .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
+      .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '');
+
+    // Wrap in a clean readable page
+    const readable = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body { font-family: Georgia, 'Times New Roman', serif; max-width: 720px; margin: 20px auto; padding: 0 20px;
+         line-height: 1.7; color: #1a1a1a; background: #fff; font-size: 17px; }
+  img { max-width: 100%; height: auto; border-radius: 4px; margin: 12px 0; }
+  a { color: #1a73e8; }
+  h1, h2, h3 { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.3; }
+  blockquote { border-left: 3px solid #ddd; padding-left: 16px; margin-left: 0; color: #555; }
+  figure { margin: 16px 0; }
+  figcaption { font-size: 14px; color: #666; margin-top: 4px; }
+  .proxy-notice { background: #f0f4ff; border: 1px solid #c8d6f0; border-radius: 6px; padding: 8px 14px;
+                  font-size: 13px; color: #555; margin-bottom: 20px; font-family: sans-serif; }
+  .proxy-notice a { color: #1a73e8; }
+</style></head><body>
+<div class="proxy-notice">Fetched via proxy &mdash; <a href="${url}" target="_blank">Open original article &#8599;</a></div>
+${content}
+</body></html>`;
+
+    setCache('article:' + url, readable, 'text/html');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(readable);
+  } catch (e) {
+    res.status(502).json({ error: true, message: 'Article proxy error: ' + e.message });
+  }
+});
+
 // ═══════════════════════════════════════════
 // AI PROXY — API key held server-side only
 // ═══════════════════════════════════════════

@@ -2038,8 +2038,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <option value="verified">Verified</option>
         </select>
         <select id="newsOpenMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);" title="How to open articles">
+          <option value="reader">Reader</option>
           <option value="newtab">New Tab</option>
-          <option value="cache">Cached</option>
+          <option value="cache">Cached (archive.is)</option>
         </select>
         <input type="text" id="newsSearch" placeholder="Search news by keyword or ticker..." style="flex:1;min-width:120px;" />
         <button id="newsSearchBtn">Search</button>
@@ -2061,8 +2062,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <button id="newsViewerBack" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);cursor:pointer;font-size:.72rem;">&larr; Back</button>
           <span id="newsViewerTitle" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;color:var(--text);font-weight:600;"></span>
           <select id="newsViewerMode" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+            <option value="reader">Reader</option>
             <option value="direct">Direct</option>
-            <option value="archive">Cache</option>
+            <option value="archive">Cache (archive.is)</option>
           </select>
           <a id="newsViewerExternal" href="#" target="_blank" style="font-size:.65rem;color:var(--accent2);text-decoration:none;padding:2px 6px;border:1px solid var(--border);border-radius:3px;" title="Open in new tab">&#8599; New Tab</a>
         </div>
@@ -7991,22 +7993,27 @@ Format this as a polished research report. Cite specific sources by name. Use re
 $('#newsDeepResearch').onclick = runDeepResearch;
 
 // Inline article viewer
-let newsViewerState = { directUrl: '', archiveUrl: '' };
+let newsViewerState = { directUrl: '', archiveUrl: '', readerUrl: '' };
 
 function openNewsArticle(title, url) {
-  const openMode = $('#newsOpenMode')?.value || 'newtab';
+  const openMode = $('#newsOpenMode')?.value || 'reader';
   if (openMode === 'newtab') {
-    // Open directly in new tab — bypasses iframe restrictions
     window.open(url, '_blank');
     return;
   }
-  // Cache mode — use Google web cache proxy in iframe viewer
+  if (openMode === 'cache') {
+    // archive.is in a new tab (not iframe) so CAPTCHA can actually complete
+    window.open('https://archive.is/newest/' + url, '_blank');
+    return;
+  }
+  // Reader mode — fetch via server-side proxy (no CAPTCHA needed)
+  const readerUrl = PROXY_BASE + '/proxy/article?url=' + encodeURIComponent(url);
   const cacheUrl = 'https://archive.is/newest/' + encodeURIComponent(url);
-  newsViewerState = { directUrl: url, cacheUrl };
+  newsViewerState = { directUrl: url, cacheUrl, readerUrl };
   $('#newsViewerTitle').textContent = title;
   $('#newsViewerExternal').href = url;
-  $('#newsViewerMode').value = 'archive';
-  $('#newsViewerFrame').src = cacheUrl;
+  $('#newsViewerMode').value = 'reader';
+  $('#newsViewerFrame').src = readerUrl;
   $('#newsViewer').style.display = 'flex';
 }
 
@@ -8022,7 +8029,13 @@ $('#newsViewerBack').onclick = () => {
 
 $('#newsViewerMode').onchange = function() {
   if (!newsViewerState.directUrl) return;
-  const src = this.value === 'archive' ? newsViewerState.cacheUrl : newsViewerState.directUrl;
+  if (this.value === 'archive') {
+    // Open archive.is in new tab — CAPTCHA doesn't work in iframes
+    window.open(newsViewerState.cacheUrl, '_blank');
+    this.value = 'reader'; // reset dropdown
+    return;
+  }
+  const src = this.value === 'reader' ? newsViewerState.readerUrl : newsViewerState.directUrl;
   $('#newsViewerFrame').src = src;
   $('#newsViewerExternal').href = newsViewerState.directUrl;
 };
