@@ -1804,7 +1804,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="wbLayers" title="Toggle layer panel">Layers</button>
       </div>
       <div class="wb-wrap" id="wbWrap" style="position:relative;">
-        <canvas id="wbCanvas" style="position:relative;z-index:1;"></canvas>
+        <canvas id="wbCanvas" style="position:absolute;top:0;left:0;z-index:1;"></canvas>
         <canvas id="wbGridCanvas" style="position:absolute;top:0;left:0;z-index:2;pointer-events:none;"></canvas>
         <!-- Layer objects rendered here -->
       </div>
@@ -2158,6 +2158,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 
   <!-- Sports pane removed — now a tab within Analytics (q-map) -->
+  <!-- Media pane removed from grid — accessible only via header nav button (expanded fullscreen) -->
 </div>
 
 <!-- Mobile navigation bar -->
@@ -2680,6 +2681,11 @@ $$('[data-expand]').forEach(btn => {
     } else {
       // Collapsing — re-apply grid order to restore correct visibility
       applyGridOrder(getGridOrder());
+      // Hide non-grid panes (e.g. media) that were expanded via nav button
+      const gridPaneIds = new Set(GRID_PANES.map(gp => gp.id));
+      if (!gridPaneIds.has(btn.dataset.expand)) {
+        p.style.display = 'none';
+      }
     }
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
@@ -2706,6 +2712,9 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
     } else {
       // Returning to "All" view — re-apply grid order to restore correct visibility
       applyGridOrder(getGridOrder());
+      // Hide non-grid panes (e.g. media) that may have been expanded
+      const gridPaneIds = new Set(GRID_PANES.map(gp => gp.id));
+      $$('.pane').forEach(el => { if (!gridPaneIds.has(el.id)) el.style.display = 'none'; });
     }
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
@@ -2713,12 +2722,16 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
 
 // Reset grid — show all panes in default layout
 $('#resetGridBtn').onclick = () => {
-  // Remove expanded state and reset zoom
+  // Remove expanded state and reset zoom (only grid-managed panes)
+  const gridPaneIds = new Set(GRID_PANES.map(p => p.id));
   $$('.pane').forEach(el => {
     el.classList.remove('expanded');
-    el.style.display = '';
     el.style.gridColumn = '';
     el.style.gridRow = '';
+    // Only reset display for grid-managed panes; keep non-grid panes hidden
+    if (gridPaneIds.has(el.id)) {
+      el.style.display = '';
+    }
     const body = el.querySelector('.p-body');
     const label = el.querySelector('.zoom-level');
     if (body) { body.style.fontSize = ''; body.dataset.zoom = '100'; }
@@ -2747,8 +2760,7 @@ const GRID_PANES = [
   { id: 'q-sheet', label: 'Sheet' },
   { id: 'q-whiteboard', label: 'Whiteboard' },
   { id: 'q-map', label: 'Analytics' },
-  { id: 'q-news', label: 'News' },
-  { id: 'q-media', label: 'Media' }
+  { id: 'q-news', label: 'News' }
 ];
 const GRID_POSITIONS = [
   { col: 1, row: 1 }, { col: 3, row: 1 }, { col: 5, row: 1 },
@@ -2791,9 +2803,8 @@ function applyGridOrder(order) {
     el.style.gridColumn = GRID_POSITIONS[i].col;
     el.style.gridRow = GRID_POSITIONS[i].row;
   });
-  // If media pane is in grid, snap video player into it
-  if (order.includes('q-media')) snapVideoToMediaPane();
-  else releaseVideoFromMediaPane();
+  // Media pane is not a grid pane — release video player if needed
+  releaseVideoFromMediaPane();
 }
 
 function openGridSettings() {
@@ -2848,8 +2859,7 @@ $('#gridApplyBtn').onclick = () => {
     { id: 'q-news', label: 'News', icon: '\uD83D\uDCF0', desc: 'Search news by keyword or track market tickers' },
     { id: 'q-notepad', label: 'Notes', icon: '\uD83D\uDCDD', desc: 'Rich text editor with formatting and colors' },
     { id: 'q-whiteboard', label: 'Draw', icon: '\uD83C\uDFA8', desc: 'Freeform drawing with shapes, text, and layers' },
-    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA', desc: 'Spreadsheet with formulas like SUM, AVG, VLOOKUP' },
-    { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F', desc: 'YouTube video player and playlist' }
+    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA', desc: 'Spreadsheet with formulas like SUM, AVG, VLOOKUP' }
   ];
   let mobIdx = -1; // -1 = table of contents home
   const isMobile = () => window.innerWidth <= 768;
@@ -3327,10 +3337,10 @@ function showVideo(idx) {
     adTimer = setTimeout(dismissOverlay, AD_WAIT_MS);
   }
 
-  // ADDED — Phase 11: If media pane is in grid, snap into it instead of body
-  const mediaOrder = typeof getGridOrder === 'function' ? getGridOrder() : [];
+  // Snap into media pane if it's currently expanded (fullscreen)
+  const mediaPane = document.getElementById('q-media');
   const mediaPanePlayer = document.getElementById('mediaPanePlayer');
-  if (mediaOrder.includes('q-media') && mediaPanePlayer) {
+  if (mediaPane && mediaPane.classList.contains('expanded') && mediaPanePlayer) {
     funWrap.style.cssText = 'position:relative;width:100%;height:100%;border-radius:0;box-shadow:none;pointer-events:auto;';
     iframe.style.cssText = 'width:100%;height:100%;border:none;opacity:' + savedOpacity + ';pointer-events:auto;';
     mediaPanePlayer.appendChild(funWrap);
@@ -3436,9 +3446,9 @@ try {
     localStorage.setItem('funVideos', JSON.stringify(FUN_VIDEOS));
     funState = FUN_VIDEOS.length - 1;
     showVideo(funState);
-    // If media pane is visible, snap into it
-    const order = getGridOrder();
-    if (order.includes('q-media')) setTimeout(snapVideoToMediaPane, 100);
+    // If media pane is expanded (fullscreen), snap into it
+    const mediaPane = document.getElementById('q-media');
+    if (mediaPane && mediaPane.classList.contains('expanded')) setTimeout(snapVideoToMediaPane, 100);
     toast('Added: ' + label);
   };
   if (mediaListBtn) mediaListBtn.onclick = () => renderEditor();
