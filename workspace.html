@@ -9908,6 +9908,30 @@ function addAiMsg(role, text) {
   return div;
 }
 
+// ── Task progress timestamps ──
+// Usage: chatTimestamp('start', 'Analyzing portfolio')
+//        chatTimestamp('done', 'Analyzing portfolio')
+//        chatTimestamp('warn', 'Rate limited — retrying in 15s')
+//        chatTimestamp('error', 'API call failed — timeout')
+function chatTimestamp(level, text) {
+  const now = new Date();
+  const ts = '[' + now.toTimeString().slice(0, 8) + ']';
+  const icons = { start: '\uD83D\uDD27', done: '\u2705', warn: '\u26A0\uFE0F', error: '\u274C' };
+  const colors = { start: 'var(--accent)', done: '#22c55e', warn: '#f59e0b', error: '#ef4444' };
+  const prefixes = { start: 'Starting: ', done: 'Done: ', warn: '', error: 'Failed: ' };
+  const icon = icons[level] || '\u2139\uFE0F';
+  const color = colors[level] || 'var(--text-dim)';
+  const prefix = prefixes[level] || '';
+  const div = document.createElement('div');
+  div.className = 'ai-msg system task-timestamp';
+  div.style.cssText = 'font-size:.6rem;padding:3px 10px;color:' + color + ';opacity:0.9;';
+  div.textContent = ts + ' ' + icon + ' ' + prefix + text;
+  const container = $('#aiMsgs');
+  if (container) { container.appendChild(div); container.scrollTop = container.scrollHeight; }
+  console.log(ts, icon, prefix + text);
+  return div;
+}
+
 function addToolStatus(toolName, input) {
   const labels = {
     write_cells: 'Writing ' + ((input && input.cells) ? input.cells.length : '') + ' cells to sheet',
@@ -9956,9 +9980,10 @@ function addToolStatus(toolName, input) {
     clear_concept_map: 'Clearing concept map',
     set_concept_map_layout: 'Repositioning concept map'
   };
+  const ts = '[' + new Date().toTimeString().slice(0, 8) + ']';
   const div = document.createElement('div');
   div.className = 'ai-msg tool-status';
-  div.textContent = '\u2699 ' + (labels[toolName] || toolName) + '...';
+  div.textContent = ts + ' \u2699 ' + (labels[toolName] || toolName) + '...';
   $('#aiMsgs').appendChild(div);
   $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
   return div;
@@ -11187,6 +11212,7 @@ async function sendAgentMessage() {
   }
 
   const thinkingDiv = addAiMsg('system', 'Thinking... [' + TASK_TIERS[currentTierKey].label + ']');
+  chatTimestamp('start', input.length > 60 ? input.substring(0, 57) + '...' : input);
   aiStreaming = true;
   setRobotWorking(true);
   const inquiryActions = []; // Track tool actions for this inquiry
@@ -11226,10 +11252,11 @@ async function sendAgentMessage() {
   }
 
   function _showStallAlert(level, message) {
+    const ts = '[' + new Date().toTimeString().slice(0, 8) + ']';
     const div = document.createElement('div');
     div.className = 'ai-msg system stall-alert';
     const icon = level === 'timeout' ? '\u26D4' : '\u26A0\uFE0F';
-    div.innerHTML = '<span style="font-size:.72rem;">' + icon + '</span> <span>' + message + '</span>';
+    div.innerHTML = '<span style="font-size:.56rem;color:var(--text-dim);margin-right:4px;">' + ts + '</span><span style="font-size:.72rem;">' + icon + '</span> <span>' + message + '</span>';
     div.style.cssText = 'color:' + (level === 'timeout' ? 'var(--danger)' : '#FF9800') + ';font-size:.62rem;padding:6px 10px;background:' + (level === 'timeout' ? 'rgba(239,68,68,.08)' : 'rgba(255,152,0,.08)') + ';border:1px solid ' + (level === 'timeout' ? 'rgba(239,68,68,.25)' : 'rgba(255,152,0,.25)') + ';border-radius:6px;margin:4px 0;';
     $('#aiMsgs').appendChild(div);
     $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
@@ -11507,6 +11534,7 @@ async function sendAgentMessage() {
       // (user can retry manually — true auto-retry would require recursion)
     }
     if (!_stall.aborted) thinkingDiv.textContent = 'Error: ' + e.message + (nextTier ? ' (escalation to ' + TASK_TIERS[nextTier].label + ' available — retry)' : '');
+    chatTimestamp('error', e.message.length > 80 ? e.message.substring(0, 77) + '...' : e.message);
     updateTaskAttemptStatus(taskId, 'error');
     appendTaskAttemptOutput(taskId, 'Error: ' + e.message);
   }
@@ -11515,7 +11543,10 @@ async function sendAgentMessage() {
   setRobotWorking(false);
   if (aiTaskAttempts[taskId]?.attempts?.length) {
     const lastAtt = aiTaskAttempts[taskId].attempts[aiTaskAttempts[taskId].attempts.length - 1];
-    if (lastAtt.status === 'running') lastAtt.status = 'completed';
+    if (lastAtt.status === 'running') {
+      lastAtt.status = 'completed';
+      chatTimestamp('done', input.length > 60 ? input.substring(0, 57) + '...' : input);
+    }
   }
   // Render attempt headers if multiple attempts exist
   renderTaskAttemptHeaders(taskId, $('#aiMsgs'));
