@@ -534,60 +534,13 @@ body.light #designBotPanel .db-msg.assistant { background: rgba(255,248,230,.25)
 .robot-scene-resize:hover { background: var(--accent); opacity: .8; }
 .pane.expanded .robot-scene-resize { display: block; }
 
-/* ═══ GENIE MODE (user mode) ═══ */
-/* Genie hat — tall curved fez with gold band */
-.robot-genie-hat { display: none; position: absolute; top: -20px; left: 50%; transform: translateX(-50%); z-index: 10; }
-.genie-mode .robot-genie-hat { display: block; }
-.robot-genie-hat .hat-body { width: 22px; height: 20px; background: linear-gradient(180deg, #6A1B9A 0%, #4A148C 60%, #38006b 100%); border-radius: 4px 4px 1px 1px; position: relative; clip-path: polygon(20% 100%, 80% 100%, 90% 30%, 70% 0%, 30% 0%, 10% 30%); }
-.robot-genie-hat .hat-band { position: absolute; bottom: 0; left: -2px; right: -2px; height: 4px; background: linear-gradient(90deg, #FFD600, #FFA000, #FFD600); border-radius: 1px; }
-.robot-genie-hat .hat-jewel { position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; background: radial-gradient(circle, #FF1744, #B71C1C); border-radius: 50%; box-shadow: 0 0 4px #FF1744; }
-.robot-genie-hat .hat-tip { position: absolute; top: -4px; right: -6px; width: 10px; height: 6px; background: linear-gradient(135deg, #7B1FA2, #4A148C); border-radius: 50% 50% 0 50%; transform: rotate(-15deg); }
-/* Magic carpet */
-.robot-carpet { display: none; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 2; }
-.genie-mode .robot-carpet { display: block; }
-.robot-carpet .carpet-body { width: 100px; height: 10px; background: linear-gradient(90deg, #B71C1C, #D32F2F 15%, #E65100 30%, #D32F2F 50%, #E65100 70%, #D32F2F 85%, #B71C1C); border-radius: 40%; position: relative; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
-.robot-carpet .carpet-body::before { content: ''; position: absolute; inset: 2px 4px; background: repeating-linear-gradient(90deg, rgba(255,215,0,.25) 0px, transparent 2px, transparent 6px, rgba(255,215,0,.25) 8px), repeating-linear-gradient(0deg, rgba(255,215,0,.15) 0px, transparent 1px, transparent 3px, rgba(255,215,0,.15) 4px); border-radius: 30%; }
-.robot-carpet .carpet-fringe-l, .robot-carpet .carpet-fringe-r { position: absolute; top: 1px; width: 6px; height: 8px; background: repeating-linear-gradient(180deg, #FFD600 0px, #FFD600 1px, #D32F2F 1px, #D32F2F 2px); border-radius: 0 0 1px 1px; }
-.robot-carpet .carpet-fringe-l { left: -4px; }
-.robot-carpet .carpet-fringe-r { right: -4px; }
-/* Float animation for genie mode */
-.genie-mode .robot-workstation { animation: genieFloat 3s ease-in-out infinite; }
-@keyframes genieFloat {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(-8px); }
-}
-/* Hide desk and monitors in genie mode */
-.genie-mode .robot-desk { display: none; }
-.genie-mode .robot-monitors { display: none; }
-/* Prompt counter badge */
-.genie-prompts-badge { display: none; position: absolute; top: 4px; right: 8px; z-index: 10; font-size: .55rem; font-weight: 700; color: #FFD600; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
-.genie-mode .genie-prompts-badge { display: block; }
-
-/* ═══ SLEEPING MODE (after prompts exhausted) ═══ */
-.robot-bed { display: none; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 2; width: 80px; height: 24px; }
-.sleeping-mode .robot-bed { display: block; }
-.robot-bed .bed-frame { position: absolute; bottom: 0; width: 100%; height: 14px; background: linear-gradient(180deg, #5D4037, #3E2723); border-radius: 3px 3px 0 0; }
-.robot-bed .bed-pillow { position: absolute; bottom: 10px; left: 4px; width: 18px; height: 10px; background: #E8E0D8; border-radius: 4px; box-shadow: inset 0 -2px 3px rgba(0,0,0,.1); }
-.robot-bed .bed-blanket { position: absolute; bottom: 4px; left: 14px; right: 4px; height: 16px; background: linear-gradient(180deg, #1565C0, #0D47A1); border-radius: 6px 6px 2px 2px; z-index: 3; }
-.robot-bed .bed-blanket::before { content: ''; position: absolute; top: 2px; left: 4px; right: 4px; height: 1px; background: rgba(255,255,255,.1); border-radius: 1px; }
-/* Sleeping robot overrides */
-.sleeping-mode .robot-workstation { animation: none; }
-.sleeping-mode .robot-body { transform: translateX(-50%) rotate(-90deg) translateY(10px); bottom: 10px; }
-.sleeping-mode .robot-head { animation: none; }
-.sleeping-mode .robot-monitors { display: none; }
-.sleeping-mode .robot-desk { display: none; }
-.sleeping-mode .robot-carpet { display: none; }
-.sleeping-mode .robot-genie-hat { display: none; }
-.sleeping-mode .robot-arms { display: none; }
-.sleeping-mode .robot-eyes .eye { height: 1px; border-radius: 1px; width: 5px; background: #1a1a1a; box-shadow: none; }
-/* Zzz animation */
-.robot-zzz { display: none; position: absolute; z-index: 10; font-size: .7rem; color: rgba(255,255,255,.4); font-weight: 700; }
-.sleeping-mode .robot-zzz { display: block; animation: zzzFloat 2.5s ease-in-out infinite; }
-@keyframes zzzFloat {
-  0% { opacity: .6; transform: translate(0, 0) scale(.8); }
-  50% { opacity: .3; transform: translate(6px, -12px) scale(1); }
-  100% { opacity: 0; transform: translate(10px, -22px) scale(1.2); }
-}
+/* ═══ USER MODE (prompt-limited) ═══ */
+/* Prompt counter badge — shown in user mode */
+.genie-prompts-badge { display: none; position: absolute; top: 4px; right: 8px; z-index: 10; font-size: .75rem; font-weight: 700; color: #fff; background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 8px; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.genie-prompts-badge.visible { display: block; }
+.genie-prompts-badge.exhausted { font-size: 1rem; color: #ff5252; background: rgba(0,0,0,.7); padding: 4px 12px; }
+/* Desk light — red/danger state when out of attempts */
+.desk-light.danger { background: #f44336; box-shadow: 0 0 10px #f44336, 0 0 20px rgba(244,67,54,.4); }
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(60px); }
   to { opacity: 1; transform: translateX(0); }
@@ -1675,11 +1628,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div class="robot-plant robot-plant-l"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div><div class="plant-leaf plant-leaf-t"></div></div>
         <div class="robot-plant robot-plant-r"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div></div>
         <div class="genie-prompts-badge" id="geniePromptsBadge"></div>
-        <div class="robot-zzz" id="robotZzz" style="top:20%;right:30%;">Z z z</div>
         <div class="robot-workstation" id="robotWorkstation">
           <div class="robot-body">
             <div class="robot-head" id="robotHead">
-              <div class="robot-genie-hat"><div class="hat-body"></div><div class="hat-band"></div><div class="hat-jewel"></div><div class="hat-tip"></div></div>
               <div class="robot-glasses"><div class="robot-glasses-bridge"></div></div>
               <div class="robot-eyes"><span class="eye"></span><span class="eye"></span></div>
             </div>
@@ -1700,8 +1651,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             </div>
             <div class="desk-light" id="deskLight"></div>
           </div>
-          <div class="robot-carpet"><div class="carpet-body"></div><div class="carpet-fringe-l"></div><div class="carpet-fringe-r"></div></div>
-          <div class="robot-bed"><div class="bed-frame"></div><div class="bed-pillow"></div><div class="bed-blanket"></div></div>
         </div>
         <!-- Design Bot mini character beside desk -->
         <div class="design-bot-char" id="designBotChar" title="Click to open Design Bot chat">
@@ -2555,7 +2504,11 @@ function $on(sel, event, handler) {
 }
 function $click(sel, handler) {
   const el = typeof sel === 'string' ? $(sel) : sel;
-  if (el) el.onclick = handler;
+  if (!el) return;
+  // Use addEventListener instead of onclick to prevent silent overwrites
+  el.addEventListener('click', function(e) {
+    try { handler.call(this, e); } catch(err) { console.error('[click handler]', sel, err); }
+  });
 }
 // Safe resize chain — each function isolated so one failure doesn't block others
 function safeResize() {
@@ -3804,10 +3757,10 @@ $$('.wb-tool').forEach(btn => {
   };
 });
 
-$('#wbGridMode').onchange = function() {
+$on('#wbGridMode', 'change', function() {
   wbGridMode = this.value;
   wbDrawGrid();
-};
+});
 
 wbC.addEventListener('mousedown', e => {
   const r = wbC.getBoundingClientRect();
@@ -5490,7 +5443,7 @@ $click('#neSave', () => {
 $click('#neCancel', () => $('#nodeEd').classList.remove('open'));
 
 // Templates
-$('#cmTemplate').onchange = function() {
+$on('#cmTemplate', 'change', function() {
   const t = this.value; if (!t) return;
   if (cmNodes.length && !confirm('Replace current map?')) { this.value = ''; return; }
   cmNodes = []; cmEdges = []; cmNID = 1;
@@ -5528,7 +5481,7 @@ $('#cmTemplate').onchange = function() {
   }
   this.value = ''; cmSave(); cmRender();
   toast(t.charAt(0).toUpperCase()+t.slice(1)+' loaded');
-};
+});
 
 // Auto layout
 $click('#cmLayout', () => {
@@ -6440,7 +6393,7 @@ $click('#stockAdd', () => {
   toast(t + ' added');
 });
 $on('#stockInput', 'keydown', e => { if (e.key === 'Enter') $('#stockAdd').click(); });
-$('#stockRange').onchange = () => renderStockDash();
+$on('#stockRange', 'change', () => renderStockDash());
 $click('#stockRefresh', () => { renderStockDash(); toast('Refreshed'); });
 
 function renderStockChips() {
@@ -6670,7 +6623,7 @@ $click('#gcAddExpr', () => {
   renderGCExprList();
 });
 
-$('#gcExamples').onchange = function() {
+$on('#gcExamples', 'change', function() {
   if (!this.value) return;
   gcExpressions.push({ expr: this.value, color: GC_COLORS[gcExpressions.length % GC_COLORS.length] });
   LS('gcExpressions', gcExpressions);
@@ -6678,13 +6631,13 @@ $('#gcExamples').onchange = function() {
   renderGC();
   this.value = '';
   toast('Added: ' + gcExpressions[gcExpressions.length - 1].expr);
-};
+});
 
 $click('#gcRedraw', () => { renderGC(); toast('Graph updated'); });
 ['gcXmin','gcXmax','gcYmin','gcYmax'].forEach(id => {
   $('#' + id).addEventListener('change', renderGC);
 });
-$('#gcShadeMode').onchange = renderGC;
+$on('#gcShadeMode', 'change', renderGC);
 
 // Auto-fit axes to visible curves
 $click('#gcAutoFit', () => {
@@ -7139,7 +7092,7 @@ $click('#wsMergeBtn', () => {
 
 // Import
 $click('#wsImport', () => $('#wsImportFile').click());
-$('#wsImportFile').onchange = function() {
+$on('#wsImportFile', 'change', function() {
   const file = this.files[0];
   if (!file) return;
   const reader = new FileReader();
@@ -7157,7 +7110,7 @@ $('#wsImportFile').onchange = function() {
   };
   reader.readAsText(file);
   this.value = '';
-};
+});
 
 // Export
 $click('#wsExport', () => {
@@ -7831,8 +7784,8 @@ $click('#stockBrowse', () => {
   if (panel.style.display === 'flex') renderBrowseList();
 });
 $click('#stockBrowseClose', () => { const p = $('#stockBrowsePanel'); if (p) p.style.display = 'none'; });
-$('#browseFilterSector').onchange = renderBrowseList;
-$('#browseFilterSize').onchange = renderBrowseList;
+$on('#browseFilterSector', 'change', renderBrowseList);
+$on('#browseFilterSize', 'change', renderBrowseList);
 $on('#browseSearch', 'input', renderBrowseList);
 
 /* ═══════════════════════════════════════════
@@ -8117,7 +8070,7 @@ $click('#newsViewerBack', () => {
   $('#newsViewerFrame').src = 'about:blank';
 });
 
-$('#newsViewerMode').onchange = function() {
+$on('#newsViewerMode', 'change', function() {
   if (!newsViewerState.directUrl) return;
   if (this.value === 'archive') {
     // Open archive.is in new tab — CAPTCHA doesn't work in iframes
@@ -8128,7 +8081,7 @@ $('#newsViewerMode').onchange = function() {
   const src = this.value === 'reader' ? newsViewerState.readerUrl : newsViewerState.directUrl;
   $('#newsViewerFrame').src = src;
   $('#newsViewerExternal').href = newsViewerState.directUrl;
-};
+});
 
 function renderNewsChips() {
   const el = $('#newsTickerChips');
@@ -9958,7 +9911,7 @@ if (robotSceneSel) {
   robotSceneSel.addEventListener('change', () => setRobotScene(robotSceneSel.value));
 }
 
-// ── Genie mode (user mode: 3 free prompts then sleep) ──
+// ── User mode (prompt-limited) ──
 let geniePromptsLeft = 3;
 let genieMode = false;
 let genieSleeping = false;
@@ -9966,15 +9919,6 @@ let genieSleeping = false;
 function activateGenieMode() {
   genieMode = true;
   genieSleeping = false;
-  const scene = document.getElementById('robotScene');
-  if (!scene) return;
-  scene.classList.add('genie-mode');
-  scene.classList.remove('sleeping-mode');
-  // Force desert scene
-  setRobotScene('desert');
-  // Disable scene selector in user mode
-  const sel = document.getElementById('robotSceneSelect');
-  if (sel) sel.disabled = true;
   // Check if user is blocked/paused
   const blockStatus = isUserBlocked(wsUserName);
   if (blockStatus) {
@@ -9993,13 +9937,15 @@ function activateGenieMode() {
     return;
   }
   updateGeniePromptsBadge();
-  // Show greeting
-  addAiMsg('system', 'Welcome, ' + (wsUserName || 'traveler') + '. I am the Genie of the Workspace. You have ' + geniePromptsLeft + ' wishes (prompts) remaining. Choose wisely...');
+  addAiMsg('system', 'Welcome, ' + (wsUserName || 'user') + '. You have ' + geniePromptsLeft + ' prompt' + (geniePromptsLeft === 1 ? '' : 's') + ' remaining.');
 }
 
 function updateGeniePromptsBadge() {
   const badge = document.getElementById('geniePromptsBadge');
-  if (badge) badge.textContent = geniePromptsLeft + ' wish' + (geniePromptsLeft === 1 ? '' : 'es') + ' left';
+  if (!badge) return;
+  badge.textContent = geniePromptsLeft + ' prompt' + (geniePromptsLeft === 1 ? '' : 's') + ' remaining';
+  badge.classList.add('visible');
+  badge.classList.remove('exhausted');
 }
 
 function useGeniePrompt() {
@@ -10008,8 +9954,6 @@ function useGeniePrompt() {
   localStorage.setItem('ws_geniePrompts_' + (wsUserName || 'anon'), geniePromptsLeft);
   updateGeniePromptsBadge();
   if (geniePromptsLeft <= 0) {
-    // ADDED: Wait for AI to finish its full response before sleeping
-    // Poll aiStreaming flag instead of a fixed timeout
     (function waitForCompletion() {
       if (aiStreaming) { setTimeout(waitForCompletion, 500); return; }
       activateSleepMode();
@@ -10020,19 +9964,13 @@ function useGeniePrompt() {
 
 function activateSleepMode() {
   genieSleeping = true;
-  const scene = document.getElementById('robotScene');
-  if (!scene) return;
-  scene.classList.remove('genie-mode');
-  scene.classList.add('sleeping-mode');
+  // Turn desk light red
+  const light = document.getElementById('deskLight');
+  if (light) { light.classList.remove('on'); light.classList.add('danger'); }
+  // Show exhausted badge (bigger text)
   const badge = document.getElementById('geniePromptsBadge');
-  if (badge) badge.style.display = 'none';
-  // Disable input
-  const aiInput = document.getElementById('aiInput');
-  const aiSend = document.getElementById('aiSend');
-  if (aiInput) { aiInput.disabled = true; aiInput.placeholder = 'Genie is sleeping... Request access from admin.'; }
-  if (aiSend) aiSend.disabled = true;
-  addAiMsg('system', 'The Genie has used all wishes and gone to sleep. Request access from your admin to continue.');
-  // Store access request
+  if (badge) { badge.textContent = '0 prompts remaining'; badge.classList.add('visible', 'exhausted'); }
+  addAiMsg('system', 'You have used all your prompts. Request access from your admin to continue.');
   storeAccessRequest();
 }
 
@@ -10837,14 +10775,14 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display = 'none'; };
 
   // Enter key submits
-  $('#rhPassword').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
-  $('#rhMfaCode').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
+  $on('#rhPassword', 'keydown', (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); });
+  $on('#rhMfaCode', 'keydown', (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); });
 
   // Auto-submit MFA on 6 digits
-  $('#rhMfaCode').oninput = function() {
+  $on('#rhMfaCode', 'input', function() {
     this.value = this.value.replace(/\D/g, '').slice(0, 6);
     if (this.value.length === 6) setTimeout(() => $('#rhLoginSubmit').click(), 200);
-  };
+  });
 
   $click('#rhLoginSubmit', async () => {
     const msg = $('#rhLoginMsg');
