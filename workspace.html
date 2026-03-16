@@ -8658,7 +8658,11 @@ const AI_PROXY_URL = PROXY_BASE + '/proxy/ai';
 })();
 
 // Unified AI API fetch — routes through proxy when available, direct otherwise
-async function aiApiFetch(body) {
+// Includes 429 rate-limit retry with exponential backoff
+const AI_RETRY_DELAYS = [15000, 30000, 60000]; // 15s, 30s, 60s
+let _aiRateLimitPaused = false;
+
+async function _aiRawFetch(body) {
   if (aiProxyAvailable) {
     return fetch(AI_PROXY_URL + '/messages', {
       method: 'POST',
@@ -8666,7 +8670,6 @@ async function aiApiFetch(body) {
       body: JSON.stringify(body)
     });
   }
-  // Fallback: direct API call (admin dev mode with local key)
   if (!aiKey || aiKey === 'proxy') throw new Error('API key not configured');
   return fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -8678,6 +8681,27 @@ async function aiApiFetch(body) {
     },
     body: JSON.stringify(body)
   });
+}
+
+async function aiApiFetch(body) {
+  for (let attempt = 0; attempt <= AI_RETRY_DELAYS.length; attempt++) {
+    const resp = await _aiRawFetch(body);
+    if (resp.status !== 429) return resp;
+    // Rate limited
+    if (attempt >= AI_RETRY_DELAYS.length) {
+      // All retries exhausted — pause and notify
+      _aiRateLimitPaused = true;
+      console.error('[AI] Rate limit: all retries exhausted. Pausing task queue.');
+      chatTimestamp('warn', 'Rate limited — all 3 retries exhausted. Pausing. Please wait before sending another request.');
+      return resp; // Return the 429 so caller can handle
+    }
+    const retryAfter = resp.headers.get('retry-after');
+    const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : AI_RETRY_DELAYS[attempt];
+    const waitSec = Math.round(waitMs / 1000);
+    console.warn('[AI] 429 rate limited — waiting ' + waitSec + 's before retry (attempt ' + (attempt + 1) + '/' + AI_RETRY_DELAYS.length + ')');
+    chatTimestamp('warn', 'Rate limited — waiting ' + waitSec + 's before retry (attempt ' + (attempt + 1) + '/' + AI_RETRY_DELAYS.length + ')');
+    await new Promise(r => setTimeout(r, waitMs));
+  }
 }
 
 // ── Token tracking for cost estimator ──
