@@ -292,7 +292,10 @@ app.post('/proxy/robinhood/login', async (req, res) => {
     client_id: 'c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS',
     device_token: rhDeviceToken,
     username,
-    password
+    password,
+    try_passkeys: false,
+    token_request_path: '/login',
+    create_read_only_secondary_token: true
   };
   if (mfa_code) body.mfa_code = mfa_code;
 
@@ -300,7 +303,10 @@ app.post('/proxy/robinhood/login', async (req, res) => {
     'Content-Type': 'application/json',
     'User-Agent': RH_USER_AGENT,
     'Accept': 'application/json',
-    'X-Robinhood-API-Version': '1.431.4'
+    'X-Robinhood-API-Version': '1.431.4',
+    'Origin': 'https://robinhood.com',
+    'Referer': 'https://robinhood.com/login/',
+    'Accept-Language': 'en-US,en;q=0.9'
   };
   if (challenge_id) headers['X-Robinhood-Challenge-ID'] = challenge_id;
 
@@ -370,7 +376,14 @@ async function refreshRobinhoodToken() {
   try {
     const resp = await fetch('https://api.robinhood.com/oauth2/token/', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': RH_USER_AGENT },
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': RH_USER_AGENT,
+        'Accept': 'application/json',
+        'Origin': 'https://robinhood.com',
+        'Referer': 'https://robinhood.com/',
+        'Accept-Language': 'en-US,en;q=0.9'
+      },
       body: JSON.stringify({
         grant_type: 'refresh_token',
         refresh_token: rhRefreshToken,
