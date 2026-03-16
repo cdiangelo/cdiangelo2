@@ -1870,6 +1870,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </select>
           <button id="stockRefresh">Refresh</button>
           <span id="stockFreshness" style="display:none;align-items:center;gap:3px;font-size:.55rem;color:var(--text-dim);margin-left:4px;" title="Data freshness"><span class="sf-dot" style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;"></span><span class="sf-label">—</span></span>
+          <span id="rhConnectionStatus" style="display:none;align-items:center;gap:3px;font-size:.55rem;color:var(--text-dim);margin-left:4px;"></span>
           <button id="rhLoginBtn" title="Login to Robinhood" style="font-size:.62rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;">RH: Login</button>
         </div>
         <!-- Comparison chart (big overlay) -->
@@ -5525,6 +5526,7 @@ $$('#q4Tabs button').forEach(btn => {
     $('#graphCalcView').style.display = tab === 'graphcalc' ? 'flex' : 'none';
     if (tab === 'cmap') setTimeout(resizeCM, 50);
     if (tab === 'graphcalc') setTimeout(resizeGC, 50);
+    if (tab === 'stocks') detectRobinhoodSession(); // Re-check RH session on pane open
   });
 });
 
@@ -5678,6 +5680,99 @@ async function fetchRealStockData(ticker, range) {
 // ── Robinhood Data Layer ──
 let rhLoggedIn = false;
 const rhCache = {}; // { key: { data, ts } }
+
+// RH session state — tracks connection and available data tiers
+const RH_SESSION = {
+  isConnected: false,
+  authLevel: 'public', // 'authenticated' | 'public' | 'offline'
+  lastChecked: 0,
+  availableEndpoints: []
+};
+
+async function detectRobinhoodSession() {
+  try {
+    const resp = await fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
+    const data = await resp.json();
+    rhLoggedIn = data.logged_in;
+    RH_SESSION.isConnected = !!data.logged_in;
+    RH_SESSION.authLevel = data.logged_in ? 'authenticated' : 'public';
+    RH_SESSION.lastChecked = Date.now();
+    RH_SESSION.availableEndpoints = data.logged_in
+      ? ['quotes', 'fundamentals', 'instruments', 'historicals', 'positions', 'account', 'orders', 'ratings', 'earnings']
+      : ['quotes', 'fundamentals', 'instruments'];
+    // Log CORS info from response headers
+    const corsHeaders = {};
+    ['access-control-allow-origin', 'access-control-allow-credentials', 'access-control-allow-methods'].forEach(h => {
+      const v = resp.headers.get(h);
+      if (v) corsHeaders[h] = v;
+    });
+    console.log('[RH] Session detected: authLevel=' + RH_SESSION.authLevel + ', endpoints=' + RH_SESSION.availableEndpoints.length);
+    if (Object.keys(corsHeaders).length) console.log('[RH] CORS headers:', corsHeaders);
+    updateRhConnectionStatus();
+    updateRhLoginUI();
+  } catch(e) {
+    rhLoggedIn = false;
+    RH_SESSION.isConnected = false;
+    RH_SESSION.authLevel = 'offline';
+    RH_SESSION.lastChecked = Date.now();
+    RH_SESSION.availableEndpoints = [];
+    console.log('[RH] Session detection failed (offline):', e.message);
+    updateRhConnectionStatus();
+    updateRhLoginUI();
+  }
+}
+
+function updateRhConnectionStatus() {
+  const el = document.getElementById('rhConnectionStatus');
+  if (!el) return;
+  el.style.display = 'inline-flex';
+  if (RH_SESSION.authLevel === 'authenticated') {
+    el.innerHTML = '<span style="color:#10b981;">&#x1F7E2;</span> <span>RH Connected</span>';
+    el.title = 'Robinhood Connected — Full data access';
+  } else if (RH_SESSION.authLevel === 'public') {
+    el.innerHTML = '<span style="color:#f59e0b;">&#x1F7E1;</span> <span>Public only</span>';
+    el.title = 'Public data only — Log in to Robinhood for full access';
+  } else {
+    el.innerHTML = '<span style="color:#ef4444;">&#x1F534;</span> <span>Offline</span>';
+    el.title = 'Offline — No market data available';
+  }
+}
+
+// Tiered data fetcher — RH authenticated → Yahoo → metadata only
+async function fetchStockData(ticker, range, preferredSource) {
+  const cacheKey = ticker + '_' + range;
+  const cached = stockDataCache[cacheKey];
+  if (cached && Date.now() - cached.ts < 300000) return cached; // 5 min cache
+
+  // TIER 1: Robinhood authenticated historicals
+  if (RH_SESSION.authLevel === 'authenticated' && preferredSource !== 'yahoo') {
+    try {
+      const spanMap = { '1D': 'day', '5D': 'week', '1M': 'month', '6M': '3month', '1Y': 'year', '3Y': '5year', '5Y': '5year' };
+      const span = spanMap[range] || 'month';
+      const historicals = await fetchRobinhoodHistoricals(ticker, span);
+      if (historicals && historicals.length >= 2) {
+        const entry = {
+          data: historicals.map(h => parseFloat(h.close_price)).filter(v => !isNaN(v)),
+          volume: historicals.map(h => parseInt(h.volume) || 0),
+          high: historicals.map(h => parseFloat(h.high_price)).filter(v => !isNaN(v)),
+          low: historicals.map(h => parseFloat(h.low_price)).filter(v => !isNaN(v)),
+          open: historicals.map(h => parseFloat(h.open_price)).filter(v => !isNaN(v)),
+          ts: Date.now(), source: 'robinhood'
+        };
+        if (entry.data.length >= 2) { stockDataCache[cacheKey] = entry; return entry; }
+      }
+    } catch(e) {}
+  }
+
+  // TIER 2: Yahoo Finance (public)
+  try {
+    const realData = await fetchRealStockData(ticker, range);
+    if (realData && realData.length >= 2) return stockDataCache[cacheKey];
+  } catch(e) {}
+
+  // TIER 3: Metadata only — no numeric price data
+  return null;
+}
 
 function rhCacheGet(key) {
   const c = rhCache[key];
@@ -5869,14 +5964,9 @@ async function fetchRobinhoodNews(ticker) {
   return [];
 }
 
-// Check Robinhood login status on load
+// Check Robinhood login status on load — delegates to detectRobinhoodSession
 async function checkRobinhoodStatus() {
-  try {
-    const resp = await fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
-    const data = await resp.json();
-    rhLoggedIn = data.logged_in;
-    updateRhLoginUI();
-  } catch(e) { rhLoggedIn = false; }
+  await detectRobinhoodSession();
 }
 
 function updateRhLoginUI() {
@@ -11339,6 +11429,11 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
 
   function onLoginSuccess() {
     $('#rhLoginMsg').textContent = 'Connected!'; $('#rhLoginMsg').style.color = '#22c55e';
+    RH_SESSION.isConnected = true;
+    RH_SESSION.authLevel = 'authenticated';
+    RH_SESSION.lastChecked = Date.now();
+    RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments', 'historicals', 'positions', 'account', 'orders', 'ratings', 'earnings'];
+    updateRhConnectionStatus();
     updateRhLoginUI();
     $('#rhLogoutSubmit').style.display = 'block';
     $('#rhMfaWrap').style.display = 'none';
@@ -11435,6 +11530,11 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   $('#rhLogoutSubmit').onclick = async () => {
     try { await fetch(PROXY_BASE + '/proxy/robinhood/logout', { method: 'POST' }); } catch(e) {}
     rhLoggedIn = false;
+    RH_SESSION.isConnected = false;
+    RH_SESSION.authLevel = 'public';
+    RH_SESSION.lastChecked = Date.now();
+    RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments'];
+    updateRhConnectionStatus();
     updateRhLoginUI();
     $('#rhLoginMsg').textContent = 'Logged out.'; $('#rhLoginMsg').style.color = 'var(--text-dim)';
     $('#rhLogoutSubmit').style.display = 'none';
