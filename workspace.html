@@ -8495,35 +8495,35 @@ function updateCostPanel() {
     '<div style="display:flex;justify-content:space-between;margin:3px 0;color:var(--text-dim);"><span>Rate:</span><span>$' + rates.input.toFixed(2) + '/1M in, $' + rates.output.toFixed(2) + '/1M out</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:3px 0;font-weight:700;color:var(--accent2);"><span>Session cost:</span><span>~$' + cost.toFixed(4) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-    '<div style="color:var(--text-dim);font-size:.58rem;font-weight:600;margin-bottom:4px;">Example asks &amp; estimated cost:</div>' +
+    '<div style="color:var(--text-dim);font-size:.68rem;font-weight:600;margin-bottom:4px;">Example asks &amp; estimated cost:</div>' +
     // Simple Q&A — no tools
     '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid var(--accent2);">' +
-      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">Simple Q&A (1 call, no tools)</span><span style="color:var(--accent2);font-weight:600;">~$' + (8000/1e6*rates.input + 500/1e6*rates.output).toFixed(4) + '</span></div>' +
-      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"What sector is AAPL in?" · "Explain P/E ratio"</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--text-dim);"><span style="opacity:.7;">Tier 1 / Fast — Simple Q&A (1 call, no tools)</span><span style="color:var(--accent2);font-weight:600;">~$' + (8000/1e6*rates.input + 500/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.6rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"What sector is AAPL in?" · "Explain P/E ratio"</div>' +
     '</div>' +
     // Single tool call
     '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid #f59e0b;">' +
-      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">1 tool call (2 round-trips)</span><span style="color:#f59e0b;font-weight:600;">~$' + (18000/1e6*rates.input + 1500/1e6*rates.output).toFixed(4) + '</span></div>' +
-      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Add NVDA to watchlist" · "Get TSLA stock data" · "Write a note about earnings"</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--text-dim);"><span style="opacity:.7;">Tier 2 / Standard — 1 tool call (2 round-trips)</span><span style="color:#f59e0b;font-weight:600;">~$' + (18000/1e6*rates.input + 1500/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.6rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Add NVDA to watchlist" · "Get TSLA stock data" · "Write a note about earnings"</div>' +
     '</div>' +
     // Multi-tool
     '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid #8b5cf6;">' +
-      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">Multi-tool (3-4 calls)</span><span style="color:#8b5cf6;font-weight:600;">~$' + (35000/1e6*rates.input + 3000/1e6*rates.output).toFixed(4) + '</span></div>' +
-      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Compare AAPL vs MSFT — add both, set comparison" · "Build a stock comparison table in the sheet"</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--text-dim);"><span style="opacity:.7;">Tier 2 / Standard — Multi-tool (3-4 calls)</span><span style="color:#8b5cf6;font-weight:600;">~$' + (35000/1e6*rates.input + 3000/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.6rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Compare AAPL vs MSFT — add both, set comparison" · "Build a stock comparison table in the sheet"</div>' +
     '</div>' +
     // Deep research / thesis
     '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid #ef4444;">' +
-      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">Build thesis / deep research (5-8 calls)</span><span style="color:#ef4444;font-weight:600;">~$' + (55000/1e6*rates.input + 5000/1e6*rates.output).toFixed(4) + '</span></div>' +
-      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Build an investment thesis for NVDA" · "Run bull/base/bear scenarios for TSLA" · "Full pricing analysis"</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--text-dim);"><span style="opacity:.7;">Tier 3 / Deep Research (5-8 calls, auto-escalated)</span><span style="color:#ef4444;font-weight:600;">~$' + (55000/1e6*rates.input + 5000/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.6rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Build an investment thesis for NVDA" · "Run bull/base/bear scenarios for TSLA" · "Full pricing analysis"</div>' +
     '</div>' +
     // Preset queries
     '<div style="margin:4px 0;padding:4px 6px;background:rgba(255,255,255,.03);border-radius:4px;border-left:2px solid #10b981;">' +
-      '<div style="display:flex;justify-content:space-between;font-size:.56rem;color:var(--text-dim);"><span style="opacity:.7;">Preset: Macro Dashboard template</span><span style="color:#10b981;font-weight:600;">~$' + (25000/1e6*rates.input + 2000/1e6*rates.output).toFixed(4) + '</span></div>' +
-      '<div style="font-size:.52rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Create a macro dashboard" · "Scaffold earnings tracker" · "Portfolio summary template"</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--text-dim);"><span style="opacity:.7;">Preset: Macro Dashboard template</span><span style="color:#10b981;font-weight:600;">~$' + (25000/1e6*rates.input + 2000/1e6*rates.output).toFixed(4) + '</span></div>' +
+      '<div style="font-size:.6rem;color:var(--text-dim);opacity:.6;margin-top:1px;">"Create a macro dashboard" · "Scaffold earnings tracker" · "Portfolio summary template"</div>' +
     '</div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-    '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.55rem;"><span>Avg cost/req:</span><span>~$' + (aiSessionRequests ? (cost / aiSessionRequests).toFixed(4) : '0.00') + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.55rem;"><span>Idle:</span><span>$0.00/hr (no polling)</span></div>';
+    '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.65rem;"><span>Avg cost/req:</span><span>~$' + (aiSessionRequests ? (cost / aiSessionRequests).toFixed(4) : '0.00') + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.65rem;"><span>Idle:</span><span>$0.00/hr (no polling)</span></div>';
 }
 
 // Close all admin action panels (mutually exclusive)
@@ -8642,32 +8642,32 @@ function updatePricingCalc() {
   if (mTotal !== 100) warnings.push('Model mix totals ' + mTotal + '%');
 
   el.innerHTML =
-    (warnings.length ? '<div style="color:var(--danger);font-size:.55rem;margin-bottom:4px;">&#9888; ' + warnings.join('; ') + ' (should be 100%)</div>' : '') +
-    '<div style="font-weight:700;color:var(--accent2);font-size:.68rem;margin-bottom:6px;">Monthly Cost Breakdown</div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.55rem;color:var(--text-dim);"><span>Blended input rate:</span><span>$' + blendedInput.toFixed(2) + ' / 1M tok</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.55rem;color:var(--text-dim);"><span>Blended output rate:</span><span>$' + blendedOutput.toFixed(2) + ' / 1M tok</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Total queries/mo:</span><span>' + totalQueries.toLocaleString() + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per Q&A query:</span><span>$' + costQA.toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per tool query:</span><span>$' + costTool.toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per multi-tool:</span><span>$' + costMulti.toFixed(4) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Cost per deep research:</span><span>$' + costDeep.toFixed(4) + '</span></div>' +
+    (warnings.length ? '<div style="color:var(--danger);font-size:.65rem;margin-bottom:4px;">&#9888; ' + warnings.join('; ') + ' (should be 100%)</div>' : '') +
+    '<div style="font-weight:700;color:var(--accent2);font-size:.78rem;margin-bottom:6px;">Monthly Cost Breakdown</div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.65rem;color:var(--text-dim);"><span>Blended input rate:</span><span>$' + blendedInput.toFixed(2) + ' / 1M tok</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.65rem;color:var(--text-dim);"><span>Blended output rate:</span><span>$' + blendedOutput.toFixed(2) + ' / 1M tok</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.7rem;"><span>Total queries/mo:</span><span>' + totalQueries.toLocaleString() + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.7rem;color:var(--text-dim);"><span>Cost per Q&A query:</span><span>$' + costQA.toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.7rem;color:var(--text-dim);"><span>Cost per tool query:</span><span>$' + costTool.toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.7rem;color:var(--text-dim);"><span>Cost per multi-tool:</span><span>$' + costMulti.toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.7rem;color:var(--text-dim);"><span>Cost per deep research:</span><span>$' + costDeep.toFixed(4) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Blended cost/query:</span><span><b>$' + weightedCostPerQuery.toFixed(4) + '</b></span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;"><span>Cost/user/month:</span><span><b>$' + costPerUser.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</b></span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:4px 0;font-size:.72rem;font-weight:700;color:var(--accent);"><span>Total monthly:</span><span>' + fmtCost(totalMonthlyCost) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.6rem;color:var(--text-dim);"><span>Annual cost estimate:</span><span>' + fmtCost(totalMonthlyCost * 12) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.7rem;"><span>Blended cost/query:</span><span><b>$' + weightedCostPerQuery.toFixed(4) + '</b></span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.7rem;"><span>Cost/user/month:</span><span><b>$' + costPerUser.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</b></span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:4px 0;font-size:.8rem;font-weight:700;color:var(--accent);"><span>Total monthly:</span><span>' + fmtCost(totalMonthlyCost) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.7rem;color:var(--text-dim);"><span>Annual cost estimate:</span><span>' + fmtCost(totalMonthlyCost * 12) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-    '<div style="font-size:.55rem;color:var(--text-dim);">Fixed pricing suggestions:</div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>Break-even /user/mo:</span><span>$' + costPerUser.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>2x margin /user/mo:</span><span>$' + (costPerUser * 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin /user/mo:</span><span>$' + (costPerUser * 3).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
+    '<div style="font-size:.65rem;color:var(--text-dim);">Fixed pricing suggestions:</div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.68rem;color:var(--text-dim);"><span>Break-even /user/mo:</span><span>$' + costPerUser.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.68rem;color:var(--text-dim);"><span>2x margin /user/mo:</span><span>$' + (costPerUser * 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.68rem;color:var(--text-dim);"><span>3x margin /user/mo:</span><span>$' + (costPerUser * 3).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>' +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-    '<div style="font-weight:700;color:var(--accent2);font-size:.62rem;margin-bottom:4px;">Annualized Revenue Projections</div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>Break-even revenue/yr:</span><span>' + fmtCost(costPerUser * users * 12) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>2x margin revenue/yr:</span><span>' + fmtCost(costPerUser * 2 * users * 12) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;color:var(--text-dim);"><span>3x margin revenue/yr:</span><span>' + fmtCost(costPerUser * 3 * users * 12) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;font-weight:600;color:var(--success, #10b981);"><span>2x margin profit/yr:</span><span>' + fmtCost((costPerUser * 2 * users * 12) - (totalMonthlyCost * 12)) + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.58rem;font-weight:600;color:var(--success, #10b981);"><span>3x margin profit/yr:</span><span>' + fmtCost((costPerUser * 3 * users * 12) - (totalMonthlyCost * 12)) + '</span></div>';
+    '<div style="font-weight:700;color:var(--accent2);font-size:.72rem;margin-bottom:4px;">Annualized Revenue Projections</div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.68rem;color:var(--text-dim);"><span>Break-even revenue/yr:</span><span>' + fmtCost(costPerUser * users * 12) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.68rem;color:var(--text-dim);"><span>2x margin revenue/yr:</span><span>' + fmtCost(costPerUser * 2 * users * 12) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.68rem;color:var(--text-dim);"><span>3x margin revenue/yr:</span><span>' + fmtCost(costPerUser * 3 * users * 12) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.68rem;font-weight:600;color:var(--success, #10b981);"><span>2x margin profit/yr:</span><span>' + fmtCost((costPerUser * 2 * users * 12) - (totalMonthlyCost * 12)) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.68rem;font-weight:600;color:var(--success, #10b981);"><span>3x margin profit/yr:</span><span>' + fmtCost((costPerUser * 3 * users * 12) - (totalMonthlyCost * 12)) + '</span></div>';
 }
 
 $('#aiPricingBtn').onclick = () => {
@@ -8913,8 +8913,8 @@ $('#aiInfoBtn').onclick = () => {
     '<ul style="' + listStyle + '">' +
     '<li style="' + liStyle + '">Read spreadsheet data, notes, graph expressions, concept maps</li>' +
     '<li style="' + liStyle + '">Fetch live stock prices (Yahoo Finance) with OHLCV data</li>' +
-    '<li style="' + liStyle + '">Pull real news articles via Google News RSS with sentiment analysis</li>' +
-    '<li style="' + liStyle + '">Deep research mode — aggregates multiple article sources on a topic</li>' +
+    '<li style="' + liStyle + '">Multi-source news pipeline — Google RSS, Yahoo RSS, GNews API, NewsAPI with link validation &amp; scoring</li>' +
+    '<li style="' + liStyle + '">Deep research mode — aggregates multiple article sources on a topic with automatic tier escalation</li>' +
     '<li style="' + liStyle + '">Get stock fundamentals: P/E, market cap, revenue growth, sector</li>' +
     '</ul>' +
     '<div style="' + subHeadStyle + '">Writing & Creation</div>' +
@@ -8933,31 +8933,62 @@ $('#aiInfoBtn').onclick = () => {
     '<li style="' + liStyle + '">Sentiment scoring across multiple news sources</li>' +
     '<li style="' + liStyle + '">Scaffold templates: stock comparison, earnings, portfolio, macro dashboard</li>' +
     '<li style="' + liStyle + '">Pricing/business model analysis with unit economics</li>' +
+    '</ul>' +
+    '<div style="' + subHeadStyle + '">Persona Modes</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">5 built-in personas: Default, Analyst, Creative Writer, Tutor, Devil\'s Advocate</li>' +
+    '<li style="' + liStyle + '">Each persona applies a tailored system prompt that shapes tone, focus, and output style</li>' +
+    '<li style="' + liStyle + '">Admin-editable: customize any persona\'s system prompt via the Personas panel</li>' +
+    '<li style="' + liStyle + '">Persona indicator badge shows active mode in the chat header</li>' +
+    '</ul>' +
+    '<div style="' + subHeadStyle + '">Context Injection</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">Persistent context slots injected into every Claude request</li>' +
+    '<li style="' + liStyle + '">Global slots apply to all personas; per-persona slots apply only when that persona is active</li>' +
+    '<li style="' + liStyle + '">Manage via the context drawer — add, edit, delete, toggle slots</li>' +
+    '<li style="' + liStyle + '">Context badge shows active slot count in the chat header</li>' +
+    '</ul>' +
+    '<div style="' + subHeadStyle + '">Tiered Agent Execution</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">Automatic task classification: Tier 1 (Fast), Tier 2 (Standard), Tier 3 (Deep Research)</li>' +
+    '<li style="' + liStyle + '">Tier 1 uses Haiku for simple Q&A — lowest cost, fastest response</li>' +
+    '<li style="' + liStyle + '">Tier 2 uses selected model for tool-using tasks</li>' +
+    '<li style="' + liStyle + '">Tier 3 auto-escalates for thesis, deep research, multi-source analysis — higher iteration limit + extended system prompt</li>' +
+    '<li style="' + liStyle + '">Stock deep research automatically triggers multi-source news aggregation</li>' +
+    '</ul>' +
+    '<div style="' + subHeadStyle + '">Task Attempt Versioning</div>' +
+    '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '">Every agent task is tracked as a versioned attempt with status (running/done/error/stalled)</li>' +
+    '<li style="' + liStyle + '">Attempt headers show in chat with timing, tool count, and tier used</li>' +
+    '<li style="' + liStyle + '">Nudge button retries stalled tasks as a new attempt version</li>' +
     '</ul></div>' +
 
     // What You Can Do
     '<div style="' + sectionStyle + '">' +
     '<div style="' + headStyle + '">What You Can Ask</div>' +
     '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">"Analyze AAPL and build me an investment thesis"</li>' +
+    '<li style="' + liStyle + '">"Analyze AAPL and build me an investment thesis" <span style="' + dimStyle + '">(auto Tier 3)</span></li>' +
     '<li style="' + liStyle + '">"Compare MSFT, GOOG, AMZN in a table with key metrics"</li>' +
-    '<li style="' + liStyle + '">"Run bull/base/bear scenarios for TSLA"</li>' +
-    '<li style="' + liStyle + '">"Research the latest on AI chip stocks and summarize"</li>' +
+    '<li style="' + liStyle + '">"Run bull/base/bear scenarios for TSLA" <span style="' + dimStyle + '">(auto Tier 3)</span></li>' +
+    '<li style="' + liStyle + '">"Research the latest on AI chip stocks and summarize" <span style="' + dimStyle + '">(multi-source news)</span></li>' +
     '<li style="' + liStyle + '">"Create a portfolio tracker template in the sheet"</li>' +
     '<li style="' + liStyle + '">"Plot sin(x), cos(x), and x^2 on the graph"</li>' +
     '<li style="' + liStyle + '">"Make a stonks meme about buying the dip"</li>' +
-    '<li style="' + liStyle + '">"What\'s the sentiment on NVDA right now?"</li>' +
+    '<li style="' + liStyle + '">"What\'s the sentiment on NVDA right now?" <span style="' + dimStyle + '">(multi-source news)</span></li>' +
+    '<li style="' + liStyle + '">"Switch to Analyst persona and review my portfolio"</li>' +
+    '<li style="' + liStyle + '">"What sector is AAPL in?" <span style="' + dimStyle + '">(auto Tier 1 / Haiku)</span></li>' +
     '</ul></div>' +
 
-    // Future Training & Customization
+    // Training & Customization
     '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Future Training & Customization</div>' +
+    '<div style="' + headStyle + '">Training & Customization</div>' +
     '<p style="' + dimStyle + 'margin:0 0 6px;">Claude\'s behavior can be extended with:</p>' +
     '<ul style="' + listStyle + '">' +
+    '<li style="' + liStyle + '"><b>Persona modes</b> — Switch personas via dropdown or create custom ones with admin-editable system prompts</li>' +
+    '<li style="' + liStyle + '"><b>Context slots</b> — Add persistent instructions that inject into every request (global or per-persona)</li>' +
     '<li style="' + liStyle + '"><b>Custom tools</b> — Add new tool definitions to AGENT_TOOLS for domain-specific actions (CRM lookups, internal APIs, custom calculations)</li>' +
-    '<li style="' + liStyle + '"><b>System prompt tuning</b> — Edit the system message to change personality, focus areas, default behaviors, and output formatting</li>' +
     '<li style="' + liStyle + '"><b>Model selection</b> — Switch between Claude models (Haiku for speed, Sonnet for balance, Opus for depth) via the model dropdown</li>' +
-    '<li style="' + liStyle + '"><b>Deep mode</b> — Toggle the "Deep" checkbox for multi-step agentic reasoning with tool chaining</li>' +
+    '<li style="' + liStyle + '"><b>Tiered execution</b> — Auto-classifies task complexity; override with Deep toggle for forced Tier 3</li>' +
     '<li style="' + liStyle + '"><b>Template scaffolds</b> — Add new template types for industry-specific workflows</li>' +
     '<li style="' + liStyle + '"><b>Data source plugins</b> — Extend with additional market data feeds, proprietary databases, or internal endpoints</li>' +
     '</ul></div>' +
@@ -8969,7 +9000,9 @@ $('#aiInfoBtn').onclick = () => {
     '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;width:100px;">Clear Chat</td><td style="padding:4px 0;' + dimStyle + '">Trash icon — resets conversation context (model forgets current session)</td></tr>' +
     '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Save Log</td><td style="padding:4px 0;' + dimStyle + '">Book icon — saves session to log or exports all logs to notepad tabs</td></tr>' +
     '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Actions</td><td style="padding:4px 0;' + dimStyle + '">View and replay past tool outputs (sheet writes, notes, graphs). Auto-saved when Claude uses write tools.</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">$ Cost</td><td style="padding:4px 0;' + dimStyle + '">Track API token usage and cost for the current session</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Personas</td><td style="padding:4px 0;' + dimStyle + '">Switch between 5 built-in personas or edit their system prompts (admin). Active persona shown as badge.</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Context</td><td style="padding:4px 0;' + dimStyle + '">Manage persistent context slots — global or per-persona instructions injected into every request.</td></tr>' +
+    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">$ Cost</td><td style="padding:4px 0;' + dimStyle + '">Track API token usage and cost with tier-aware estimates (Tier 1/2/3)</td></tr>' +
     '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">Users</td><td style="padding:4px 0;' + dimStyle + '">Admin dashboard — view per-user usage stats across all tracked users</td></tr>' +
     '<tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 0;font-weight:600;">API Key</td><td style="padding:4px 0;' + dimStyle + '">Set your Anthropic API key (stored locally, never transmitted elsewhere)</td></tr>' +
     '<tr><td style="padding:4px 0;font-weight:600;">Full Reset</td><td style="padding:4px 0;' + dimStyle + '">Clear browser localStorage to reset all agent data, logs, actions, and preferences</td></tr>' +
@@ -8984,6 +9017,9 @@ $('#aiInfoBtn').onclick = () => {
     '<li style="' + liStyle + '">Saved tool actions (replayable)</li>' +
     '<li style="' + liStyle + '">Per-user usage tracking (admin)</li>' +
     '<li style="' + liStyle + '">Sheet data, notepad content, graph expressions</li>' +
+    '<li style="' + liStyle + '">Persona configurations & active persona selection</li>' +
+    '<li style="' + liStyle + '">Context injection slots (global & per-persona)</li>' +
+    '<li style="' + liStyle + '">Task attempt history & versioning data</li>' +
     '<li style="' + liStyle + '">Robot scene, theme, and layout preferences</li>' +
     '</ul>' +
     '<div style="margin-top:8px;"><button onclick="if(confirm(\'Clear ALL stored data? This cannot be undone.\')){ localStorage.clear(); location.reload(); }" style="font-size:.58rem;padding:3px 10px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:4px;cursor:pointer;">Reset All Data</button></div>' +
