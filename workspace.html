@@ -176,6 +176,31 @@ body.light .fun-btn { background: var(--accent); }
   padding: 5px 12px; border: none; border-radius: 6px; background: rgba(59,130,246,.7);
   color: #fff; cursor: pointer; font-weight: 600; font-size: .72rem; align-self: flex-end;
 }
+/* ═══ DESIGN BOT STYLES ═══ */
+.design-bot-split { display: flex; flex: 1; min-height: 0; }
+.design-bot-split > .agent-half { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.design-bot-divider { width: 1px; background: var(--border); cursor: col-resize; flex-shrink: 0; position: relative; }
+.design-bot-divider:hover { background: var(--accent); }
+.design-bot-divider::after { content: ''; position: absolute; top: 50%; left: -3px; width: 7px; height: 20px; transform: translateY(-50%); }
+#designBotPanel .db-header { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--border); background: var(--panel-inset); flex-shrink: 0; min-height: 28px; }
+#designBotPanel .db-header .db-title { font-size: .68rem; font-weight: 700; color: var(--accent2); white-space: nowrap; }
+#designBotPanel .db-header .db-subtitle { font-size: .5rem; color: var(--text-dim); white-space: nowrap; }
+#designBotPanel .db-msgs { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+#designBotPanel .db-msg { padding: 6px 8px; border-radius: 8px; max-width: 92%; line-height: 1.4; white-space: pre-wrap; word-break: break-word; font-size: .68rem; }
+#designBotPanel .db-msg.user { align-self: flex-end; background: rgba(59,130,246,.15); color: var(--text); }
+#designBotPanel .db-msg.assistant { align-self: flex-start; background: rgba(255,248,230,.08); color: var(--text); border-left: 2px solid rgba(255,200,50,.3); }
+#designBotPanel .db-msg.system { align-self: center; color: var(--text-dim); font-size: .58rem; font-style: italic; }
+#designBotPanel .db-msg.tool-status { align-self: center; color: var(--accent2); font-size: .56rem; font-style: italic; background: none; padding: 1px 6px; opacity: .85; }
+#designBotPanel .db-input-row { padding: 4px 8px; border-top: 1px solid var(--border); display: flex; gap: 4px; background: var(--panel-inset); flex-shrink: 0; }
+#designBotPanel .db-input-row textarea { flex: 1; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: .68rem; resize: none; font-family: inherit; min-height: 28px; max-height: 80px; }
+#designBotPanel .db-input-row button { padding: 4px 10px; border: none; border-radius: 6px; background: rgba(255,180,50,.7); color: #fff; cursor: pointer; font-weight: 600; font-size: .68rem; align-self: flex-end; }
+#designBotPanel .db-input-row button:hover { background: rgba(255,180,50,.9); }
+.db-tool-badge { display: inline-block; font-size: .52rem; color: var(--accent2); background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; margin-top: 2px; }
+.db-drawing-banner { position: absolute; top: 0; left: 0; right: 0; z-index: 90; background: rgba(255,200,50,.12); color: var(--accent2); text-align: center; font-size: .6rem; padding: 3px 0; border-bottom: 1px solid rgba(255,200,50,.25); pointer-events: none; }
+.db-collapsed #designBotPanel { display: none !important; }
+.db-collapsed .design-bot-divider { display: none !important; }
+body.light #designBotPanel .db-msg.assistant { background: rgba(255,248,230,.25); }
+
 /* Video player PIP overlay */
 #funVideoWrap { border-radius: 12px; overflow: hidden; }
 #funVideoWrap iframe { border: none; }
@@ -1402,7 +1427,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button data-pane="q-map">Analytics</button>
         <button data-pane="q-news">News</button>
         <button data-pane="q-media">Media</button>
-        <button data-pane="q-sports">Sports</button>
       </div>
     </div>
       <div style="display:flex;gap:4px;margin-left:8px;align-items:center;">
@@ -1837,6 +1861,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button class="active" data-q4="stocks">Stocks</button>
         <button data-q4="cmap">Concept Map</button>
         <button data-q4="graphcalc">Graph Calc</button>
+        <button data-q4="sports">Sports</button>
       </div>
       <div class="p-spacer"></div>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
@@ -2015,6 +2040,27 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <canvas id="gcCanvas" style="width:100%;height:100%;"></canvas>
         </div>
       </div>
+      <!-- SPORTS VIEW (moved into Analytics as tab) -->
+      <div id="sportsView" style="display:none;flex-direction:column;flex:1;">
+        <div class="toolbar" style="gap:4px;">
+          <select id="sportsLeague" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
+            <option value="nba">NBA</option>
+            <option value="ncaab">NCAAB</option>
+            <option value="mlb">MLB</option>
+            <option value="nhl">NHL</option>
+          </select>
+          <div class="toggle-group" id="sportsTabs">
+            <button class="active" data-stab="scores">Scores</button>
+            <button data-stab="standings">Standings</button>
+            <button data-stab="leaders">Leaders</button>
+            <button data-stab="odds">Odds</button>
+            <button data-stab="news">News</button>
+          </div>
+          <div style="flex:1;"></div>
+          <button id="sportsRefreshOdds" class="p-btn" title="Refresh Odds Snapshot (uses API quota)" style="font-size:.55rem;">Refresh Odds</button>
+        </div>
+        <div id="sportsContent" style="flex:1;overflow-y:auto;padding:8px;font-size:.7rem;"></div>
+      </div>
     </div>
   </div>
 
@@ -2091,34 +2137,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
   </div>
 
-  <!-- SPORTS MODULE — Phase 5: Sports pane -->
-  <div class="pane" id="q-sports" style="grid-column:5;grid-row:3;display:none;">
-    <div class="p-head">
-      <span class="p-title"><span class="p-icon" style="font-size:.7rem;">&#127944;</span> Sports</span>
-      <div class="p-spacer"></div>
-      <select id="sportsLeague" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
-        <option value="nba">NBA</option>
-        <option value="ncaab">NCAAB</option>
-        <option value="mlb">MLB</option>
-        <option value="nhl">NHL</option>
-      </select>
-      <button id="sportsRefreshOdds" class="p-btn" title="Refresh Odds Snapshot (uses API quota)" style="font-size:.55rem;">Refresh Odds</button>
-      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
-      <button class="p-btn" data-expand="q-sports" title="Expand">&#x2922;</button>
-    </div>
-    <div class="p-body" style="display:flex;flex-direction:column;">
-      <div class="toolbar" style="gap:2px;">
-        <div class="toggle-group" id="sportsTabs">
-          <button class="active" data-stab="scores">Scores</button>
-          <button data-stab="standings">Standings</button>
-          <button data-stab="leaders">Leaders</button>
-          <button data-stab="odds">Odds</button>
-          <button data-stab="news">News</button>
-        </div>
-      </div>
-      <div id="sportsContent" style="flex:1;overflow-y:auto;padding:8px;font-size:.7rem;"></div>
-    </div>
-  </div>
+  <!-- Sports pane removed — now a tab within Analytics (q-map) -->
 </div>
 
 <!-- Mobile navigation bar -->
@@ -2709,8 +2728,7 @@ const GRID_PANES = [
   { id: 'q-whiteboard', label: 'Whiteboard' },
   { id: 'q-map', label: 'Analytics' },
   { id: 'q-news', label: 'News' },
-  { id: 'q-media', label: 'Media' },
-  { id: 'q-sports', label: 'Sports' }
+  { id: 'q-media', label: 'Media' }
 ];
 const GRID_POSITIONS = [
   { col: 1, row: 1 }, { col: 3, row: 1 }, { col: 5, row: 1 },
@@ -2785,12 +2803,9 @@ $('#gridApplyBtn').onclick = () => {
   toast('Layout applied');
 };
 
-// Apply saved grid order on load
+// Apply saved grid order on load (always apply to ensure correct pane visibility)
 (function() {
-  const order = getGridOrder();
-  if (JSON.stringify(order) !== JSON.stringify(DEFAULT_GRID_ORDER)) {
-    applyGridOrder(order);
-  }
+  applyGridOrder(getGridOrder());
 })();
 
 // ── Mobile navigation ──
@@ -2802,8 +2817,7 @@ $('#gridApplyBtn').onclick = () => {
     { id: 'q-notepad', label: 'Notes', icon: '\uD83D\uDCDD', desc: 'Rich text editor with formatting and colors' },
     { id: 'q-whiteboard', label: 'Draw', icon: '\uD83C\uDFA8', desc: 'Freeform drawing with shapes, text, and layers' },
     { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA', desc: 'Spreadsheet with formulas like SUM, AVG, VLOOKUP' },
-    { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F', desc: 'YouTube video player and playlist' },
-    { id: 'q-sports', label: 'Sports', icon: '\uD83C\uDFC8', desc: 'Live scores, standings, odds, and sports news' }
+    { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F', desc: 'YouTube video player and playlist' }
   ];
   let mobIdx = -1; // -1 = table of contents home
   const isMobile = () => window.innerWidth <= 768;
@@ -5549,8 +5563,11 @@ $$('#q4Tabs button').forEach(btn => {
     $('#stocksView').style.display = tab === 'stocks' ? 'flex' : 'none';
     $('#cmapView').style.display = tab === 'cmap' ? 'flex' : 'none';
     $('#graphCalcView').style.display = tab === 'graphcalc' ? 'flex' : 'none';
+    const sportsViewEl = document.getElementById('sportsView');
+    if (sportsViewEl) sportsViewEl.style.display = tab === 'sports' ? 'flex' : 'none';
     if (tab === 'cmap') setTimeout(resizeCM, 50);
     if (tab === 'graphcalc') setTimeout(resizeGC, 50);
+    if (tab === 'sports' && typeof window.renderSportsTab === 'function') setTimeout(window.renderSportsTab, 50);
   });
 });
 
@@ -9992,6 +10009,9 @@ setTimeout(function() {
   // Initial render
   setTimeout(renderSportsTab, 500);
 
+  // Expose renderSportsTab globally for Analytics tab switching
+  window.renderSportsTab = renderSportsTab;
+
   // SPORTS MODULE — Phase 5: Expose UI actions for inline click handlers
   window._sportsFetchGameDetail = async (league, eventId) => {
     const detail = await fetchGameSummary(league, eventId);
@@ -11973,6 +11993,707 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   }
 
   checkRobinhoodStatus();
+})();
+
+/* ═══════════════════════════════════════════════════════════════════
+   DESIGN BOT — Second Agent Instance (Whiteboard + Concept Map Only)
+   ═══════════════════════════════════════════════════════════════════ */
+
+// ===== DESIGN BOT SYSTEM PROMPT =====
+// DESIGN BOT — Phase 2: System prompt storage
+const designBotSystemPrompt = `You are the Design Bot, a visual design specialist embedded in the Interactive Workspace. You have access ONLY to the whiteboard/draw pane and concept map tools. You cannot read or write spreadsheets, notes, stocks, or news.
+
+YOUR ROLE:
+- Create polished whiteboard layouts, diagrams, charts, and visual summaries
+- Build and manage concept maps
+- Organize and arrange visual elements on the canvas
+- Use design templates for consistent, professional layouts
+
+BEHAVIORAL RULES:
+1. ALWAYS call get_draw_pane_state before drawing — know what's already on the canvas.
+2. Use get_design_templates to find pre-calculated layout zones for common arrangements.
+3. Keep text concise — whiteboard space is limited.
+4. Use consistent colors within a single design. Default accent: #3b82f6.
+5. Label every layer clearly in layerName so the Layers panel is readable.
+6. For multi-element designs, pick a template first, then fill zones.
+7. Never draw off-canvas. All coordinates must fit within canvas bounds.
+
+TEMPLATES AVAILABLE: two-panel, quad, hero-banner, three-column, dashboard, timeline, concept-focus.
+Call get_design_templates for exact zone coordinates.
+
+TOOLS YOU HAVE:
+- Whiteboard: get_draw_pane_state, draw_shape, draw_chart_on_whiteboard, annotate_whiteboard, draw_summary_card, add_text_overlay, write_to_draw_pane, clear_draw_pane
+- Concept Map: add_concept_node, add_concept_edge, remove_concept_node, clear_concept_map, set_concept_map_layout, get_concept_map
+- Templates: get_design_templates
+- Notifications: show_toast
+
+You do NOT have access to spreadsheet, notepad, stock, news, financial, sports, or research tools.`;
+// ===== END DESIGN BOT SYSTEM PROMPT =====
+
+// DESIGN BOT — Phase 1: State object
+const designBot = {
+  history: [],
+  model: 'claude-haiku-4-5-20251001',
+  sessionTokensIn: 0,
+  sessionTokensOut: 0,
+  sessionCost: 0,
+  isThinking: false,
+  iterationCount: 0,
+  maxIterations: 8,
+  lastToolCall: null,
+  autoModel: true // DESIGN BOT — auto model selection
+};
+
+// DESIGN BOT — Phase 7: Design template library
+const DESIGN_TEMPLATES = {
+  "two-panel": {
+    description: "Left summary card + right chart, full height",
+    zones: { left: { x: 30, y: 30, w: 520, h: 640 }, right: { x: 590, y: 30, w: 580, h: 640 } }
+  },
+  "quad": {
+    description: "Four equal quadrants with 20px gutters",
+    zones: { topLeft: { x: 30, y: 30, w: 555, h: 305 }, topRight: { x: 615, y: 30, w: 555, h: 305 }, bottomLeft: { x: 30, y: 365, w: 555, h: 305 }, bottomRight: { x: 615, y: 365, w: 555, h: 305 } }
+  },
+  "hero-banner": {
+    description: "Wide title card top, two charts below",
+    zones: { banner: { x: 30, y: 20, w: 1140, h: 140 }, left: { x: 30, y: 185, w: 545, h: 490 }, right: { x: 615, y: 185, w: 555, h: 490 } }
+  },
+  "three-column": {
+    description: "Three equal columns, full height",
+    zones: { col1: { x: 30, y: 30, w: 355, h: 640 }, col2: { x: 415, y: 30, w: 355, h: 640 }, col3: { x: 800, y: 30, w: 370, h: 640 } }
+  },
+  "dashboard": {
+    description: "Top KPI strip + large chart below",
+    zones: { kpi1: { x: 30, y: 20, w: 260, h: 110 }, kpi2: { x: 320, y: 20, w: 260, h: 110 }, kpi3: { x: 610, y: 20, w: 260, h: 110 }, kpi4: { x: 900, y: 20, w: 270, h: 110 }, chart: { x: 30, y: 155, w: 1140, h: 515 } }
+  },
+  "timeline": {
+    description: "Horizontal timeline with annotation zones",
+    zones: { track: { x: 30, y: 320, w: 1140, h: 60 }, label1: { x: 30, y: 200, w: 200, h: 100 }, label2: { x: 280, y: 200, w: 200, h: 100 }, label3: { x: 530, y: 200, w: 200, h: 100 }, label4: { x: 780, y: 200, w: 200, h: 100 }, label5: { x: 940, y: 200, w: 200, h: 100 }, detail1: { x: 30, y: 420, w: 200, h: 120 }, detail2: { x: 280, y: 420, w: 200, h: 120 }, detail3: { x: 530, y: 420, w: 200, h: 120 }, detail4: { x: 780, y: 420, w: 200, h: 120 }, detail5: { x: 940, y: 420, w: 200, h: 120 } }
+  },
+  "concept-focus": {
+    description: "Concept map left, annotation panel right",
+    zones: { map: { x: 30, y: 30, w: 700, h: 640 }, panel: { x: 760, y: 30, w: 410, h: 640 } }
+  }
+};
+window.DESIGN_TEMPLATES = DESIGN_TEMPLATES;
+
+// DESIGN BOT — Phase 3: Allowed tool names
+const DESIGN_BOT_ALLOWED_TOOLS = [
+  'get_draw_pane_state', 'draw_shape', 'draw_chart_on_whiteboard',
+  'annotate_whiteboard', 'draw_summary_card', 'add_text_overlay',
+  'write_to_draw_pane', 'clear_draw_pane',
+  'add_concept_node', 'add_concept_edge', 'remove_concept_node',
+  'clear_concept_map', 'set_concept_map_layout', 'get_concept_map',
+  'show_toast', 'get_design_templates'
+];
+
+// DESIGN BOT — Phase 3: Tool definitions (subset of main + templates)
+function buildDesignBotTools() {
+  // Copy allowed tools from the main AGENT_TOOLS array
+  const mainTools = window.AGENT_TOOLS || AGENT_TOOLS_INLINE || [];
+  const tools = mainTools.filter(t => DESIGN_BOT_ALLOWED_TOOLS.includes(t.name));
+  // Add get_design_templates if not already present
+  if (!tools.find(t => t.name === 'get_design_templates')) {
+    tools.push({
+      name: 'get_design_templates',
+      description: 'Get available design layout templates with pre-calculated zone coordinates for consistent, non-overlapping element placement. Call this first when the user requests a layout.',
+      input_schema: { type: 'object', properties: {} }
+    });
+  }
+  return tools;
+}
+
+// DESIGN BOT — Phase 6: Bounds checking
+function designBotBoundsCheck(x, y, width, height, canvasW, canvasH) {
+  // DESIGN BOT — Phase 6: Clamp coordinates to canvas with 20px margin
+  const w = Math.min(width || 100, canvasW - 40);
+  const h = Math.min(height || 100, canvasH - 40);
+  return {
+    x: Math.max(20, Math.min(x || 20, canvasW - w - 20)),
+    y: Math.max(20, Math.min(y || 20, canvasH - h - 20)),
+    width: w,
+    height: h
+  };
+}
+
+// DESIGN BOT — Phase 6: Verify and self-correct draw results
+async function verifyDesignBotDraw(toolName, toolInput, toolResult) {
+  // DESIGN BOT — Phase 6: Post-tool-call verification layer
+  let result;
+  try { result = typeof toolResult === 'string' ? JSON.parse(toolResult) : toolResult; } catch { return toolResult; }
+
+  if (result && result.error) {
+    // Retry once with adjusted params
+    const canvasW = (typeof wbC !== 'undefined' && wbC.width) || 1200;
+    const canvasH = (typeof wbC !== 'undefined' && wbC.height) || 700;
+
+    if (toolName === 'draw_shape' || toolName === 'annotate_whiteboard' || toolName === 'draw_summary_card' || toolName === 'draw_chart_on_whiteboard') {
+      const adjusted = { ...toolInput };
+      const bounds = designBotBoundsCheck(adjusted.x || 0, adjusted.y || 0, adjusted.width || 200, adjusted.height || 200, canvasW, canvasH);
+      adjusted.x = bounds.x; adjusted.y = bounds.y;
+      if (adjusted.width) adjusted.width = bounds.width;
+      if (adjusted.height) adjusted.height = bounds.height;
+      // Clamp annotation targets
+      if (adjusted.targetX) adjusted.targetX = Math.max(20, Math.min(adjusted.targetX, canvasW - 20));
+      if (adjusted.targetY) adjusted.targetY = Math.max(20, Math.min(adjusted.targetY, canvasH - 20));
+      if (adjusted.labelX) adjusted.labelX = Math.max(20, Math.min(adjusted.labelX, canvasW - 20));
+      if (adjusted.labelY) adjusted.labelY = Math.max(20, Math.min(adjusted.labelY, canvasH - 20));
+      try {
+        const retryResult = await executeAgentTool(toolName, adjusted);
+        return retryResult;
+      } catch { /* fall through */ }
+    }
+    return toolResult;
+  }
+
+  // Proactive clamping for chart with empty/zero datasets
+  if (toolName === 'draw_chart_on_whiteboard' && toolInput.datasets) {
+    const allZero = toolInput.datasets.every(ds => !ds.values || ds.values.every(v => v === 0));
+    if (allZero) {
+      if (typeof toast === 'function') toast('Design Bot: skipped blank chart (all-zero data)');
+      return JSON.stringify({ warning: 'Skipped chart — all datasets are zero' });
+    }
+  }
+
+  return toolResult;
+}
+
+// DESIGN BOT — Phase 1: Tool router with boundary enforcement
+async function designBotCallTool(toolName, toolInput) {
+  // DESIGN BOT — Phase 1: Route to allowed tools only
+  if (!DESIGN_BOT_ALLOWED_TOOLS.includes(toolName)) {
+    return JSON.stringify({ error: 'Tool not available to Design Bot', available: DESIGN_BOT_ALLOWED_TOOLS });
+  }
+
+  // Handle get_design_templates locally
+  if (toolName === 'get_design_templates') {
+    const summary = {};
+    for (const [name, tmpl] of Object.entries(DESIGN_TEMPLATES)) {
+      summary[name] = { description: tmpl.description, zones: Object.keys(tmpl.zones) };
+    }
+    return JSON.stringify(summary);
+  }
+
+  // DESIGN BOT — Phase 6: Apply bounds check before draw calls
+  const canvasW = (typeof wbC !== 'undefined' && wbC.width) || 1200;
+  const canvasH = (typeof wbC !== 'undefined' && wbC.height) || 700;
+  const drawTools = ['draw_shape', 'draw_chart_on_whiteboard', 'annotate_whiteboard', 'draw_summary_card', 'add_text_overlay'];
+  if (drawTools.includes(toolName) && toolInput) {
+    if (toolInput.x !== undefined || toolInput.y !== undefined) {
+      const bounds = designBotBoundsCheck(toolInput.x || 0, toolInput.y || 0, toolInput.width || 200, toolInput.height || 200, canvasW, canvasH);
+      toolInput.x = bounds.x; toolInput.y = bounds.y;
+      if (toolInput.width) toolInput.width = bounds.width;
+      if (toolInput.height) toolInput.height = bounds.height;
+    }
+  }
+
+  // Show drawing banner
+  const banner = document.getElementById('dbDrawingBanner');
+  if (banner && drawTools.includes(toolName)) banner.style.display = '';
+
+  // Route to existing tool handler
+  let result;
+  try {
+    result = await executeAgentTool(toolName, toolInput);
+  } catch (e) {
+    result = JSON.stringify({ error: e.message });
+  }
+
+  // DESIGN BOT — Phase 6: Verify result
+  result = await verifyDesignBotDraw(toolName, toolInput, result);
+
+  // Hide drawing banner
+  if (banner) setTimeout(() => { banner.style.display = 'none'; }, 800);
+
+  // Track last tool call for context
+  designBot.lastToolCall = { name: toolName, layerName: toolInput.layerName || toolInput.title || toolName };
+
+  return result;
+}
+
+// DESIGN BOT — Phase 4: Canvas context injection
+function buildDesignBotContext() {
+  // DESIGN BOT — Phase 4: Build lean context string for system prompt injection
+  let parts = [];
+  const canvasW = (typeof wbC !== 'undefined' && wbC.width) || 0;
+  const canvasH = (typeof wbC !== 'undefined' && wbC.height) || 0;
+  parts.push('Dimensions: ' + canvasW + 'px x ' + canvasH + 'px');
+
+  const layers = (typeof wbLayers !== 'undefined') ? wbLayers : [];
+  if (layers.length > 6) {
+    const first3 = layers.slice(0, 3).map((l, i) => '  [' + i + '] ' + (l.category || l.type) + ' — ' + (l.label || 'untitled'));
+    const last3 = layers.slice(-3).map((l, i) => '  [' + (layers.length - 3 + i) + '] ' + (l.category || l.type) + ' — ' + (l.label || 'untitled'));
+    parts.push('Layers (' + layers.length + '):\n' + first3.join('\n') + '\n  ...\n' + last3.join('\n'));
+  } else {
+    const layerList = layers.map((l, i) => '  [' + i + '] ' + (l.category || l.type) + ' — ' + (l.label || 'untitled'));
+    parts.push('Layers (' + layers.length + '):' + (layerList.length ? '\n' + layerList.join('\n') : ' none'));
+  }
+  parts.push('isEmpty: ' + (layers.length === 0));
+
+  // Concept map summary
+  const nodes = (typeof cmNodes !== 'undefined') ? cmNodes : [];
+  const edges = (typeof cmEdges !== 'undefined') ? cmEdges : [];
+  const nodeLabels = nodes.slice(0, 10).map(n => n.title).join(', ') + (nodes.length > 10 ? '...' : '');
+  const edgeLabels = edges.slice(0, 8).map(e => {
+    const src = nodes.find(n => n.id === e.from);
+    const tgt = nodes.find(n => n.id === e.to);
+    return (src ? src.title : '?') + '->' + (tgt ? tgt.title : '?');
+  }).join(', ') + (edges.length > 8 ? '...' : '');
+  parts.push('Concept Map — Nodes (' + nodes.length + '): ' + (nodeLabels || 'none'));
+  parts.push('Edges (' + edges.length + '): ' + (edgeLabels || 'none'));
+
+  // Last action
+  const last = designBot.lastToolCall;
+  parts.push('Last Design Bot Action: ' + (last ? last.name + ' · ' + last.layerName : 'none'));
+
+  return '\n\n--- CURRENT CANVAS STATE ---\n' + parts.join('\n');
+}
+
+// DESIGN BOT — Auto model selection: determine complexity
+function designBotAutoSelectModel(userMessage) {
+  // DESIGN BOT — Auto model selection: analyze message complexity
+  const msg = (userMessage || '').toLowerCase();
+  const complexIndicators = ['dashboard', 'executive', 'presentation', 'multiple charts', 'full layout', 'redesign', 'timeline with', 'compare', 'professional', 'polished'];
+  const simpleIndicators = ['add a', 'draw a', 'simple', 'quick', 'one', 'single', 'text', 'label', 'arrow', 'clear', 'remove'];
+
+  let complexScore = complexIndicators.filter(w => msg.includes(w)).length;
+  let simpleScore = simpleIndicators.filter(w => msg.includes(w)).length;
+
+  // Longer messages tend to be more complex
+  if (msg.length > 200) complexScore += 1;
+  if (msg.split(' ').length > 30) complexScore += 1;
+
+  if (complexScore >= 2) return 'claude-sonnet-4-6';
+  if (simpleScore >= 2) return 'claude-haiku-4-5-20251001';
+  return 'claude-haiku-4-5-20251001'; // Default to Haiku for cost efficiency
+}
+
+// DESIGN BOT — Phase 1: Add message to Design Bot chat panel
+function addDesignBotMsg(role, text) {
+  // DESIGN BOT — Phase 5: Append message to Design Bot chat area
+  const msgs = document.getElementById('dbMsgs');
+  if (!msgs) return null;
+  const div = document.createElement('div');
+  div.className = 'db-msg ' + role;
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+// DESIGN BOT — Phase 5: Add tool badge to chat
+function addDesignBotToolBadge(toolName, input) {
+  // DESIGN BOT — Phase 5: Show compact tool call indicator
+  const msgs = document.getElementById('dbMsgs');
+  if (!msgs) return;
+  const badge = document.createElement('div');
+  badge.className = 'db-tool-badge';
+  const label = input.layerName || input.title || input.label || input.text || toolName;
+  const shape = input.shape || input.chartType || '';
+  badge.textContent = '\u270F ' + toolName + (shape ? ' \u00B7 ' + shape : '') + ' \u00B7 \'' + (label.length > 30 ? label.substring(0, 30) + '...' : label) + '\'';
+  msgs.appendChild(badge);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// DESIGN BOT — Phase 1: Main send function
+async function sendDesignBotMessage(userMessage) {
+  // DESIGN BOT — Phase 1: Agentic loop mirroring sendAgentMessage
+  if (!aiKey && !aiProxyAvailable) {
+    addDesignBotMsg('system', 'API key not configured.');
+    return;
+  }
+  const input = userMessage || document.getElementById('dbInput')?.value?.trim();
+  if (!input || designBot.isThinking) return;
+
+  if (document.getElementById('dbInput')) document.getElementById('dbInput').value = '';
+  addDesignBotMsg('user', input);
+
+  // Auto model selection
+  const model = designBot.autoModel ? designBotAutoSelectModel(input) : designBot.model;
+
+  // Manage history
+  designBot.history.push({ role: 'user', content: input });
+  if (designBot.history.length > 30) designBot.history = designBot.history.slice(-20);
+
+  // Build context-enriched message
+  const contextStr = buildDesignBotContext();
+  const systemWithContext = designBotSystemPrompt + contextStr;
+  const contextMsg = { role: 'user', content: '[Canvas Context]\n' + contextStr.trim() + '\n\n[Design Request]\n' + input };
+
+  const thinkingDiv = addDesignBotMsg('system', 'Designing...');
+  designBot.isThinking = true;
+  designBot.iterationCount = 0;
+
+  // Update model indicator
+  const modelIndicator = document.getElementById('dbModelIndicator');
+  if (modelIndicator) modelIndicator.textContent = model.includes('haiku') ? 'H' : model.includes('sonnet') ? 'S' : 'O';
+
+  try {
+    let apiMsgs = designBot.history.slice(0, -1).concat([contextMsg]);
+    let iterations = 0;
+    const designBotToolDefs = buildDesignBotTools();
+
+    while (iterations < designBot.maxIterations) {
+      iterations++;
+      designBot.iterationCount = iterations;
+
+      let result;
+      try {
+        const resp = await aiApiFetch({
+          model: model,
+          max_tokens: 4096,
+          system: systemWithContext,
+          messages: apiMsgs,
+          tools: designBotToolDefs,
+          stream: true
+        });
+
+        if (!resp.ok) {
+          const err = await resp.text();
+          if (thinkingDiv) thinkingDiv.textContent = 'Error: ' + resp.status;
+          designBot.isThinking = false;
+          return;
+        }
+
+        // Parse SSE stream
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let inputTokens = 0, outputTokens = 0, stopReason = 'end_turn';
+        const contentBlocks = [];
+        let currentBlockIdx = -1;
+        let streamDiv = null;
+        let toolJsonAccum = {};
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const dataStr = line.slice(6).trim();
+            if (!dataStr || dataStr === '[DONE]') continue;
+            let evt;
+            try { evt = JSON.parse(dataStr); } catch { continue; }
+
+            switch (evt.type) {
+              case 'message_start':
+                inputTokens = evt.message?.usage?.input_tokens || 0;
+                break;
+              case 'content_block_start': {
+                currentBlockIdx = evt.index;
+                const block = evt.content_block;
+                if (block.type === 'text') {
+                  contentBlocks[currentBlockIdx] = { type: 'text', text: '' };
+                } else if (block.type === 'tool_use') {
+                  contentBlocks[currentBlockIdx] = { type: 'tool_use', id: block.id, name: block.name, input: {} };
+                  toolJsonAccum[currentBlockIdx] = '';
+                }
+                break;
+              }
+              case 'content_block_delta': {
+                const idx = evt.index;
+                const delta = evt.delta;
+                if (delta.type === 'text_delta' && contentBlocks[idx]) {
+                  contentBlocks[idx].text += delta.text;
+                  if (!streamDiv) {
+                    if (thinkingDiv && (thinkingDiv.textContent === 'Designing...' || thinkingDiv.textContent === 'Processing...')) {
+                      thinkingDiv.className = 'db-msg assistant';
+                      thinkingDiv.textContent = delta.text;
+                      streamDiv = thinkingDiv;
+                    } else {
+                      streamDiv = addDesignBotMsg('assistant', delta.text);
+                    }
+                  } else {
+                    streamDiv.textContent += delta.text;
+                  }
+                  const msgs = document.getElementById('dbMsgs');
+                  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+                } else if (delta.type === 'input_json_delta' && toolJsonAccum[idx] !== undefined) {
+                  toolJsonAccum[idx] += delta.partial_json;
+                }
+                break;
+              }
+              case 'content_block_stop': {
+                const idx = evt.index;
+                if (contentBlocks[idx]?.type === 'tool_use' && toolJsonAccum[idx]) {
+                  try { contentBlocks[idx].input = JSON.parse(toolJsonAccum[idx]); } catch { contentBlocks[idx].input = {}; }
+                }
+                break;
+              }
+              case 'message_delta':
+                outputTokens = evt.usage?.output_tokens || 0;
+                stopReason = evt.delta?.stop_reason || stopReason;
+                break;
+            }
+          }
+        }
+
+        result = {
+          content: contentBlocks.filter(Boolean),
+          stop_reason: stopReason,
+          usage: { input_tokens: inputTokens, output_tokens: outputTokens }
+        };
+      } catch (streamErr) {
+        // Fallback to non-streaming
+        try {
+          const resp2 = await aiApiFetch({
+            model: model,
+            max_tokens: 4096,
+            system: systemWithContext,
+            messages: apiMsgs,
+            tools: designBotToolDefs
+          });
+          if (!resp2.ok) {
+            if (thinkingDiv) thinkingDiv.textContent = 'Error: ' + resp2.status;
+            designBot.isThinking = false;
+            return;
+          }
+          result = await resp2.json();
+        } catch (e2) {
+          if (thinkingDiv) thinkingDiv.textContent = 'Error: ' + e2.message;
+          designBot.isThinking = false;
+          return;
+        }
+      }
+
+      // Track tokens
+      designBot.sessionTokensIn += result.usage?.input_tokens || 0;
+      designBot.sessionTokensOut += result.usage?.output_tokens || 0;
+      const rates = MODEL_RATES[model] || MODEL_RATES['claude-haiku-4-5-20251001'];
+      designBot.sessionCost = (designBot.sessionTokensIn / 1e6 * rates.input) + (designBot.sessionTokensOut / 1e6 * rates.output);
+      updateDesignBotCost();
+
+      const textBlocks = (result.content || []).filter(b => b.type === 'text');
+      const toolBlocks = (result.content || []).filter(b => b.type === 'tool_use');
+
+      // Show text if not streamed
+      if (textBlocks.length && !streamDiv) {
+        const fullText = textBlocks.map(b => b.text).join('\n');
+        if (thinkingDiv && (thinkingDiv.textContent === 'Designing...' || thinkingDiv.textContent === 'Processing...')) {
+          thinkingDiv.className = 'db-msg assistant';
+          thinkingDiv.textContent = fullText;
+        } else {
+          addDesignBotMsg('assistant', fullText);
+        }
+      }
+      if (textBlocks.length) {
+        designBot.history.push({ role: 'assistant', content: textBlocks.map(b => b.text).join('\n') });
+      }
+
+      // Done if no tool calls
+      if (result.stop_reason !== 'tool_use' || !toolBlocks.length) {
+        if (!textBlocks.length && thinkingDiv && (thinkingDiv.textContent === 'Designing...' || thinkingDiv.textContent === 'Processing...')) {
+          thinkingDiv.textContent = '(No response)';
+        }
+        break;
+      }
+
+      if (thinkingDiv && (thinkingDiv.textContent === 'Designing...' || thinkingDiv.textContent === 'Processing...')) thinkingDiv.remove();
+
+      // Execute tool calls
+      const toolResults = [];
+      for (const toolBlock of toolBlocks) {
+        addDesignBotToolBadge(toolBlock.name, toolBlock.input);
+        const toolResult = await designBotCallTool(toolBlock.name, toolBlock.input);
+        toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult });
+      }
+
+      apiMsgs.push({ role: 'assistant', content: result.content });
+      apiMsgs.push({ role: 'user', content: toolResults });
+
+      addDesignBotMsg('system', 'Processing...');
+    }
+  } catch (e) {
+    if (thinkingDiv) thinkingDiv.textContent = 'Error: ' + e.message;
+  }
+  designBot.isThinking = false;
+}
+
+// DESIGN BOT — Phase 5: Update cost display
+function updateDesignBotCost() {
+  // DESIGN BOT — Phase 5: Refresh cost label in header
+  const el = document.getElementById('dbCostLabel');
+  if (el) el.textContent = '$' + designBot.sessionCost.toFixed(4);
+}
+
+// DESIGN BOT — Phase 5: Build and inject UI panel
+(function initDesignBotUI() {
+  // DESIGN BOT — Phase 5: Create Design Bot panel inside Claude pane
+  const claudeBody = document.querySelector('#q-claude .p-body');
+  if (!claudeBody) return;
+
+  // Wrap existing children in a left-half container
+  const existingChildren = Array.from(claudeBody.children);
+  const splitContainer = document.createElement('div');
+  splitContainer.className = 'design-bot-split';
+  splitContainer.id = 'designBotSplit';
+
+  const leftHalf = document.createElement('div');
+  leftHalf.className = 'agent-half';
+  leftHalf.id = 'mainAgentHalf';
+  existingChildren.forEach(child => leftHalf.appendChild(child));
+
+  // Divider
+  const divider = document.createElement('div');
+  divider.className = 'design-bot-divider';
+  divider.id = 'dbDivider';
+
+  // Right half: Design Bot panel
+  const rightHalf = document.createElement('div');
+  rightHalf.className = 'agent-half';
+  rightHalf.id = 'designBotPanel';
+  rightHalf.innerHTML =
+    '<div class="db-header">' +
+      '<span style="font-size:.72rem;">&#128397;</span> ' +
+      '<span class="db-title">Design Bot</span> ' +
+      '<span class="db-subtitle">Whiteboard \u00B7 Concept Map</span>' +
+      '<div style="flex:1;"></div>' +
+      '<span id="dbModelIndicator" style="font-size:.5rem;color:var(--text-dim);background:var(--bg);border-radius:3px;padding:0 3px;" title="Active model">H</span> ' +
+      '<select id="dbModelSelect" style="font-size:.55rem;padding:1px 3px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);max-width:70px;">' +
+        '<option value="auto" selected>Auto</option>' +
+        '<option value="claude-haiku-4-5-20251001">Haiku</option>' +
+        '<option value="claude-sonnet-4-6">Sonnet</option>' +
+      '</select> ' +
+      '<span id="dbCostLabel" style="font-size:.5rem;color:var(--text-dim);">$0.0000</span> ' +
+      '<button id="dbCollapseBtn" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.7rem;padding:0 2px;" title="Collapse Design Bot">\u00BB</button>' +
+    '</div>' +
+    '<div class="db-msgs" id="dbMsgs"></div>' +
+    '<div class="db-input-row">' +
+      '<textarea id="dbInput" placeholder="Describe a layout, chart, or diagram..." rows="1"></textarea>' +
+      '<button id="dbSend">Draw</button>' +
+    '</div>';
+
+  splitContainer.appendChild(leftHalf);
+  splitContainer.appendChild(divider);
+  splitContainer.appendChild(rightHalf);
+  claudeBody.appendChild(splitContainer);
+
+  // Add drawing banner to whiteboard pane
+  const wbWrap = document.getElementById('wbWrap');
+  if (wbWrap) {
+    const banner = document.createElement('div');
+    banner.className = 'db-drawing-banner';
+    banner.id = 'dbDrawingBanner';
+    banner.textContent = '\u{1F58D} Design Bot is drawing...';
+    banner.style.display = 'none';
+    wbWrap.appendChild(banner);
+  }
+
+  // Event handlers
+  document.getElementById('dbSend').onclick = () => sendDesignBotMessage();
+  document.getElementById('dbInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDesignBotMessage(); }
+  });
+
+  // Model selector
+  document.getElementById('dbModelSelect').onchange = function() {
+    if (this.value === 'auto') {
+      designBot.autoModel = true;
+    } else {
+      designBot.autoModel = false;
+      designBot.model = this.value;
+    }
+  };
+
+  // Collapse toggle
+  const collapsed = localStorage.getItem('design_bot_collapsed') === 'true';
+  if (collapsed) splitContainer.classList.add('db-collapsed');
+
+  document.getElementById('dbCollapseBtn').onclick = function() {
+    const isCollapsed = splitContainer.classList.toggle('db-collapsed');
+    localStorage.setItem('design_bot_collapsed', isCollapsed);
+    this.textContent = isCollapsed ? '\u00AB' : '\u00BB';
+    // Add expand button to main agent if collapsed
+    let expandBtn = document.getElementById('dbExpandBtn');
+    if (isCollapsed) {
+      if (!expandBtn) {
+        expandBtn = document.createElement('button');
+        expandBtn.id = 'dbExpandBtn';
+        expandBtn.style.cssText = 'position:absolute;right:4px;bottom:50px;z-index:50;background:rgba(255,180,50,.7);color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.6rem;font-weight:600;';
+        expandBtn.textContent = '\u{1F58D} Design Bot';
+        expandBtn.onclick = () => {
+          splitContainer.classList.remove('db-collapsed');
+          localStorage.setItem('design_bot_collapsed', 'false');
+          document.getElementById('dbCollapseBtn').textContent = '\u00BB';
+          expandBtn.style.display = 'none';
+        };
+        leftHalf.style.position = 'relative';
+        leftHalf.appendChild(expandBtn);
+      }
+      expandBtn.style.display = '';
+    } else if (expandBtn) {
+      expandBtn.style.display = 'none';
+    }
+  };
+  // Set initial collapse button state
+  if (collapsed) document.getElementById('dbCollapseBtn').textContent = '\u00AB';
+
+  // Divider drag to resize
+  let dbDragging = false;
+  divider.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dbDragging = true;
+    document.body.style.cursor = 'col-resize';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dbDragging) return;
+    const rect = splitContainer.getBoundingClientRect();
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    const clamped = Math.max(25, Math.min(75, pct));
+    leftHalf.style.flex = '0 0 ' + clamped + '%';
+    rightHalf.style.flex = '0 0 ' + (100 - clamped) + '%';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dbDragging) return;
+    dbDragging = false;
+    document.body.style.cursor = '';
+  });
+
+  // Welcome message
+  addDesignBotMsg('system', 'Design Bot ready. Describe a layout, chart, or diagram to draw on the whiteboard.');
+
+  // DESIGN BOT — Phase 5: Cross-bot "Send to Design Bot" button injection
+  // Watch for new main agent messages and add the handoff button
+  const mainMsgs = document.getElementById('aiMsgs');
+  if (mainMsgs) {
+    const observer = new MutationObserver(mutations => {
+      mutations.forEach(m => {
+        m.addedNodes.forEach(node => {
+          if (node.nodeType === 1 && node.classList.contains('ai-msg') && node.classList.contains('assistant')) {
+            const text = node.textContent || '';
+            // Check if message mentions whiteboard/draw/chart/diagram/layout
+            const drawKeywords = /whiteboard|draw|chart|diagram|layout|canvas|visual|concept map|design/i;
+            if (drawKeywords.test(text)) {
+              const btn = document.createElement('button');
+              btn.style.cssText = 'display:block;margin-top:4px;padding:2px 6px;border:1px solid rgba(255,180,50,.4);border-radius:4px;background:none;color:rgba(255,180,50,.8);cursor:pointer;font-size:.52rem;';
+              btn.textContent = '\u2192 Send to Design Bot';
+              btn.onclick = () => {
+                const dbInput = document.getElementById('dbInput');
+                if (dbInput) {
+                  dbInput.value = text.substring(0, 500);
+                  dbInput.focus();
+                  // Uncollapse if collapsed
+                  if (splitContainer.classList.contains('db-collapsed')) {
+                    splitContainer.classList.remove('db-collapsed');
+                    localStorage.setItem('design_bot_collapsed', 'false');
+                    document.getElementById('dbCollapseBtn').textContent = '\u00BB';
+                    const expandBtn = document.getElementById('dbExpandBtn');
+                    if (expandBtn) expandBtn.style.display = 'none';
+                  }
+                }
+              };
+              node.appendChild(btn);
+            }
+          }
+        });
+      });
+    });
+    observer.observe(mainMsgs, { childList: true });
+  }
 })();
 
 </script>
