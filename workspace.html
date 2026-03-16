@@ -411,14 +411,21 @@ body.light .fun-btn { background: var(--accent); }
 .robot-bg::before, .robot-bg::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
 /* Glass office overlay — top half clear, bottom half frosted/tempered */
 .robot-glass { position: absolute; inset: 0; z-index: 1; border: none; pointer-events: none;
-  background: linear-gradient(180deg,
-    rgba(255,255,255,.02) 0%, rgba(200,220,255,.03) 15%, rgba(255,255,255,.01) 46%,
-    rgba(255,255,255,.06) 50%,
-    rgba(180,200,220,.22) 54%, rgba(160,180,200,.28) 65%, rgba(140,160,180,.24) 80%, rgba(120,140,160,.18) 100%);
+  background:
+    /* Horizontal dark mullion at opacity switch point */
+    linear-gradient(180deg,
+      transparent 0%, transparent calc(50% - 1.5px),
+      rgba(0,0,0,.55) calc(50% - 1.5px), rgba(0,0,0,.65) 50%, rgba(0,0,0,.55) calc(50% + 1.5px),
+      transparent calc(50% + 1.5px), transparent 100%),
+    /* Glass opacity transition */
+    linear-gradient(180deg,
+      rgba(255,255,255,.02) 0%, rgba(200,220,255,.03) 15%, rgba(255,255,255,.01) 46%,
+      rgba(255,255,255,.06) 50%,
+      rgba(180,200,220,.22) 54%, rgba(160,180,200,.28) 65%, rgba(140,160,180,.24) 80%, rgba(120,140,160,.18) 100%);
 }
 .robot-glass::before, .robot-glass::after { content:''; position: absolute; }
-.robot-glass::before { top: 0; bottom: 0; left: 30%; width: 1px; background: linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.03) 48%, rgba(255,255,255,.08) 52%, rgba(255,255,255,.08) 100%); }
-.robot-glass::after { top: 0; bottom: 0; right: 30%; width: 1px; background: linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.03) 48%, rgba(255,255,255,.08) 52%, rgba(255,255,255,.08) 100%); }
+.robot-glass::before { top: 0; bottom: 0; left: 30%; width: 2px; background: linear-gradient(180deg, rgba(0,0,0,.25) 0%, rgba(0,0,0,.35) 48%, rgba(0,0,0,.50) 50%, rgba(0,0,0,.35) 52%, rgba(0,0,0,.25) 100%); }
+.robot-glass::after { top: 0; bottom: 0; right: 30%; width: 2px; background: linear-gradient(180deg, rgba(0,0,0,.25) 0%, rgba(0,0,0,.35) 48%, rgba(0,0,0,.50) 50%, rgba(0,0,0,.35) 52%, rgba(0,0,0,.25) 100%); }
 /* Office scene: detailed brick wall with cross-hatching and color variation */
 .scene-office ~ .robot-glass {
   background:
