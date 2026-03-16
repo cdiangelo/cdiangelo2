@@ -590,59 +590,77 @@ body.light .fun-btn { background: var(--accent); }
 /* ═══ EGYPTIAN DESERT SCENE ═══ */
 .robot-bg.scene-desert {
   background:
-    /* Golden sun disc */
-    radial-gradient(circle 16px at 75% 22%, rgba(255,200,50,.9) 0%, rgba(255,160,30,.4) 40%, transparent 70%),
-    radial-gradient(circle 28px at 75% 22%, rgba(255,180,40,.15) 0%, transparent 100%),
-    /* Pyramid 1 (large, center-left) */
-    linear-gradient(135deg, transparent 42%, #8B7355 42.3%),
-    linear-gradient(225deg, transparent 42%, #7A6548 42.3%),
-    /* Pyramid 2 (medium, right) */
-    linear-gradient(138deg, transparent 46%, #9C8565 46.3%),
-    linear-gradient(222deg, transparent 46%, #8A7555 46.3%),
-    /* Pyramid 3 (small, far left) */
-    linear-gradient(140deg, transparent 50%, rgba(160,140,110,.4) 50.3%),
-    linear-gradient(220deg, transparent 50%, rgba(140,120,95,.4) 50.3%),
-    /* Sand dunes */
-    linear-gradient(180deg, transparent 64%, #C4A76C 66%, #B8976A 72%, #A68B5B 80%, #9A7E50 90%, #8E7245 100%),
-    /* Sky — warm desert gradient */
+    /* Sun disc — warm golden with layered glow halos */
+    radial-gradient(circle 14px at 74% 24%, rgba(255,248,224,.95) 0%, rgba(244,200,58,.6) 35%, rgba(232,136,42,.2) 60%, transparent 80%),
+    radial-gradient(circle 30px at 74% 24%, rgba(244,168,58,.35) 0%, rgba(220,100,30,.08) 70%, transparent 100%),
+    radial-gradient(circle 52px at 74% 26%, rgba(244,168,58,.08) 0%, transparent 100%),
+    /* Pyramid 1 (Khufu — large, center-left) lit face / shadow face */
+    linear-gradient(135deg, transparent 40%, #c8853a 40.3%),
+    linear-gradient(225deg, transparent 40%, #5a3418 40.3%),
+    /* Pyramid 2 (Khafre — medium, right) */
+    linear-gradient(137deg, transparent 45%, #b87a2a 45.3%),
+    linear-gradient(223deg, transparent 45%, #6a4420 45.3%),
+    /* Pyramid 3 (Menkaure — small, far right) */
+    linear-gradient(139deg, transparent 50%, rgba(184,122,42,.5) 50.3%),
+    linear-gradient(221deg, transparent 50%, rgba(90,52,24,.5) 50.3%),
+    /* Atmospheric haze band at horizon */
+    linear-gradient(180deg, transparent 56%, rgba(210,130,40,.1) 62%, rgba(210,130,40,.05) 68%, transparent 72%),
+    /* Sand dunes — warm golden tones with undulating surface */
+    linear-gradient(180deg, transparent 62%, #d4973a 64%, #c8883a 68%, #b8772a 74%, #a06828 82%, #8a5a28 90%, #7a4a18 100%),
+    /* Sky — rich atmospheric gradient (deep indigo → violet → amber → gold) */
     linear-gradient(180deg,
-      #1a0a2e 0%, #2d1254 8%, #5c2d82 18%, #a04dab 28%,
-      #d4708a 38%, #e8956a 48%, #f0b050 58%, #f5c84a 68%,
-      #e8b854 78%, #d4a850 100%);
+      #04020e 0%, #0a0614 6%, #0d0520 12%, #1a0a2e 20%,
+      #2e0e3a 28%, #5a1e1a 40%, #8a3a18 50%,
+      #c2622a 58%, #d4782a 64%, #e8832a 70%,
+      #f0a84a 78%, #f4b84a 86%, #e8b040 100%);
   background-size:
-    100% 100%, 100% 100%,
-    60% 100%, 60% 100%,
-    40% 100%, 40% 100%,
-    30% 100%, 30% 100%,
+    100% 100%, 100% 100%, 100% 100%,
+    55% 100%, 55% 100%,
+    38% 100%, 38% 100%,
+    26% 100%, 26% 100%,
+    100% 100%,
     100% 100%,
     100% 100%;
   background-position:
-    0 0, 0 0,
-    10% 0, 60% 0,
-    55% 0, 88% 0,
-    -5% 0, 22% 0,
+    0 0, 0 0, 0 0,
+    14% 0, 62% 0,
+    56% 0, 88% 0,
+    70% 0, 90% 0,
+    0 0,
     0 0,
     0 0;
   background-repeat: no-repeat;
 }
 .robot-bg.scene-desert::before {
   background:
-    /* Heat shimmer waves */
-    repeating-linear-gradient(90deg, transparent 0px, rgba(255,200,100,.03) 4px, transparent 8px),
-    /* Sand texture */
-    repeating-linear-gradient(175deg, rgba(0,0,0,.02) 0px, transparent 2px, transparent 5px, rgba(0,0,0,.02) 7px),
-    /* Warm light scatter */
-    radial-gradient(ellipse at 50% 65%, rgba(255,180,80,.08) 0%, transparent 50%);
+    /* Heat shimmer at horizon — animated wavy distortion */
+    linear-gradient(to right, transparent 0%, rgba(255,200,80,.12) 20%, rgba(255,240,160,.2) 50%, rgba(255,200,80,.12) 80%, transparent 100%),
+    /* Sand ripple texture across dune surface */
+    repeating-linear-gradient(88deg, transparent 0px, transparent 28px, rgba(0,0,0,.04) 28px, rgba(0,0,0,.04) 30px),
+    /* Warm atmospheric light scatter from sun */
+    radial-gradient(ellipse 60% 40% at 72% 30%, rgba(244,168,58,.06) 0%, transparent 100%),
+    /* Subtle sand grain noise */
+    repeating-linear-gradient(175deg, rgba(0,0,0,.015) 0px, transparent 2px, transparent 6px, rgba(0,0,0,.015) 8px);
+  animation: desertShimmer 4s ease-in-out infinite alternate;
 }
 .robot-bg.scene-desert::after {
   background:
-    /* Stars in upper sky */
-    radial-gradient(1px 1px at 15% 8%, rgba(255,255,255,.4) 50%, transparent 100%),
-    radial-gradient(1px 1px at 35% 5%, rgba(255,255,255,.3) 50%, transparent 100%),
-    radial-gradient(1px 1px at 55% 10%, rgba(255,255,255,.25) 50%, transparent 100%),
-    radial-gradient(1px 1px at 8% 14%, rgba(255,255,255,.2) 50%, transparent 100%),
-    radial-gradient(1px 1px at 45% 3%, rgba(255,255,255,.3) 50%, transparent 100%),
-    radial-gradient(1px 1px at 25% 12%, rgba(255,255,255,.15) 50%, transparent 100%);
+    /* Stars — varying sizes and opacity for depth */
+    radial-gradient(1.5px 1.5px at 12% 6%, rgba(255,255,220,.55) 50%, transparent 100%),
+    radial-gradient(1px 1px at 28% 4%, rgba(255,255,220,.4) 50%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 42% 8%, rgba(255,255,220,.35) 50%, transparent 100%),
+    radial-gradient(1px 1px at 6% 12%, rgba(255,255,220,.3) 50%, transparent 100%),
+    radial-gradient(1px 1px at 52% 3%, rgba(255,255,220,.45) 50%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 22% 10%, rgba(255,255,220,.25) 50%, transparent 100%),
+    radial-gradient(1px 1px at 65% 5%, rgba(255,255,220,.3) 50%, transparent 100%),
+    radial-gradient(1px 1px at 38% 14%, rgba(255,255,220,.2) 50%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 18% 2%, rgba(255,255,220,.5) 50%, transparent 100%),
+    radial-gradient(1px 1px at 48% 11%, rgba(255,255,220,.2) 50%, transparent 100%),
+    radial-gradient(1px 1px at 58% 7%, rgba(255,255,220,.35) 50%, transparent 100%),
+    radial-gradient(1px 1px at 82% 4%, rgba(255,255,220,.3) 50%, transparent 100%),
+    radial-gradient(1px 1px at 92% 9%, rgba(255,255,220,.25) 50%, transparent 100%),
+    radial-gradient(1px 1px at 75% 13%, rgba(255,255,220,.15) 50%, transparent 100%);
+  animation: sceneTwinkle 3.5s ease-in-out infinite;
 }
 
 /* ═══ SCENE ANIMATIONS ═══ */
@@ -654,6 +672,11 @@ body.light .fun-btn { background: var(--accent); }
 @keyframes sceneScroll { from { background-position: 0 bottom; } to { background-position: -600px bottom; } }
 @keyframes sceneScrollSlow { from { background-position: 0 bottom; } to { background-position: -300px bottom; } }
 @keyframes sceneFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes desertShimmer {
+  0% { opacity: .4; transform: translateX(0) scaleY(1); }
+  50% { opacity: .65; transform: translateX(2px) scaleY(1.01); }
+  100% { opacity: .4; transform: translateX(-1px) scaleY(.99); }
+}
 @keyframes volcanoSmoke {
   0% { opacity: .5; transform: translateY(0) scaleX(1) scaleY(1); }
   30% { opacity: .7; transform: translateY(-5px) scaleX(1.1) scaleY(1.15); }
@@ -739,10 +762,14 @@ body.light .fun-btn { background: var(--accent); }
     /* ── Faint lava pool glow at base ── */
     radial-gradient(ellipse 50px 5px at 46% 72%, rgba(200,30,0,.1) 0%, transparent 100%),
     radial-gradient(ellipse 25px 3px at 62% 74%, rgba(180,25,0,.06) 0%, transparent 100%),
-    /* ── Sky — very dark, faint deep red haze near horizon ── */
+    /* ── Volcanic atmospheric haze — hot air distortion at base ── */
+    linear-gradient(180deg, transparent 60%, rgba(200,40,0,.04) 64%, rgba(180,30,0,.06) 68%, rgba(100,15,0,.03) 72%, transparent 76%),
+    /* ── Sky — dark with richer atmospheric red undertones ── */
     linear-gradient(180deg,
-      #020002 0%, #040104 12%, #060106 25%, #0a0208 38%,
-      #10040c 50%, #0c0308 65%, #080206 78%, #050104 90%, #030002 100%);
+      #020002 0%, #030103 6%, #040104 12%, #050206 18%, #060106 25%,
+      #080208 32%, #0a0208 38%, #0e030a 44%, #10040c 50%,
+      #0e030a 56%, #0c0308 65%, #0a0206 72%, #080206 78%,
+      #060105 85%, #050104 90%, #040103 95%, #030002 100%);
   background-size:
     100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
     100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
@@ -750,6 +777,7 @@ body.light .fun-btn { background: var(--accent); }
     50% 100%, 50% 100%,
     60% 100%, 60% 100%,
     100% 100%, 100% 100%, 100% 100%,
+    100% 100%,
     100% 100%;
   background-position:
     0 0, 0 0, 0 0, 0 0, 0 0,
@@ -758,6 +786,7 @@ body.light .fun-btn { background: var(--accent); }
     12% 0, 52% 0,
     -5% 0, 45% 0,
     0 0, 0 0, 0 0,
+    0 0,
     0 0;
   background-repeat: no-repeat;
 }
@@ -819,17 +848,21 @@ body.light .fun-btn { background: var(--accent); }
 /* ── Forest — dense canopy like city skyline, packed trees, sunlit sky at top ── */
 .robot-bg.scene-forest {
   background:
-    /* Sun glow */
-    radial-gradient(circle 30px at 75% 6%, rgba(255,240,180,.3) 0%, transparent 100%),
-    radial-gradient(circle 15px at 75% 6%, rgba(255,255,220,.4) 0%, transparent 100%),
-    /* Sunbeams filtering down */
-    linear-gradient(170deg, transparent 0%, rgba(255,255,200,.04) 8%, transparent 16%),
-    linear-gradient(160deg, transparent 5%, rgba(255,255,180,.03) 12%, transparent 20%),
-    /* Sky gradient — bright warm blue at top, fading to green canopy */
+    /* Sun disc — warm golden with layered glow halos */
+    radial-gradient(circle 10px at 75% 6%, rgba(255,250,220,.6) 0%, rgba(255,240,180,.3) 40%, transparent 100%),
+    radial-gradient(circle 24px at 75% 6%, rgba(255,240,160,.2) 0%, rgba(255,220,120,.08) 60%, transparent 100%),
+    radial-gradient(circle 40px at 75% 6%, rgba(255,200,80,.06) 0%, transparent 100%),
+    /* Sunbeams filtering down — subtle diagonal shafts */
+    linear-gradient(170deg, transparent 0%, rgba(255,255,200,.05) 8%, transparent 16%),
+    linear-gradient(158deg, transparent 5%, rgba(255,255,180,.04) 13%, transparent 22%),
+    linear-gradient(175deg, transparent 3%, rgba(255,255,160,.03) 10%, transparent 18%),
+    /* Atmospheric mist band between canopy and sky */
+    linear-gradient(180deg, transparent 18%, rgba(180,220,180,.08) 20%, rgba(140,200,140,.04) 24%, transparent 28%),
+    /* Sky gradient — rich atmospheric transition to canopy */
     linear-gradient(180deg,
-      #87ceeb 0%, #6bb8d9 5%, #4fa8c8 10%, #3a9ab8 16%,
-      #4caf50 22%, #3d9e44 30%, #2e8c35 40%,
-      #1e7a28 52%, #145a1c 65%, #0a3a10 80%, #051f08 100%);
+      #6ec6e8 0%, #5db8dc 3%, #4caace 6%, #3a9cc0 10%, #2e90b4 14%,
+      #3a8a5a 18%, #3d9e44 22%, #368e3c 28%, #2e8c35 34%,
+      #247a2c 42%, #1c6c24 52%, #145a1c 64%, #0c4814 78%, #051f08 100%);
 }
 .robot-bg.scene-forest::before {
   /* Dense tree trunks packed like buildings + canopy masses filling 80% of frame */
@@ -909,9 +942,15 @@ body.light .fun-btn { background: var(--accent); }
 /* ── City — top-down view from tall building, dense skyscrapers, minimal sky ── */
 .robot-bg.scene-city {
   background:
+    /* Urban light pollution — warm glow at horizon */
+    radial-gradient(ellipse 80% 30% at 50% 85%, rgba(255,180,80,.04) 0%, transparent 100%),
+    /* Atmospheric haze band — city smog/light scatter at skyline level */
+    linear-gradient(180deg, transparent 26%, rgba(80,50,120,.06) 30%, rgba(60,40,100,.04) 36%, transparent 42%),
+    /* Sky — rich atmospheric gradient with more depth */
     linear-gradient(180deg,
-      #06061a 0%, #0e0e30 5%, #1a1050 10%, #2d1568 16%,
-      #4a1a80 20%, #3a1570 24%, #1a0c40 30%, #0e0820 40%, #080514 100%);
+      #04041a 0%, #080824 3%, #0c0c2e 6%, #121040 10%, #1a1050 14%,
+      #2d1568 18%, #3a1878 22%, #301466 26%, #241050 32%,
+      #1a0c40 40%, #120a30 52%, #0e0820 66%, #0a0618 82%, #080514 100%);
 }
 .robot-bg.scene-city::before {
   /* Dense wall of skyscrapers filling 80%+ of the scene — viewed looking across skyline */
@@ -1015,26 +1054,31 @@ body.light .fun-btn { background: var(--accent); }
 /* Warm coral/orange/purple atmospheric sunset sky, drifting clouds, sun glow, water reflection */
 .robot-bg.scene-sunset {
   background:
+    /* Atmospheric haze band at horizon — warm golden scatter */
+    linear-gradient(180deg, transparent 64%, rgba(255,200,100,.06) 68%, rgba(255,180,80,.08) 72%, rgba(255,160,60,.06) 76%, transparent 80%),
+    /* Sky — rich atmospheric sunset with smoother transitions */
     linear-gradient(180deg,
-      #1a0533 0%, #2d1054 8%, #5c1a6e 18%, #8e2475 28%,
-      #c2185b 38%, #e64a19 48%, #ff6f00 56%, #ff8f00 63%,
-      #ffab40 70%, #ffd54f 78%, #ffe082 85%,
-      #1a237e 90%, #0d1b3e 100%);
+      #0e0220 0%, #1a0533 4%, #2d1054 10%, #441666 16%, #5c1a6e 22%,
+      #8e2475 30%, #b82068 36%, #c2185b 40%, #d43a30 45%,
+      #e64a19 50%, #f05a10 54%, #ff6f00 58%, #ff8200 62%,
+      #ff8f00 66%, #ffab40 72%, #ffd54f 80%, #ffe082 86%,
+      #1a237e 92%, #0d1b3e 100%);
 }
 .robot-bg.scene-sunset::before {
   /* Sun glow + clouds */
   background:
-    /* Sun disk at horizon */
-    radial-gradient(circle 20px at 50% 72%, rgba(255,200,50,.8) 0%, rgba(255,150,0,.4) 40%, transparent 70%),
-    radial-gradient(circle 35px at 50% 75%, rgba(255,180,50,.25) 0%, transparent 70%),
-    /* Warm clouds */
+    /* Sun disc — layered glow halos for depth */
+    radial-gradient(circle 14px at 50% 72%, rgba(255,248,220,.9) 0%, rgba(255,220,100,.5) 40%, transparent 100%),
+    radial-gradient(circle 24px at 50% 73%, rgba(255,200,50,.45) 0%, rgba(255,160,20,.15) 50%, transparent 100%),
+    radial-gradient(circle 40px at 50% 74%, rgba(255,180,50,.15) 0%, rgba(255,140,30,.05) 60%, transparent 100%),
+    /* Warm clouds — varying opacity for atmospheric depth */
     radial-gradient(ellipse 70px 16px at 18% 20%, rgba(255,180,120,.3) 0%, transparent 100%),
     radial-gradient(ellipse 55px 12px at 45% 14%, rgba(255,160,100,.25) 0%, transparent 100%),
     radial-gradient(ellipse 80px 14px at 75% 22%, rgba(255,140,80,.2) 0%, transparent 100%),
     radial-gradient(ellipse 50px 10px at 60% 8%, rgba(255,200,150,.18) 0%, transparent 100%),
     radial-gradient(ellipse 65px 13px at 30% 28%, rgba(200,100,60,.15) 0%, transparent 100%),
-    /* Horizon shimmer */
-    linear-gradient(180deg, transparent 68%, rgba(255,200,100,.06) 72%, rgba(255,180,80,.04) 76%, transparent 80%);
+    /* Warm atmospheric light scatter from sun */
+    radial-gradient(ellipse 60% 30% at 50% 76%, rgba(255,180,60,.06) 0%, transparent 100%);
   animation: sceneDrift 18s ease-in-out infinite alternate;
 }
 .robot-bg.scene-sunset::after {
