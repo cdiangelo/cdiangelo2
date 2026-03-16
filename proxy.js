@@ -191,6 +191,7 @@ app.post('/proxy/ai/messages', async (req, res) => {
 let rhToken = ''; // Robinhood OAuth token (set via login)
 let rhRefreshToken = '';
 let rhDeviceToken = ''; // persistent device token for MFA
+const RH_USER_AGENT = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
 // GET /proxy/robinhood?endpoint=<path> — Public Robinhood API (no auth)
 app.get('/proxy/robinhood', async (req, res) => {
@@ -207,7 +208,7 @@ app.get('/proxy/robinhood', async (req, res) => {
   try {
     const resp = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0',
+        'User-Agent': RH_USER_AGENT,
         'Accept': 'application/json'
       },
       signal: AbortSignal.timeout(10000)
@@ -240,7 +241,7 @@ app.get('/proxy/robinhood/auth', async (req, res) => {
     const resp = await fetch(url, {
       headers: {
         'Authorization': 'Bearer ' + rhToken,
-        'User-Agent': 'Mozilla/5.0',
+        'User-Agent': RH_USER_AGENT,
         'Accept': 'application/json'
       },
       signal: AbortSignal.timeout(10000)
@@ -251,7 +252,7 @@ app.get('/proxy/robinhood/auth', async (req, res) => {
         const refreshed = await refreshRobinhoodToken();
         if (refreshed) {
           const retryResp = await fetch(url, {
-            headers: { 'Authorization': 'Bearer ' + rhToken, 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+            headers: { 'Authorization': 'Bearer ' + rhToken, 'User-Agent': RH_USER_AGENT, 'Accept': 'application/json' },
             signal: AbortSignal.timeout(10000)
           });
           if (retryResp.ok) {
@@ -297,7 +298,7 @@ app.post('/proxy/robinhood/login', async (req, res) => {
 
   const headers = {
     'Content-Type': 'application/json',
-    'User-Agent': 'Mozilla/5.0',
+    'User-Agent': RH_USER_AGENT,
     'Accept': 'application/json',
     'X-Robinhood-API-Version': '1.431.4'
   };
@@ -310,7 +311,28 @@ app.post('/proxy/robinhood/login', async (req, res) => {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000)
     });
-    const data = await resp.json();
+
+    const contentType = resp.headers.get('content-type') || '';
+    const rawText = await resp.text();
+
+    if (!resp.ok) {
+      console.error(`[Robinhood] Login HTTP ${resp.status}, content-type: ${contentType}, body: ${rawText.substring(0, 500)}`);
+      let detail = 'Robinhood returned HTTP ' + resp.status;
+      try {
+        const errData = JSON.parse(rawText);
+        detail = errData.detail || errData.message || detail;
+      } catch (_) { /* non-JSON response */ }
+      return res.status(resp.status >= 400 && resp.status < 600 ? resp.status : 502)
+        .json({ error: true, message: detail });
+    }
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (_) {
+      console.error(`[Robinhood] Login OK but non-JSON, content-type: ${contentType}, body: ${rawText.substring(0, 500)}`);
+      return res.status(502).json({ error: true, message: 'Robinhood returned non-JSON response' });
+    }
 
     if (data.access_token) {
       rhToken = data.access_token;
@@ -348,7 +370,7 @@ async function refreshRobinhoodToken() {
   try {
     const resp = await fetch('https://api.robinhood.com/oauth2/token/', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+      headers: { 'Content-Type': 'application/json', 'User-Agent': RH_USER_AGENT },
       body: JSON.stringify({
         grant_type: 'refresh_token',
         refresh_token: rhRefreshToken,
@@ -358,7 +380,16 @@ async function refreshRobinhoodToken() {
       }),
       signal: AbortSignal.timeout(10000)
     });
-    const data = await resp.json();
+    const rawText = await resp.text();
+    if (!resp.ok) {
+      console.error(`[Robinhood] Refresh HTTP ${resp.status}, body: ${rawText.substring(0, 300)}`);
+      return false;
+    }
+    let data;
+    try { data = JSON.parse(rawText); } catch (_) {
+      console.error('[Robinhood] Refresh returned non-JSON');
+      return false;
+    }
     if (data.access_token) {
       rhToken = data.access_token;
       rhRefreshToken = data.refresh_token || rhRefreshToken;
