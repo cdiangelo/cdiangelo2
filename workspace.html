@@ -3093,6 +3093,98 @@ function renderEditor() {
   volSection.appendChild(muteBtn); volSection.appendChild(volLabel); volSection.appendChild(volSlider); volSection.appendChild(volVal);
   editorPanel.appendChild(volSection);
 
+  // YouTube Premium sign-in section
+  const ytSection = document.createElement('div');
+  ytSection.style.cssText = 'margin-top:8px;padding:8px;border-radius:4px;background:' + (dk ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)') + ';display:flex;flex-direction:column;gap:6px';
+
+  const ytHeader = document.createElement('div');
+  ytHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
+  const ytLabel = document.createElement('span');
+  ytLabel.textContent = 'YouTube Premium';
+  ytLabel.style.cssText = 'font-size:.7rem;font-weight:600;color:' + (dk ? '#cdd6f4' : '#333');
+  const ytToggle = document.createElement('input');
+  ytToggle.type = 'checkbox';
+  ytToggle.checked = ytPremium;
+  ytToggle.style.cssText = 'cursor:pointer;accent-color:#ff0000';
+  ytToggle.title = 'Enable ad-free playback with YouTube Premium';
+  ytHeader.appendChild(ytLabel); ytHeader.appendChild(ytToggle);
+  ytSection.appendChild(ytHeader);
+
+  const ytDesc = document.createElement('div');
+  ytDesc.style.cssText = 'font-size:.6rem;color:' + (dk ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.35)') + ';line-height:1.3';
+  ytDesc.textContent = ytPremium ? (ytSignedIn ? 'Signed in — ad-free playback enabled.' : 'Sign in with Google to enable ad-free playback.') : 'Enable to use your YouTube Premium subscription for ad-free videos.';
+  ytSection.appendChild(ytDesc);
+
+  // Google sign-in button (shown when Premium is toggled on)
+  const ytSignInBtn = document.createElement('button');
+  ytSignInBtn.style.cssText = 'display:' + (ytPremium && !ytSignedIn ? 'flex' : 'none') + ';align-items:center;justify-content:center;gap:6px;padding:5px 8px;border:1px solid ' + (dk ? 'rgba(255,255,255,.15)' : 'rgba(0,0,0,.12)') + ';border-radius:4px;background:' + (dk ? 'rgba(255,255,255,.06)' : '#fff') + ';color:' + (dk ? '#cdd6f4' : '#333') + ';cursor:pointer;font-size:.65rem;font-family:inherit;width:100%';
+  ytSignInBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.01 24.01 0 0 0 0 21.56l7.98-6.19z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg> Sign in with Google';
+
+  // Google sign-out row (shown when signed in)
+  const ytSignedInRow = document.createElement('div');
+  ytSignedInRow.style.cssText = 'display:' + (ytPremium && ytSignedIn ? 'flex' : 'none') + ';align-items:center;gap:6px';
+  const ytUserSpan = document.createElement('span');
+  ytUserSpan.textContent = ytUserName || 'Signed in';
+  ytUserSpan.style.cssText = 'flex:1;font-size:.6rem;color:' + (dk ? 'rgba(255,255,255,.5)' : 'rgba(0,0,0,.4)') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  const ytSignOutBtn = document.createElement('button');
+  ytSignOutBtn.textContent = 'Sign out';
+  ytSignOutBtn.style.cssText = 'padding:2px 6px;border:1px solid ' + (dk ? 'rgba(255,255,255,.15)' : 'rgba(0,0,0,.12)') + ';border-radius:3px;background:none;color:' + (dk ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.35)') + ';cursor:pointer;font-size:.6rem;font-family:inherit;flex-shrink:0';
+  ytSignedInRow.appendChild(ytUserSpan); ytSignedInRow.appendChild(ytSignOutBtn);
+  ytSection.appendChild(ytSignInBtn);
+  ytSection.appendChild(ytSignedInRow);
+
+  function updateYtUI() {
+    ytDesc.textContent = ytPremium ? (ytSignedIn ? 'Signed in — ad-free playback enabled.' : 'Sign in with Google to enable ad-free playback.') : 'Enable to use your YouTube Premium subscription for ad-free videos.';
+    ytSignInBtn.style.display = ytPremium && !ytSignedIn ? 'flex' : 'none';
+    ytSignedInRow.style.display = ytPremium && ytSignedIn ? 'flex' : 'none';
+    ytUserSpan.textContent = ytUserName || 'Signed in';
+  }
+
+  ytToggle.addEventListener('change', () => {
+    ytPremium = ytToggle.checked;
+    localStorage.setItem('ytPremium', ytPremium);
+    updateYtUI();
+    // Reload current video to apply domain change
+    if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
+  });
+
+  ytSignInBtn.addEventListener('click', () => {
+    const clientId = localStorage.getItem('ws_driveClientId') || '';
+    if (!clientId) { toast('Set a Google Client ID in Workspaces \u2192 Cloud Sync first'); return; }
+    if (typeof google === 'undefined' || !google.accounts) { toast('Google API not loaded yet'); return; }
+    const ytTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/youtube.readonly',
+      callback: (resp) => {
+        if (resp.error) { toast('Sign-in failed: ' + resp.error); return; }
+        ytSignedIn = true;
+        // Fetch user info
+        fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { 'Authorization': 'Bearer ' + resp.access_token }
+        }).then(r => r.json()).then(info => {
+          ytUserName = info.name || info.email || 'YouTube User';
+          localStorage.setItem('ytUserName', ytUserName);
+          updateYtUI();
+        }).catch(() => { ytUserName = 'YouTube User'; updateYtUI(); });
+        toast('YouTube sign-in successful — ad-free playback enabled');
+        updateYtUI();
+        if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
+      }
+    });
+    ytTokenClient.requestAccessToken();
+  });
+
+  ytSignOutBtn.addEventListener('click', () => {
+    ytSignedIn = false;
+    ytUserName = '';
+    localStorage.removeItem('ytUserName');
+    updateYtUI();
+    toast('YouTube signed out');
+    if (funState >= 0 && funState < FUN_VIDEOS.length) showVideo(funState);
+  });
+
+  editorPanel.appendChild(ytSection);
+
   // Reset button
   const resetBtn = document.createElement('button');
   resetBtn.textContent = 'Reset to defaults';
@@ -3110,7 +3202,8 @@ function renderEditor() {
 function buildIframeSrc(v) {
   const s = v.start || 0;
   const m = savedMuted ? 1 : 0;
-  return 'https://www.youtube-nocookie.com/embed/' + v.id + '?autoplay=1&mute=' + m + '&loop=1&playlist=' + v.id + '&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&start=' + s + '&iv_load_policy=3&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
+  const domain = ytPremium ? 'www.youtube.com' : 'www.youtube-nocookie.com';
+  return 'https://' + domain + '/embed/' + v.id + '?autoplay=1&mute=' + m + '&loop=1&playlist=' + v.id + '&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&start=' + s + '&iv_load_policy=3&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
 }
 function sendYtCmd(iframe, func, args) {
   try { iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: func, args: args || [] }), '*'); } catch (e) {}
@@ -3228,7 +3321,12 @@ function showVideo(idx) {
     setTimeout(() => { overlay.remove(); skipHint.remove(); }, 1500);
   }
   overlay.addEventListener('click', dismissOverlay);
-  adTimer = setTimeout(dismissOverlay, AD_WAIT_MS);
+  if (ytPremium) {
+    // Premium users skip the ad-wait overlay immediately
+    dismissOverlay();
+  } else {
+    adTimer = setTimeout(dismissOverlay, AD_WAIT_MS);
+  }
 
   // ADDED — Phase 11: If media pane is in grid, snap into it instead of body
   const mediaOrder = typeof getGridOrder === 'function' ? getGridOrder() : [];
