@@ -177,12 +177,24 @@ body.light .fun-btn { background: var(--accent); }
   color: #fff; cursor: pointer; font-weight: 600; font-size: .72rem; align-self: flex-end;
 }
 /* ═══ DESIGN BOT STYLES ═══ */
-.design-bot-split { display: flex; flex: 1; min-height: 0; }
-.design-bot-split > .agent-half { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
-.design-bot-divider { width: 1px; background: var(--border); cursor: col-resize; flex-shrink: 0; position: relative; }
-.design-bot-divider:hover { background: var(--accent); }
-.design-bot-divider::after { content: ''; position: absolute; top: 50%; left: -3px; width: 7px; height: 20px; transform: translateY(-50%); }
-#designBotPanel .db-header { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--border); background: var(--panel-inset); flex-shrink: 0; min-height: 28px; }
+/* Mini Design Bot robot in desk scene */
+.design-bot-char { position: absolute; bottom: 16px; z-index: 6; left: 50%; margin-left: 54px; cursor: pointer; transition: transform .2s; }
+.design-bot-char:hover { transform: scale(1.1); }
+.design-bot-char .db-mini-head { width: 14px; height: 11px; background: linear-gradient(180deg, #c9a84c, #b8943a, #a67f2e); border-radius: 3px 3px 2px 2px; margin: 0 auto; position: relative; }
+.design-bot-char .db-mini-eyes { display: flex; justify-content: center; gap: 3px; padding-top: 3px; }
+.design-bot-char .db-mini-eyes .eye { width: 2px; height: 2px; background: #1a1a1a; border-radius: 50%; }
+.design-bot-char .db-mini-torso { width: 16px; height: 11px; background: linear-gradient(180deg, #c9a84c, #b8943a, #a67f2e); border-radius: 2px; margin: 1px auto 0; }
+.design-bot-char .db-mini-beret { position: absolute; top: -5px; left: -2px; width: 18px; height: 7px; background: #d4a017; border-radius: 50% 50% 20% 20%; }
+.design-bot-char .db-mini-palette { position: absolute; bottom: 2px; right: -8px; width: 10px; height: 7px; background: #8d6e63; border-radius: 50%; }
+.design-bot-char .db-mini-palette::before { content: ''; position: absolute; top: 1px; left: 2px; width: 2px; height: 2px; border-radius: 50%; background: #e53935; box-shadow: 3px 0 0 #2196f3, 1.5px 2.5px 0 #4caf50; }
+.design-bot-char .db-label { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); font-size: .4rem; color: var(--accent2); white-space: nowrap; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.design-bot-char:hover .db-label { opacity: 1; }
+.design-bot-char.db-working { animation: dbBounce 0.6s ease-in-out infinite; }
+@keyframes dbBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+/* Floating Design Bot chat panel */
+#designBotPanel { display: none; position: absolute; bottom: 0; right: 4px; width: 280px; height: 320px; z-index: 70; background: var(--panel); border: 1px solid var(--border); border-radius: 8px 8px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,.3); flex-direction: column; overflow: hidden; }
+#designBotPanel.db-open { display: flex; }
+#designBotPanel .db-header { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--border); background: var(--panel-inset); flex-shrink: 0; min-height: 28px; cursor: grab; }
 #designBotPanel .db-header .db-title { font-size: .68rem; font-weight: 700; color: var(--accent2); white-space: nowrap; }
 #designBotPanel .db-header .db-subtitle { font-size: .5rem; color: var(--text-dim); white-space: nowrap; }
 #designBotPanel .db-msgs { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -197,8 +209,6 @@ body.light .fun-btn { background: var(--accent); }
 #designBotPanel .db-input-row button:hover { background: rgba(255,180,50,.9); }
 .db-tool-badge { display: inline-block; font-size: .52rem; color: var(--accent2); background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; margin-top: 2px; }
 .db-drawing-banner { position: absolute; top: 0; left: 0; right: 0; z-index: 90; background: rgba(255,200,50,.12); color: var(--accent2); text-align: center; font-size: .6rem; padding: 3px 0; border-bottom: 1px solid rgba(255,200,50,.25); pointer-events: none; }
-.db-collapsed #designBotPanel { display: none !important; }
-.db-collapsed .design-bot-divider { display: none !important; }
 body.light #designBotPanel .db-msg.assistant { background: rgba(255,248,230,.25); }
 
 /* Video player PIP overlay */
@@ -1692,6 +1702,16 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
           <div class="robot-carpet"><div class="carpet-body"></div><div class="carpet-fringe-l"></div><div class="carpet-fringe-r"></div></div>
           <div class="robot-bed"><div class="bed-frame"></div><div class="bed-pillow"></div><div class="bed-blanket"></div></div>
+        </div>
+        <!-- Design Bot mini character beside desk -->
+        <div class="design-bot-char" id="designBotChar" title="Click to open Design Bot chat">
+          <div class="db-mini-beret"></div>
+          <div class="db-mini-head">
+            <div class="db-mini-eyes"><span class="eye"></span><span class="eye"></span></div>
+          </div>
+          <div class="db-mini-torso"></div>
+          <div class="db-mini-palette"></div>
+          <span class="db-label">Design Bot</span>
         </div>
       </div>
       <div class="robot-controls">
@@ -12343,6 +12363,8 @@ async function sendDesignBotMessage(userMessage) {
   const thinkingDiv = addDesignBotMsg('system', 'Designing...');
   designBot.isThinking = true;
   designBot.iterationCount = 0;
+  const dbChar = document.getElementById('designBotChar');
+  if (dbChar) dbChar.classList.add('db-working');
 
   // Update model indicator
   const modelIndicator = document.getElementById('dbModelIndicator');
@@ -12531,6 +12553,8 @@ async function sendDesignBotMessage(userMessage) {
     if (thinkingDiv) thinkingDiv.textContent = 'Error: ' + e.message;
   }
   designBot.isThinking = false;
+  const dbCharEnd = document.getElementById('designBotChar');
+  if (dbCharEnd) dbCharEnd.classList.remove('db-working');
 }
 
 // DESIGN BOT — Phase 5: Update cost display
@@ -12540,46 +12564,15 @@ function updateDesignBotCost() {
   if (el) el.textContent = '$' + designBot.sessionCost.toFixed(4);
 }
 
-// DESIGN BOT — Phase 5: Build and inject UI panel
+// DESIGN BOT — Phase 5: Build floating chat panel (non-destructive — does NOT modify Claude pane DOM)
 (function initDesignBotUI() {
-  // DESIGN BOT — Phase 5: Create Design Bot panel inside Claude pane
-  // Strategy: insert the Design Bot panel and divider AFTER the main chat area,
-  // but keep all existing children in place. Use CSS to make p-body a horizontal
-  // split only for the chat+bot portion while preserving overlay panels.
   const claudeBody = document.querySelector('#q-claude .p-body');
   if (!claudeBody) return;
 
-  // Find the main chat area and input row — these go in the left half
-  const aiMsgs = document.getElementById('aiMsgs');
-  const aiInputRow = claudeBody.querySelector('.ai-input-row');
-  if (!aiMsgs || !aiInputRow) return;
-
-  // Create a wrapper for the main agent chat + input (left half)
-  const leftHalf = document.createElement('div');
-  leftHalf.className = 'agent-half';
-  leftHalf.id = 'mainAgentHalf';
-  leftHalf.style.cssText = 'display:flex;flex-direction:column;position:relative;';
-
-  // Move ONLY the chat messages and input row into the left half
-  // Keep overlay panels, robot scene, API key sections in the p-body
-  leftHalf.appendChild(aiMsgs);
-  leftHalf.appendChild(aiInputRow);
-
-  // Create split container
-  const splitContainer = document.createElement('div');
-  splitContainer.className = 'design-bot-split';
-  splitContainer.id = 'designBotSplit';
-
-  // Divider
-  const divider = document.createElement('div');
-  divider.className = 'design-bot-divider';
-  divider.id = 'dbDivider';
-
-  // Right half: Design Bot panel
-  const rightHalf = document.createElement('div');
-  rightHalf.className = 'agent-half';
-  rightHalf.id = 'designBotPanel';
-  rightHalf.innerHTML =
+  // Create floating Design Bot panel (appended to Claude p-body, absolutely positioned)
+  const panel = document.createElement('div');
+  panel.id = 'designBotPanel';
+  panel.innerHTML =
     '<div class="db-header">' +
       '<span style="font-size:.72rem;">&#128397;</span> ' +
       '<span class="db-title">Design Bot</span> ' +
@@ -12592,21 +12585,14 @@ function updateDesignBotCost() {
         '<option value="claude-sonnet-4-6">Sonnet</option>' +
       '</select> ' +
       '<span id="dbCostLabel" style="font-size:.5rem;color:var(--text-dim);">$0.0000</span> ' +
-      '<button id="dbCollapseBtn" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.7rem;padding:0 2px;" title="Collapse Design Bot">\u00BB</button>' +
+      '<button id="dbCloseBtn" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;padding:0 2px;" title="Close Design Bot">&times;</button>' +
     '</div>' +
     '<div class="db-msgs" id="dbMsgs"></div>' +
     '<div class="db-input-row">' +
       '<textarea id="dbInput" placeholder="Describe a layout, chart, or diagram..." rows="1"></textarea>' +
       '<button id="dbSend">Draw</button>' +
     '</div>';
-
-  splitContainer.appendChild(leftHalf);
-  splitContainer.appendChild(divider);
-  splitContainer.appendChild(rightHalf);
-
-  // Insert the split container as the FIRST child of p-body
-  // so it takes up the flex:1 space. Robot scene and API key sections stay below.
-  claudeBody.insertBefore(splitContainer, claudeBody.firstChild);
+  claudeBody.appendChild(panel);
 
   // Add drawing banner to whiteboard pane
   const wbWrap = document.getElementById('wbWrap');
@@ -12619,7 +12605,24 @@ function updateDesignBotCost() {
     wbWrap.appendChild(banner);
   }
 
-  // Event handlers
+  // Toggle panel open/closed via mini robot character click
+  const charEl = document.getElementById('designBotChar');
+  if (charEl) {
+    charEl.onclick = () => {
+      panel.classList.toggle('db-open');
+      if (panel.classList.contains('db-open')) {
+        const dbInput = document.getElementById('dbInput');
+        if (dbInput) dbInput.focus();
+      }
+    };
+  }
+
+  // Close button
+  document.getElementById('dbCloseBtn').onclick = () => {
+    panel.classList.remove('db-open');
+  };
+
+  // Send handler
   document.getElementById('dbSend').onclick = () => sendDesignBotMessage();
   document.getElementById('dbInput').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDesignBotMessage(); }
@@ -12635,65 +12638,10 @@ function updateDesignBotCost() {
     }
   };
 
-  // Collapse toggle
-  const collapsed = localStorage.getItem('design_bot_collapsed') === 'true';
-  if (collapsed) splitContainer.classList.add('db-collapsed');
-
-  document.getElementById('dbCollapseBtn').onclick = function() {
-    const isCollapsed = splitContainer.classList.toggle('db-collapsed');
-    localStorage.setItem('design_bot_collapsed', isCollapsed);
-    this.textContent = isCollapsed ? '\u00AB' : '\u00BB';
-    // Add expand button to main agent if collapsed
-    let expandBtn = document.getElementById('dbExpandBtn');
-    if (isCollapsed) {
-      if (!expandBtn) {
-        expandBtn = document.createElement('button');
-        expandBtn.id = 'dbExpandBtn';
-        expandBtn.style.cssText = 'position:absolute;right:4px;bottom:50px;z-index:50;background:rgba(255,180,50,.7);color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.6rem;font-weight:600;';
-        expandBtn.textContent = '\u{1F58D} Design Bot';
-        expandBtn.onclick = () => {
-          splitContainer.classList.remove('db-collapsed');
-          localStorage.setItem('design_bot_collapsed', 'false');
-          document.getElementById('dbCollapseBtn').textContent = '\u00BB';
-          expandBtn.style.display = 'none';
-        };
-        leftHalf.style.position = 'relative';
-        leftHalf.appendChild(expandBtn);
-      }
-      expandBtn.style.display = '';
-    } else if (expandBtn) {
-      expandBtn.style.display = 'none';
-    }
-  };
-  // Set initial collapse button state
-  if (collapsed) document.getElementById('dbCollapseBtn').textContent = '\u00AB';
-
-  // Divider drag to resize
-  let dbDragging = false;
-  divider.addEventListener('mousedown', e => {
-    e.preventDefault();
-    dbDragging = true;
-    document.body.style.cursor = 'col-resize';
-  });
-  document.addEventListener('mousemove', e => {
-    if (!dbDragging) return;
-    const rect = splitContainer.getBoundingClientRect();
-    const pct = ((e.clientX - rect.left) / rect.width) * 100;
-    const clamped = Math.max(25, Math.min(75, pct));
-    leftHalf.style.flex = '0 0 ' + clamped + '%';
-    rightHalf.style.flex = '0 0 ' + (100 - clamped) + '%';
-  });
-  document.addEventListener('mouseup', () => {
-    if (!dbDragging) return;
-    dbDragging = false;
-    document.body.style.cursor = '';
-  });
-
   // Welcome message
   addDesignBotMsg('system', 'Design Bot ready. Describe a layout, chart, or diagram to draw on the whiteboard.');
 
-  // DESIGN BOT — Phase 5: Cross-bot "Send to Design Bot" button injection
-  // Watch for new main agent messages and add the handoff button
+  // Cross-bot "Send to Design Bot" button injection
   const mainMsgs = document.getElementById('aiMsgs');
   if (mainMsgs) {
     const observer = new MutationObserver(mutations => {
@@ -12701,7 +12649,6 @@ function updateDesignBotCost() {
         m.addedNodes.forEach(node => {
           if (node.nodeType === 1 && node.classList.contains('ai-msg') && node.classList.contains('assistant')) {
             const text = node.textContent || '';
-            // Check if message mentions whiteboard/draw/chart/diagram/layout
             const drawKeywords = /whiteboard|draw|chart|diagram|layout|canvas|visual|concept map|design/i;
             if (drawKeywords.test(text)) {
               const btn = document.createElement('button');
@@ -12712,14 +12659,7 @@ function updateDesignBotCost() {
                 if (dbInput) {
                   dbInput.value = text.substring(0, 500);
                   dbInput.focus();
-                  // Uncollapse if collapsed
-                  if (splitContainer.classList.contains('db-collapsed')) {
-                    splitContainer.classList.remove('db-collapsed');
-                    localStorage.setItem('design_bot_collapsed', 'false');
-                    document.getElementById('dbCollapseBtn').textContent = '\u00BB';
-                    const expandBtn = document.getElementById('dbExpandBtn');
-                    if (expandBtn) expandBtn.style.display = 'none';
-                  }
+                  panel.classList.add('db-open');
                 }
               };
               node.appendChild(btn);
