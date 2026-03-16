@@ -6002,58 +6002,69 @@ let rhLoggedIn = false;
 const rhCache = {}; // { key: { data, ts } }
 
 // RH session state — tracks connection and available data tiers
+// ── RH Token-Only State Machine ──
+// Token paste is the ONLY auth method from GitHub Pages.
+// The proxy holds the token server-side after paste.
 const RH_SESSION = {
-  isConnected: false,
-  authLevel: 'public', // 'authenticated' | 'public' | 'offline'
-  lastChecked: 0,
+  status: 'none',        // 'none'|'validating'|'active'|'expired'|'error'
+  token: null,           // NEVER log this value
+  validatedAt: null,
+  accountMask: null,     // last 4 digits for display only
+  expiresHint: null,
   availableEndpoints: []
 };
 
-async function detectRobinhoodSession() {
+async function validateRhToken() {
   try {
     const alive = await checkProxyHealth();
-    if (!alive) { throw proxyDownError(); }
+    if (!alive) {
+      RH_SESSION.status = 'error';
+      rhLoggedIn = false;
+      updateRhConnectionStatus();
+      updateRhLoginUI();
+      return;
+    }
+    RH_SESSION.status = 'validating';
     const resp = await fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
     const data = await safeParseJson(resp, 'RH status');
-    rhLoggedIn = data.logged_in;
-    RH_SESSION.isConnected = !!data.logged_in;
-    RH_SESSION.authLevel = data.logged_in ? 'authenticated' : 'public';
-    RH_SESSION.lastChecked = Date.now();
-    RH_SESSION.availableEndpoints = data.logged_in
-      ? ['quotes', 'fundamentals', 'instruments', 'historicals', 'positions', 'account', 'orders', 'ratings', 'earnings']
-      : ['quotes', 'fundamentals', 'instruments'];
-    // Log CORS info from response headers
-    const corsHeaders = {};
-    ['access-control-allow-origin', 'access-control-allow-credentials', 'access-control-allow-methods'].forEach(h => {
-      const v = resp.headers.get(h);
-      if (v) corsHeaders[h] = v;
-    });
-    console.log('[RH] Session detected: authLevel=' + RH_SESSION.authLevel + ', endpoints=' + RH_SESSION.availableEndpoints.length);
-    if (Object.keys(corsHeaders).length) console.log('[RH] CORS headers:', corsHeaders);
+    rhLoggedIn = !!data.logged_in;
+    if (data.logged_in) {
+      RH_SESSION.status = 'active';
+      RH_SESSION.validatedAt = Date.now();
+      RH_SESSION.accountMask = data.account_mask || null;
+      RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments', 'historicals', 'positions', 'account', 'orders', 'ratings', 'earnings'];
+      console.log('[RH] Token active — endpoints=' + RH_SESSION.availableEndpoints.length);
+    } else {
+      RH_SESSION.status = 'none';
+      RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments'];
+      console.log('[RH] No active token — public data only');
+    }
     updateRhConnectionStatus();
     updateRhLoginUI();
   } catch(e) {
     rhLoggedIn = false;
-    RH_SESSION.isConnected = false;
-    RH_SESSION.authLevel = 'offline';
-    RH_SESSION.lastChecked = Date.now();
+    RH_SESSION.status = 'error';
     RH_SESSION.availableEndpoints = [];
-    console.log('[RH] Session detection failed (offline):', e.message);
+    console.log('[RH] Proxy check failed:', e.message);
     updateRhConnectionStatus();
     updateRhLoginUI();
   }
 }
 
+// Backward compat alias
+const detectRobinhoodSession = validateRhToken;
+
 function updateRhConnectionStatus() {
   const el = document.getElementById('rhConnectionStatus');
   if (!el) return;
   el.style.display = 'inline-flex';
-  if (RH_SESSION.authLevel === 'authenticated') {
-    el.innerHTML = '<span style="color:#10b981;">&#x1F7E2;</span> <span>RH Connected</span>';
-    el.title = 'Robinhood Connected — Full data access';
-  } else if (RH_SESSION.authLevel === 'public') {
-    el.innerHTML = '<span style="color:#f59e0b;">&#x1F7E1;</span> <span>Public only</span>';
-    el.title = 'Public data only — Log in to Robinhood for full access';
+  if (RH_SESSION.status === 'active') {
+    const mask = RH_SESSION.accountMask ? ' \u00B7 \u2022\u2022\u2022\u2022' + RH_SESSION.accountMask : '';
+    el.innerHTML = '<span style="color:#10b981;">&#x1F7E2;</span> <span>RH Connected' + mask + '</span>';
+    el.title = 'Robinhood Connected via token — Full data access';
+  } else if (RH_SESSION.status === 'none') {
+    el.innerHTML = '<span style="color:#f59e0b;">&#x1F7E1;</span> <span>Enter RH token</span>';
+    el.title = 'Enter Robinhood token for live data';
   } else {
     el.innerHTML = '<span style="color:#ef4444;">&#x1F534;</span> <span>Offline</span>';
     el.title = 'Offline — No market data available';
@@ -6288,9 +6299,9 @@ async function fetchRobinhoodNews(ticker) {
   return [];
 }
 
-// Check Robinhood login status on load — delegates to detectRobinhoodSession
+// Check Robinhood token status on load
 async function checkRobinhoodStatus() {
-  await detectRobinhoodSession();
+  await validateRhToken();
 }
 
 function updateRhLoginUI() {
@@ -6299,11 +6310,11 @@ function updateRhLoginUI() {
   if (rhLoggedIn) {
     btn.textContent = 'RH: Connected';
     btn.style.color = '#22c55e';
-    btn.title = 'Logged in to Robinhood — click to logout';
+    btn.title = 'Robinhood token active — click to manage';
   } else {
-    btn.textContent = 'RH: Login';
+    btn.textContent = 'RH: Token';
     btn.style.color = 'var(--text-dim)';
-    btn.title = 'Login to Robinhood for portfolio & historical data';
+    btn.title = 'Paste Robinhood token for live data';
   }
 }
 
@@ -10250,9 +10261,7 @@ async function executeAgentTool(name, input) {
       }
       case 'get_concept_map': return JSON.stringify({ nodes: cmNodes.map(n => ({ id: n.id, title: n.title, desc: n.desc })), edges: cmEdges.map(e => ({ from: e.from, to: e.to })) });
       case 'get_portfolio': {
-        if (!rhLoggedIn) return JSON.stringify({ error: true, message: 'Not logged in to Robinhood.' });
-        const [acct, positions] = await Promise.all([fetchRobinhoodAccount(), fetchRobinhoodPositions()]);
-        return JSON.stringify({ account: acct || {}, positions: positions || [], logged_in: true, instruction: 'Build a portfolio summary table in the sheet. Write analysis to the notepad.' });
+        return JSON.stringify({ error: true, message: 'Portfolio data not available — use get_stock_data for individual tickers instead.' });
       }
       case 'get_orders': {
         if (!rhLoggedIn) return JSON.stringify({ error: true, message: 'Not logged in to Robinhood.' });
@@ -11819,13 +11828,14 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     RH_SESSION.isConnected = true;
     RH_SESSION.authLevel = 'authenticated';
     RH_SESSION.lastChecked = Date.now();
+    RH_SESSION.status = 'active';
+    RH_SESSION.validatedAt = Date.now();
     RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments', 'historicals', 'positions', 'account', 'orders', 'ratings', 'earnings'];
     updateRhConnectionStatus();
     updateRhLoginUI();
     $('#rhLogoutSubmit').style.display = 'block';
     $('#rhMfaWrap').style.display = 'none';
     rhChallengeId = '';
-    loadPortfolioSummary();
     renderStockDash();
     renderNewsFeed();
   }
@@ -11834,10 +11844,8 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     overlay.style.display = 'flex';
     if (rhLoggedIn) {
       $('#rhLogoutSubmit').style.display = 'block';
-      loadPortfolioSummary();
     } else {
       $('#rhLogoutSubmit').style.display = 'none';
-      $('#rhPortfolioSummary').style.display = 'none';
       const saved = LS('rhEmail');
       if (saved) $('#rhUsername').value = saved;
       $('#rhLoginMsg').textContent = '';
@@ -11919,9 +11927,10 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   $('#rhLogoutSubmit').onclick = async () => {
     try { await fetch(PROXY_BASE + '/proxy/robinhood/logout', { method: 'POST' }); } catch(e) {}
     rhLoggedIn = false;
-    RH_SESSION.isConnected = false;
-    RH_SESSION.authLevel = 'public';
-    RH_SESSION.lastChecked = Date.now();
+    RH_SESSION.status = 'none';
+    RH_SESSION.token = null;
+    RH_SESSION.validatedAt = null;
+    RH_SESSION.accountMask = null;
     RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments'];
     updateRhConnectionStatus();
     updateRhLoginUI();
