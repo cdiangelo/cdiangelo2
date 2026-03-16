@@ -8096,12 +8096,12 @@ function openNewsArticle(title, url) {
   }
   if (openMode === 'cache') {
     // archive.is in a new tab (not iframe) so CAPTCHA can actually complete
-    window.open('https://archive.is/newest/' + url, '_blank');
+    window.open('https://archive.is/?url=' + encodeURIComponent(url), '_blank');
     return;
   }
   // Reader mode — fetch via server-side proxy (no CAPTCHA needed)
   const readerUrl = PROXY_BASE + '/proxy/article?url=' + encodeURIComponent(url);
-  const cacheUrl = 'https://archive.is/newest/' + encodeURIComponent(url);
+  const cacheUrl = 'https://archive.is/?url=' + encodeURIComponent(url);
   newsViewerState = { directUrl: url, cacheUrl, readerUrl };
   $('#newsViewerTitle').textContent = title;
   $('#newsViewerExternal').href = url;
