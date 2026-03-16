@@ -2039,6 +2039,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <input type="text" id="newsSearch" placeholder="Search news by keyword or ticker..." style="flex:1;min-width:120px;" />
         <button id="newsSearchBtn">Search</button>
         <button id="newsClearBtn" title="Clear search" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">&#x2715;</button>
+        <button id="newsRefreshBtn" title="Refresh news feed" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text);cursor:pointer;font-size:.6rem;">&#8635; Refresh</button>
         <button id="newsDeepResearch" title="Deep Research — Claude scans multiple sources and generates a PDF report" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.62rem;font-weight:600;">&#128269; Deep Research</button>
         <div class="sep"></div>
         <span id="newsTickerChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
@@ -7700,103 +7701,244 @@ function renderNewsFeed() {
   renderVerifiedNewsFeed();
 }
 
-// ── Verified news via Google News RSS (CORS proxy) ──
+// ── Multi-source news pipeline (3-stage: fetch → validate → score) ──
+const _newsDegradedSources = {}; // Track degraded sources this session
+
+// STAGE 1: Fetch candidates from multiple sources in parallel
+async function _newsFetchGoogleRSS(query) {
+  const articles = [];
+  try {
+    const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=en-US&gl=US&ceid=US:en';
+    let resp;
+    try { resp = await fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) {
+      resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl));
+    }
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const xmlText = await resp.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, 'text/xml');
+    doc.querySelectorAll('item').forEach((item, idx) => {
+      if (idx >= 10) return;
+      const title = item.querySelector('title')?.textContent || '';
+      const link = item.querySelector('link')?.textContent || '';
+      const pubDate = item.querySelector('pubDate')?.textContent || '';
+      const source = item.querySelector('source')?.textContent || 'Google News';
+      const desc = item.querySelector('description')?.textContent || '';
+      const snippet = new DOMParser().parseFromString(desc, 'text/html').body?.textContent?.trim().substring(0, 200) || '';
+      articles.push({ title, url: link, source, snippet, pubDate, feedSource: 'google', query });
+    });
+  } catch (e) { console.warn('[NEWS] Google RSS failed:', e.message); }
+  return articles;
+}
+
+async function _newsFetchYahooRSS(ticker) {
+  const articles = [];
+  try {
+    const rssUrl = 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=' + encodeURIComponent(ticker) + '&region=US&lang=en-US';
+    const resp = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl), { signal: AbortSignal.timeout(5000) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(data.contents || '', 'text/xml');
+    doc.querySelectorAll('item').forEach((item, idx) => {
+      if (idx >= 8) return;
+      const title = item.querySelector('title')?.textContent || '';
+      const link = item.querySelector('link')?.textContent || '';
+      const pubDate = item.querySelector('pubDate')?.textContent || '';
+      articles.push({ title, url: link, source: 'Yahoo Finance', snippet: '', pubDate, feedSource: 'yahoo', query: ticker });
+    });
+  } catch (e) { console.warn('[NEWS] Yahoo RSS failed:', e.message); }
+  return articles;
+}
+
+async function _newsFetchGNews(query) {
+  const articles = [];
+  try {
+    // TODO: REPLACE KEY — using DEMO key (limited to 100 req/day)
+    const resp = await fetch('https://gnews.io/api/v4/search?q=' + encodeURIComponent(query) + '&lang=en&max=10&apikey=DEMO', { signal: AbortSignal.timeout(5000) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    (data.articles || []).forEach(a => {
+      articles.push({ title: a.title || '', url: a.url || '', source: a.source?.name || 'GNews', snippet: a.description || '', pubDate: a.publishedAt || '', feedSource: 'gnews', query });
+    });
+  } catch (e) { console.warn('[NEWS] GNews failed:', e.message); }
+  return articles;
+}
+
+async function _newsFetchNewsAPI(query) {
+  const articles = [];
+  try {
+    // TODO: REPLACE KEY — using DEMO key placeholder
+    const resp = await fetch('https://newsapi.org/v2/everything?q=' + encodeURIComponent(query) + '&sortBy=publishedAt&pageSize=10&apiKey=DEMO', { signal: AbortSignal.timeout(5000) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    (data.articles || []).forEach(a => {
+      articles.push({ title: a.title || '', url: a.url || '', source: a.source?.name || 'NewsAPI', snippet: a.description || '', pubDate: a.publishedAt || '', feedSource: 'newsapi', query });
+    });
+  } catch (e) { console.warn('[NEWS] NewsAPI failed:', e.message); }
+  return articles;
+}
+
+// STAGE 2: Validate article links
+async function _newsValidateLink(url) {
+  if (!url || url === '#') return false;
+  try {
+    const resp = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url), { signal: AbortSignal.timeout(3000) });
+    return resp.ok && resp.status < 400;
+  } catch { return false; }
+}
+
+async function _newsValidateBatch(articles) {
+  const bySource = {};
+  articles.forEach(a => { (bySource[a.feedSource] = bySource[a.feedSource] || []).push(a); });
+
+  // Validate up to 5 per source to check health (don't validate all — too slow)
+  for (const [src, srcArticles] of Object.entries(bySource)) {
+    const sample = srcArticles.slice(0, 5);
+    const results = await Promise.all(sample.map(a => _newsValidateLink(a.url)));
+    const validCount = results.filter(Boolean).length;
+    const failRate = 1 - (validCount / sample.length);
+    if (failRate > 0.5) {
+      _newsDegradedSources[src] = true;
+      console.warn('[NEWS] Source ' + src + ' degraded: ' + Math.round(failRate * 100) + '% links failed');
+    }
+    sample.forEach((a, i) => { a.linkVerified = results[i]; });
+    // Mark unsampled articles as unverified
+    srcArticles.slice(5).forEach(a => { a.linkVerified = null; });
+  }
+  return articles;
+}
+
+// STAGE 3: Score and rank articles
+const _newsTier1Domains = ['reuters.com', 'bloomberg.com', 'wsj.com', 'ft.com', 'cnbc.com', 'nytimes.com'];
+const _newsTier2Domains = ['bbc.com', 'apnews.com', 'marketwatch.com', 'barrons.com', 'seekingalpha.com', 'finance.yahoo.com', 'thestreet.com'];
+
+function _newsScoreArticle(article, query) {
+  let score = 0;
+  const hoursAgo = article.pubDate ? Math.max(0, (Date.now() - new Date(article.pubDate).getTime()) / 3600000) : 999;
+  article.hoursAgo = hoursAgo;
+  // Recency
+  if (hoursAgo <= 24) score += 3;
+  else if (hoursAgo <= 168) score += 2;
+  else if (hoursAgo <= 720) score += 1;
+  // Source tier
+  const domain = (article.url || '').toLowerCase();
+  if (_newsTier1Domains.some(d => domain.includes(d))) { score += 3; article.sourceTier = 1; }
+  else if (_newsTier2Domains.some(d => domain.includes(d))) { score += 2; article.sourceTier = 2; }
+  else { score += 1; article.sourceTier = 3; }
+  // Query relevance
+  if (query && article.title && article.title.toLowerCase().includes(query.toLowerCase())) score += 2;
+  article.relevanceScore = score;
+  return score;
+}
+
 async function renderVerifiedNewsFeed() {
   const feed = $('#newsFeed');
   const query = $('#newsSearch').value.trim();
   const allKeywords = [...new Set([...newsTickerWatchlist, ...(query ? [query] : [])])];
 
   if (!allKeywords.length) {
-    feed.innerHTML = '<div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">Enter a keyword or add tickers to fetch <b>real articles</b> from Google News RSS.</div>';
+    feed.innerHTML = '<div style="text-align:center;padding:40px 10px;color:var(--text-dim);font-size:.78rem;">Enter a keyword or add tickers to fetch <b>real articles</b> from multiple sources.</div>';
     return;
   }
 
-  feed.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:.75rem;">Fetching verified articles...</div>';
+  feed.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:.75rem;">Fetching from multiple sources...</div>';
 
-  const allArticles = [];
+  // STAGE 1: Parallel fetch from all sources
+  let allArticles = [];
+  const sourceErrors = {};
   for (const kw of allKeywords) {
-    try {
-      const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(kw) + '&hl=en-US&gl=US&ceid=US:en';
-      // ADDED — Phase 1: Local proxy with allorigins fallback
-      let proxyUrl = PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl);
-      let resp;
-      try { resp = await fetch(proxyUrl); } catch (_) {
-        proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl);
-        resp = await fetch(proxyUrl);
+    const fetches = [
+      _newsFetchGoogleRSS(kw),
+      _newsFetchYahooRSS(kw),
+      _newsFetchGNews(kw),
+      _newsFetchNewsAPI(kw)
+    ];
+    const results = await Promise.allSettled(fetches);
+    const sourceNames = ['google', 'yahoo', 'gnews', 'newsapi'];
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        allArticles = allArticles.concat(r.value);
+        console.log('[NEWS] ' + sourceNames[i] + ': ' + r.value.length + ' candidates for "' + kw + '"');
+      } else {
+        sourceErrors[sourceNames[i]] = r.reason?.message || 'unknown';
       }
-      if (!resp.ok) throw new Error('Fetch failed: ' + resp.status);
-      const xmlText = await resp.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(xmlText, 'text/xml');
-      const items = doc.querySelectorAll('item');
-      items.forEach((item, idx) => {
-        if (idx >= 10) return;
-        const title = item.querySelector('title')?.textContent || 'No title';
-        const link = item.querySelector('link')?.textContent || '#';
-        const pubDate = item.querySelector('pubDate')?.textContent || '';
-        const source = item.querySelector('source')?.textContent || 'Unknown';
-        const desc = item.querySelector('description')?.textContent || '';
-        // Extract plain text snippet from HTML description
-        const descDoc = parser.parseFromString(desc, 'text/html');
-        const snippet = descDoc.body?.textContent?.trim().substring(0, 200) || '';
-        const hoursAgo = pubDate ? Math.max(0, (Date.now() - new Date(pubDate).getTime()) / 3600000) : 0;
-        allArticles.push({ title, url: link, directUrl: link, source, snippet, hoursAgo, tags: [kw.toUpperCase()], verified: true });
-      });
-    } catch (err) {
-      allArticles.push({ title: 'Failed to fetch news for "' + kw + '"', url: '#', directUrl: '#', source: 'Error', snippet: err.message, hoursAgo: 0, tags: [kw], verified: false });
-    }
+    });
   }
 
-  // Fetch Robinhood news when logged in (Tier 2)
+  // Fetch Robinhood news when logged in
   if (rhLoggedIn) {
     for (const kw of allKeywords) {
       try {
         const rhArticles = await fetchRobinhoodNews(kw);
         rhArticles.forEach(a => {
-          const hoursAgo = a.published_at ? Math.max(0, (Date.now() - new Date(a.published_at).getTime()) / 3600000) : 0;
           allArticles.push({
-            title: a.title,
-            url: a.url,
-            directUrl: a.url,
-            source: a.source || 'Robinhood',
-            snippet: a.summary || '',
-            hoursAgo,
-            tags: [kw.toUpperCase()],
-            verified: true,
-            feedSource: 'robinhood'
+            title: a.title, url: a.url, source: a.source || 'Robinhood',
+            snippet: a.summary || '', pubDate: a.published_at || '',
+            feedSource: 'robinhood', query: kw
           });
         });
-      } catch(e) {}
+      } catch (e) {}
     }
   }
 
-  allArticles.sort((a, b) => a.hoursAgo - b.hoursAgo);
+  // Deduplicate by URL
+  const seen = new Set();
+  allArticles = allArticles.filter(a => {
+    if (!a.url || a.url === '#' || seen.has(a.url)) return false;
+    seen.add(a.url);
+    return true;
+  });
 
-  const googleCount = allArticles.filter(a => a.verified && a.feedSource !== 'robinhood').length;
-  const rhCount = allArticles.filter(a => a.feedSource === 'robinhood').length;
-  let headerText = '&#10003; Verified mode — ' + googleCount + ' articles from Google News';
-  if (rhCount > 0) headerText += ' + ' + rhCount + ' from Robinhood';
-  feed.innerHTML = '<div style="font-size:.58rem;color:var(--success);padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;">' + headerText + '</div>';
-  allArticles.forEach(a => {
+  // Handle total failure
+  if (!allArticles.length) {
+    const hasRateLimit = Object.values(sourceErrors).some(e => e.includes('429') || e.includes('rate'));
+    const hasNetwork = Object.values(sourceErrors).some(e => e.includes('fetch') || e.includes('network') || e.includes('timeout'));
+    let msg = 'No results found for "' + allKeywords.join(', ') + '"';
+    if (hasRateLimit) msg = 'Rate limited — try again in 60s';
+    else if (hasNetwork) msg = 'Network error — check connection';
+    feed.innerHTML = '<div style="text-align:center;padding:30px;color:var(--danger);font-size:.75rem;">' + msg + '</div>';
+    return;
+  }
+
+  // STAGE 2: Validate a sample of links
+  await _newsValidateBatch(allArticles);
+
+  // STAGE 3: Score and rank
+  allArticles.forEach(a => _newsScoreArticle(a, allKeywords[0]));
+  allArticles.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  const topArticles = allArticles.slice(0, 8);
+
+  const validatedCount = topArticles.filter(a => a.linkVerified === true).length;
+  const totalCandidates = allArticles.length;
+  console.log('[NEWS] Pipeline complete: ' + totalCandidates + ' candidates, showing ' + topArticles.length + ', ' + validatedCount + ' validated');
+
+  // Render
+  const sourceCounts = {};
+  topArticles.forEach(a => { sourceCounts[a.feedSource] = (sourceCounts[a.feedSource] || 0) + 1; });
+  const sourceList = Object.entries(sourceCounts).map(([k, v]) => k + ':' + v).join(', ');
+  feed.innerHTML = '<div style="font-size:.58rem;color:var(--success);padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px;">&#10003; Multi-source pipeline — ' + topArticles.length + ' of ' + totalCandidates + ' articles (' + sourceList + ')</div>';
+
+  topArticles.forEach(a => {
     const div = document.createElement('div');
     div.className = 'news-item';
     const timeStr = a.hoursAgo < 1 ? 'Just now' : a.hoursAgo < 24 ? Math.floor(a.hoursAgo) + 'h ago' : Math.floor(a.hoursAgo / 24) + 'd ago';
-    // Source badge styling
-    const isRh = a.feedSource === 'robinhood';
-    const sourceBadge = isRh
-      ? ' <span style="color:#22c55e;font-size:.48rem;font-weight:600;padding:1px 4px;border:1px solid #22c55e;border-radius:3px;">RH</span>'
-      : (a.verified ? ' <span style="color:var(--success);font-size:.48rem;font-weight:600;padding:1px 4px;border:1px solid var(--success);border-radius:3px;">GN</span>' : '');
+    const feedBadgeColors = { google: '#4285f4', yahoo: '#7b1fa2', gnews: '#0d9488', newsapi: '#f97316', robinhood: '#22c55e' };
+    const feedBadgeLabels = { google: 'GN', yahoo: 'YF', gnews: 'GN-API', newsapi: 'NA', robinhood: 'RH' };
+    const badgeColor = feedBadgeColors[a.feedSource] || 'var(--text-dim)';
+    const badgeLabel = feedBadgeLabels[a.feedSource] || a.feedSource;
+    const verifyDot = a.linkVerified === true ? '<span style="color:#4CAF50;font-size:.5rem;" title="Link verified">&#9679;</span>'
+      : a.linkVerified === false ? '<span style="color:var(--danger);font-size:.5rem;" title="Link broken">&#9679;</span>'
+      : '<span style="color:#FF9800;font-size:.5rem;" title="Unverified">&#9679;</span>';
     div.innerHTML =
-      '<div class="news-source">' + a.source + sourceBadge + '</div>' +
+      '<div class="news-source">' + a.source + ' <span style="color:' + badgeColor + ';font-size:.48rem;font-weight:600;padding:1px 4px;border:1px solid ' + badgeColor + ';border-radius:3px;">' + badgeLabel + '</span> ' + verifyDot + '</div>' +
       '<div class="news-title">' + a.title + '</div>' +
       (a.snippet ? '<div class="news-snippet">' + a.snippet + '</div>' : '') +
       '<div class="news-meta"><span>' + timeStr + '</span>' +
-      a.tags.map(t => '<span class="news-tag">' + t + '</span>').join('') +
+      (a.query ? '<span class="news-tag">' + a.query.toUpperCase() + '</span>' : '') +
       '<span class="news-action" data-action="read" style="font-size:.6rem;color:var(--accent2);cursor:pointer;padding:1px 5px;border:1px solid var(--border);border-radius:3px;">Read</span>' +
       '</div>';
-    div.onclick = (e) => {
-      openNewsArticle(a.title, a.url);
-    };
+    div.onclick = () => openNewsArticle(a.title, a.url);
     feed.appendChild(div);
   });
 }
@@ -8015,6 +8157,7 @@ function pushTickerToNews(ticker) {
 $('#newsSearchBtn').onclick = () => { renderNewsFeed(); };
 $('#newsSearch').addEventListener('keydown', e => { if (e.key === 'Enter') renderNewsFeed(); });
 $('#newsClearBtn').onclick = () => { $('#newsSearch').value = ''; renderNewsFeed(); };
+$('#newsRefreshBtn').onclick = () => { renderNewsFeed(); };
 $('#stockClearSearch').onclick = () => { $('#stockInput').value = ''; $('#stockSearchResults').style.display = 'none'; };
 
 renderNewsChips();
