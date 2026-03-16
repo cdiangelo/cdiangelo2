@@ -1720,7 +1720,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <button id="aiKeyToggle" style="padding:3px 6px;border:none;border-radius:4px;background:var(--panel-inset);color:var(--text-dim);cursor:pointer;font-size:.6rem;" title="Show/hide key">&#128065;</button>
           <button id="aiKeySave" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Save</button>
         </div>
-        <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Key stored locally. Never sent anywhere except api.anthropic.com.</div>
+        <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">API key is managed server-side via the secure proxy.</div>
       </div>
       <div id="aiApiKeyLocked" style="display:none;padding:6px 10px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
         <div style="font-size:.6rem;color:var(--text-dim);margin-bottom:4px;">API key access requires authorization:</div>
@@ -2573,7 +2573,7 @@ const PROXY_CHECK_INTERVAL = 30000; // re-check every 30s max
 async function checkProxyHealth(force) {
   if (!force && _proxyAlive !== null && Date.now() - _proxyLastCheck < PROXY_CHECK_INTERVAL) return _proxyAlive;
   try {
-    const r = await fetch(PROXY_BASE + '/proxy/ai/status', { signal: AbortSignal.timeout(3000) });
+    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(3000) });
     _proxyAlive = r.ok;
     _proxyLastCheck = Date.now();
     return _proxyAlive;
@@ -6044,28 +6044,51 @@ const RH_SESSION = {
 
 async function validateRhToken() {
   try {
-    const alive = await checkProxyHealth();
-    if (!alive) {
+    // First check if proxy is alive and has RH token configured
+    RH_SESSION.status = 'validating';
+    updateRhConnectionStatus();
+    updateRhLoginUI();
+
+    const healthResp = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(3000) });
+    if (!healthResp.ok) {
       RH_SESSION.status = 'error';
       rhLoggedIn = false;
       updateRhConnectionStatus();
       updateRhLoginUI();
       return;
     }
-    RH_SESSION.status = 'validating';
-    const resp = await fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
-    const data = await safeParseJson(resp, 'RH status');
-    rhLoggedIn = !!data.logged_in;
-    if (data.logged_in) {
+    const health = await healthResp.json();
+    if (!health.services || !health.services.robinhood) {
+      RH_SESSION.status = 'none';
+      rhLoggedIn = false;
+      RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments'];
+      console.log('[RH] Server has no RH token configured — public data only');
+      updateRhConnectionStatus();
+      updateRhLoginUI();
+      return;
+    }
+
+    // Token is configured server-side — test it with a lightweight call
+    const resp = await fetch(PROXY_BASE + '/proxy/robinhood', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: '/user/', method: 'GET' }),
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      rhLoggedIn = true;
       RH_SESSION.status = 'active';
       RH_SESSION.validatedAt = Date.now();
-      RH_SESSION.accountMask = data.account_mask || null;
+      RH_SESSION.accountMask = data.username ? data.username.slice(-4) : null;
       RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments', 'historicals', 'positions', 'account', 'orders', 'ratings', 'earnings'];
       console.log('[RH] Token active — endpoints=' + RH_SESSION.availableEndpoints.length);
     } else {
-      RH_SESSION.status = 'none';
+      rhLoggedIn = false;
+      RH_SESSION.status = 'error';
       RH_SESSION.availableEndpoints = ['quotes', 'fundamentals', 'instruments'];
-      console.log('[RH] No active token — public data only');
+      console.log('[RH] Server token rejected by Robinhood API (status ' + resp.status + ')');
     }
     updateRhConnectionStatus();
     updateRhLoginUI();
@@ -6091,8 +6114,8 @@ function updateRhConnectionStatus() {
     el.innerHTML = '<span style="color:#10b981;">&#x1F7E2;</span> <span>RH Connected' + mask + '</span>';
     el.title = 'Robinhood Connected via token — Full data access';
   } else if (RH_SESSION.status === 'none') {
-    el.innerHTML = '<span style="color:#f59e0b;">&#x1F7E1;</span> <span>Enter RH token</span>';
-    el.title = 'Enter Robinhood token for live data';
+    el.innerHTML = '<span style="color:#f59e0b;">&#x1F7E1;</span> <span>RH: Public Only</span>';
+    el.title = 'No RH token configured on server — using public data only';
   } else {
     el.innerHTML = '<span style="color:#ef4444;">&#x1F534;</span> <span>Offline</span>';
     el.title = 'Offline — No market data available';
@@ -6144,8 +6167,11 @@ function rhCacheGet(key) {
 async function rhFetch(endpoint, auth) {
   const alive = await checkProxyHealth();
   if (!alive) throw proxyDownError();
-  const route = auth ? '/proxy/robinhood/auth' : '/proxy/robinhood';
-  const resp = await fetch(PROXY_BASE + route + '?endpoint=' + encodeURIComponent(endpoint), {
+  // All RH calls go through secure proxy POST — token injected server-side
+  const resp = await fetch(PROXY_BASE + '/proxy/robinhood', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint: '/' + endpoint, method: 'GET' }),
     signal: AbortSignal.timeout(8000)
   });
   if (!resp.ok) throw new Error('RH ' + resp.status);
@@ -6228,7 +6254,7 @@ async function fetchRobinhoodPositions() {
       const positions = [];
       for (const pos of data.results) {
         try {
-          const instResp = await fetch(PROXY_BASE + '/proxy/robinhood?endpoint=' + encodeURIComponent(pos.instrument.replace('https://api.robinhood.com/', '')));
+          const instResp = await fetch(PROXY_BASE + '/proxy/robinhood', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: '/' + pos.instrument.replace('https://api.robinhood.com/', ''), method: 'GET' }) });
           const inst = await safeParseJson(instResp, 'RH instrument');
           positions.push({
             ticker: inst.symbol,
@@ -6283,7 +6309,7 @@ async function fetchRobinhoodOrders(limit) {
       const orders = [];
       for (const o of data.results.slice(0, limit || 20)) {
         try {
-          const instResp = await fetch(PROXY_BASE + '/proxy/robinhood?endpoint=' + encodeURIComponent(o.instrument.replace('https://api.robinhood.com/', '')));
+          const instResp = await fetch(PROXY_BASE + '/proxy/robinhood', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: '/' + o.instrument.replace('https://api.robinhood.com/', ''), method: 'GET' }) });
           const inst = await safeParseJson(instResp, 'RH instrument');
           orders.push({
             ticker: inst.symbol,
@@ -6340,9 +6366,9 @@ function updateRhLoginUI() {
     btn.style.color = '#22c55e';
     btn.title = 'Robinhood token active — click to manage';
   } else {
-    btn.textContent = 'RH: Token';
+    btn.textContent = 'RH: Setup';
     btn.style.color = 'var(--text-dim)';
-    btn.title = 'Paste Robinhood token for live data';
+    btn.title = 'Robinhood connection managed server-side';
   }
 }
 
@@ -8740,30 +8766,28 @@ renderNewsFeed();
    CLAUDE AI AGENT — NATIVE WORKSPACE TOOLS
    ═══════════════════════════════════════════ */
 
-let aiKey = localStorage.getItem('ws_aiApiKey') || '';
+// ── Credentials are now server-side only — clear any legacy client storage ──
+localStorage.removeItem('ws_aiApiKey');
+localStorage.removeItem('rh_auth_token');
+
+let aiKey = 'proxy'; // Always use proxy — key is server-side
 let aiMessages = [];
 let aiStreaming = false;
-let aiProxyAvailable = false; // Set true once proxy is confirmed running
+let aiProxyAvailable = false; // Set true once proxy health check passes
 
-const AI_PROXY_URL = PROXY_BASE + '/proxy/ai';
-
-// Check if AI proxy is available (key held server-side = secure mode)
-(async function checkAiProxy() {
+// Check proxy health via /health endpoint
+(async function checkSecureProxy() {
   try {
-    const r = await fetch(AI_PROXY_URL + '/status', { signal: AbortSignal.timeout(2000) });
+    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(3000) });
     if (r.ok) {
-      const data = await safeParseJson(r, 'AI status');
-      aiProxyAvailable = true;
-      _proxyAlive = true; _proxyLastCheck = Date.now(); // sync health state
-      if (data.configured) {
-        aiKey = 'proxy';  // Sentinel: key is on the server, not here
-        console.log('[AI] Proxy mode active — API key on server (last4: ' + data.last4 + ')');
-      } else {
-        console.log('[AI] Proxy available but no API key configured yet');
-      }
+      const data = await r.json();
+      aiProxyAvailable = !!data.services?.anthropic;
+      _proxyAlive = true; _proxyLastCheck = Date.now();
+      console.log('[Proxy] Health:', JSON.stringify(data.services));
+      if (!data.services?.anthropic) console.warn('[AI] Proxy running but Anthropic key not configured');
     }
   } catch (_) {
-    console.log('[AI] No proxy detected — using direct API mode');
+    console.warn('[Proxy] Health check failed — proxy may be down');
   }
 })();
 
@@ -8773,22 +8797,11 @@ const AI_RETRY_DELAYS = [15000, 30000, 60000]; // 15s, 30s, 60s
 let _aiRateLimitPaused = false;
 
 async function _aiRawFetch(body) {
-  if (aiProxyAvailable) {
-    return fetch(AI_PROXY_URL + '/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-  }
-  if (!aiKey || aiKey === 'proxy') throw new Error('API key not configured');
-  return fetch('https://api.anthropic.com/v1/messages', {
+  // All Anthropic calls go through the secure proxy — no client-side key
+  if (!aiProxyAvailable) throw new Error('Proxy not available — check server status');
+  return fetch(PROXY_BASE + '/proxy/anthropic', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': aiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
 }
@@ -9672,46 +9685,40 @@ MODEL_MIX_IDS.forEach(id => {
   if (el) el.addEventListener('input', () => balanceSliderGroup(id, MODEL_MIX_IDS));
 });
 
-if (aiKey) $('#aiApiKey').value = '••••••••••' + aiKey.slice(-4);
-
-// API key show/hide toggle
-$('#aiKeyToggle').onclick = () => {
+// API key is managed server-side — show proxy status instead
+(function updateApiKeyDisplay() {
   const inp = $('#aiApiKey');
-  if (inp.type === 'password') {
-    // Show the full stored key
-    if (aiKey && inp.value.startsWith('••')) inp.value = aiKey;
-    inp.type = 'text';
-  } else {
-    inp.type = 'password';
-    if (aiKey && !inp.value.startsWith('sk-')) inp.value = '••••••••••' + aiKey.slice(-4);
-    else if (aiKey) inp.value = '••••••••••' + aiKey.slice(-4);
+  if (inp) {
+    inp.value = aiProxyAvailable ? 'Managed via secure proxy' : 'Proxy not connected';
+    inp.disabled = true;
+    inp.style.opacity = '0.7';
   }
-};
+  const toggleBtn = $('#aiKeyToggle');
+  if (toggleBtn) toggleBtn.style.display = 'none';
+})();
 
+// API key is server-managed — Save button checks proxy status instead
 $('#aiKeySave').onclick = async () => {
-  const v = $('#aiApiKey').value.trim();
-  if (!v || v.startsWith('••')) return;
-  aiKey = v;
-  localStorage.setItem('ws_aiApiKey', v);
-  $('#aiApiKey').value = '••••••••••' + v.slice(-4);
-  $('#aiApiKey').type = 'password';
-  // Also push key to proxy server for secure mode
   try {
-    const r = await fetch(AI_PROXY_URL + '/key', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: ADMIN_PASSWORD, apiKey: v })
-    });
+    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(3000) });
     if (r.ok) {
-      aiProxyAvailable = true;
-      aiKey = 'proxy';
-      addAiMsg('system', 'API key saved to server. Claude is ready (secure proxy mode).');
+      const data = await r.json();
+      aiProxyAvailable = !!data.services?.anthropic;
+      _proxyAlive = true; _proxyLastCheck = Date.now();
+      if (data.services?.anthropic) {
+        addAiMsg('system', 'Proxy connected — Anthropic API key is configured server-side. Claude is ready.');
+      } else {
+        addAiMsg('system', 'Proxy is running but Anthropic API key is not configured. Contact admin.');
+      }
     } else {
-      addAiMsg('system', 'API key saved locally. Claude is ready. (Proxy unavailable — run node proxy.js for secure mode)');
+      addAiMsg('system', 'Proxy not reachable — check server status.');
     }
-  } catch (_) {
-    addAiMsg('system', 'API key saved locally. Claude is ready. (Proxy unavailable — run node proxy.js for secure mode)');
+  } catch(_) {
+    addAiMsg('system', 'Cannot reach proxy at ' + PROXY_BASE + '. Is the server running?');
   }
+  // Update display
+  const inp = $('#aiApiKey');
+  if (inp) inp.value = aiProxyAvailable ? 'Managed via secure proxy' : 'Proxy not connected';
 };
 
 $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
@@ -12497,26 +12504,16 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       <!-- Divider -->
       <div style="border-top:1px solid var(--border);margin:12px 0;"></div>
 
-      <!-- Token Input Section (ALWAYS visible) -->
+      <!-- Token Status (server-managed — no client-side input) -->
       <div id="rhTokenForm">
-        <label style="font-size:.65rem;font-weight:600;color:var(--text);display:block;margin-bottom:4px;">API Token / Auth Key</label>
-        <div style="position:relative;">
-          <input type="password" id="rhTokenInput" placeholder="Paste token here" spellcheck="false" style="width:100%;margin-bottom:4px;padding:8px 32px 8px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.65rem;font-family:monospace;box-sizing:border-box;" />
-          <span id="rhShowToken" style="position:absolute;right:8px;top:7px;cursor:pointer;font-size:.7rem;color:var(--text-dim);user-select:none;" title="Show/hide token">&#128065;</span>
+        <label style="font-size:.65rem;font-weight:600;color:var(--text);display:block;margin-bottom:6px;">Token Status</label>
+        <div id="rhTokenServerStatus" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);font-size:.6rem;color:var(--text-dim);">
+          Checking server configuration...
         </div>
-        <div style="font-size:.5rem;color:var(--text-dim);margin-bottom:6px;">Updating this field will replace your stored token.</div>
-        <div id="rhTokenMsg" style="font-size:.62rem;color:var(--text-dim);margin-bottom:6px;min-height:14px;"></div>
-        <button id="rhTokenSubmit" style="width:100%;padding:8px;border:1px solid #22c55e40;border-radius:6px;background:#22c55e15;color:#22c55e;font-size:.72rem;cursor:pointer;font-weight:600;">Save Token</button>
-        <details style="margin-top:8px;">
-          <summary style="font-size:.55rem;color:var(--text-dim);cursor:pointer;">How to get your token</summary>
-          <div style="font-size:.52rem;color:var(--text-dim);margin-top:6px;line-height:1.5;padding-left:8px;">
-            1. Open <a href="https://robinhood.com" target="_blank" style="color:#22c55e;">robinhood.com</a> and log in normally<br>
-            2. Press <kbd style="font-size:.5rem;padding:1px 4px;border:1px solid var(--border);border-radius:3px;background:var(--panel-inset);">F12</kbd> to open Developer Tools<br>
-            3. Click <b>Application</b> tab &rarr; <b>Cookies</b> &rarr; <b>https://robinhood.com</b><br>
-            4. Find <code style="font-size:.48rem;background:var(--panel-inset);padding:1px 3px;border-radius:2px;">__Host-Web-App-Secondary-Access-Token</code><br>
-            5. Double-click the <b>Value</b>, copy it, and paste above
-          </div>
-        </details>
+        <div style="font-size:.48rem;color:var(--text-dim);margin-top:6px;font-style:italic;">
+          Token is managed server-side &mdash; contact your admin to update it.
+        </div>
+        <div id="rhTokenMsg" style="font-size:.62rem;color:var(--text-dim);margin-top:6px;min-height:14px;"></div>
       </div>
 
       <!-- Divider -->
@@ -12573,15 +12570,12 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     const hint = $('#rhBadgeHint');
     if (!dot) return;
 
-    const storedToken = localStorage.getItem('rh_auth_token');
-
     if (RH_SESSION.status === 'active') {
       dot.style.background = '#22c55e';
       label.textContent = 'Connected';
       label.style.color = '#22c55e';
       const mask = RH_SESSION.accountMask ? 'Account: RH-\u2022\u2022\u2022\u2022' + RH_SESSION.accountMask : '';
-      const tokenMask = storedToken ? 'Token: \u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + storedToken.slice(-4) : '';
-      acct.textContent = [mask, tokenMask].filter(Boolean).join('  |  ');
+      acct.textContent = mask || 'Token configured on server';
       if (RH_SESSION.validatedAt) {
         const ago = Math.round((Date.now() - RH_SESSION.validatedAt) / 1000);
         const agoStr = ago < 60 ? ago + 's ago' : Math.round(ago / 60) + 'm ago';
@@ -12601,26 +12595,15 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       label.style.color = '#ef4444';
       acct.textContent = '';
       verified.textContent = '';
-      hint.textContent = storedToken ? 'Token stored locally but connection failed — try Test Connection' : '';
+      hint.textContent = 'Server token may be misconfigured — try Test Connection';
     } else {
       dot.style.background = '#ef4444';
       label.textContent = 'Not Connected';
       label.style.color = '#ef4444';
       acct.textContent = '';
       verified.textContent = '';
-      hint.textContent = 'Paste your token above to link your account';
+      hint.textContent = 'Token is managed server-side — check proxy server config';
     }
-  }
-
-  // ── Token show/hide toggle ──
-  const rhShowTokenBtn = $('#rhShowToken');
-  if (rhShowTokenBtn) {
-    rhShowTokenBtn.onclick = () => {
-      const inp = $('#rhTokenInput');
-      const show = inp.type === 'password';
-      inp.type = show ? 'text' : 'password';
-      rhShowTokenBtn.style.opacity = show ? '1' : '.5';
-    };
   }
 
   // ── Test Connection button ──
@@ -12630,67 +12613,39 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     try {
       await validateRhToken();
       updateRhBadge();
+      updateRhTokenServerStatus();
     } catch(e) {
       console.warn('[RH] Test connection error:', e.message);
     }
     btn.disabled = false; btn.textContent = 'Test Connection';
   };
 
-  // Pre-populate token field from localStorage on modal open
-  function populateStoredToken() {
-    const stored = localStorage.getItem('rh_auth_token');
-    // Don't overwrite if user is actively typing
-    const inp = $('#rhTokenInput');
-    if (stored && !inp.value) {
-      // Show masked placeholder — don't expose the actual token
-      inp.placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + stored.slice(-4) + ' (stored)';
+  // Update the server-status display in the token section
+  async function updateRhTokenServerStatus() {
+    const el = $('#rhTokenServerStatus');
+    if (!el) return;
+    try {
+      const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(3000) });
+      if (r.ok) {
+        const data = await r.json();
+        if (data.services?.robinhood) {
+          el.innerHTML = '<span style="color:#22c55e;font-weight:600;">Connected via secure proxy</span>';
+        } else {
+          el.innerHTML = '<span style="color:#ef4444;">Token not configured on server</span>';
+        }
+      } else {
+        el.innerHTML = '<span style="color:#ef4444;">Proxy not reachable</span>';
+      }
+    } catch(_) {
+      el.innerHTML = '<span style="color:#ef4444;">Proxy offline</span>';
     }
-    updateRhBadge();
   }
 
-  // ── Token paste submit ──
-  $('#rhTokenSubmit').onclick = async () => {
-    const msg = $('#rhTokenMsg');
-    const token = ($('#rhTokenInput').value || '').trim();
-    if (!token || token.length < 10) { msg.textContent = 'Paste a valid token (it should be a long string)'; msg.style.color = '#ef4444'; return; }
-    msg.textContent = 'Verifying token with Robinhood...'; msg.style.color = 'var(--text-dim)';
-    $('#rhTokenSubmit').disabled = true; $('#rhTokenSubmit').style.opacity = '0.6';
-    try {
-      const alive = await checkProxyHealth();
-      if (!alive) throw proxyDownError();
-      const resp = await fetch(PROXY_BASE + '/proxy/robinhood/set-token', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: ADMIN_PASSWORD, token }),
-        signal: AbortSignal.timeout(15000)
-      });
-      const data = await safeParseJson(resp, 'set-token');
-      if (data.ok) {
-        rhLoggedIn = true;
-        // Persist token locally for display and reconnection
-        localStorage.setItem('rh_auth_token', token);
-        msg.textContent = 'Token saved and connection verified'; msg.style.color = '#22c55e';
-        $('#rhTokenInput').value = '';
-        $('#rhTokenInput').placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + token.slice(-4) + ' (stored)';
-        onLoginSuccess();
-      } else {
-        // Still save token locally so user doesn't lose it
-        localStorage.setItem('rh_auth_token', token);
-        msg.textContent = 'Token saved but connection failed \u2014 check your key'; msg.style.color = '#f59e0b';
-        $('#rhTokenInput').value = '';
-        $('#rhTokenInput').placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + token.slice(-4) + ' (stored)';
-        updateRhBadge();
-      }
-    } catch(e) {
-      // Save token locally even if proxy is down
-      localStorage.setItem('rh_auth_token', token);
-      msg.textContent = 'Token saved locally but connection failed: ' + e.message; msg.style.color = '#f59e0b';
-      $('#rhTokenInput').value = '';
-      $('#rhTokenInput').placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' + token.slice(-4) + ' (stored)';
-      updateRhBadge();
-    } finally {
-      $('#rhTokenSubmit').disabled = false; $('#rhTokenSubmit').style.opacity = '1';
-    }
-  };
+  // Populate status on modal open
+  function populateStoredToken() {
+    updateRhBadge();
+    updateRhTokenServerStatus();
+  }
 
   // Show/hide password toggle
   $('#rhShowPw').onclick = () => {
@@ -12749,7 +12704,6 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display = 'none'; };
 
   // Enter key submits
-  $('#rhTokenInput').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#rhTokenSubmit').click(); } };
   $('#rhPassword').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
   $('#rhMfaCode').onkeydown = (e) => { if (e.key === 'Enter') $('#rhLoginSubmit').click(); };
 
@@ -12928,13 +12882,10 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     }
   }
 
-  // On load: read stored token, set badge to pending, validate
+  // On load: check server-side token status and update badge
   (async function initRhOnLoad() {
-    const stored = localStorage.getItem('rh_auth_token');
-    if (stored) {
-      RH_SESSION.status = 'validating';
-      updateRhBadge();
-    }
+    RH_SESSION.status = 'validating';
+    updateRhBadge();
     await checkRobinhoodStatus();
     updateRhBadge();
   })();
