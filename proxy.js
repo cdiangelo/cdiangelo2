@@ -224,7 +224,9 @@ app.get('/proxy/robinhood', async (req, res) => {
     const resp = await fetch(url, {
       headers: {
         'User-Agent': RH_USER_AGENT,
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Origin': 'https://robinhood.com',
+        'Referer': 'https://robinhood.com/'
       },
       signal: AbortSignal.timeout(10000)
     });
@@ -253,12 +255,15 @@ app.get('/proxy/robinhood/auth', async (req, res) => {
   }
 
   try {
-    const resp = await fetch(url, {
-      headers: {
+    const rhHeaders = {
         'Authorization': 'Bearer ' + rhToken,
         'User-Agent': RH_USER_AGENT,
-        'Accept': 'application/json'
-      },
+        'Accept': 'application/json',
+        'Origin': 'https://robinhood.com',
+        'Referer': 'https://robinhood.com/'
+      };
+    const resp = await fetch(url, {
+      headers: rhHeaders,
       signal: AbortSignal.timeout(10000)
     });
     if (!resp.ok) {
@@ -267,7 +272,7 @@ app.get('/proxy/robinhood/auth', async (req, res) => {
         const refreshed = await refreshRobinhoodToken();
         if (refreshed) {
           const retryResp = await fetch(url, {
-            headers: { 'Authorization': 'Bearer ' + rhToken, 'User-Agent': RH_USER_AGENT, 'Accept': 'application/json' },
+            headers: { ...rhHeaders, 'Authorization': 'Bearer ' + rhToken },
             signal: AbortSignal.timeout(10000)
           });
           if (retryResp.ok) {
@@ -398,7 +403,9 @@ app.post('/proxy/robinhood/set-token', async (req, res) => {
       headers: {
         'Authorization': 'Bearer ' + token,
         'User-Agent': RH_USER_AGENT,
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Origin': 'https://robinhood.com',
+        'Referer': 'https://robinhood.com/'
       },
       signal: AbortSignal.timeout(10000)
     });
