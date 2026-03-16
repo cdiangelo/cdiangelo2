@@ -1546,6 +1546,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
         <option value="claude-opus-4-6">Opus 4.6</option>
       </select>
+      <select id="personaSelect" style="font-size:.6rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);max-width:110px;" title="Select persona mode"></select>
       <label id="aiDeepToggleLabel" style="display:flex;align-items:center;gap:2px;font-size:.55rem;color:var(--text-dim);cursor:pointer;" title="Auto-include deep research with every query (adds ~$0.05-0.15 per query)">
         <input type="checkbox" id="aiDeepToggle" style="width:12px;height:12px;cursor:pointer;">
         <span>Deep</span>
@@ -1626,6 +1627,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div id="aiUsageDashContent"></div>
       </div>
       <div class="ai-msgs" id="aiMsgs"></div>
+      <div style="display:flex;align-items:center;gap:4px;padding:0 8px;">
+        <span id="personaIndicator" style="font-size:.52rem;color:var(--text-dim);white-space:nowrap;"></span>
+      </div>
       <div class="ai-input-row">
         <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="2"></textarea>
         <button id="aiNudge" title="Nudge Claude — push to delegate, try a different approach, or take action" style="background:rgba(255,152,0,.7);color:#fff;font-size:.7rem;padding:6px 10px;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">Nudge</button>
@@ -8227,6 +8231,47 @@ const MODEL_RATES = {
   'claude-opus-4-6': { input: 15.00, output: 75.00 }
 };
 
+// ── Persona mode system ──
+const PERSONA_MODES = {
+  'general': { label: 'General Assistant', icon: '\uD83E\uDD16', description: 'Balanced, helpful, concise',
+    systemPrompt: 'You are a helpful, precise assistant integrated into a financial planning workspace. Be concise and direct.' },
+  'stock_analyst': { label: 'Deep Stock Analyst', icon: '\uD83D\uDCC8', description: 'Fundamentals, technicals, thesis-driven',
+    systemPrompt: 'You are a senior equity research analyst. For every stock discussion, structure your response as: (1) Business Overview, (2) Financial Health (revenue growth, margins, FCF), (3) Valuation (P/E, EV/EBITDA vs peers), (4) Technical Setup (key levels, trend), (5) Catalysts & Risks, (6) Analyst Thesis. Be specific with numbers. Flag when data may be outdated. Always recommend the user verify current prices and filings.' },
+  'financial_modeler': { label: 'Financial Modeler', icon: '\uD83D\uDCCA', description: 'Structured models, assumptions-first',
+    systemPrompt: 'You are an expert financial modeler. When building any model: always start by stating explicit assumptions (growth rates, margins, discount rates, terminal value assumptions). Structure outputs as: Assumptions \u2192 Revenue Model \u2192 Cost Structure \u2192 EBITDA/FCF \u2192 Valuation. Present numbers in clean tables. Flag circular references or model limitations. Default to 5-year projection periods unless specified.' },
+  'presentation_builder': { label: 'Presentation Builder', icon: '\uD83C\uDFA8', description: 'Slide-ready content, executive framing',
+    systemPrompt: 'You are an expert at creating executive-ready presentation content. Structure all output as slide-ready material: use short punchy headers, supporting bullets (max 3-4 per point), and always include a "So What" / key takeaway per section. Prefer visual descriptions (suggest charts/diagrams where appropriate). Write at C-suite level: clear, confident, no jargon. Always offer to refine tone or format.' },
+  'planning_analyst': { label: 'FP&A Planning Analyst', icon: '\uD83D\uDDC2\uFE0F', description: 'Budget variance, forecasting, ops finance',
+    systemPrompt: 'You are an FP&A analyst embedded in a planning tool. Your specialty is budget vs. actuals analysis, variance commentary, headcount planning, and rolling forecast methodology. When analyzing financial data: always call out the largest variance drivers first, distinguish between volume and rate effects, and frame everything in terms of business impact, not just numbers. Use concise CFO-ready language.' }
+};
+
+// Load custom personas from localStorage (admin edits)
+const _customPersonas = LS('compplan_personas') || {};
+Object.entries(_customPersonas).forEach(([key, data]) => {
+  if (PERSONA_MODES[key]) PERSONA_MODES[key].systemPrompt = data.systemPrompt;
+});
+
+let activePersonaKey = localStorage.getItem('compplan_active_persona') || 'general';
+function getActivePersona() { return PERSONA_MODES[activePersonaKey] || PERSONA_MODES['general']; }
+function setActivePersona(key) {
+  if (!PERSONA_MODES[key]) return;
+  activePersonaKey = key;
+  localStorage.setItem('compplan_active_persona', key);
+  const p = PERSONA_MODES[key];
+  addAiMsg('system', p.icon + ' Now using: ' + p.label);
+  updatePersonaUI();
+}
+
+function updatePersonaUI() {
+  const sel = document.getElementById('personaSelect');
+  if (sel) sel.value = activePersonaKey;
+  const indicator = document.getElementById('personaIndicator');
+  if (indicator) {
+    const p = getActivePersona();
+    indicator.textContent = p.icon + ' ' + p.label;
+  }
+}
+
 // ── Tiered agent execution ──
 const TASK_TIERS = {
   TIER_1: { model: 'claude-haiku-4-5-20251001', maxTokens: 1000, label: 'Fast',
@@ -10522,8 +10567,9 @@ async function sendAgentMessage() {
       }
     }
 
-    // Build combined system prompt
-    const assembledSystemPrompt = (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + AI_SYSTEM_PROMPT;
+    // Build combined system prompt: persona → tier → base
+    const personaPrompt = getActivePersona().systemPrompt || '';
+    const assembledSystemPrompt = (personaPrompt ? personaPrompt + '\n\n' : '') + (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + AI_SYSTEM_PROMPT;
 
     let iterations = 0;
     const MAX_ITERATIONS = 10;
@@ -10767,6 +10813,59 @@ $('#aiSend').onclick = sendAgentMessage;
 $('#aiInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); }
 });
+
+// ── Persona selector init ──
+(function initPersonaSelector() {
+  const sel = document.getElementById('personaSelect');
+  if (!sel) return;
+  Object.entries(PERSONA_MODES).forEach(([key, p]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = p.icon + ' ' + p.label;
+    if (key === activePersonaKey) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.onchange = function() { setActivePersona(this.value); };
+  // Admin: double-click to edit persona prompts
+  if (wsIsAdmin) {
+    sel.addEventListener('dblclick', () => {
+      const key = sel.value;
+      const p = PERSONA_MODES[key];
+      let editPanel = document.getElementById('personaEditPanel');
+      if (editPanel) { editPanel.remove(); return; }
+      editPanel = document.createElement('div');
+      editPanel.id = 'personaEditPanel';
+      editPanel.style.cssText = 'position:absolute;top:0;left:4px;right:4px;z-index:85;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:10px;font-size:.6rem;';
+      editPanel.innerHTML = '<div style="font-weight:700;margin-bottom:6px;">Edit Persona: ' + p.icon + ' ' + p.label + '</div>' +
+        '<textarea id="personaEditPrompt" style="width:100%;height:120px;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.58rem;font-family:inherit;resize:vertical;">' + p.systemPrompt.replace(/</g, '&lt;') + '</textarea>' +
+        '<div style="display:flex;gap:6px;margin-top:6px;">' +
+        '<button id="personaEditSave" style="padding:3px 10px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.58rem;">Save</button>' +
+        '<button id="personaEditCancel" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.58rem;">Cancel</button>' +
+        '<button id="personaEditReset" style="padding:3px 10px;border:1px solid var(--danger);border-radius:4px;background:none;color:var(--danger);cursor:pointer;font-size:.58rem;">Reset to Default</button>' +
+        '</div>';
+      document.querySelector('#q-claude .p-body').appendChild(editPanel);
+      document.getElementById('personaEditSave').onclick = () => {
+        const newPrompt = document.getElementById('personaEditPrompt').value;
+        PERSONA_MODES[key].systemPrompt = newPrompt;
+        const customs = LS('compplan_personas') || {};
+        customs[key] = { systemPrompt: newPrompt };
+        LS('compplan_personas', customs);
+        toast('Persona prompt saved');
+        editPanel.remove();
+      };
+      document.getElementById('personaEditCancel').onclick = () => editPanel.remove();
+      document.getElementById('personaEditReset').onclick = () => {
+        const customs = LS('compplan_personas') || {};
+        delete customs[key];
+        LS('compplan_personas', customs);
+        // Reload page defaults would require storing originals; for now, toast a note
+        toast('Reset saved — reload page to restore default prompt');
+        editPanel.remove();
+      };
+    });
+  }
+  updatePersonaUI();
+})();
 
 // ── Nudge button — pushes Claude to delegate, change approach, or take action ──
 $('#aiNudge').onclick = function() {
