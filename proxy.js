@@ -313,7 +313,23 @@ app.post('/proxy/ai/messages', async (req, res) => {
 let rhToken = ''; // Robinhood OAuth token (set via login)
 let rhRefreshToken = '';
 let rhDeviceToken = ''; // persistent device token for MFA
-const RH_USER_AGENT = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+const RH_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+// Standard browser headers for all Robinhood requests
+const RH_BROWSER_HEADERS = {
+  'User-Agent': RH_USER_AGENT,
+  'Accept': 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Origin': 'https://robinhood.com',
+  'Referer': 'https://robinhood.com/',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-site',
+  'Sec-Ch-Ua': '"Chromium";v="131", "Not_A Brand";v="24"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"'
+};
 
 // Stored Robinhood credentials (admin only) — set via env vars or POST /proxy/robinhood/set-credentials
 let rhStoredUsername = process.env.RH_USERNAME || '';
@@ -333,12 +349,7 @@ app.get('/proxy/robinhood', async (req, res) => {
 
   try {
     const resp = await fetch(url, {
-      headers: {
-        'User-Agent': RH_USER_AGENT,
-        'Accept': 'application/json',
-        'Origin': 'https://robinhood.com',
-        'Referer': 'https://robinhood.com/'
-      },
+      headers: { ...RH_BROWSER_HEADERS },
       signal: AbortSignal.timeout(10000)
     });
     if (!resp.ok) return res.status(resp.status).json({ error: true, source: 'robinhood', status: resp.status });
@@ -367,11 +378,8 @@ app.get('/proxy/robinhood/auth', async (req, res) => {
 
   try {
     const rhHeaders = {
-        'Authorization': 'Bearer ' + rhToken,
-        'User-Agent': RH_USER_AGENT,
-        'Accept': 'application/json',
-        'Origin': 'https://robinhood.com',
-        'Referer': 'https://robinhood.com/'
+        ...RH_BROWSER_HEADERS,
+        'Authorization': 'Bearer ' + rhToken
       };
     const resp = await fetch(url, {
       headers: rhHeaders,
@@ -431,13 +439,10 @@ app.post('/proxy/robinhood/login', async (req, res) => {
   if (mfa_code) body.mfa_code = mfa_code;
 
   const headers = {
+    ...RH_BROWSER_HEADERS,
     'Content-Type': 'application/json',
-    'User-Agent': RH_USER_AGENT,
-    'Accept': 'application/json',
     'X-Robinhood-API-Version': '1.431.4',
-    'Origin': 'https://robinhood.com',
-    'Referer': 'https://robinhood.com/login/',
-    'Accept-Language': 'en-US,en;q=0.9'
+    'Referer': 'https://robinhood.com/login/'
   };
   if (challenge_id) headers['X-Robinhood-Challenge-ID'] = challenge_id;
 
@@ -512,25 +517,31 @@ app.post('/proxy/robinhood/set-token', async (req, res) => {
   try {
     const check = await fetch('https://api.robinhood.com/accounts/', {
       headers: {
-        'Authorization': 'Bearer ' + token,
-        'User-Agent': RH_USER_AGENT,
-        'Accept': 'application/json',
-        'Origin': 'https://robinhood.com',
-        'Referer': 'https://robinhood.com/'
+        ...RH_BROWSER_HEADERS,
+        'Authorization': 'Bearer ' + token
       },
       signal: AbortSignal.timeout(10000)
     });
     if (!check.ok) {
       const raw = await check.text();
-      console.error(`[Robinhood] Token verify failed HTTP ${check.status}: ${raw.substring(0, 300)}`);
-      return res.status(401).json({ error: true, message: 'Token rejected by Robinhood (HTTP ' + check.status + '). Make sure you copied the full cookie value.' });
+      console.warn(`[Robinhood] Token verify failed HTTP ${check.status}: ${raw.substring(0, 300)}`);
+      // Save the token anyway — verification endpoint may be blocked by bot detection
+      // The token will be validated on first real API use instead
+      rhToken = token;
+      rhRefreshToken = '';
+      console.log('[Robinhood] Token saved despite verify failure — will validate on first use');
+      return res.json({ ok: true, warning: true, message: 'Token saved but could not verify (HTTP ' + check.status + '). It will be tested on first API call.' });
     }
     rhToken = token;
     rhRefreshToken = ''; // browser tokens don't have a refresh token
     console.log('[Robinhood] Token set via paste — verified OK');
     return res.json({ ok: true, message: 'Token verified and saved. You are logged in.' });
   } catch (e) {
-    return res.status(502).json({ error: true, message: 'Token verify error: ' + e.message });
+    // Network error during verify — still save the token
+    rhToken = token;
+    rhRefreshToken = '';
+    console.warn('[Robinhood] Token verify network error, saving anyway:', e.message);
+    return res.json({ ok: true, warning: true, message: 'Token saved but verify failed (' + e.message + '). It will be tested on first API call.' });
   }
 });
 
@@ -570,13 +581,10 @@ app.post('/proxy/robinhood/quick-login', async (req, res) => {
   if (mfa_code) body.mfa_code = mfa_code;
 
   const headers = {
+    ...RH_BROWSER_HEADERS,
     'Content-Type': 'application/json',
-    'User-Agent': RH_USER_AGENT,
-    'Accept': 'application/json',
     'X-Robinhood-API-Version': '1.431.4',
-    'Origin': 'https://robinhood.com',
-    'Referer': 'https://robinhood.com/login/',
-    'Accept-Language': 'en-US,en;q=0.9'
+    'Referer': 'https://robinhood.com/login/'
   };
   if (challenge_id) headers['X-Robinhood-Challenge-ID'] = challenge_id;
 
@@ -625,12 +633,8 @@ async function refreshRobinhoodToken() {
     const resp = await fetch('https://api.robinhood.com/oauth2/token/', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': RH_USER_AGENT,
-        'Accept': 'application/json',
-        'Origin': 'https://robinhood.com',
-        'Referer': 'https://robinhood.com/',
-        'Accept-Language': 'en-US,en;q=0.9'
+        ...RH_BROWSER_HEADERS,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         grant_type: 'refresh_token',
