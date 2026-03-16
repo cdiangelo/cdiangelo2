@@ -2939,6 +2939,9 @@ let savedOpacity = parseFloat(localStorage.getItem('funOpacity')) || 1;
 let savedMuted = localStorage.getItem('funMuted') !== 'false';
 let savedVolume = parseInt(localStorage.getItem('funVolume'), 10); if (isNaN(savedVolume)) savedVolume = 50;
 let adTimer = null;
+let ytPremium = localStorage.getItem('ytPremium') === 'true';
+let ytSignedIn = false;
+let ytUserName = localStorage.getItem('ytUserName') || '';
 
 function parseYoutubeId(input) {
   input = input.trim();
