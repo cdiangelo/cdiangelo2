@@ -8227,6 +8227,45 @@ const MODEL_RATES = {
   'claude-opus-4-6': { input: 15.00, output: 75.00 }
 };
 
+// ── Tiered agent execution ──
+const TASK_TIERS = {
+  TIER_1: { model: 'claude-haiku-4-5-20251001', maxTokens: 1000, label: 'Fast',
+    systemPrompt: 'You are a precise assistant. Complete the task directly and concisely.' },
+  TIER_2: { model: 'claude-sonnet-4-6', maxTokens: 4000, label: 'Standard',
+    systemPrompt: 'Think step by step. First produce a brief plan (3-5 bullets), then execute each step. For financial models, decompose into: assumptions → revenue drivers → cost structure → output metrics.' },
+  TIER_3: { model: 'claude-sonnet-4-6', maxTokens: 8000, label: 'Deep Research',
+    systemPrompt: 'You are a senior analyst. Use extended reasoning. For financial models: define assumptions explicitly, build a structured model, include sensitivity analysis. For stock analysis: cover fundamentals, technicals, recent catalysts, risks, and a clear thesis.' }
+};
+
+function classifyTask(prompt) {
+  const p = (prompt || '').toLowerCase();
+  const stockKeywords = ['stock', 'equity', 'earnings', 'analyst', 'price target', 'dcf', 'valuation', 'sector analysis'];
+  const hasTickerPattern = /\b[A-Z]{2,5}\b/.test(prompt || '');
+  if (stockKeywords.some(k => p.includes(k)) || (hasTickerPattern && (p.includes('analyz') || p.includes('research') || p.includes('bull') || p.includes('bear')))) {
+    return 'stock_analysis';
+  }
+  return 'general';
+}
+
+function getTierForTask(prompt) {
+  if (classifyTask(prompt) === 'stock_analysis') return 'TIER_3';
+  return 'TIER_1';
+}
+
+async function runTierPlanStep(prompt, tier) {
+  if (tier === 'TIER_1') return null; // No planning for fast tier
+  try {
+    const planResp = await aiApiFetch({
+      model: TASK_TIERS[tier].model,
+      max_tokens: 500,
+      messages: [{ role: 'user', content: 'In 3-5 bullet points, outline the steps to complete this task: ' + prompt }]
+    });
+    if (!planResp.ok) return null;
+    const planResult = await planResp.json();
+    return (planResult.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+  } catch { return null; }
+}
+
 function getSessionCost() {
   const model = $('#aiModel').value;
   const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
@@ -10372,8 +10411,19 @@ async function sendAgentMessage() {
   aiMessages.push({ role: 'user', content: input });
   if (aiMessages.length > 30) aiMessages = aiMessages.slice(-20);
 
-  const model = $('#aiModel').value;
-  const thinkingDiv = addAiMsg('system', 'Thinking...');
+  // Tiered execution: determine starting tier
+  let currentTierKey = getTierForTask(input);
+  const userSelectedModel = $('#aiModel').value;
+  let model = userSelectedModel;
+  let tierSystemPrompt = '';
+
+  // If stock analysis, skip to TIER_3 directly
+  if (currentTierKey === 'TIER_3') {
+    model = TASK_TIERS.TIER_3.model;
+    tierSystemPrompt = TASK_TIERS.TIER_3.systemPrompt;
+  }
+
+  const thinkingDiv = addAiMsg('system', 'Thinking... [' + TASK_TIERS[currentTierKey].label + ']');
   aiStreaming = true;
   setRobotWorking(true);
   const inquiryActions = []; // Track tool actions for this inquiry
@@ -10455,6 +10505,26 @@ async function sendAgentMessage() {
     // Build API messages: history + context-enriched latest
     let apiMsgs = aiMessages.slice(0, -1).concat([contextMsg]);
 
+    // Run planning step for TIER_2/TIER_3
+    let taskPlan = null;
+    if (currentTierKey !== 'TIER_1') {
+      taskPlan = await runTierPlanStep(input, currentTierKey);
+      if (taskPlan) {
+        const planDiv = addAiMsg('system', '\u25B8 Task Plan');
+        planDiv.style.cssText += 'cursor:pointer;';
+        const planBody = document.createElement('div');
+        planBody.style.cssText = 'display:none;font-size:.58rem;white-space:pre-wrap;padding:4px 8px;color:var(--text-dim);';
+        planBody.textContent = taskPlan;
+        planDiv.after(planBody);
+        planDiv.onclick = () => { planBody.style.display = planBody.style.display === 'none' ? '' : 'none'; planDiv.textContent = (planBody.style.display === 'none' ? '\u25B8' : '\u25BE') + ' Task Plan'; };
+        // Inject plan as context
+        apiMsgs[apiMsgs.length - 1] = { role: 'user', content: apiMsgs[apiMsgs.length - 1].content + '\n\n[Task Plan]\n' + taskPlan };
+      }
+    }
+
+    // Build combined system prompt
+    const assembledSystemPrompt = (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + AI_SYSTEM_PROMPT;
+
     let iterations = 0;
     const MAX_ITERATIONS = 10;
 
@@ -10469,7 +10539,7 @@ async function sendAgentMessage() {
         const resp = await aiApiFetch({
             model: model,
             max_tokens: 4096,
-            system: AI_SYSTEM_PROMPT,
+            system: assembledSystemPrompt,
             messages: apiMsgs,
             tools: AGENT_TOOLS,
             stream: true
@@ -10577,7 +10647,7 @@ async function sendAgentMessage() {
         const resp2 = await aiApiFetch({
             model: model,
             max_tokens: 4096,
-            system: AI_SYSTEM_PROMPT,
+            system: assembledSystemPrompt,
             messages: apiMsgs,
             tools: AGENT_TOOLS
           });
@@ -10657,7 +10727,20 @@ async function sendAgentMessage() {
     }
 
   } catch (e) {
-    if (!_stall.aborted) thinkingDiv.textContent = 'Error: ' + e.message;
+    // Auto-escalation on error
+    const nextTier = currentTierKey === 'TIER_1' ? 'TIER_2' : currentTierKey === 'TIER_2' ? 'TIER_3' : null;
+    if (nextTier && !_stall.aborted) {
+      updateTaskAttemptStatus(taskId, 'error');
+      appendTaskAttemptOutput(taskId, 'Error: ' + e.message);
+      currentTierKey = nextTier;
+      model = TASK_TIERS[nextTier].model;
+      tierSystemPrompt = TASK_TIERS[nextTier].systemPrompt;
+      thinkingDiv.textContent = 'Escalating to ' + TASK_TIERS[nextTier].label + '...';
+      startTaskAttempt(taskId, 'error_fallback');
+      // Re-throw handled by outer try; escalation noted but not re-executed here
+      // (user can retry manually — true auto-retry would require recursion)
+    }
+    if (!_stall.aborted) thinkingDiv.textContent = 'Error: ' + e.message + (nextTier ? ' (escalation to ' + TASK_TIERS[nextTier].label + ' available — retry)' : '');
     updateTaskAttemptStatus(taskId, 'error');
     appendTaskAttemptOutput(taskId, 'Error: ' + e.message);
   }
