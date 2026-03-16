@@ -12562,5 +12562,25 @@ setTimeout(() => {
 }, 150);
 
 </script>
+
+<!-- ═══ AUTO-REFRESH ON NEW DEPLOY ═══ -->
+<script>
+(function() {
+  if (!window.__BUILD_VERSION) return;
+  const CHECK_INTERVAL = 60000; // check every 60 seconds
+  setInterval(async () => {
+    try {
+      const res = await fetch('/api/version', { cache: 'no-store' });
+      if (!res.ok) return;
+      const { version } = await res.json();
+      if (version && version !== window.__BUILD_VERSION) {
+        console.log('[DEPLOY] New version detected:', version, '(was:', window.__BUILD_VERSION + ')');
+        // Reload — the new HTML will have the updated version stamps
+        window.location.reload();
+      }
+    } catch(_) { /* offline or transient — ignore */ }
+  }, CHECK_INTERVAL);
+})();
+</script>
 </body>
 </html>

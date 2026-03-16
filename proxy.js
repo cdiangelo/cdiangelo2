@@ -8,6 +8,7 @@ const fs = require('fs');
 const app = express();
 app.set('trust proxy', true); // Trust Render/reverse proxy for accurate client IP
 const PORT = process.env.PORT || 3001;
+const BUILD_VERSION = Date.now().toString(36); // unique per server start — used for cache busting
 
 // ── AI API key: held server-side only, never sent to browser ──
 const ADMIN_PASSWORD = 'animalcrackers'; // Must match workspace.html
@@ -786,7 +787,41 @@ app.get('/proxy/admin/requests', (req, res) => {
   res.json(accessRequests);
 });
 
-// Serve static files (HTML, JS, CSS) from project root — after API routes so they take priority
+// ── Build version endpoint — clients poll to detect new deploys ──
+app.get('/api/version', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ version: BUILD_VERSION });
+});
+
+// Serve static files with smart caching:
+// - HTML files: no-cache (always revalidate so users get latest markup)
+// - JS/CSS files: short cache + version query param for busting
+// - Inject ?v=BUILD_VERSION into local script/link tags in HTML
+app.use((req, res, next) => {
+  // Only intercept .html requests and root
+  const urlPath = req.path;
+  if (urlPath !== '/' && !urlPath.endsWith('.html')) {
+    // JS/CSS: cache for 1 minute so repeat loads within a session are fast,
+    // but stale copies expire quickly after a deploy
+    if (urlPath.endsWith('.js') || urlPath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.setHeader('ETag', BUILD_VERSION);
+    }
+    return next();
+  }
+  // Resolve the HTML file
+  const filePath = path.join(__dirname, urlPath === '/' ? 'workspace.html' : urlPath);
+  fs.readFile(filePath, 'utf8', (err, html) => {
+    if (err) return next(); // fall through to static handler
+    // Inject version query param on local script/link tags
+    const versioned = html
+      .replace(/(src|href)="\.\/([^"]+\.(js|css))"/g, `$1="./$2?v=${BUILD_VERSION}"`)
+      .replace('</head>', `<script>window.__BUILD_VERSION="${BUILD_VERSION}";</script>\n</head>`);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.send(versioned);
+  });
+});
 app.use(express.static(path.join(__dirname)));
 
 app.listen(PORT, () => {
