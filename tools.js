@@ -487,7 +487,7 @@ export const toolHandlers = {
     try {
       const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(t + ' stock') + '&hl=en-US&gl=US&ceid=US:en';
       let resp;
-      try { resp = await fetch('http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) {
+      try { resp = await fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) {
         resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl));
       }
       const xmlText = await resp.text();
@@ -522,7 +522,7 @@ export const toolHandlers = {
     try {
       const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(input.keyword) + '&hl=en-US&gl=US&ceid=US:en';
       let resp;
-      try { resp = await fetch('http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) {
+      try { resp = await fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) {
         resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl));
       }
       const xmlText = await resp.text();
@@ -643,7 +643,7 @@ export const toolHandlers = {
   deep_research: async (input) => {
     try {
       const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(input.topic) + '&hl=en-US&gl=US&ceid=US:en';
-      let toolProxyUrl = 'http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl);
+      let toolProxyUrl = PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl);
       let resp;
       try { resp = await fetch(toolProxyUrl); } catch (_) {
         toolProxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl);

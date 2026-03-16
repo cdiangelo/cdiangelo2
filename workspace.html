@@ -2571,6 +2571,8 @@ function getAllUserUsage() {
    ═══════════════════════════════════════════ */
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
+// Dynamic proxy base — works on localhost, LAN IPs, or remote hosts
+const PROXY_BASE = window.location.protocol + '//' + window.location.hostname + ':3001';
 // Per-profile scoped localStorage — user data is isolated from admin
 const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','adminSession','userName','userContact','aiApiKey','accessRequests','blockedUsers','driveClientId']);
 function _lsPrefix(k) {
@@ -5625,7 +5627,7 @@ async function fetchRealStockData(ticker, range) {
   async function attemptFetch(retries) {
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ticker) +
       '?range=' + yRange + '&interval=' + yInterval + '&includePrePost=false';
-    let proxyUrl = 'http://localhost:3001/proxy/yahoo?url=' + encodeURIComponent(url);
+    let proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(url);
     let resp;
     try {
       resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
@@ -5684,7 +5686,7 @@ function rhCacheGet(key) {
 
 async function rhFetch(endpoint, auth) {
   const route = auth ? '/proxy/robinhood/auth' : '/proxy/robinhood';
-  const resp = await fetch('http://localhost:3001' + route + '?endpoint=' + encodeURIComponent(endpoint), {
+  const resp = await fetch(PROXY_BASE + route + '?endpoint=' + encodeURIComponent(endpoint), {
     signal: AbortSignal.timeout(8000)
   });
   if (!resp.ok) throw new Error('RH ' + resp.status);
@@ -5767,7 +5769,7 @@ async function fetchRobinhoodPositions() {
       const positions = [];
       for (const pos of data.results) {
         try {
-          const instResp = await fetch('http://localhost:3001/proxy/robinhood?endpoint=' + encodeURIComponent(pos.instrument.replace('https://api.robinhood.com/', '')));
+          const instResp = await fetch(PROXY_BASE + '/proxy/robinhood?endpoint=' + encodeURIComponent(pos.instrument.replace('https://api.robinhood.com/', '')));
           const inst = await instResp.json();
           positions.push({
             ticker: inst.symbol,
@@ -5822,7 +5824,7 @@ async function fetchRobinhoodOrders(limit) {
       const orders = [];
       for (const o of data.results.slice(0, limit || 20)) {
         try {
-          const instResp = await fetch('http://localhost:3001/proxy/robinhood?endpoint=' + encodeURIComponent(o.instrument.replace('https://api.robinhood.com/', '')));
+          const instResp = await fetch(PROXY_BASE + '/proxy/robinhood?endpoint=' + encodeURIComponent(o.instrument.replace('https://api.robinhood.com/', '')));
           const inst = await instResp.json();
           orders.push({
             ticker: inst.symbol,
@@ -5869,7 +5871,7 @@ async function fetchRobinhoodNews(ticker) {
 // Check Robinhood login status on load
 async function checkRobinhoodStatus() {
   try {
-    const resp = await fetch('http://localhost:3001/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
+    const resp = await fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
     const data = await resp.json();
     rhLoggedIn = data.logged_in;
     updateRhLoginUI();
@@ -7691,7 +7693,7 @@ async function getCompanyMetricsReal(ticker) {
   try {
     const url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' +
       encodeURIComponent(ticker) + '?modules=summaryDetail,defaultKeyStatistics,financialData';
-    let proxyUrl = 'http://localhost:3001/proxy/yahoo?url=' + encodeURIComponent(url);
+    let proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(url);
     let resp;
     try { resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(5000) }); } catch (_) {
       proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
@@ -8000,7 +8002,7 @@ async function renderVerifiedNewsFeed() {
     try {
       const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(kw) + '&hl=en-US&gl=US&ceid=US:en';
       // ADDED — Phase 1: Local proxy with allorigins fallback
-      let proxyUrl = 'http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl);
+      let proxyUrl = PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl);
       let resp;
       try { resp = await fetch(proxyUrl); } catch (_) {
         proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl);
@@ -8099,7 +8101,7 @@ async function runDeepResearch() {
     progressEl.textContent = 'Step 1/3: Fetching real articles from Google News...';
     const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=en-US&gl=US&ceid=US:en';
     // ADDED — Phase 1: Local proxy with allorigins fallback
-    let deepProxyUrl = 'http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl);
+    let deepProxyUrl = PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl);
     let articleContext = '';
     try {
       let resp;
@@ -8300,7 +8302,7 @@ let aiMessages = [];
 let aiStreaming = false;
 let aiProxyAvailable = false; // Set true once proxy is confirmed running
 
-const AI_PROXY_URL = 'http://localhost:3001/proxy/ai';
+const AI_PROXY_URL = PROXY_BASE + '/proxy/ai';
 
 // Check if AI proxy is available (key held server-side = secure mode)
 (async function checkAiProxy() {
@@ -9656,7 +9658,7 @@ async function executeAgentTool(name, input) {
         let articles_bt = [], newsSource_bt = 'simulated';
         try {
           const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(t + ' stock') + '&hl=en-US&gl=US&ceid=US:en';
-          let resp; try { resp = await fetch('http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) { resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl)); }
+          let resp; try { resp = await fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) { resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl)); }
           const doc = new DOMParser().parseFromString(await resp.text(), 'text/xml');
           doc.querySelectorAll('item').forEach((item, idx) => { if (idx < 5) articles_bt.push({ title: item.querySelector('title')?.textContent || '', source: item.querySelector('source')?.textContent || '' }); });
           if (articles_bt.length > 0) newsSource_bt = 'Google News (live)';
@@ -9677,7 +9679,7 @@ async function executeAgentTool(name, input) {
         let articles_ss = [], newsSource_ss = 'simulated';
         try {
           const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(input.keyword) + '&hl=en-US&gl=US&ceid=US:en';
-          let resp; try { resp = await fetch('http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) { resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl)); }
+          let resp; try { resp = await fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl)); } catch (_) { resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl)); }
           const doc = new DOMParser().parseFromString(await resp.text(), 'text/xml');
           doc.querySelectorAll('item').forEach((item, idx) => { if (idx < 15) articles_ss.push({ title: item.querySelector('title')?.textContent || '', snippet: item.querySelector('title')?.textContent || '', source: item.querySelector('source')?.textContent || '' }); });
           if (articles_ss.length > 0) newsSource_ss = 'Google News (live)';
@@ -9782,7 +9784,7 @@ async function executeAgentTool(name, input) {
         try {
           const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(input.topic) + '&hl=en-US&gl=US&ceid=US:en';
           // ADDED — Phase 1: Local proxy with allorigins fallback
-          let toolProxyUrl = 'http://localhost:3001/proxy/news?url=' + encodeURIComponent(rssUrl);
+          let toolProxyUrl = PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(rssUrl);
           let resp;
           try { resp = await fetch(toolProxyUrl); } catch (_) {
             toolProxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(rssUrl);
@@ -10735,16 +10737,12 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
         <span id="rhModalClose" style="cursor:pointer;font-size:1rem;color:var(--text-dim);">&times;</span>
       </div>
       <div id="rhLoginForm">
-        <!-- Primary: open Robinhood web login in popup -->
-        <button id="rhWebLogin" style="width:100%;padding:12px;border:none;border-radius:6px;background:#22c55e;color:#fff;font-size:.78rem;font-weight:600;cursor:pointer;margin-bottom:10px;transition:opacity .15s;">Open Robinhood Login</button>
-        <div style="font-size:.58rem;color:var(--text-dim);text-align:center;margin-bottom:10px;">Opens in a new window — log in with your existing Robinhood session, Google, or Apple ID</div>
-        <div style="display:flex;align-items:center;gap:8px;margin:8px 0;">
-          <div style="flex:1;height:1px;background:var(--border);"></div>
-          <span style="font-size:.55rem;color:var(--text-dim);text-transform:uppercase;">or enter credentials</span>
-          <div style="flex:1;height:1px;background:var(--border);"></div>
-        </div>
+        <div style="font-size:.58rem;color:var(--text-dim);margin-bottom:8px;">Sign in with your Robinhood email and password. MFA will be requested if enabled.</div>
         <input type="email" id="rhUsername" placeholder="Email" value="${savedEmail}" autocomplete="email" style="width:100%;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
-        <input type="password" id="rhPassword" placeholder="Password" autocomplete="current-password" style="width:100%;margin-bottom:6px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
+        <div style="position:relative;">
+          <input type="password" id="rhPassword" placeholder="Password" autocomplete="current-password" style="width:100%;margin-bottom:6px;padding:8px 32px 8px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;box-sizing:border-box;" />
+          <span id="rhShowPw" style="position:absolute;right:8px;top:7px;cursor:pointer;font-size:.7rem;color:var(--text-dim);user-select:none;" title="Show password">&#128065;</span>
+        </div>
         <div id="rhMfaWrap" style="display:none;">
           <input type="text" id="rhMfaCode" placeholder="MFA code" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" style="width:100%;margin-bottom:6px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.85rem;font-weight:600;letter-spacing:.2em;text-align:center;box-sizing:border-box;" />
         </div>
@@ -10767,59 +10765,24 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   document.body.appendChild(overlay);
 
   let rhChallengeId = '';
-  let rhLoginPopup = null;
 
-  // Open Robinhood web login in a popup window
-  $('#rhWebLogin').onclick = () => {
-    const w = 450, h = 700;
-    const left = (screen.width - w) / 2, top = (screen.height - h) / 2;
-    rhLoginPopup = window.open(
-      'https://robinhood.com/login',
-      'rhLogin',
-      'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',toolbar=no,menubar=no,scrollbars=yes'
-    );
-    $('#rhLoginMsg').textContent = 'Log in via the popup window, then click "Check Connection" below.';
-    $('#rhLoginMsg').style.color = 'var(--text-dim)';
-    // Change the web login button to a check button
-    $('#rhWebLogin').textContent = 'Check Connection';
-    $('#rhWebLogin').style.background = 'var(--panel-inset)';
-    $('#rhWebLogin').style.color = 'var(--text)';
-    $('#rhWebLogin').style.border = '1px solid var(--border)';
-    $('#rhWebLogin').onclick = checkWebLoginStatus;
+  // Show/hide password toggle
+  $('#rhShowPw').onclick = () => {
+    const pw = $('#rhPassword');
+    const show = pw.type === 'password';
+    pw.type = show ? 'text' : 'password';
+    $('#rhShowPw').style.opacity = show ? '1' : '.5';
   };
-
-  async function checkWebLoginStatus() {
-    $('#rhLoginMsg').textContent = 'Checking...'; $('#rhLoginMsg').style.color = 'var(--text-dim)';
-    try {
-      const resp = await fetch('http://localhost:3001/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
-      const data = await resp.json();
-      if (data.logged_in) {
-        rhLoggedIn = true;
-        onLoginSuccess();
-      } else {
-        $('#rhLoginMsg').textContent = 'Not connected yet. Finish logging in via the popup, or use credentials below.';
-        $('#rhLoginMsg').style.color = '#f59e0b';
-      }
-    } catch(e) {
-      $('#rhLoginMsg').textContent = 'Proxy not reachable — is proxy.js running?';
-      $('#rhLoginMsg').style.color = '#ef4444';
-    }
-  }
 
   function onLoginSuccess() {
     $('#rhLoginMsg').textContent = 'Connected!'; $('#rhLoginMsg').style.color = '#22c55e';
     updateRhLoginUI();
     $('#rhLogoutSubmit').style.display = 'block';
     $('#rhMfaWrap').style.display = 'none';
-    $('#rhWebLogin').textContent = 'Open Robinhood Login';
-    $('#rhWebLogin').style.background = '#22c55e';
-    $('#rhWebLogin').style.color = '#fff';
-    $('#rhWebLogin').style.border = 'none';
     rhChallengeId = '';
     loadPortfolioSummary();
     renderStockDash();
     renderNewsFeed();
-    if (rhLoginPopup && !rhLoginPopup.closed) rhLoginPopup.close();
   }
 
   $('#rhLoginBtn').onclick = () => {
@@ -10832,23 +10795,8 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       $('#rhPortfolioSummary').style.display = 'none';
       const saved = LS('rhEmail');
       if (saved) $('#rhUsername').value = saved;
-      // Reset web login button
-      $('#rhWebLogin').textContent = 'Open Robinhood Login';
-      $('#rhWebLogin').style.background = '#22c55e';
-      $('#rhWebLogin').style.color = '#fff';
-      $('#rhWebLogin').style.border = 'none';
-      $('#rhWebLogin').onclick = function() {
-        const w = 450, h = 700;
-        const left = (screen.width - w) / 2, top = (screen.height - h) / 2;
-        rhLoginPopup = window.open('https://robinhood.com/login', 'rhLogin', 'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',toolbar=no,menubar=no,scrollbars=yes');
-        $('#rhLoginMsg').textContent = 'Log in via the popup, then click "Check Connection".';
-        $('#rhLoginMsg').style.color = 'var(--text-dim)';
-        this.textContent = 'Check Connection';
-        this.style.background = 'var(--panel-inset)';
-        this.style.color = 'var(--text)';
-        this.style.border = '1px solid var(--border)';
-        this.onclick = checkWebLoginStatus;
-      };
+      $('#rhLoginMsg').textContent = '';
+      $('#rhMfaWrap').style.display = 'none';
     }
   };
 
@@ -10878,7 +10826,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       const body = { username, password };
       if (mfaCode) body.mfa_code = mfaCode;
       if (rhChallengeId) body.challenge_id = rhChallengeId;
-      const resp = await fetch('http://localhost:3001/proxy/robinhood/login', {
+      const resp = await fetch(PROXY_BASE + '/proxy/robinhood/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
       });
       const data = await resp.json();
@@ -10906,7 +10854,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
   };
 
   $('#rhLogoutSubmit').onclick = async () => {
-    try { await fetch('http://localhost:3001/proxy/robinhood/logout', { method: 'POST' }); } catch(e) {}
+    try { await fetch(PROXY_BASE + '/proxy/robinhood/logout', { method: 'POST' }); } catch(e) {}
     rhLoggedIn = false;
     updateRhLoginUI();
     $('#rhLoginMsg').textContent = 'Logged out.'; $('#rhLoginMsg').style.color = 'var(--text-dim)';
