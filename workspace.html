@@ -10560,6 +10560,14 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
           <button id="rhLoginSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);color:var(--text);font-size:.72rem;cursor:pointer;">Login</button>
           <button id="rhLogoutSubmit" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;display:none;">Logout</button>
         </div>
+        <button id="rhQuickLogin" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid #22c55e40;border-radius:6px;background:#22c55e15;color:#22c55e;font-size:.72rem;cursor:pointer;font-weight:600;">Quick Login (Stored Credentials)</button>
+        <div id="rhSetCredsWrap" style="display:none;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">
+          <div style="font-size:.55rem;color:var(--text-dim);margin-bottom:4px;">Store credentials server-side for quick login:</div>
+          <input type="email" id="rhSetEmail" placeholder="RH Email" style="width:100%;margin-bottom:4px;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;box-sizing:border-box;" />
+          <input type="password" id="rhSetPw" placeholder="RH Password" style="width:100%;margin-bottom:4px;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;box-sizing:border-box;" />
+          <button id="rhSaveCreds" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;background:var(--panel-inset);color:var(--text);font-size:.65rem;cursor:pointer;">Save Credentials</button>
+          <div id="rhSetCredsMsg" style="font-size:.55rem;color:var(--text-dim);margin-top:4px;min-height:12px;"></div>
+        </div>
       </div>
       <div id="rhPortfolioSummary" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
         <div style="font-size:.7rem;font-weight:600;color:var(--text);margin-bottom:8px;">Portfolio</div>
@@ -10590,7 +10598,7 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     renderNewsFeed();
   }
 
-  $('#rhLoginBtn').onclick = () => {
+  $('#rhLoginBtn').onclick = async () => {
     overlay.style.display = 'flex';
     if (rhLoggedIn) {
       $('#rhLogoutSubmit').style.display = 'block';
@@ -10602,6 +10610,19 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       if (saved) $('#rhUsername').value = saved;
       $('#rhLoginMsg').textContent = '';
       $('#rhMfaWrap').style.display = 'none';
+    }
+    // Show/hide quick-login for admin with stored credentials
+    const qlBtn = $('#rhQuickLogin');
+    if (qlBtn) {
+      if (wsIsAdmin && !rhLoggedIn) {
+        try {
+          const st = await fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(3000) });
+          const sd = await st.json();
+          qlBtn.style.display = sd.has_stored_credentials ? 'block' : 'none';
+        } catch(_) { qlBtn.style.display = 'none'; }
+      } else {
+        qlBtn.style.display = 'none';
+      }
     }
   };
 
@@ -10668,6 +10689,76 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
     $('#rhLoginMsg').textContent = 'Logged out.'; $('#rhLoginMsg').style.color = 'var(--text-dim)';
     $('#rhLogoutSubmit').style.display = 'none';
     $('#rhPortfolioSummary').style.display = 'none';
+  };
+
+  // ── Quick Login (admin only, uses stored credentials) ──
+  let qlChallengeId = '';
+  $('#rhQuickLogin').onclick = async () => {
+    const msg = $('#rhLoginMsg');
+    msg.textContent = 'Logging in with stored credentials...'; msg.style.color = 'var(--text-dim)';
+    $('#rhQuickLogin').disabled = true; $('#rhQuickLogin').style.opacity = '0.6';
+    try {
+      const mfaCode = $('#rhMfaCode').value.trim();
+      const body = { password: ADMIN_PASSWORD };
+      if (mfaCode) body.mfa_code = mfaCode;
+      if (qlChallengeId) body.challenge_id = qlChallengeId;
+      const resp = await fetch(PROXY_BASE + '/proxy/robinhood/quick-login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000)
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        rhLoggedIn = true;
+        qlChallengeId = '';
+        onLoginSuccess();
+      } else if (data.mfa_required) {
+        $('#rhMfaWrap').style.display = 'block';
+        $('#rhMfaCode').value = ''; $('#rhMfaCode').focus();
+        msg.textContent = 'Enter your ' + (data.mfa_type === 'app' ? 'authenticator' : data.mfa_type || 'MFA') + ' code, then click Quick Login again';
+        msg.style.color = '#f59e0b';
+      } else if (data.challenge) {
+        qlChallengeId = data.challenge_id;
+        $('#rhMfaWrap').style.display = 'block';
+        $('#rhMfaCode').value = ''; $('#rhMfaCode').focus();
+        msg.textContent = 'Security challenge sent. Enter code, then click Quick Login again.'; msg.style.color = '#f59e0b';
+      } else {
+        msg.textContent = data.message || 'Login failed'; msg.style.color = '#ef4444';
+      }
+    } catch(e) {
+      const hint = e.name === 'TimeoutError' ? 'Timed out' : 'Connection error';
+      msg.textContent = hint; msg.style.color = '#ef4444';
+    } finally {
+      $('#rhQuickLogin').disabled = false; $('#rhQuickLogin').style.opacity = '1';
+    }
+  };
+
+  // ── Store Credentials (admin only) ──
+  if (wsIsAdmin) {
+    const setCredsWrap = $('#rhSetCredsWrap');
+    if (setCredsWrap) setCredsWrap.style.display = 'block';
+  }
+  $('#rhSaveCreds').onclick = async () => {
+    const msg = $('#rhSetCredsMsg');
+    const email = $('#rhSetEmail').value.trim();
+    const pw = $('#rhSetPw').value;
+    if (!email || !pw) { msg.textContent = 'Both fields required'; msg.style.color = '#ef4444'; return; }
+    try {
+      const resp = await fetch(PROXY_BASE + '/proxy/robinhood/set-credentials', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: ADMIN_PASSWORD, rh_username: email, rh_password: pw }),
+        signal: AbortSignal.timeout(5000)
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        msg.textContent = 'Saved!'; msg.style.color = '#22c55e';
+        $('#rhSetEmail').value = ''; $('#rhSetPw').value = '';
+        $('#rhQuickLogin').style.display = 'block';
+      } else {
+        msg.textContent = data.message || 'Failed'; msg.style.color = '#ef4444';
+      }
+    } catch(e) {
+      msg.textContent = 'Error: ' + e.message; msg.style.color = '#ef4444';
+    }
   };
 
   async function loadPortfolioSummary() {

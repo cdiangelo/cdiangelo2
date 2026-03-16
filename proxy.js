@@ -204,6 +204,10 @@ let rhRefreshToken = '';
 let rhDeviceToken = ''; // persistent device token for MFA
 const RH_USER_AGENT = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
+// Stored Robinhood credentials (admin only) — set via env vars or POST /proxy/robinhood/set-credentials
+let rhStoredUsername = process.env.RH_USERNAME || '';
+let rhStoredPassword = process.env.RH_PASSWORD || '';
+
 // GET /proxy/robinhood?endpoint=<path> — Public Robinhood API (no auth)
 app.get('/proxy/robinhood', async (req, res) => {
   const endpoint = req.query.endpoint;
@@ -379,7 +383,92 @@ app.post('/proxy/robinhood/logout', (req, res) => {
 
 // GET /proxy/robinhood/status — Check Robinhood login status
 app.get('/proxy/robinhood/status', (req, res) => {
-  res.json({ logged_in: !!rhToken });
+  res.json({ logged_in: !!rhToken, has_stored_credentials: !!(rhStoredUsername && rhStoredPassword) });
+});
+
+// POST /proxy/robinhood/set-credentials — Store credentials server-side (admin only)
+app.post('/proxy/robinhood/set-credentials', (req, res) => {
+  const { password, rh_username, rh_password } = req.body || {};
+  if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Admin password required' });
+  if (!rh_username || !rh_password) return res.status(400).json({ error: true, message: 'rh_username and rh_password required' });
+  rhStoredUsername = rh_username;
+  rhStoredPassword = rh_password;
+  console.log('[Robinhood] Credentials stored for:', rh_username);
+  res.json({ ok: true, message: 'Credentials stored for ' + rh_username });
+});
+
+// POST /proxy/robinhood/quick-login — Login using stored credentials (admin only)
+app.post('/proxy/robinhood/quick-login', async (req, res) => {
+  const { password, mfa_code, challenge_id } = req.body || {};
+  if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Admin password required' });
+  if (!rhStoredUsername || !rhStoredPassword) return res.status(400).json({ error: true, message: 'No stored credentials. Set RH_USERNAME/RH_PASSWORD env vars or use /proxy/robinhood/set-credentials first.' });
+
+  if (!rhDeviceToken) {
+    const crypto = require('crypto');
+    rhDeviceToken = crypto.randomUUID();
+  }
+
+  const body = {
+    grant_type: 'password',
+    scope: 'internal',
+    client_id: 'c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS',
+    device_token: rhDeviceToken,
+    username: rhStoredUsername,
+    password: rhStoredPassword,
+    try_passkeys: false,
+    token_request_path: '/login',
+    create_read_only_secondary_token: true
+  };
+  if (mfa_code) body.mfa_code = mfa_code;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'User-Agent': RH_USER_AGENT,
+    'Accept': 'application/json',
+    'X-Robinhood-API-Version': '1.431.4',
+    'Origin': 'https://robinhood.com',
+    'Referer': 'https://robinhood.com/login/',
+    'Accept-Language': 'en-US,en;q=0.9'
+  };
+  if (challenge_id) headers['X-Robinhood-Challenge-ID'] = challenge_id;
+
+  try {
+    const resp = await fetch('https://api.robinhood.com/oauth2/token/', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000)
+    });
+
+    const rawText = await resp.text();
+    if (!resp.ok) {
+      console.error(`[Robinhood] Quick-login HTTP ${resp.status}, body: ${rawText.substring(0, 500)}`);
+      let detail = 'Robinhood returned HTTP ' + resp.status;
+      try { const errData = JSON.parse(rawText); detail = errData.detail || errData.message || detail; } catch (_) {}
+      return res.status(resp.status >= 400 && resp.status < 600 ? resp.status : 502).json({ error: true, message: detail });
+    }
+
+    let data;
+    try { data = JSON.parse(rawText); } catch (_) {
+      return res.status(502).json({ error: true, message: 'Robinhood returned non-JSON response' });
+    }
+
+    if (data.access_token) {
+      rhToken = data.access_token;
+      rhRefreshToken = data.refresh_token || '';
+      console.log('[Robinhood] Quick-login successful');
+      return res.json({ ok: true, message: 'Logged in via stored credentials', expires_in: data.expires_in });
+    }
+    if (data.mfa_required || data.mfa_type) {
+      return res.json({ mfa_required: true, mfa_type: data.mfa_type || 'sms', message: 'MFA code required' });
+    }
+    if (data.challenge) {
+      return res.json({ challenge: true, challenge_id: data.challenge.id, challenge_type: data.challenge.type, message: 'Challenge verification required' });
+    }
+    return res.status(401).json({ error: true, message: data.detail || 'Login failed', data });
+  } catch (e) {
+    res.status(502).json({ error: true, message: 'Quick-login error: ' + e.message });
+  }
 });
 
 async function refreshRobinhoodToken() {
