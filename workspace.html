@@ -1300,8 +1300,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   .pane .p-title { font-size: .7rem; }
   .pane .toolbar { flex-wrap: wrap; gap: 2px; padding: 2px 4px; }
   .pane .toolbar button, .pane .toolbar select { font-size: .55rem; padding: 1px 3px; }
-  .ai-input-row { padding: 4px; }
-  .ai-input-row textarea { font-size: .75rem; }
+  .ai-input-row { padding: 6px 8px; }
+  .ai-input-row textarea { font-size: 16px !important; min-height: 40px; }
+  .ai-input-row button { min-height: 44px; min-width: 60px; font-size: .8rem !important; padding: 8px 14px !important; }
   /* Auth gate mobile fixes */
   #authGate { padding: 8px; align-items: flex-start; padding-top: 40px; }
   #authBox { padding: 24px 16px !important; border-radius: 12px !important; }
@@ -1320,7 +1321,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   .robot-workstation { transform: translateX(-50%) scale(0.65); transform-origin: bottom center; }
   .robot-plant { display: none !important; }
   .robot-controls { padding: 2px 0; }
-  .robot-controls select { font-size: .5rem !important; }
+  .robot-controls select { font-size: .65rem !important; min-height: 28px; padding: 4px 6px !important; }
   #q-claude .p-head { flex-wrap: wrap; gap: 2px; }
   #q-claude .p-head .p-btn, #q-claude .p-head select, #q-claude .p-head label { font-size: .5rem !important; }
   /* Hide less important Claude header buttons on mobile */
