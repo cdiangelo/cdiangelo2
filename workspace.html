@@ -2137,7 +2137,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 
   <!-- Sports module removed — planned for re-addition later -->
   <!-- Media pane removed from grid — accessible only via header nav button (expanded fullscreen) -->
-</div>
 
 <!-- Mobile navigation bar -->
 <div class="mobile-nav" id="mobileNav">
@@ -2333,6 +2332,8 @@ const wsDeviceId = getDeviceFingerprint();
     wsUserName = name;
     localStorage.setItem('ws_userName', name);
     gate.style.display = 'none';
+    // Resize canvases now that workspace is visible
+    setTimeout(safeResize, 100);
     // Report login to server with device fingerprint for tracking
     try {
       fetch(PROXY_BASE + '/proxy/admin/register-device', {
@@ -2418,6 +2419,8 @@ const wsDeviceId = getDeviceFingerprint();
       wsIsAdmin = true;
       localStorage.setItem('ws_adminSession', 'true');
       gate.style.display = 'none';
+      // Resize canvases now that workspace is visible
+      setTimeout(safeResize, 100);
       // Admin sees and controls the API key
       const apiSec = document.getElementById('aiApiKeySection');
       if (apiSec) apiSec.style.display = 'block';
@@ -2796,18 +2799,28 @@ const DEFAULT_GRID_ORDER = ['q-notepad', 'q-claude', 'q-sheet', 'q-whiteboard', 
 
 function getGridOrder() {
   const saved = LS('gridOrder');
-  if (saved && saved.length === 6) {
-    // Sanitize: replace removed pane IDs (e.g. q-sports) with defaults
+  if (saved && Array.isArray(saved) && saved.length >= 6) {
+    // Sanitize: replace removed pane IDs (e.g. q-sports, q-media) with defaults
     const validIds = GRID_PANES.map(p => p.id);
-    const sanitized = saved.map(id => validIds.includes(id) ? id : null);
-    if (sanitized.includes(null)) {
-      // Fill nulls with panes not yet used
-      const used = new Set(sanitized.filter(Boolean));
-      const available = validIds.filter(id => !used.has(id));
-      let ai = 0;
-      return sanitized.map(id => id || (ai < available.length ? available[ai++] : DEFAULT_GRID_ORDER[0]));
-    }
-    return saved;
+    // Trim to 6 slots if legacy saved state had more (e.g. 7 with q-media)
+    const trimmed = saved.slice(0, 6);
+    const sanitized = trimmed.map(id => validIds.includes(id) ? id : null);
+    // Fill nulls with panes not yet used
+    const used = new Set(sanitized.filter(Boolean));
+    const available = validIds.filter(id => !used.has(id));
+    let ai = 0;
+    const result = sanitized.map(id => id || (ai < available.length ? available[ai++] : DEFAULT_GRID_ORDER[0]));
+    // Ensure no duplicates — if a pane appears twice, replace the second with an available one
+    const seen = new Set();
+    return result.map(id => {
+      if (seen.has(id)) {
+        const replacement = validIds.find(v => !seen.has(v));
+        if (replacement) { seen.add(replacement); return replacement; }
+        return id;
+      }
+      seen.add(id);
+      return id;
+    });
   }
   return DEFAULT_GRID_ORDER.slice();
 }
@@ -2874,7 +2887,10 @@ $click('#gridApplyBtn', () => {
 
 // Apply saved grid order on load (always apply to ensure correct pane visibility)
 (function() {
-  applyGridOrder(getGridOrder());
+  const order = getGridOrder();
+  applyGridOrder(order);
+  // Save sanitized order back to prevent repeated migration
+  LS('gridOrder', order);
 })();
 
 // ── Mobile navigation ──
@@ -9753,10 +9769,16 @@ const ROBOT_SCENE_NAMES = ['office', 'volcano', 'forest', 'city', 'sunset', 'des
 function setRobotScene(scene) {
   const bg = document.getElementById('robotBg');
   if (!bg) return;
+  const sceneName = ROBOT_SCENE_NAMES.includes(scene) ? scene : 'office';
   // Remove all scene classes, add the selected one
   ROBOT_SCENE_NAMES.forEach(s => bg.classList.remove('scene-' + s));
-  bg.classList.add('scene-' + (ROBOT_SCENE_NAMES.includes(scene) ? scene : 'office'));
+  bg.classList.add('scene-' + sceneName);
+  // Force browser repaint to ensure background visually updates
+  bg.offsetHeight;
   localStorage.setItem('ws_robotScene', scene);
+  // Update selector to match if it got out of sync
+  const sel = document.getElementById('robotSceneSelect');
+  if (sel && sel.value !== sceneName) sel.value = sceneName;
 }
 
 function setRobotTie(val) {
