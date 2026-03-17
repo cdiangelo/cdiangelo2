@@ -2,11 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Interactive Workspace</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet"></noscript>
+<style id="errorFallbackStyles">
+  #__startupError {
+    display: none; position: fixed; inset: 0; z-index: 999999;
+    background: #111; color: #e8e8e8; font-family: system-ui, -apple-system, sans-serif;
+    padding: 32px; text-align: center; flex-direction: column; align-items: center; justify-content: center;
+  }
+  #__startupError.visible { display: flex; }
+  #__startupError h2 { font-size: 1.3rem; margin-bottom: 12px; color: #ff6b6b; }
+  #__startupError p { font-size: 0.9rem; color: #aaa; max-width: 480px; line-height: 1.5; margin-bottom: 8px; }
+  #__startupError code { font-size: 0.75rem; color: #888; background: #1a1a1a; padding: 8px 16px;
+    border-radius: 6px; display: block; max-width: 500px; margin: 12px auto; word-break: break-all; text-align: left; white-space: pre-wrap; }
+  #__startupError button { margin-top: 16px; padding: 10px 24px; border: 1px solid #444;
+    border-radius: 8px; background: #222; color: #e8e8e8; cursor: pointer; font-size: 0.85rem; }
+  #__startupError button:hover { background: #333; }
+  noscript .noscript-msg { position: fixed; inset: 0; z-index: 999999; background: #111; color: #e8e8e8;
+    font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; padding: 32px; text-align: center; }
+</style>
 <style>
 /* ═══ COLOR SCHEME ENGINE ═══ */
 :root {
@@ -1543,6 +1563,109 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 </head>
 <body class="neon">
 
+<!-- ═══ STARTUP ERROR FALLBACK ═══ -->
+<div id="__startupError">
+  <h2>Something went wrong</h2>
+  <p>The app failed to start. This can happen in some in-app browsers (Instagram, Facebook, LinkedIn, etc.).</p>
+  <p>Try opening this link in your default browser instead.</p>
+  <code id="__startupErrorDetail"></code>
+  <button onclick="window.location.reload()">Reload Page</button>
+  <button onclick="window.open(window.location.href,'_system')" style="margin-top:8px;">Open in Browser</button>
+</div>
+<noscript>
+  <div class="noscript-msg">
+    <h2 style="color:#ff6b6b;margin-bottom:12px;">JavaScript Required</h2>
+    <p style="color:#aaa;">This app requires JavaScript to run. Please enable JavaScript or open this link in a different browser.</p>
+  </div>
+</noscript>
+<script>
+// ── Global error boundary — catches uncaught errors and shows fallback ──
+(function() {
+  var errorCount = 0;
+  var startupErrors = [];
+  var startupPhase = true;
+
+  // Mark startup complete after a generous timeout
+  setTimeout(function() { startupPhase = false; }, 8000);
+
+  function showErrorScreen(msg) {
+    var el = document.getElementById('__startupError');
+    var detail = document.getElementById('__startupErrorDetail');
+    if (el && !el.classList.contains('visible')) {
+      el.classList.add('visible');
+      if (detail && msg) detail.textContent = msg;
+    }
+  }
+
+  // AbortSignal.timeout polyfill for older WebViews
+  if (typeof AbortSignal !== 'undefined' && !AbortSignal.timeout) {
+    AbortSignal.timeout = function(ms) {
+      var controller = new AbortController();
+      setTimeout(function() { controller.abort(new DOMException('TimeoutError', 'TimeoutError')); }, ms);
+      return controller.signal;
+    };
+    console.log('[COMPAT] AbortSignal.timeout polyfilled');
+  }
+
+  // Safe localStorage wrapper for environments where storage is blocked
+  window.__safeLS = {
+    getItem: function(k) { try { return localStorage.getItem(k); } catch(e) { console.warn('[LS] getItem blocked:', k, e.message); return null; } },
+    setItem: function(k, v) { try { localStorage.setItem(k, v); } catch(e) { console.warn('[LS] setItem blocked:', k, e.message); } },
+    removeItem: function(k) { try { localStorage.removeItem(k); } catch(e) { console.warn('[LS] removeItem blocked:', k, e.message); } }
+  };
+
+  // Monkey-patch localStorage globally so ALL callers are safe in restricted WebViews
+  // (some in-app browsers throw SecurityError on any localStorage access)
+  try {
+    var _origGet = localStorage.getItem.bind(localStorage);
+    var _origSet = localStorage.setItem.bind(localStorage);
+    var _origRem = localStorage.removeItem.bind(localStorage);
+    var _lsAvailable = true;
+    // Quick write test
+    _origSet('__ls_test', '1'); _origRem('__ls_test');
+  } catch(e) {
+    _lsAvailable = false;
+    console.warn('[LS] localStorage unavailable — using in-memory fallback:', e.message);
+    var _memStore = {};
+    window.localStorage.__proto__.getItem = function(k) { return _memStore.hasOwnProperty(k) ? _memStore[k] : null; };
+    window.localStorage.__proto__.setItem = function(k, v) { _memStore[k] = String(v); };
+    window.localStorage.__proto__.removeItem = function(k) { delete _memStore[k]; };
+  }
+
+  window.onerror = function(msg, src, line, col, err) {
+    errorCount++;
+    var info = msg + ' at ' + (src || '?') + ':' + line + ':' + col;
+    console.error('[ERROR BOUNDARY]', info, err);
+    if (startupPhase && errorCount <= 3) {
+      startupErrors.push(info);
+      showErrorScreen('Error: ' + msg + '\n\nSource: ' + (src || 'unknown') + ':' + line);
+    }
+    // Don't suppress — let DevTools still show it
+    return false;
+  };
+
+  window.onunhandledrejection = function(e) {
+    var msg = e.reason ? (e.reason.message || String(e.reason)) : 'Unknown promise rejection';
+    console.error('[ERROR BOUNDARY] Unhandled rejection:', msg, e.reason);
+    if (startupPhase) {
+      showErrorScreen('Async error: ' + msg);
+    }
+  };
+
+  // Startup health check — if app hasn't initialized after 10s, show error
+  setTimeout(function() {
+    if (!window.__appReady) {
+      console.error('[INIT] App did not reach ready state within 10s');
+      showErrorScreen('App initialization timed out.\nThis may be caused by a restricted browser environment.\n\nTry opening in Chrome, Safari, or Firefox.');
+    }
+  }, 10000);
+
+  console.log('[INIT] Error boundary installed, startup monitoring active');
+  console.log('[INIT] User-Agent:', navigator.userAgent);
+  console.log('[INIT] Location:', window.location.href);
+})();
+</script>
+
 <!-- ═══ AUTH GATE ═══ -->
 <div id="authGate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:inherit;padding:12px;">
   <div id="authBox" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:460px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);box-sizing:border-box;max-height:100%;overflow-y:auto;">
@@ -2371,24 +2494,24 @@ window.__initErrors = [];
 // On Render, always clear stored session so user must re-enter profile
 // This prevents getting stuck on a stale/broken cached session
 if (window.location.hostname.includes('onrender.com')) {
-  localStorage.removeItem('ws_adminSession');
-  localStorage.removeItem('ws_userName');
+  window.__safeLS.removeItem('ws_adminSession');
+  window.__safeLS.removeItem('ws_userName');
 }
 
-let wsIsAdmin = localStorage.getItem('ws_adminSession') === 'true';
-let wsUserName = localStorage.getItem('ws_userName') || '';
+let wsIsAdmin = window.__safeLS.getItem('ws_adminSession') === 'true';
+let wsUserName = window.__safeLS.getItem('ws_userName') || '';
 const ADMIN_PASSWORD = 'animalcrackers'; // Full admin workspace access
 const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
 
 // Mode resolution log — makes regressions visible in DevTools
 {
-  const storedAdmin = localStorage.getItem('ws_adminSession');
+  const storedAdmin = window.__safeLS.getItem('ws_adminSession');
   const modeSource = storedAdmin === 'true' ? 'localStorage' : storedAdmin === null ? 'default' : 'localStorage';
   const resolvedMode = wsIsAdmin ? 'admin' : (wsUserName ? 'user' : 'anonymous');
   // Self-healing: if ws_adminSession has an invalid value, reset
   if (storedAdmin !== null && storedAdmin !== 'true' && storedAdmin !== 'false') {
     console.warn('[MODE] Invalid ws_adminSession value in storage ("' + storedAdmin + '") — reset to default');
-    localStorage.removeItem('ws_adminSession');
+    window.__safeLS.removeItem('ws_adminSession');
     wsIsAdmin = false;
   }
   console.log('[MODE] Initialized as: ' + resolvedMode + ' — source: ' + modeSource + (wsUserName ? ' — user: ' + wsUserName : ''));
@@ -2415,10 +2538,10 @@ function getHardwareFingerprint() {
   return 'hw_' + _hashString(parts);
 }
 function getDeviceFingerprint() {
-  let fp = localStorage.getItem('ws_deviceId');
+  let fp = window.__safeLS.getItem('ws_deviceId');
   if (fp) return fp;
   fp = getHardwareFingerprint() + '_' + Date.now().toString(36);
-  localStorage.setItem('ws_deviceId', fp);
+  window.__safeLS.setItem('ws_deviceId', fp);
   return fp;
 }
 const wsDeviceId = getDeviceFingerprint();
@@ -2438,18 +2561,18 @@ const wsHardwareId = getHardwareFingerprint();
 
   // ---- Helpers ----
   function getRegisteredUsers() {
-    return JSON.parse(localStorage.getItem('ws_registeredUsers') || '{}');
+    return JSON.parse(window.__safeLS.getItem('ws_registeredUsers') || '{}');
   }
 
   function registerUser(name) {
     const users = getRegisteredUsers();
     const key = name.toLowerCase().trim();
     users[key] = { name, deviceId: wsDeviceId, hardwareId: wsHardwareId, lastLogin: new Date().toISOString() };
-    localStorage.setItem('ws_registeredUsers', JSON.stringify(users));
+    window.__safeLS.setItem('ws_registeredUsers', JSON.stringify(users));
     // Also keep legacy registeredContacts for backward compat with usage tracking
-    const contacts = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
+    const contacts = JSON.parse(window.__safeLS.getItem('ws_registeredContacts') || '{}');
     contacts[key] = name;
-    localStorage.setItem('ws_registeredContacts', JSON.stringify(contacts));
+    window.__safeLS.setItem('ws_registeredContacts', JSON.stringify(contacts));
   }
 
   // Find existing user bound to this hardware fingerprint
@@ -2550,7 +2673,7 @@ const wsHardwareId = getHardwareFingerprint();
 
   function completeUserLogin(name) {
     wsUserName = name;
-    localStorage.setItem('ws_userName', name);
+    window.__safeLS.setItem('ws_userName', name);
     gate.style.display = 'none';
     // Report login to server with device fingerprint for tracking
     try {

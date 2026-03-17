@@ -940,6 +940,26 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname)));
 
+// ── SPA catch-all fallback ──
+// Any route that doesn't match a static file or API endpoint serves workspace.html.
+// This prevents blank screens when in-app browsers append paths or strip query params.
+app.use((req, res, next) => {
+  // Only catch GET requests for HTML pages (not API calls or assets)
+  if (req.method !== 'GET') return next();
+  const accept = req.headers.accept || '';
+  if (!accept.includes('text/html')) return next();
+  const filePath = path.join(__dirname, 'workspace.html');
+  fs.readFile(filePath, 'utf8', (err, html) => {
+    if (err) return res.status(500).send('Server error');
+    const versioned = html
+      .replace(/(src|href)="\.\/([^"]+\.(js|css))"/g, `$1="./$2?v=${BUILD_VERSION}"`)
+      .replace('</head>', `<script>window.__BUILD_VERSION="${BUILD_VERSION}";</script>\n</head>`);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.send(versioned);
+  });
+});
+
 app.listen(PORT, () => {
   console.log('CORS proxy running on http://localhost:' + PORT);
   console.log('  Yahoo:      http://localhost:' + PORT + '/proxy/yahoo?url=...');
