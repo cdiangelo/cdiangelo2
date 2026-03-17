@@ -5,15 +5,220 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const fetch = require('node-fetch');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ── Credential availability (checked once at startup) ──
-const hasRhToken = !!process.env.RH_AUTH_TOKEN;
+// ── Robinhood OAuth state (in-memory) ──
+let rhToken = process.env.RH_AUTH_TOKEN || '';       // active bearer token
+let rhRefreshToken = '';                              // refresh token from login flow
+let rhDeviceToken = '';                               // persistent device token for MFA
+let rhLoginStatus = 'none';                          // 'none'|'logging_in'|'active'|'error'|'mfa_required'
+let rhLoginError = '';                                // last error message
+
+const rhUsername = process.env.RH_USERNAME || '';
+const rhPassword = process.env.RH_PASSWORD || '';
+const hasRhCredentials = !!(rhUsername && rhPassword);
+const hasStaticToken = !!process.env.RH_AUTH_TOKEN;
 const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
 
-if (!hasRhToken) console.warn('[STARTUP] RH_AUTH_TOKEN not set — /proxy/robinhood route disabled');
+// Browser-like headers for Robinhood API (matches old proxy)
+const RH_BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Accept': 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Origin': 'https://robinhood.com',
+  'Referer': 'https://robinhood.com/',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-site',
+  'Sec-Ch-Ua': '"Chromium";v="131", "Not_A Brand";v="24"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"'
+};
+
+const RH_CLIENT_ID = 'c82SH0WZOsabOXGP2sxqcj34FxkvfnWRZBKlBjFS';
+
+// ── Robinhood OAuth login using username/password ──
+async function rhLogin() {
+  if (!hasRhCredentials) return false;
+
+  rhLoginStatus = 'logging_in';
+  console.log('[Robinhood] Logging in with username/password...');
+
+  if (!rhDeviceToken) {
+    rhDeviceToken = crypto.randomUUID();
+  }
+
+  const body = {
+    grant_type: 'password',
+    scope: 'internal',
+    client_id: RH_CLIENT_ID,
+    device_token: rhDeviceToken,
+    username: rhUsername,
+    password: rhPassword,
+    try_passkeys: false,
+    token_request_path: '/login',
+    create_read_only_secondary_token: true
+  };
+
+  const headers = {
+    ...RH_BROWSER_HEADERS,
+    'Content-Type': 'application/json',
+    'X-Robinhood-API-Version': '1.431.4',
+    'Referer': 'https://robinhood.com/login/'
+  };
+
+  try {
+    const resp = await fetch('https://api.robinhood.com/oauth2/token/', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000)
+    });
+
+    const rawText = await resp.text();
+
+    if (!resp.ok) {
+      console.error(`[Robinhood] Login HTTP ${resp.status}, body: ${rawText.substring(0, 500)}`);
+      let detail = 'Robinhood returned HTTP ' + resp.status;
+      try {
+        const errData = JSON.parse(rawText);
+        detail = errData.detail || errData.message || detail;
+      } catch (_) { /* non-JSON */ }
+      rhLoginStatus = 'error';
+      rhLoginError = detail;
+      return false;
+    }
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (_) {
+      console.error(`[Robinhood] Login OK but non-JSON: ${rawText.substring(0, 500)}`);
+      rhLoginStatus = 'error';
+      rhLoginError = 'Non-JSON response from Robinhood';
+      return false;
+    }
+
+    if (data.access_token) {
+      rhToken = data.access_token;
+      rhRefreshToken = data.refresh_token || '';
+      rhLoginStatus = 'active';
+      rhLoginError = '';
+      console.log('[Robinhood] Login successful' + (data.expires_in ? ` (expires in ${data.expires_in}s)` : ''));
+
+      // Schedule token refresh before expiry (refresh at 80% of lifetime)
+      if (data.expires_in && rhRefreshToken) {
+        const refreshMs = Math.max(data.expires_in * 0.8 * 1000, 60000);
+        setTimeout(rhRefreshLoop, refreshMs);
+        console.log(`[Robinhood] Token refresh scheduled in ${Math.round(refreshMs / 60000)}m`);
+      }
+      return true;
+    }
+
+    if (data.mfa_required || data.mfa_type) {
+      rhLoginStatus = 'mfa_required';
+      rhLoginError = 'MFA required — auto-login not possible. Use RH_AUTH_TOKEN instead.';
+      console.warn('[Robinhood] MFA required — cannot auto-login. Set RH_AUTH_TOKEN with a pre-obtained token.');
+      return false;
+    }
+
+    if (data.challenge) {
+      rhLoginStatus = 'error';
+      rhLoginError = 'Challenge verification required — auto-login not possible. Use RH_AUTH_TOKEN instead.';
+      console.warn('[Robinhood] Challenge required — cannot auto-login. Set RH_AUTH_TOKEN with a pre-obtained token.');
+      return false;
+    }
+
+    rhLoginStatus = 'error';
+    rhLoginError = data.detail || 'Login failed';
+    console.error('[Robinhood] Login failed:', rhLoginError);
+    return false;
+  } catch (e) {
+    rhLoginStatus = 'error';
+    rhLoginError = e.message;
+    console.error('[Robinhood] Login error:', e.message);
+    return false;
+  }
+}
+
+// ── Refresh token flow ──
+async function rhRefreshLoop() {
+  if (!rhRefreshToken) return;
+  console.log('[Robinhood] Refreshing token...');
+
+  try {
+    const resp = await fetch('https://api.robinhood.com/oauth2/token/', {
+      method: 'POST',
+      headers: {
+        ...RH_BROWSER_HEADERS,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        grant_type: 'refresh_token',
+        refresh_token: rhRefreshToken,
+        scope: 'internal',
+        client_id: RH_CLIENT_ID,
+        device_token: rhDeviceToken
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    const rawText = await resp.text();
+    if (!resp.ok) {
+      console.error(`[Robinhood] Refresh HTTP ${resp.status}: ${rawText.substring(0, 300)}`);
+      // Refresh failed — try full re-login
+      console.log('[Robinhood] Refresh failed, attempting full re-login...');
+      await rhLogin();
+      return;
+    }
+
+    let data;
+    try { data = JSON.parse(rawText); } catch (_) {
+      console.error('[Robinhood] Refresh returned non-JSON');
+      await rhLogin();
+      return;
+    }
+
+    if (data.access_token) {
+      rhToken = data.access_token;
+      rhRefreshToken = data.refresh_token || rhRefreshToken;
+      rhLoginStatus = 'active';
+      console.log('[Robinhood] Token refreshed successfully');
+
+      // Schedule next refresh
+      if (data.expires_in) {
+        const refreshMs = Math.max(data.expires_in * 0.8 * 1000, 60000);
+        setTimeout(rhRefreshLoop, refreshMs);
+        console.log(`[Robinhood] Next refresh in ${Math.round(refreshMs / 60000)}m`);
+      }
+    } else {
+      console.error('[Robinhood] Refresh response missing access_token');
+      await rhLogin();
+    }
+  } catch (e) {
+    console.error('[Robinhood] Refresh error:', e.message);
+    // Try full re-login on refresh failure
+    await rhLogin();
+  }
+}
+
+// Helper: is RH available right now?
+function rhReady() {
+  return !!rhToken;
+}
+
+// ── Startup logging ──
+if (!hasRhCredentials && !hasStaticToken) {
+  console.warn('[STARTUP] No RH credentials — set RH_USERNAME+RH_PASSWORD or RH_AUTH_TOKEN');
+} else if (hasRhCredentials) {
+  console.log('[STARTUP] RH_USERNAME/RH_PASSWORD found — will auto-login on startup');
+} else {
+  console.log('[STARTUP] RH_AUTH_TOKEN found — using static token');
+}
 if (!hasAnthropicKey) console.warn('[STARTUP] ANTHROPIC_API_KEY not set — /proxy/anthropic route disabled');
 
 // ── CORS — allow only the configured frontend origin ──
@@ -76,16 +281,23 @@ app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     services: {
-      robinhood: hasRhToken,
+      robinhood: rhReady(),
       anthropic: hasAnthropicKey
-    }
+    },
+    rh_status: rhLoginStatus,
+    rh_error: rhLoginError || undefined
   });
 });
 
 // ── Robinhood Proxy ──
 app.post('/proxy/robinhood', async (req, res) => {
-  if (!hasRhToken) {
-    return res.status(503).json({ error: true, message: 'Robinhood token not configured on server' });
+  if (!rhReady()) {
+    return res.status(503).json({
+      error: true,
+      message: 'Robinhood not connected',
+      rh_status: rhLoginStatus,
+      rh_error: rhLoginError || undefined
+    });
   }
 
   const { endpoint, method, payload } = req.body;
@@ -107,9 +319,9 @@ app.post('/proxy/robinhood', async (req, res) => {
     const fetchOpts = {
       method: upperMethod,
       headers: {
-        'Authorization': 'Bearer ' + process.env.RH_AUTH_TOKEN,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        ...RH_BROWSER_HEADERS,
+        'Authorization': 'Bearer ' + rhToken,
+        'Content-Type': 'application/json'
       },
       timeout: 10000
     };
@@ -119,6 +331,26 @@ app.post('/proxy/robinhood', async (req, res) => {
     }
 
     const rhResp = await fetch(rhUrl, fetchOpts);
+
+    // If 401, token may have expired — try refresh/re-login once
+    if (rhResp.status === 401 && hasRhCredentials) {
+      console.log('[RH Proxy] Got 401 — attempting token refresh...');
+      const refreshed = rhRefreshToken ? await rhRefreshLoop().then(() => rhReady()) : false;
+      if (!refreshed) {
+        const loggedIn = await rhLogin();
+        if (!loggedIn) {
+          return res.status(401).json({ error: true, message: 'Robinhood session expired and re-login failed' });
+        }
+      }
+      // Retry with new token
+      fetchOpts.headers['Authorization'] = 'Bearer ' + rhToken;
+      const retryResp = await fetch(rhUrl, fetchOpts);
+      if (!retryResp.ok) {
+        return res.status(retryResp.status).json({ error: true, status: retryResp.status, message: 'Robinhood request failed after re-auth' });
+      }
+      const retryData = await retryResp.json();
+      return res.json(retryData);
+    }
 
     if (!rhResp.ok) {
       return res.status(rhResp.status).json({
@@ -204,13 +436,23 @@ app.post('/proxy/anthropic', anthropicLimiter, async (req, res) => {
 });
 
 // ── Start server ──
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`[Proxy] Server running on port ${PORT}`);
-  console.log(`[Proxy] Robinhood: ${hasRhToken ? 'enabled' : 'DISABLED (no token)'}`);
   console.log(`[Proxy] Anthropic: ${hasAnthropicKey ? 'enabled' : 'DISABLED (no key)'}`);
   if (allowedOrigin) {
     console.log(`[Proxy] CORS origin: ${allowedOrigin}`);
   } else {
     console.log('[Proxy] CORS: allowing all origins (set ALLOWED_ORIGIN for production)');
+  }
+
+  // Auto-login to Robinhood if credentials are set (and no static token already provided)
+  if (hasRhCredentials && !hasStaticToken) {
+    const ok = await rhLogin();
+    console.log(`[Proxy] Robinhood: ${ok ? 'CONNECTED (auto-login)' : 'FAILED — ' + rhLoginError}`);
+  } else if (hasStaticToken) {
+    rhLoginStatus = 'active';
+    console.log('[Proxy] Robinhood: enabled (static token)');
+  } else {
+    console.log('[Proxy] Robinhood: DISABLED (no credentials)');
   }
 });
