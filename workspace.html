@@ -432,8 +432,18 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.heat-yellow { background: rgba(204,153,51,.15); }
 .ss-table td.validation-error { border-color: var(--danger); }
 
+/* ═══ CLAUDE HORIZONTAL LAYOUT ═══ */
+.claude-content-row { display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; }
+.claude-content-row .ai-msgs { flex: 1; min-width: 0; border-top: none; }
+.claude-content-row .robot-scene-wrapper { border-top: none; border-left: 1px solid var(--border); max-height: none; }
+/* Midbar slider between messages and robot */
+.claude-midbar { width: 5px; cursor: col-resize; background: var(--panel-inset); border-left: 1px solid var(--border); border-right: 1px solid var(--border); flex-shrink: 0; position: relative; z-index: 2; }
+.claude-midbar::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 2px; height: 28px; background: var(--text-dim); border-radius: 1px; opacity: .3; }
+.claude-midbar:hover { background: var(--accent); opacity: .8; }
+.claude-midbar:hover::after { opacity: .6; }
+
 /* ═══ ROBOT ASSISTANT ═══ */
-.robot-scene-wrapper { flex-shrink: 0; overflow-y: scroll; min-height: 0; max-height: 50%; border-top: 1px solid var(--border); }
+.robot-scene-wrapper { flex-shrink: 0; overflow-y: scroll; min-height: 0; max-height: none; border-top: 1px solid var(--border); }
 .robot-scene { position: relative; width: 100%; height: 140px; margin: 0; flex-shrink: 0; overflow: hidden; border-top: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); background: #0e0e1a; }
 /* Background layer + animated pseudo-elements */
 .robot-bg { position: absolute; inset: 0; z-index: 0; }
@@ -562,12 +572,15 @@ body.light .fun-btn { background: var(--accent); }
 .robot-scene-resize { display: none; height: 6px; cursor: ns-resize; background: var(--panel-inset); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); flex-shrink: 0; position: relative; }
 .robot-scene-resize::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 30px; height: 2px; background: var(--text-dim); border-radius: 1px; opacity: .3; }
 .robot-scene-resize:hover { background: var(--accent); opacity: .8; }
-.pane.expanded .robot-scene-resize { display: block; }
-.pane.expanded .robot-scene-wrapper { max-height: 60%; }
+/* Vertical scene resize handle hidden — replaced by horizontal midbar slider */
+.pane.expanded .robot-scene-resize { display: none; }
+.pane.expanded .robot-scene-wrapper { max-height: none; }
 .pane.expanded .robot-scene { transition: height 0.3s ease; }
-/* Auto-fit robot in all-panes (non-expanded) view — independent scroll, fills bottom section */
-.pane:not(.expanded) .robot-scene-wrapper { overflow-y: auto; flex: 1; min-height: 0; max-height: none; }
-.pane:not(.expanded) .robot-scene { height: 250px; }
+/* Horizontal layout: robot wrapper fills its share of the row */
+.pane .claude-content-row .robot-scene-wrapper { overflow-y: auto; flex: none; min-height: 0; max-height: none; width: 40%; }
+.pane .claude-content-row .robot-scene { height: 100%; }
+.pane:not(.expanded) .claude-content-row .robot-scene-wrapper { width: 40%; }
+.pane.expanded .claude-content-row .robot-scene-wrapper { width: 40%; }
 
 /* ═══ GENIE MODE (user mode) ═══ */
 /* Genie hat — tall curved fez with gold band */
@@ -1981,7 +1994,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <span id="aiMsgsZoomLabel" style="font-size:.46rem;color:var(--text-dim);min-width:28px;text-align:center;">100%</span>
         <button id="aiMsgsZoomIn" style="font-size:.52rem;padding:0 5px;border:1px solid var(--border);border-radius:3px;background:none;color:var(--text);cursor:pointer;line-height:1.4;" title="Increase text size">+</button>
       </div>
+      <div class="claude-content-row" id="claudeContentRow">
       <div class="ai-msgs" id="aiMsgs"></div>
+      <div class="claude-midbar" id="claudeMidbar" title="Drag to resize"></div>
       <div class="robot-scene-wrapper" id="robotSceneWrapper">
       <div class="robot-scene-resize" id="robotSceneResize" title="Drag to resize robot scene"></div>
       <div class="robot-scene" id="robotScene">
@@ -2057,6 +2072,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </select>
       </div>
       </div><!-- end robot-scene-wrapper -->
+      </div><!-- end claude-content-row -->
       <div id="aiApiKeySection" style="display:none;padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
         <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
           <input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
@@ -14022,8 +14038,8 @@ async function renderAccessRequestsPanel() {
 
   function autoFitRobot() {
     const pane = scene.closest('.pane');
-    if (!pane || pane.classList.contains('expanded')) return;
-    // Get actual rendered scene height
+    if (!pane) return;
+    // In horizontal layout, auto-fit works in both expanded and non-expanded modes
     const sceneH = scene.clientHeight;
     if (sceneH <= 0) return;
     const scale = sceneH / DEFAULT_H;
@@ -14053,6 +14069,73 @@ async function renderAccessRequestsPanel() {
       setTimeout(autoScrollRobotWrapper, 150);
     }
   });
+})();
+
+// ── Claude midbar slider (horizontal resize between messages and robot) ──
+(function initClaudeMidbar() {
+  const midbar = document.getElementById('claudeMidbar');
+  const row = document.getElementById('claudeContentRow');
+  const msgs = document.getElementById('aiMsgs');
+  const robotWrap = document.getElementById('robotSceneWrapper');
+  if (!midbar || !row || !msgs || !robotWrap) return;
+
+  // Restore saved split ratio
+  const savedPct = +localStorage.getItem('ws_claudeMidbarPct');
+  if (savedPct > 0) applyRatio(savedPct);
+
+  let dragging = false, startX = 0, startMsgW = 0;
+
+  function applyRatio(msgPct) {
+    const robotPct = 100 - msgPct;
+    msgs.style.flex = 'none';
+    msgs.style.width = msgPct + '%';
+    robotWrap.style.width = robotPct + '%';
+  }
+
+  midbar.addEventListener('mousedown', onStart);
+  midbar.addEventListener('touchstart', onStart, { passive: false });
+
+  function onStart(e) {
+    e.preventDefault();
+    dragging = true;
+    startX = e.touches ? e.touches[0].clientX : e.clientX;
+    startMsgW = msgs.offsetWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('touchmove', onMove, { passive: true });
+
+  function onMove(e) {
+    if (!dragging) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const delta = clientX - startX;
+    const rowW = row.offsetWidth;
+    if (rowW <= 0) return;
+    const newMsgW = Math.max(rowW * 0.2, Math.min(rowW * 0.8, startMsgW + delta));
+    const pct = (newMsgW / rowW) * 100;
+    applyRatio(pct);
+    // Trigger robot auto-fit after resize
+    if (typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new Event('resize'));
+    }
+  }
+
+  document.addEventListener('mouseup', onEnd);
+  document.addEventListener('touchend', onEnd);
+
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    const rowW = row.offsetWidth;
+    if (rowW > 0) {
+      const pct = (msgs.offsetWidth / rowW) * 100;
+      localStorage.setItem('ws_claudeMidbarPct', pct.toFixed(1));
+    }
+  }
 })();
 
 // ── Output text zoom (+/- 50%) ──
