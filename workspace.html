@@ -10074,13 +10074,14 @@ function updateCostPanel() {
         histCost += d.cost || 0; histReqs += d.requests || 0;
       }
     }
+    // Baseline is additive — pre-audit API cost + everything tracked going forward
     const baseline = typeof HISTORICAL_COST_BASELINE !== 'undefined' ? HISTORICAL_COST_BASELINE : 0;
-    const grandTotal = Math.max(baseline, histCost + cost);
-    const unmapped = Math.max(0, baseline - histCost - cost);
+    const trackedTotal = histCost > 0 ? histCost : cost;
+    const grandTotal = baseline + trackedTotal;
     el.innerHTML += '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-      '<div style="display:flex;justify-content:space-between;font-size:.65rem;font-weight:700;"><span>Confirmed API Total:</span><span style="color:var(--accent2);">$' + grandTotal.toFixed(2) + '</span></div>' +
-      (histCost > 0 ? '<div style="display:flex;justify-content:space-between;font-size:.6rem;color:var(--text-dim);"><span>Tracked (all users):</span><span>$' + histCost.toFixed(4) + ' (' + histReqs + ' requests)</span></div>' : '') +
-      (unmapped > 0.001 ? '<div style="display:flex;justify-content:space-between;font-size:.6rem;color:#f59e0b;"><span>Unmapped/Historical:</span><span>$' + unmapped.toFixed(2) + '</span></div>' : '');
+      '<div style="display:flex;justify-content:space-between;font-size:.65rem;font-weight:700;"><span>Running API Total:</span><span style="color:var(--accent2);">$' + grandTotal.toFixed(4) + '</span></div>' +
+      (baseline > 0 ? '<div style="display:flex;justify-content:space-between;font-size:.6rem;color:#f59e0b;"><span>Unmapped/Historical (fixed):</span><span>$' + baseline.toFixed(2) + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;font-size:.6rem;color:#22c55e;"><span>Tracked (live' + (histReqs > 0 ? ', ' + histReqs + ' requests' : '') + '):</span><span>$' + trackedTotal.toFixed(4) + '</span></div>';
   } catch(_) {}
 }
 
@@ -11674,10 +11675,9 @@ function renderAuditPanel() {
 
   let totalCost = 0, totalIn = 0, totalOut = 0;
   aiAuditLog.forEach(e => { totalCost += e.cost || 0; totalIn += e.tokensIn || 0; totalOut += e.tokensOut || 0; });
-  // Calculate gap between known baseline and tracked cost
+  // Baseline is the known API bill before audit tracking existed — it's additive
   const baseline = typeof HISTORICAL_COST_BASELINE !== 'undefined' ? HISTORICAL_COST_BASELINE : 0;
-  const unmappedCost = Math.max(0, baseline - totalCost);
-  const grandTotal = baseline > totalCost ? baseline : totalCost;
+  const grandTotal = baseline + totalCost;
 
   const topBar = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
     '<span style="font-weight:700;font-size:.72rem;">Audit Log <span style="font-weight:400;color:var(--text-dim);font-size:.58rem;">(' + aiAuditLog.length + ' inquiries)</span></span>' +
@@ -11690,15 +11690,17 @@ function renderAuditPanel() {
 
   const costSummary = '<div style="margin-bottom:8px;padding:6px 8px;background:rgba(59,130,246,.06);border-radius:4px;font-size:.58rem;">' +
     '<div style="display:flex;gap:16px;margin-bottom:4px;">' +
-    '<span><b>API Total:</b> <span style="color:var(--accent2);font-weight:700;">$' + grandTotal.toFixed(2) + '</span></span>' +
-    '<span><b>Tracked:</b> <span style="color:#22c55e;font-weight:600;">$' + totalCost.toFixed(4) + '</span></span>' +
-    (unmappedCost > 0.001 ? '<span><b>Unmapped/Historical:</b> <span style="color:#f59e0b;font-weight:600;">$' + unmappedCost.toFixed(2) + '</span></span>' : '') +
+    '<span><b>Running API Total:</b> <span style="color:var(--accent2);font-weight:700;">$' + grandTotal.toFixed(4) + '</span></span>' +
+    '</div>' +
+    '<div style="display:flex;gap:16px;margin-bottom:3px;">' +
+    (baseline > 0 ? '<span><b>Unmapped/Historical:</b> <span style="color:#f59e0b;font-weight:600;">$' + baseline.toFixed(2) + '</span></span>' : '') +
+    '<span><b>Tracked (live):</b> <span style="color:#22c55e;font-weight:600;">$' + totalCost.toFixed(4) + '</span></span>' +
     '</div>' +
     '<div style="display:flex;gap:16px;">' +
     '<span><b>Tokens:</b> ' + totalIn.toLocaleString() + ' in / ' + totalOut.toLocaleString() + ' out</span>' +
     '<span><b>Inquiries:</b> ' + aiAuditLog.length + '</span>' +
     '</div>' +
-    (unmappedCost > 0.001 ? '<div style="margin-top:3px;font-size:.5rem;color:var(--text-dim);font-style:italic;">Unmapped cost reflects usage before audit tracking was active (pre-logging sessions, orchestrator calls, background ops).</div>' : '') +
+    (baseline > 0 ? '<div style="margin-top:3px;font-size:.5rem;color:var(--text-dim);font-style:italic;">$' + baseline.toFixed(2) + ' unmapped = API usage before live audit tracking was enabled. All new usage is tracked by user from this point forward.</div>' : '') +
     '</div>';
 
   const filters = '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">' +
@@ -12290,7 +12292,9 @@ function _logBackgroundAudit(label, model, tokIn, tokOut) {
   } catch(_) {}
 }
 
-// ── Historical cost baseline — $16.97 known total cost prior to audit log ──
+// ── Historical cost baseline — fixed $16.97 from API bill before live audit tracking ──
+// Running total = HISTORICAL_COST_BASELINE + all tracked cost going forward
+// This amount is unmapped (can't be broken down by user/request — predates audit system)
 const HISTORICAL_COST_BASELINE = 16.97;
 
 function addAiMsg(role, text) {
