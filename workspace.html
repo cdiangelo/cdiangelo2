@@ -1964,7 +1964,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </select>
           <button id="stockRefresh">Refresh</button>
           <span id="stockFreshness" style="display:none;align-items:center;gap:3px;font-size:.55rem;color:var(--text-dim);margin-left:4px;" title="Data freshness"><span class="sf-dot" style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;"></span><span class="sf-label">—</span></span>
-          <button id="rhLoginBtn" title="Robinhood connection — click to manage" style="font-size:.62rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;display:inline-flex;align-items:center;gap:4px;"><span id="rhBtnDot" style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;"></span><span id="rhBtnLabel">RH: Setup</span></button>
+          <button id="rhLoginBtn" title="Robinhood connection — click to manage" style="font-size:.62rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;display:inline-flex;align-items:center;gap:4px;"><span id="rhBtnLabel">RH Setup</span></button>
         </div>
         <!-- Comparison chart (big overlay) -->
         <div id="stockCompareWrap" style="display:none;flex-direction:column;border-bottom:1px solid var(--border);min-height:0;">
@@ -6017,23 +6017,48 @@ function updateStockFreshness() {
   if (!el) return;
   if (!stockTickers.length) { el.style.display = 'none'; return; }
   el.style.display = 'inline-flex';
+  const dot = el.querySelector('.sf-dot');
+  const label = el.querySelector('.sf-label');
+
+  // Gather data status across all tickers
   let allLive = true, anyLive = false, oldestTs = Date.now();
+  let hasRhSource = false, hasYahooSource = false, hasAnyData = false;
   stockTickers.forEach(t => {
     const range = document.getElementById('stockRange')?.value || '1M';
     const entry = stockDataCache[t + '_' + range];
-    if (entry && stockIsLive(entry)) { anyLive = true; if (entry.ts < oldestTs) oldestTs = entry.ts; }
-    else allLive = false;
+    if (entry && stockIsLive(entry)) {
+      anyLive = true;
+      hasAnyData = true;
+      if (entry.ts < oldestTs) oldestTs = entry.ts;
+      if (entry.source === 'robinhood') hasRhSource = true;
+      if (entry.source === 'yahoo') hasYahooSource = true;
+    } else {
+      allLive = false;
+      if (entry) hasAnyData = true;
+    }
   });
-  const dot = el.querySelector('.sf-dot');
-  const label = el.querySelector('.sf-label');
-  if (allLive && anyLive) {
-    dot.style.background = '#10b981'; label.textContent = 'Live';
-    el.title = 'All data fetched within 15 min';
+
+  // Single dot: dark green (RH live) → light green (cached/recent) → yellow (Yahoo/partial) → red (none)
+  if (allLive && anyLive && hasRhSource && !hasYahooSource) {
+    // All data from Robinhood, fresh — dark green
+    dot.style.background = '#22c55e';
+    label.textContent = 'Live';
+    el.title = 'Robinhood live data — all tickers current';
+  } else if (allLive && anyLive) {
+    // All live but mixed sources or Yahoo-only — light green
+    const age = Math.round((Date.now() - oldestTs) / 60000);
+    dot.style.background = '#86efac';
+    label.textContent = 'Active';
+    el.title = 'Live data — ' + (hasYahooSource ? 'via Yahoo' : 'cached') + (age > 0 ? ' (' + age + 'm ago)' : '');
   } else if (anyLive) {
-    dot.style.background = '#f59e0b'; label.textContent = 'Partial';
+    // Partial data — yellow
+    dot.style.background = '#f59e0b';
+    label.textContent = 'Partial';
     el.title = 'Some cached — oldest: ' + new Date(oldestTs).toLocaleTimeString();
   } else {
-    dot.style.background = '#ef4444'; label.textContent = 'No live data';
+    // No live data — red
+    dot.style.background = '#ef4444';
+    label.textContent = 'No live data';
     el.title = 'Live fetch failed — showing metadata only';
   }
 }
@@ -6234,43 +6259,30 @@ async function validateRhToken() {
 const detectRobinhoodSession = validateRhToken;
 
 function updateRhConnectionStatus() {
-  const dot = document.getElementById('rhBtnDot');
   const label = document.getElementById('rhBtnLabel');
   const btn = document.getElementById('rhLoginBtn');
-  if (!dot || !label) return;
+  if (!label) return;
 
   if (RH_SESSION.status === 'active') {
-    // Check data freshness: bright green = live/recent, soft green = cached
-    const age = RH_SESSION.validatedAt ? (Date.now() - RH_SESSION.validatedAt) / 1000 : Infinity;
-    if (age < 60) {
-      // Live / just validated — bright green
-      dot.style.background = '#22c55e';
-      label.textContent = 'RH: Live';
-      btn.title = 'Robinhood connected — live data';
-    } else if (age < 600) {
-      // Recent cached data (< 10 min) — soft/muted green
-      dot.style.background = '#86efac';
-      label.textContent = 'RH: Connected';
-      btn.title = 'Robinhood connected — cached data (' + Math.round(age / 60) + 'm ago)';
-    } else {
-      // Stale but still connected — dim green
-      dot.style.background = '#a7f3d0';
-      label.textContent = 'RH: Connected';
-      btn.title = 'Robinhood connected — data may be stale';
-    }
+    label.textContent = 'RH Connected';
+    btn.title = 'Robinhood connected — click to manage';
+    btn.style.color = 'var(--text-dim)';
   } else if (RH_SESSION.status === 'none') {
-    dot.style.background = '#f59e0b';
-    label.textContent = 'RH: Public';
-    btn.title = 'No token — public quotes only (click to add token)';
+    label.textContent = 'RH Setup';
+    btn.title = 'No token — click to add Robinhood token';
+    btn.style.color = 'var(--text-dim)';
   } else if (RH_SESSION.status === 'validating') {
-    dot.style.background = '#f59e0b';
-    label.textContent = 'RH: Checking...';
+    label.textContent = 'RH Checking...';
     btn.title = 'Validating Robinhood connection...';
+    btn.style.color = 'var(--text-dim)';
   } else {
-    dot.style.background = '#ef4444';
-    label.textContent = 'RH: Offline';
+    label.textContent = 'RH Setup';
     btn.title = 'Proxy unreachable — click to troubleshoot';
+    btn.style.color = 'var(--text-dim)';
   }
+
+  // Refresh the stock freshness dot to reflect RH connection state
+  updateStockFreshness();
 }
 
 // Periodically refresh the RH status dot color as cached data ages

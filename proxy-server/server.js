@@ -221,34 +221,37 @@ if (!hasRhCredentials && !hasStaticToken) {
 }
 if (!hasAnthropicKey) console.warn('[STARTUP] ANTHROPIC_API_KEY not set — /proxy/anthropic route disabled');
 
-// ── CORS — allow only the configured frontend origin ──
-const allowedOrigin = process.env.ALLOWED_ORIGIN || '';
+// ── CORS — allow configured origins (comma-separated) or all ──
+// ALLOWED_ORIGIN can be a single origin or comma-separated list
+// e.g. "https://planning-tool-7o36.onrender.com,https://cdiangelo.github.io"
+const allowedOrigins = process.env.ALLOWED_ORIGIN
+  ? process.env.ALLOWED_ORIGIN.split(',').map(o => o.trim())
+  : [];
+
+function isOriginAllowed(origin) {
+  if (!allowedOrigins.length) return true; // no restriction = allow all
+  return allowedOrigins.includes(origin);
+}
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
+  const effectiveOrigin = (origin && isOriginAllowed(origin)) ? origin : (allowedOrigins[0] || '*');
 
   // Always allow preflight
   if (req.method === 'OPTIONS') {
-    if (allowedOrigin && origin === allowedOrigin) {
-      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      res.setHeader('Access-Control-Max-Age', '86400');
-    }
+    res.setHeader('Access-Control-Allow-Origin', effectiveOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Max-Age', '86400');
     return res.sendStatus(204);
   }
 
-  // Reject requests from disallowed origins
-  if (allowedOrigin) {
-    if (origin && origin !== allowedOrigin) {
-      return res.status(403).json({ error: true, message: 'Origin not allowed' });
-    }
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  } else {
-    // No ALLOWED_ORIGIN set — allow all (local dev only)
-    res.setHeader('Access-Control-Allow-Origin', '*');
+  // Reject requests from disallowed origins (only when restrictions are configured)
+  if (allowedOrigins.length && origin && !isOriginAllowed(origin)) {
+    return res.status(403).json({ error: true, message: 'Origin not allowed' });
   }
 
+  res.setHeader('Access-Control-Allow-Origin', effectiveOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   next();
@@ -287,6 +290,56 @@ app.get('/health', (_req, res) => {
     rh_status: rhLoginStatus,
     rh_error: rhLoginError || undefined
   });
+});
+
+// ── Robinhood set-token (paste browser token) ──
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'animalcrackers';
+
+app.post('/proxy/robinhood/set-token', async (req, res) => {
+  const { password, token } = req.body || {};
+  if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Admin password required' });
+  if (!token || token.length < 10) return res.status(400).json({ error: true, message: 'Valid token required' });
+
+  // Verify the token works by hitting a simple authenticated endpoint
+  try {
+    const check = await fetch('https://api.robinhood.com/accounts/', {
+      headers: {
+        ...RH_BROWSER_HEADERS,
+        'Authorization': 'Bearer ' + token
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!check.ok) {
+      const raw = await check.text();
+      console.warn(`[Robinhood] Token verify failed HTTP ${check.status}: ${raw.substring(0, 300)}`);
+      // Save anyway — verification endpoint may be blocked by bot detection
+      rhToken = token;
+      rhRefreshToken = '';
+      rhLoginStatus = 'active';
+      rhLoginError = '';
+      console.log('[Robinhood] Token saved despite verify failure — will validate on first use');
+      return res.json({ ok: true, warning: true, message: 'Token saved but could not verify (HTTP ' + check.status + '). It will be tested on first API call.' });
+    }
+    rhToken = token;
+    rhRefreshToken = '';
+    rhLoginStatus = 'active';
+    rhLoginError = '';
+    console.log('[Robinhood] Token set via paste — verified OK');
+    return res.json({ ok: true, message: 'Token verified and saved. You are logged in.' });
+  } catch (e) {
+    // Network error during verify — still save the token
+    rhToken = token;
+    rhRefreshToken = '';
+    rhLoginStatus = 'active';
+    rhLoginError = '';
+    console.warn('[Robinhood] Token verify network error, saving anyway:', e.message);
+    return res.json({ ok: true, warning: true, message: 'Token saved but verify failed (' + e.message + '). It will be tested on first API call.' });
+  }
+});
+
+// ── Robinhood status ──
+app.get('/proxy/robinhood/status', (_req, res) => {
+  res.json({ logged_in: rhReady(), status: rhLoginStatus });
 });
 
 // ── Robinhood Proxy ──
@@ -439,8 +492,8 @@ app.post('/proxy/anthropic', anthropicLimiter, async (req, res) => {
 app.listen(PORT, async () => {
   console.log(`[Proxy] Server running on port ${PORT}`);
   console.log(`[Proxy] Anthropic: ${hasAnthropicKey ? 'enabled' : 'DISABLED (no key)'}`);
-  if (allowedOrigin) {
-    console.log(`[Proxy] CORS origin: ${allowedOrigin}`);
+  if (allowedOrigins.length) {
+    console.log(`[Proxy] CORS origins: ${allowedOrigins.join(', ')}`);
   } else {
     console.log('[Proxy] CORS: allowing all origins (set ALLOWED_ORIGIN for production)');
   }
