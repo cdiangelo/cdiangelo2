@@ -1360,7 +1360,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   .workspace {
     display: flex !important;
     flex-direction: column !important;
-    height: calc(100vh - 34px - 32px) !important;
+    height: calc(100vh - 34px) !important;
     overflow: hidden;
     background: var(--border);
     gap: 0;
@@ -1385,23 +1385,16 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     display: flex !important;
     flex: var(--mob-bottom-flex, 1) !important;
   }
-  /* Split drag handle */
-  .mob-split-handle {
-    display: flex; align-items: center; justify-content: center;
-    height: 8px; background: var(--border); cursor: row-resize;
-    flex-shrink: 0; touch-action: none; z-index: 50;
-  }
-  .mob-split-handle::after {
-    content: ''; width: 32px; height: 3px; border-radius: 2px;
-    background: var(--text-dim); opacity: .5;
-  }
+  /* Split drag handle — hidden, replaced by control bar */
+  .mob-split-handle { display: none !important; }
 
-  /* ═══ MOBILE CONTROL BAR (bottom) ═══ */
+  /* ═══ MOBILE CONTROL BAR (divider between panes) ═══ */
   .mob-control-bar {
     display: flex; align-items: center; justify-content: space-between;
-    height: 32px; background: var(--bg); border-top: 1px solid var(--border);
+    height: 32px; background: var(--bg);
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
     padding: 0 3px; position: relative; z-index: 200; gap: 1px;
-    flex-shrink: 0;
+    flex-shrink: 0; touch-action: none;
   }
   .mob-control-bar .mob-pane-btn {
     flex: 1; height: 26px; border: none; border-radius: 3px;
@@ -3226,9 +3219,9 @@ $('#gridApplyBtn').onclick = () => {
     topPane.classList.add('mob-top');
     bottomPane.classList.add('mob-bottom');
 
-    // Ensure proper DOM order: top pane, split handle, bottom pane (append to workspace)
+    // Ensure proper DOM order: top pane, control bar (divider), bottom pane
     ws.appendChild(topPane);
-    ws.appendChild(splitHandle);
+    ws.appendChild(controlBar);
     ws.appendChild(bottomPane);
 
     renderControlBar();
@@ -3358,12 +3351,14 @@ $('#gridApplyBtn').onclick = () => {
     }
   }
 
-  // ── Split handle drag to resize ──
-  if (splitHandle) {
-    let dragging = false, startY = 0, startTopFlex = 1, startBottomFlex = 1;
+  // ── Control bar drag to resize panes ──
+  {
+    let dragging = false, startY = 0, startTopFlex = 1;
 
     function onDragStart(e) {
       if (!isMobile()) return;
+      // Only start drag from the bar background or edges, not from buttons
+      if (e.target.closest('.mob-pane-btn') || e.target.closest('.mob-settings-btn')) return;
       dragging = true;
       startY = e.touches ? e.touches[0].clientY : e.clientY;
       const topPane = document.getElementById(MOBILE_PANES[topIdx].id);
@@ -3371,7 +3366,6 @@ $('#gridApplyBtn').onclick = () => {
       if (topPane && bottomPane) {
         const totalH = topPane.offsetHeight + bottomPane.offsetHeight;
         startTopFlex = topPane.offsetHeight / totalH;
-        startBottomFlex = bottomPane.offsetHeight / totalH;
       }
       e.preventDefault();
     }
@@ -3397,8 +3391,8 @@ $('#gridApplyBtn').onclick = () => {
       resizePanes();
     }
 
-    splitHandle.addEventListener('touchstart', onDragStart, { passive: false });
-    splitHandle.addEventListener('mousedown', onDragStart);
+    controlBar.addEventListener('touchstart', onDragStart, { passive: false });
+    controlBar.addEventListener('mousedown', onDragStart);
     document.addEventListener('touchmove', onDragMove, { passive: true });
     document.addEventListener('mousemove', onDragMove);
     document.addEventListener('touchend', onDragEnd);
