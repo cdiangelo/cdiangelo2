@@ -1838,9 +1838,20 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="contextBadge" style="font-size:.5rem;color:var(--text-dim);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;white-space:nowrap;">&#128206; Context</button>
       </div>
       <div id="contextDrawer" style="display:none;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--panel-inset);max-height:200px;overflow-y:auto;font-size:.55rem;"></div>
+      <div style="display:flex;align-items:center;gap:4px;padding:1px 8px;flex-shrink:0;border-bottom:1px solid var(--border);background:var(--panel-inset);">
+        <span style="font-size:.46rem;color:var(--text-dim);font-weight:600;">Text:</span>
+        <button id="aiMsgsZoomOut" style="font-size:.52rem;padding:0 5px;border:1px solid var(--border);border-radius:3px;background:none;color:var(--text);cursor:pointer;line-height:1.4;" title="Decrease text size">−</button>
+        <span id="aiMsgsZoomLabel" style="font-size:.46rem;color:var(--text-dim);min-width:28px;text-align:center;">100%</span>
+        <button id="aiMsgsZoomIn" style="font-size:.52rem;padding:0 5px;border:1px solid var(--border);border-radius:3px;background:none;color:var(--text);cursor:pointer;line-height:1.4;" title="Increase text size">+</button>
+      </div>
       <div class="ai-msgs" id="aiMsgs"></div>
       <div class="robot-scene-resize" id="robotSceneResize" title="Drag to resize robot scene"></div>
       <div class="robot-scene" id="robotScene">
+        <div id="robotZoomControls" style="position:absolute;top:4px;right:4px;z-index:10;display:flex;align-items:center;gap:3px;background:rgba(0,0,0,.55);border-radius:4px;padding:2px 5px;">
+          <button id="robotZoomOut" style="font-size:.56rem;padding:0 4px;border:1px solid rgba(255,255,255,.2);border-radius:3px;background:none;color:#ccc;cursor:pointer;line-height:1.4;" title="Zoom out robot">−</button>
+          <span id="robotZoomLabel" style="font-size:.44rem;color:#aaa;min-width:28px;text-align:center;">100%</span>
+          <button id="robotZoomIn" style="font-size:.56rem;padding:0 4px;border:1px solid rgba(255,255,255,.2);border-radius:3px;background:none;color:#ccc;cursor:pointer;line-height:1.4;" title="Zoom in robot">+</button>
+        </div>
         <div class="robot-bg scene-office" id="robotBg"></div>
         <div class="robot-glass"></div>
         <div class="robot-plant robot-plant-l"><div class="plant-pot"></div><div class="plant-stem"></div><div class="plant-leaf plant-leaf-l"></div><div class="plant-leaf plant-leaf-r"></div><div class="plant-leaf plant-leaf-t"></div></div>
@@ -13780,6 +13791,55 @@ async function renderAccessRequestsPanel() {
     dragging = false; document.body.style.cursor = '';
     localStorage.setItem('ws_robotSceneH', scene.offsetHeight);
   });
+})();
+
+// ── Robot scene zoom (+/- 50%) ──
+(function initRobotZoom() {
+  const scene = document.getElementById('robotScene');
+  const label = document.getElementById('robotZoomLabel');
+  const btnIn = document.getElementById('robotZoomIn');
+  const btnOut = document.getElementById('robotZoomOut');
+  if (!scene || !btnIn || !btnOut) return;
+  const defaultH = 140;
+  let zoomPct = 100;
+  const saved = +localStorage.getItem('ws_robotZoomPct');
+  if (saved > 0) { zoomPct = saved; applyRobotZoom(); }
+
+  function applyRobotZoom() {
+    const h = Math.round(defaultH * zoomPct / 100);
+    scene.style.height = h + 'px';
+    const scale = h / defaultH;
+    const ws = scene.querySelector('.robot-workstation');
+    if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
+    scene.querySelectorAll('.robot-plant').forEach(p => { p.style.transform = 'scale(' + scale + ')'; });
+    if (label) label.textContent = zoomPct + '%';
+    localStorage.setItem('ws_robotZoomPct', zoomPct);
+    localStorage.setItem('ws_robotSceneH', h);
+  }
+  btnIn.onclick = () => { zoomPct = Math.min(300, zoomPct + 50); applyRobotZoom(); };
+  btnOut.onclick = () => { zoomPct = Math.max(50, zoomPct - 50); applyRobotZoom(); };
+})();
+
+// ── Output text zoom (+/- 50%) ──
+(function initMsgsZoom() {
+  const msgs = document.getElementById('aiMsgs');
+  const label = document.getElementById('aiMsgsZoomLabel');
+  const btnIn = document.getElementById('aiMsgsZoomIn');
+  const btnOut = document.getElementById('aiMsgsZoomOut');
+  if (!msgs || !btnIn || !btnOut) return;
+  const baseSizeRem = 0.72;
+  let zoomPct = 100;
+  const saved = +localStorage.getItem('ws_msgsZoomPct');
+  if (saved > 0) { zoomPct = saved; applyMsgsZoom(); }
+
+  function applyMsgsZoom() {
+    const size = baseSizeRem * zoomPct / 100;
+    msgs.style.fontSize = size.toFixed(3) + 'rem';
+    if (label) label.textContent = zoomPct + '%';
+    localStorage.setItem('ws_msgsZoomPct', zoomPct);
+  }
+  btnIn.onclick = () => { zoomPct = Math.min(300, zoomPct + 50); applyMsgsZoom(); };
+  btnOut.onclick = () => { zoomPct = Math.max(50, zoomPct - 50); applyMsgsZoom(); };
 })();
 
 // ── Agentic loop with tool_use ──
