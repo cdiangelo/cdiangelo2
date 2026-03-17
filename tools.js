@@ -411,7 +411,24 @@ export const toolHandlers = {
   },
 
   write_to_draw_pane: async (input) => {
-    wbAddLayer('image', input.image_url, { label: input.label || 'Image', w: 250, h: 180 });
+    let url = input.image_url;
+    // Proxy external URLs through our CORS proxy for reliable rendering & export
+    if (url && !url.startsWith('data:') && typeof PROXY_BASE !== 'undefined') {
+      const proxyUrl = PROXY_BASE + '/proxy/image?url=' + encodeURIComponent(url);
+      // Try to fetch as base64 for persistence across sessions
+      try {
+        const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+        if (resp.ok) {
+          const blob = await resp.blob();
+          url = await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        }
+      } catch(_) { /* Fall back to direct URL */ }
+    }
+    wbAddLayer('image', url, { label: input.label || 'Image', w: 250, h: 180, source: 'bot' });
     toast('Image added to draw pane');
     return JSON.stringify({ success: true });
   },
@@ -419,8 +436,9 @@ export const toolHandlers = {
   add_text_overlay: async (input) => {
     wbSaveState();
     const sz = input.size || 24;
-    wbX.font = 'bold ' + sz + 'px system-ui';
-    wbX.fillStyle = '#ffffff';
+    const fontFamily = "'Aptos Narrow', 'Roboto Condensed', system-ui, sans-serif";
+    wbX.font = 'bold ' + sz + 'px ' + fontFamily;
+    wbX.fillStyle = input.color || '#ffffff';
     wbX.strokeStyle = '#000000';
     wbX.lineWidth = 3;
     wbX.textAlign = 'center';
@@ -429,6 +447,17 @@ export const toolHandlers = {
     else if (input.position === 'bottom') y = wbC.height - 15;
     wbX.strokeText(input.text, wbC.width / 2, y);
     wbX.fillText(input.text, wbC.width / 2, y);
+    // Also add as a movable text layer for composited export
+    wbAddLayer('text', input.text, {
+      label: input.text.substring(0, 30),
+      x: wbC.width / 2 - wbX.measureText(input.text).width / 2 - 8,
+      y: y - sz / 2 - 6,
+      w: wbX.measureText(input.text).width + 16,
+      h: sz + 12,
+      source: 'bot', category: 'text',
+      fontSize: sz, fontWeight: '700',
+      color: input.color || '#ffffff'
+    });
     return JSON.stringify({ success: true });
   },
 
@@ -764,7 +793,7 @@ export const toolHandlers = {
     // Label
     if (input.label) {
       wbX.fillStyle = color;
-      wbX.font = '14px system-ui';
+      wbX.font = "14px 'Aptos Narrow', 'Roboto Condensed', system-ui, sans-serif";
       wbX.textAlign = 'center';
       wbX.textBaseline = 'middle';
       const cx = (input.shape === 'line' || input.shape === 'arrow') ? (x + (input.x2 || x + 100)) / 2 : x + w / 2;
@@ -772,7 +801,13 @@ export const toolHandlers = {
       wbX.fillText(input.label, cx, cy);
     }
     wbX.restore();
-    wbAddLayer('chart', null, { label: input.layerName || 'Shape', x, y, w, h, source: 'bot', category: 'shape' });
+    // Capture shape region as data URL for clean export
+    const shpCanvas = document.createElement('canvas');
+    shpCanvas.width = w + 4; shpCanvas.height = h + 4;
+    const shpCtx = shpCanvas.getContext('2d');
+    shpCtx.drawImage(wbC, Math.max(0, x - 2), Math.max(0, y - 2), w + 4, h + 4, 0, 0, w + 4, h + 4);
+    const shpDataUrl = shpCanvas.toDataURL('image/png');
+    wbAddLayer('chart', shpDataUrl, { label: input.layerName || 'Shape', x, y, w, h, source: 'bot', category: 'shape' });
     toast('Drew ' + input.shape);
     return JSON.stringify({ success: true, shape: input.shape });
   },
@@ -800,8 +835,8 @@ export const toolHandlers = {
         responsive: false,
         animation: false,
         plugins: {
-          title: { display: true, text: input.title || '', color: '#fff', font: { size: 14 } },
-          legend: { display: input.showLegend !== false, labels: { color: '#ccc' } },
+          title: { display: true, text: input.title || '', color: '#fff', font: { size: 14, family: "'Aptos Narrow', 'Roboto Condensed', system-ui" } },
+          legend: { display: input.showLegend !== false, labels: { color: '#ccc', font: { family: "'Aptos Narrow', 'Roboto Condensed', system-ui" } } },
           datalabels: input.showValues ? { display: true, color: '#fff' } : undefined
         },
         scales: (chartType !== 'pie' && chartType !== 'doughnut') ? {
@@ -812,11 +847,13 @@ export const toolHandlers = {
     };
     // Render chart
     const chart = new Chart(offCtx, config);
-    // Draw onto whiteboard
+    // Capture chart as data URL for layer content (enables clean export)
+    const chartDataUrl = offscreen.toDataURL('image/png');
+    // Draw onto whiteboard canvas
     wbSaveState();
     wbX.drawImage(offscreen, input.x || 0, input.y || 0, cw, ch);
     chart.destroy();
-    wbAddLayer('chart', null, { label: input.layerName || 'Chart', x: input.x || 0, y: input.y || 0, w: cw, h: ch, source: 'bot', category: 'chart' });
+    wbAddLayer('chart', chartDataUrl, { label: input.layerName || 'Chart', x: input.x || 0, y: input.y || 0, w: cw, h: ch, source: 'bot', category: 'chart' });
     toast('Chart drawn on whiteboard');
     return JSON.stringify({ success: true, chartType: input.chartType });
   },
@@ -850,7 +887,7 @@ export const toolHandlers = {
     wbX.fillStyle = arrowColor;
     wbX.fill();
     // Text box
-    wbX.font = fontSize + 'px system-ui';
+    wbX.font = fontSize + "px 'Aptos Narrow', 'Roboto Condensed', system-ui, sans-serif";
     const textW = wbX.measureText(input.text).width + 16;
     const textH = fontSize + 12;
     const bx = lx - textW / 2, by = ly - textH / 2;
@@ -868,7 +905,15 @@ export const toolHandlers = {
     wbX.fillText(input.text, lx, ly);
     wbX.restore();
 
-    wbAddLayer('chart', null, { label: input.layerName || 'Annotation', x: Math.min(lx, tx) - 20, y: Math.min(ly, ty) - 30, w: Math.abs(tx - lx) + 40, h: Math.abs(ty - ly) + 60, source: 'bot', category: 'annotation' });
+    // Capture annotation region as data URL for clean export
+    const annX = Math.min(lx, tx) - 20, annY = Math.min(ly, ty) - 30;
+    const annW = Math.abs(tx - lx) + 40, annH = Math.abs(ty - ly) + 60;
+    const annCanvas = document.createElement('canvas');
+    annCanvas.width = annW; annCanvas.height = annH;
+    const annCtx = annCanvas.getContext('2d');
+    annCtx.drawImage(wbC, annX, annY, annW, annH, 0, 0, annW, annH);
+    const annDataUrl = annCanvas.toDataURL('image/png');
+    wbAddLayer('chart', annDataUrl, { label: input.layerName || 'Annotation', x: annX, y: annY, w: annW, h: annH, source: 'bot', category: 'annotation' });
     toast('Annotation added');
     return JSON.stringify({ success: true });
   },
@@ -903,7 +948,7 @@ export const toolHandlers = {
     wbX.fill();
     // Title
     wbX.fillStyle = '#ffffff';
-    wbX.font = 'bold 14px system-ui';
+    wbX.font = "bold 14px 'Aptos Narrow', 'Roboto Condensed', system-ui, sans-serif";
     wbX.textAlign = 'left';
     wbX.textBaseline = 'middle';
     wbX.fillText(input.title, x + 10, y + headerH / 2);
@@ -916,14 +961,20 @@ export const toolHandlers = {
     wbX.stroke();
     // Items
     wbX.fillStyle = fg;
-    wbX.font = '12px system-ui';
+    wbX.font = "12px 'Aptos Narrow', 'Roboto Condensed', system-ui, sans-serif";
     items.forEach((item, i) => {
       const iy = y + headerH + padding + i * lineH;
       wbX.fillText('\u2022 ' + item, x + 12, iy + lineH / 2);
     });
     wbX.restore();
 
-    wbAddLayer('chart', null, { label: input.layerName || 'Summary Card', x, y, w, h, source: 'bot', category: 'card' });
+    // Capture card region as data URL for clean export
+    const cardCanvas = document.createElement('canvas');
+    cardCanvas.width = w; cardCanvas.height = h;
+    const cardCtx = cardCanvas.getContext('2d');
+    cardCtx.drawImage(wbC, x, y, w, h, 0, 0, w, h);
+    const cardDataUrl = cardCanvas.toDataURL('image/png');
+    wbAddLayer('chart', cardDataUrl, { label: input.layerName || 'Summary Card', x, y, w, h, source: 'bot', category: 'card' });
     toast('Summary card drawn');
     return JSON.stringify({ success: true, items: items.length });
   },
@@ -953,7 +1004,7 @@ export const toolHandlers = {
     wbX.beginPath(); wbX.roundRect(x, y, w, headerH, [6, 6, 0, 0]); wbX.fill();
     // Header text
     wbX.fillStyle = '#ffffff';
-    wbX.font = 'bold 12px system-ui';
+    wbX.font = "bold 12px 'Aptos Narrow', 'Roboto Condensed', system-ui, sans-serif";
     wbX.textAlign = 'left'; wbX.textBaseline = 'middle';
     headers.forEach((hdr, ci) => {
       wbX.fillText(hdr, x + ci * colW + 8, y + headerH / 2);
@@ -964,7 +1015,7 @@ export const toolHandlers = {
       wbX.beginPath(); wbX.moveTo(x + ci * colW, y); wbX.lineTo(x + ci * colW, y + h); wbX.stroke();
     }
     // Data rows
-    wbX.font = '11px system-ui'; wbX.fillStyle = fg;
+    wbX.font = "11px 'Aptos Narrow', 'Roboto Condensed', system-ui, sans-serif"; wbX.fillStyle = fg;
     rows.forEach((row, ri) => {
       const ry = y + headerH + ri * rowH;
       // Alternating row background
@@ -979,7 +1030,13 @@ export const toolHandlers = {
     });
     wbX.restore();
 
-    wbAddLayer('chart', null, { label: input.layerName || 'Table', x, y, w, h, source: 'bot', category: 'table' });
+    // Capture table region as data URL for clean export
+    const tblCanvas = document.createElement('canvas');
+    tblCanvas.width = w; tblCanvas.height = h;
+    const tblCtx = tblCanvas.getContext('2d');
+    tblCtx.drawImage(wbC, x, y, w, h, 0, 0, w, h);
+    const tblDataUrl = tblCanvas.toDataURL('image/png');
+    wbAddLayer('chart', tblDataUrl, { label: input.layerName || 'Table', x, y, w, h, source: 'bot', category: 'table' });
     toast('Table drawn on whiteboard');
     return JSON.stringify({ success: true, headers: headers.length, rows: rows.length });
   },

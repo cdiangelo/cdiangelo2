@@ -688,6 +688,9 @@ export async function runOrchestrated(userInput, workspaceContext, config) {
     // Save log
     saveOrchestratorLog(session);
 
+    // Write orchestrator cost to global admin audit log
+    _saveOrchestratorAuditEntry(session, userInput, model);
+
     // If user chose single-agent fallback for any task, offer to run full request
     if (Array.from(session.subAgentResults.values()).some(function(r) { return r.errors && r.errors.includes('User chose single-agent fallback'); })) {
       addMsg('system', 'Tip: Some tasks were deferred to single-agent mode. Type your request again with the orchestrator toggle off to run it directly.');
@@ -698,10 +701,48 @@ export async function runOrchestrated(userInput, workspaceContext, config) {
     addMsg('system', '\u26D4 Orchestrator error: ' + e.message);
     session.state = 'failed';
     saveOrchestratorLog(session);
+    // Still log failed orchestration costs
+    _saveOrchestratorAuditEntry(session, userInput, model);
   }
 
   window.aiStreaming = false;
   if (window.setRobotWorking) window.setRobotWorking(false);
+}
+
+// Write orchestrator session cost to the global audit log (same format as main agent)
+function _saveOrchestratorAuditEntry(session, userInput, model) {
+  try {
+    const AUDIT_LOG_KEY = 'ws_auditLog';
+    const aiAuditLog = JSON.parse(localStorage.getItem(AUDIT_LOG_KEY) || '[]');
+    const rates = (window.MODEL_RATES && window.MODEL_RATES[model]) || { input: 3, output: 15 };
+    const tokIn = session.tokenUsage ? session.tokenUsage.input : 0;
+    const tokOut = session.tokenUsage ? session.tokenUsage.output : 0;
+    const cost = (tokIn / 1e6 * rates.input) + (tokOut / 1e6 * rates.output);
+    const userName = localStorage.getItem('ws_userName') || (window.wsIsAdmin ? 'admin' : 'anonymous');
+
+    const auditEntry = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      userName: userName,
+      query: '[ORCHESTRATOR] ' + (userInput || '').substring(0, 500),
+      model: model,
+      response: 'Orchestrator: ' + (session.state || 'unknown') + ' — ' +
+        Array.from(session.subAgentResults ? session.subAgentResults.values() : []).filter(function(r) { return r.status === 'complete'; }).length + ' tasks completed',
+      artifacts: [],
+      artifactTypes: ['tool'],
+      tokensIn: tokIn,
+      tokensOut: tokOut,
+      cost: cost,
+      sessionRequests: window.aiSessionRequests || 0,
+      orchestratorSession: true
+    };
+    aiAuditLog.push(auditEntry);
+    try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (e) {
+      // Trim if full
+      var trimmed = aiAuditLog.slice(Math.floor(aiAuditLog.length * 0.2));
+      try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(trimmed)); } catch (_) {}
+    }
+  } catch(_) {}
 }
 
 // Self-register on window

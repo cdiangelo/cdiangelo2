@@ -231,6 +231,51 @@ ${content}
 });
 
 // ═══════════════════════════════════════════
+// IMAGE PROXY — CORS-safe image fetching for whiteboard
+// ═══════════════════════════════════════════
+app.get('/proxy/image', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: true, message: 'Missing url parameter' });
+
+  // Only allow image URLs (basic security check)
+  const allowed = /^https?:\/\/.+/i.test(url);
+  if (!allowed) return res.status(400).json({ error: true, message: 'Invalid URL' });
+
+  const cached = getCached('img:' + url);
+  if (cached) {
+    res.setHeader('Content-Type', cached.contentType || 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.send(cached.data);
+  }
+
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'image/*,*/*'
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!resp.ok) return res.status(resp.status).json({ error: true, message: 'Image fetch failed' });
+
+    const contentType = resp.headers.get('content-type') || 'image/png';
+    const buffer = Buffer.from(await resp.arrayBuffer());
+
+    // Cache for 10 minutes
+    setCache('img:' + url, { data: buffer, contentType }, 600000);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: true, message: 'Image proxy error: ' + err.message });
+  }
+});
+
+// ═══════════════════════════════════════════
 // AI PROXY — API key held server-side only
 // ═══════════════════════════════════════════
 

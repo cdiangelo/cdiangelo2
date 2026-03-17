@@ -3846,13 +3846,15 @@ function exportNotepadPdf() {
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <title>Notepad Export — ${dateStr}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
 <style>
   @page { size: letter; margin: 1in 1.2in; }
   * { box-sizing: border-box; }
   body {
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size: 12pt;
-    line-height: 1.7;
+    font-family: 'Aptos Narrow', 'Roboto Condensed', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.65;
     color: #1a1a1a;
     max-width: 6.5in;
     margin: 0 auto;
@@ -3860,25 +3862,29 @@ function exportNotepadPdf() {
   }
   .np-page { margin-bottom: 1em; }
   .np-page-title {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Aptos Narrow', 'Roboto Condensed', 'Helvetica Neue', sans-serif;
     font-size: 18pt;
-    font-weight: 600;
+    font-weight: 700;
     color: #111;
     border-bottom: 2px solid #333;
     padding-bottom: 6pt;
     margin: 0 0 18pt 0;
+    letter-spacing: 0.02em;
   }
   .np-page-body h1, .np-page-body h2 {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 15pt;
-    font-weight: 600;
+    font-family: 'Aptos Narrow', 'Roboto Condensed', 'Helvetica Neue', sans-serif;
+    font-size: 14pt;
+    font-weight: 700;
     margin: 18pt 0 8pt 0;
     color: #222;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 4pt;
   }
   .np-page-body h3, .np-page-body h4 {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 12pt;
-    font-weight: 600;
+    font-family: 'Aptos Narrow', 'Roboto Condensed', 'Helvetica Neue', sans-serif;
+    font-size: 11pt;
+    font-weight: 700;
+    font-style: italic;
     margin: 14pt 0 6pt 0;
     color: #333;
   }
@@ -3886,30 +3892,36 @@ function exportNotepadPdf() {
   .np-page-body ul, .np-page-body ol { margin: 4pt 0 10pt 18pt; padding: 0; }
   .np-page-body li { margin-bottom: 4pt; }
   .np-page-body blockquote {
-    border-left: 3pt solid #999;
+    border-left: 3pt solid #888;
     margin: 10pt 0 10pt 4pt;
     padding: 4pt 0 4pt 14pt;
     color: #444;
     font-style: italic;
   }
+  .np-page-body hr {
+    border: none;
+    border-top: 1px solid #ccc;
+    margin: 14pt 0;
+  }
   .np-page-body table {
     border-collapse: collapse;
     width: 100%;
     margin: 10pt 0;
-    font-size: 10pt;
+    font-size: 9.5pt;
   }
   .np-page-body th, .np-page-body td {
     border: 1px solid #ccc;
     padding: 4pt 8pt;
     text-align: left;
   }
-  .np-page-body th { background: #f0f0f0; font-weight: 600; }
+  .np-page-body th { background: #f0f0f0; font-weight: 700; }
   .np-page-body b, .np-page-body strong { font-weight: 700; }
+  .np-page-body em, .np-page-body i { font-style: italic; }
   .print-footer {
     margin-top: 24pt;
     padding-top: 8pt;
     border-top: 1px solid #ccc;
-    font-family: Arial, sans-serif;
+    font-family: 'Aptos Narrow', 'Roboto Condensed', Arial, sans-serif;
     font-size: 8pt;
     color: #999;
     text-align: right;
@@ -3920,7 +3932,7 @@ function exportNotepadPdf() {
   }
 </style>
 </head><body>
-<div class="no-print" style="font-family:Arial,sans-serif;background:#f5f5f5;padding:12px 20px;margin:-0.5in 0 20px 0;border-bottom:1px solid #ddd;text-align:center;">
+<div class="no-print" style="font-family:'Aptos Narrow','Roboto Condensed',Arial,sans-serif;background:#f5f5f5;padding:12px 20px;margin:-0.5in 0 20px 0;border-bottom:1px solid #ddd;text-align:center;">
   <button onclick="window.print()" style="font-size:14px;padding:8px 24px;background:#333;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:8px;">Print / Save as PDF</button>
   <span style="color:#666;font-size:13px;">Use your browser's print dialog to save as PDF</span>
 </div>
@@ -4311,14 +4323,45 @@ $('#wbHistoryBtn').onclick = () => {
   if (p.style.display === 'block') renderWbHistoryPanel();
 };
 $('#wbClear').onclick = () => { wbSaveState('Clear canvas'); wbX.clearRect(0, 0, wbC.width, wbC.height); };
-$('#wbSave').onclick = () => {
+$('#wbSave').onclick = async () => {
   const expCvs = document.createElement('canvas');
   expCvs.width = wbC.width; expCvs.height = wbC.height;
   const ectx = expCvs.getContext('2d');
-  ectx.fillStyle = getComputedStyle($('#wbWrap')).backgroundColor;
+  // Background
+  ectx.fillStyle = getComputedStyle($('#wbWrap')).backgroundColor || '#1a1a2e';
   ectx.fillRect(0, 0, expCvs.width, expCvs.height);
+  // Draw canvas base (freehand drawings)
   ectx.drawImage(wbC, 0, 0);
-  const a = document.createElement('a'); a.download = 'whiteboard.png'; a.href = expCvs.toDataURL(); a.click(); toast('Exported');
+  // Composite all visible layers on top in z-order
+  const sortedLayers = [...wbLayers].filter(l => l.visible).sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+  for (const layer of sortedLayers) {
+    try {
+      if ((layer.type === 'image' || layer.type === 'chart') && layer.content) {
+        const img = await new Promise((resolve, reject) => {
+          const i = new Image();
+          if (layer.content && !layer.content.startsWith('data:')) i.crossOrigin = 'anonymous';
+          i.onload = () => resolve(i);
+          i.onerror = () => reject(new Error('load failed'));
+          i.src = layer.content;
+        }).catch(() => null);
+        if (img) ectx.drawImage(img, layer.x, layer.y, layer.w, layer.h);
+      } else if (layer.type === 'text' && layer.content) {
+        const fontSize = layer.fontSize || 14;
+        const fontFamily = "'Aptos Narrow', 'Roboto Condensed', system-ui, sans-serif";
+        ectx.font = (layer.fontWeight || '600') + ' ' + fontSize + 'px ' + fontFamily;
+        ectx.fillStyle = layer.color || '#ffffff';
+        ectx.textAlign = layer.textAlign || 'center';
+        ectx.textBaseline = 'middle';
+        if (layer.bgColor) {
+          ectx.fillStyle = layer.bgColor;
+          ectx.fillRect(layer.x, layer.y, layer.w, layer.h);
+          ectx.fillStyle = layer.color || '#ffffff';
+        }
+        ectx.fillText(layer.content, layer.x + layer.w / 2, layer.y + layer.h / 2, layer.w - 16);
+      }
+    } catch(_) {}
+  }
+  const a = document.createElement('a'); a.download = 'whiteboard.png'; a.href = expCvs.toDataURL('image/png'); a.click(); toast('Exported');
 };
 
 /* ═══════════════════════════════════════════
@@ -4630,9 +4673,25 @@ $('#wbLayers').onclick = function() {
 // Image search panel
 $('#wbImgSearch').onclick = () => { const p = $('#wbImgPanel'); p.style.display = p.style.display === 'none' ? 'block' : 'none'; };
 $('#wbImgClose').onclick = () => { $('#wbImgPanel').style.display = 'none'; };
-$('#wbImgUrlAdd').onclick = () => {
-  const url = $('#wbImgUrl').value.trim();
-  if (!url) return;
+$('#wbImgUrlAdd').onclick = async () => {
+  const rawUrl = $('#wbImgUrl').value.trim();
+  if (!rawUrl) return;
+  let url = rawUrl;
+  // Proxy external URLs for CORS-safe rendering and export
+  if (!rawUrl.startsWith('data:')) {
+    try {
+      const proxyUrl = PROXY_BASE + '/proxy/image?url=' + encodeURIComponent(rawUrl);
+      const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        url = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch(_) { /* Fall back to direct URL */ }
+  }
   wbAddLayer('image', url, { label: 'Image', w: 200, h: 150 });
   $('#wbImgUrl').value = '';
   $('#wbImgPanel').style.display = 'none';
@@ -9818,6 +9877,7 @@ async function companyIntelligence(ticker, companyName) {
         aiSessionTokensOut += _segTokOut;
         aiSessionRequests++;
         if (typeof trackUserUsage === 'function') trackUserUsage(_segTokIn, _segTokOut, segResult.model || 'claude-haiku-4-5-20251001');
+        _logBackgroundAudit('[INTEL] Segment extraction for ' + ticker, segResult.model || 'claude-haiku-4-5-20251001', _segTokIn, _segTokOut);
         // Parse JSON from response
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
@@ -10014,11 +10074,13 @@ function updateCostPanel() {
         histCost += d.cost || 0; histReqs += d.requests || 0;
       }
     }
-    if (histCost > 0) {
-      el.innerHTML += '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
-        '<div style="display:flex;justify-content:space-between;font-size:.65rem;font-weight:600;"><span>All-time total (all users):</span><span style="color:var(--accent2);">$' + histCost.toFixed(4) + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.6rem;"><span>Total requests:</span><span>' + histReqs + '</span></div>';
-    }
+    const baseline = typeof HISTORICAL_COST_BASELINE !== 'undefined' ? HISTORICAL_COST_BASELINE : 0;
+    const grandTotal = Math.max(baseline, histCost + cost);
+    const unmapped = Math.max(0, baseline - histCost - cost);
+    el.innerHTML += '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:.65rem;font-weight:700;"><span>Confirmed API Total:</span><span style="color:var(--accent2);">$' + grandTotal.toFixed(2) + '</span></div>' +
+      (histCost > 0 ? '<div style="display:flex;justify-content:space-between;font-size:.6rem;color:var(--text-dim);"><span>Tracked (all users):</span><span>$' + histCost.toFixed(4) + ' (' + histReqs + ' requests)</span></div>' : '') +
+      (unmapped > 0.001 ? '<div style="display:flex;justify-content:space-between;font-size:.6rem;color:#f59e0b;"><span>Unmapped/Historical:</span><span>$' + unmapped.toFixed(2) + '</span></div>' : '');
   } catch(_) {}
 }
 
@@ -11097,6 +11159,8 @@ Perform a full cleanup pass. Return a JSON object with "patch" (array of changes
       aiSessionTokensOut += _cleanupTokOut;
       aiSessionRequests++;
       if (typeof trackUserUsage === 'function') trackUserUsage(_cleanupTokIn, _cleanupTokOut, 'claude-haiku-4-5-20251001');
+      // Log cleanup to audit trail
+      _logBackgroundAudit('[CLEANUP] ' + tabInfo.label, 'claude-haiku-4-5-20251001', _cleanupTokIn, _cleanupTokOut);
       // Parse Claude's JSON response
       let result;
       try {
@@ -11175,6 +11239,8 @@ Return ONLY the polished HTML content (no <html>, <body>, or <style> tags). The 
       aiSessionTokensOut += _polishTokOut;
       aiSessionRequests++;
       if (typeof trackUserUsage === 'function') trackUserUsage(_polishTokIn, _polishTokOut, 'claude-sonnet-4-6');
+      // Log polish to audit trail
+      _logBackgroundAudit('[POLISH] Notepad', 'claude-sonnet-4-6', _polishTokIn, _polishTokOut);
       // Strip markdown code fences if present
       text = text.replace(/^```(?:html)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
       npEl.innerHTML = text;
@@ -11608,6 +11674,10 @@ function renderAuditPanel() {
 
   let totalCost = 0, totalIn = 0, totalOut = 0;
   aiAuditLog.forEach(e => { totalCost += e.cost || 0; totalIn += e.tokensIn || 0; totalOut += e.tokensOut || 0; });
+  // Calculate gap between known baseline and tracked cost
+  const baseline = typeof HISTORICAL_COST_BASELINE !== 'undefined' ? HISTORICAL_COST_BASELINE : 0;
+  const unmappedCost = Math.max(0, baseline - totalCost);
+  const grandTotal = baseline > totalCost ? baseline : totalCost;
 
   const topBar = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
     '<span style="font-weight:700;font-size:.72rem;">Audit Log <span style="font-weight:400;color:var(--text-dim);font-size:.58rem;">(' + aiAuditLog.length + ' inquiries)</span></span>' +
@@ -11618,10 +11688,17 @@ function renderAuditPanel() {
     '<button onclick="this.closest(\'#aiAuditPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button>' +
     '</div></div>';
 
-  const costSummary = '<div style="display:flex;gap:16px;margin-bottom:8px;padding:6px 8px;background:rgba(59,130,246,.06);border-radius:4px;font-size:.58rem;">' +
-    '<span><b>Total Cost:</b> <span style="color:var(--accent2);font-weight:700;">$' + totalCost.toFixed(4) + '</span></span>' +
+  const costSummary = '<div style="margin-bottom:8px;padding:6px 8px;background:rgba(59,130,246,.06);border-radius:4px;font-size:.58rem;">' +
+    '<div style="display:flex;gap:16px;margin-bottom:4px;">' +
+    '<span><b>API Total:</b> <span style="color:var(--accent2);font-weight:700;">$' + grandTotal.toFixed(2) + '</span></span>' +
+    '<span><b>Tracked:</b> <span style="color:#22c55e;font-weight:600;">$' + totalCost.toFixed(4) + '</span></span>' +
+    (unmappedCost > 0.001 ? '<span><b>Unmapped/Historical:</b> <span style="color:#f59e0b;font-weight:600;">$' + unmappedCost.toFixed(2) + '</span></span>' : '') +
+    '</div>' +
+    '<div style="display:flex;gap:16px;">' +
     '<span><b>Tokens:</b> ' + totalIn.toLocaleString() + ' in / ' + totalOut.toLocaleString() + ' out</span>' +
     '<span><b>Inquiries:</b> ' + aiAuditLog.length + '</span>' +
+    '</div>' +
+    (unmappedCost > 0.001 ? '<div style="margin-top:3px;font-size:.5rem;color:var(--text-dim);font-style:italic;">Unmapped cost reflects usage before audit tracking was active (pre-logging sessions, orchestrator calls, background ops).</div>' : '') +
     '</div>';
 
   const filters = '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">' +
@@ -11813,19 +11890,22 @@ function exportAuditPdf(entries, title) {
   }).join('');
 
   const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + ' — ' + dateStr + '</title>' +
+    '<link rel="preconnect" href="https://fonts.googleapis.com">' +
+    '<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">' +
     '<style>' +
-    '@page { size: letter; margin: 0.8in 1in; }' +
-    'body { font-family: Georgia, serif; font-size: 11pt; line-height: 1.6; color: #1a1a1a; max-width: 6.5in; margin: 0 auto; padding: 0.5in 0; }' +
-    'h1 { font-family: Helvetica, Arial, sans-serif; font-size: 18pt; border-bottom: 2px solid #333; padding-bottom: 6pt; }' +
-    '.summary { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #555; margin-bottom: 20pt; padding: 8pt 12pt; background: #f5f5f5; border-radius: 4pt; }' +
-    '.summary b { color: #333; }' +
+    "@page { size: letter; margin: 0.8in 1in; }" +
+    "body { font-family: 'Aptos Narrow', 'Roboto Condensed', 'Helvetica Neue', Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.6; color: #1a1a1a; max-width: 6.5in; margin: 0 auto; padding: 0.5in 0; }" +
+    "h1 { font-family: 'Aptos Narrow', 'Roboto Condensed', Helvetica, sans-serif; font-size: 18pt; font-weight: 700; border-bottom: 2px solid #333; padding-bottom: 6pt; letter-spacing: 0.02em; }" +
+    ".summary { font-family: 'Aptos Narrow', 'Roboto Condensed', Helvetica, sans-serif; font-size: 10pt; color: #555; margin-bottom: 20pt; padding: 8pt 12pt; background: #f5f5f5; border-radius: 4pt; }" +
+    '.summary b { color: #333; font-weight: 700; }' +
     '.inquiry { margin-bottom: 16pt; padding-bottom: 12pt; border-bottom: 1px solid #ddd; page-break-inside: avoid; }' +
-    '.inq-meta { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #888; margin-bottom: 4pt; }' +
-    '.inq-query { margin-bottom: 6pt; white-space: pre-wrap; }' +
+    ".inq-meta { font-family: 'Aptos Narrow', 'Roboto Condensed', Helvetica, sans-serif; font-size: 9pt; color: #888; margin-bottom: 4pt; font-style: italic; }" +
+    ".inq-query { margin-bottom: 6pt; white-space: pre-wrap; font-weight: 600; }" +
     '.inq-response { white-space: pre-wrap; color: #333; }' +
-    '.inq-artifacts { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #666; margin-top: 4pt; font-style: italic; }' +
-    '.print-footer { margin-top: 20pt; padding-top: 8pt; border-top: 1px solid #ccc; font-family: Arial, sans-serif; font-size: 8pt; color: #999; text-align: right; }' +
-    '.no-print { font-family: Arial, sans-serif; background: #f5f5f5; padding: 12px 20px; margin: -0.5in 0 20px 0; border-bottom: 1px solid #ddd; text-align: center; }' +
+    ".inq-artifacts { font-family: 'Aptos Narrow', 'Roboto Condensed', Helvetica, sans-serif; font-size: 9pt; color: #666; margin-top: 4pt; font-style: italic; }" +
+    "hr { border: none; border-top: 1px solid #ccc; margin: 12pt 0; }" +
+    ".print-footer { margin-top: 20pt; padding-top: 8pt; border-top: 1px solid #ccc; font-family: 'Aptos Narrow', 'Roboto Condensed', Arial, sans-serif; font-size: 8pt; color: #999; text-align: right; }" +
+    ".no-print { font-family: 'Aptos Narrow', 'Roboto Condensed', Arial, sans-serif; background: #f5f5f5; padding: 12px 20px; margin: -0.5in 0 20px 0; border-bottom: 1px solid #ddd; text-align: center; }" +
     '@media print { .no-print { display: none !important; } }' +
     '</style></head><body>' +
     '<div class="no-print"><button onclick="window.print()" style="font-size:14px;padding:8px 24px;background:#333;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:8px;">Print / Save as PDF</button>' +
@@ -11849,7 +11929,7 @@ function exportAuditPdf(entries, title) {
 // Auto-save chat to log at end of each conversation
 // ── Auto-saved tool actions (linkage) ──
 let aiSavedActions = LS('aiSavedActions') || [];
-const REPLAYABLE_TOOLS = ['write_cells', 'create_table', 'write_note', 'update_graph', 'add_stock', 'set_comparison', 'add_concept_node', 'write_to_draw_pane', 'add_text_overlay'];
+const REPLAYABLE_TOOLS = ['write_cells', 'create_table', 'write_note', 'update_graph', 'add_stock', 'set_comparison', 'add_concept_node', 'write_to_draw_pane', 'add_text_overlay', 'draw_shape', 'draw_chart_on_whiteboard', 'draw_summary_card', 'draw_table', 'annotate_whiteboard'];
 
 function saveToolAction(toolName, input) {
   if (!REPLAYABLE_TOOLS.includes(toolName)) return;
@@ -11908,15 +11988,19 @@ let pdfExports = LS('compplan_pdf_exports') || [];
 
 function generateResearchPDF(title, content, meta) {
   const htmlContent = '<!DOCTYPE html><html><head><title>' + title.replace(/</g, '&lt;') + '</title>' +
-    '<style>body{font-family:Arial,sans-serif;margin:40px;color:#1a1a1a;line-height:1.6;}' +
-    'h1{font-size:20px;border-bottom:2px solid #333;padding-bottom:8px;}' +
-    'h2{font-size:16px;margin-top:24px;}' +
+    '<link rel="preconnect" href="https://fonts.googleapis.com">' +
+    '<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">' +
+    "<style>body{font-family:'Aptos Narrow','Roboto Condensed','Helvetica Neue',Helvetica,sans-serif;margin:40px;color:#1a1a1a;line-height:1.6;}" +
+    "h1{font-size:20px;font-weight:700;border-bottom:2px solid #333;padding-bottom:8px;letter-spacing:0.02em;}" +
+    "h2{font-size:15px;font-weight:700;margin-top:24px;border-bottom:1px solid #ddd;padding-bottom:4px;}" +
+    "h3{font-size:13px;font-weight:700;font-style:italic;margin-top:18px;}" +
+    "hr{border:none;border-top:1px solid #ccc;margin:16px 0;}" +
     'table{width:100%;border-collapse:collapse;margin:16px 0;}' +
-    'th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:13px;}' +
-    'th{background:#f5f5f5;font-weight:bold;}' +
-    '.meta{color:#666;font-size:12px;margin-bottom:24px;}' +
+    'th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:12px;}' +
+    'th{background:#f0f0f0;font-weight:700;}' +
+    ".meta{color:#666;font-size:11px;margin-bottom:24px;font-style:italic;}" +
     '.thesis{background:#f9f9f9;border-left:4px solid #333;padding:12px 16px;margin:16px 0;}' +
-    '.data-quality{font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:8px;}</style></head>' +
+    '.data-quality{font-size:10px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:8px;}</style></head>' +
     '<body><h1>' + title.replace(/</g, '&lt;') + '</h1>' +
     '<div class="meta">Generated ' + new Date().toLocaleString() + (meta?.model ? ' \u00B7 Model: ' + meta.model : '') + (meta?.dataAge ? ' \u00B7 Data as of ' + meta.dataAge : '') + '</div>' +
     content + '</body></html>';
@@ -12084,7 +12168,7 @@ function saveInquiryLog(userQuery, model, actions) {
   const artifacts = actions.map(a => {
     let type = 'tool';
     if (['write_cells', 'create_table', 'clear_range', 'create_template'].includes(a.tool)) type = 'sheet';
-    else if (['write_to_draw_pane', 'add_text_overlay', 'clear_draw_pane', 'search_image', 'create_meme'].includes(a.tool)) type = 'whiteboard';
+    else if (['write_to_draw_pane', 'add_text_overlay', 'clear_draw_pane', 'search_image', 'create_meme', 'draw_shape', 'draw_chart_on_whiteboard', 'annotate_whiteboard', 'draw_summary_card', 'draw_table', 'align_layers', 'group_layers', 'apply_whiteboard_template', 'get_draw_pane_state'].includes(a.tool)) type = 'whiteboard';
     else if (a.tool === 'write_note') type = 'note';
     else if (a.tool === 'update_graph') type = 'graph';
     else if (['add_stock', 'remove_stock', 'set_comparison', 'add_news_ticker'].includes(a.tool)) type = 'stocks';
@@ -12176,6 +12260,38 @@ function logAdminAction(action, details, exhibits) {
     try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (_) {}
   }
 }
+
+// ── Background operation audit logger — catches cost from cleanup, polish, intel, etc. ──
+function _logBackgroundAudit(label, model, tokIn, tokOut) {
+  try {
+    const rates = (typeof MODEL_RATES !== 'undefined') ? (MODEL_RATES[model] || { input: 3, output: 15 }) : { input: 3, output: 15 };
+    const cost = (tokIn / 1e6 * rates.input) + (tokOut / 1e6 * rates.output);
+    const userName = localStorage.getItem('ws_userName') || (wsIsAdmin ? 'admin' : 'anonymous');
+    const auditEntry = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      userName: userName,
+      query: label,
+      model: model,
+      response: '(background operation)',
+      artifacts: [],
+      artifactTypes: ['tool'],
+      tokensIn: tokIn,
+      tokensOut: tokOut,
+      cost: cost,
+      sessionRequests: aiSessionRequests || 0,
+      backgroundOp: true
+    };
+    aiAuditLog.push(auditEntry);
+    try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (e) {
+      aiAuditLog = aiAuditLog.slice(Math.floor(aiAuditLog.length * 0.2));
+      try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (_) {}
+    }
+  } catch(_) {}
+}
+
+// ── Historical cost baseline — $16.97 known total cost prior to audit log ──
+const HISTORICAL_COST_BASELINE = 16.97;
 
 function addAiMsg(role, text) {
   const div = document.createElement('div');
@@ -14010,6 +14126,8 @@ window.aiApiFetch = aiApiFetch;
 window.trackUserUsage = typeof trackUserUsage !== 'undefined' ? trackUserUsage : function() {};
 window.updateCostPanel = typeof updateCostPanel !== 'undefined' ? updateCostPanel : function() {};
 window.MODEL_RATES = MODEL_RATES;
+window._logBackgroundAudit = typeof _logBackgroundAudit !== 'undefined' ? _logBackgroundAudit : function() {};
+window.HISTORICAL_COST_BASELINE = HISTORICAL_COST_BASELINE;
 // Robinhood data layer exports for tools.js
 window.fetchRobinhoodQuote = fetchRobinhoodQuote;
 window.fetchRobinhoodFundamentals = fetchRobinhoodFundamentals;
