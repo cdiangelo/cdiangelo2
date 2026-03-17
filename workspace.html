@@ -2436,7 +2436,59 @@ const wsDeviceId = getDeviceFingerprint();
       return;
     }
     registerUser(name);
+    // Populate default artifacts for new users (admin-selected examples)
+    populateDefaultArtifactsForNewUser(name);
     completeUserLogin(name);
+  }
+
+  // Populate admin-selected default artifacts into new user's workspace
+  function populateDefaultArtifactsForNewUser(userName) {
+    const defaults = JSON.parse(localStorage.getItem('ws_defaultArtifacts') || '[]');
+    if (!defaults.length) return; // No defaults — blank workspace
+    defaults.forEach(entry => {
+      if (!entry || !entry.artifacts) return;
+      entry.artifacts.forEach(artifact => {
+        try {
+          if (artifact.type === 'note' && artifact.contentSnapshot) {
+            // Populate into notepad
+            const npEl = document.getElementById('npArea');
+            if (npEl) {
+              npEl.innerHTML += (npEl.innerHTML ? '<hr>' : '') + artifact.contentSnapshot;
+              if (typeof npSaveCurrentPage === 'function') setTimeout(npSaveCurrentPage, 100);
+            }
+          } else if (artifact.type === 'sheet' && artifact.input) {
+            // Populate sheet cells via the data model
+            if (typeof ssD !== 'undefined' && artifact.input.data) {
+              const data = artifact.input.data;
+              if (Array.isArray(data)) {
+                const startRow = artifact.input.startRow || 0;
+                const startCol = artifact.input.startCol || 0;
+                data.forEach((row, ri) => {
+                  if (!Array.isArray(row)) return;
+                  row.forEach((val, ci) => {
+                    const r = startRow + ri, c = startCol + ci;
+                    if (r < ssR && c < ssC) ssD[r][c] = val || '';
+                  });
+                });
+                if (typeof ssSaveCurrentPage === 'function') setTimeout(ssSaveCurrentPage, 100);
+                if (typeof ssRender === 'function') setTimeout(ssRender, 150);
+              }
+            }
+          }
+          // Whiteboard/graph artifacts are complex objects — skip for default population
+        } catch(_) {}
+      });
+      // Also populate the response text into notepad if no specific artifacts
+      if (!entry.artifacts.some(a => a.contentSnapshot) && entry.response && entry.response.length > 50) {
+        const npEl = document.getElementById('npArea');
+        if (npEl) {
+          const cleanResponse = entry.response.replace(/</g, '&lt;').replace(/\n/g, '<br>');
+          npEl.innerHTML += (npEl.innerHTML ? '<hr><h4>Example: ' + (entry.query || '').substring(0, 40).replace(/</g, '&lt;') + '</h4>' : '') + '<div>' + cleanResponse + '</div>';
+          if (typeof npSaveCurrentPage === 'function') setTimeout(npSaveCurrentPage, 100);
+        }
+      }
+    });
+    console.log('[NEW USER] Populated ' + defaults.length + ' default artifact(s) for ' + userName);
   }
 
   // ---- Build initial user list ----
@@ -9192,7 +9244,13 @@ let _aiRateLimitPaused = false;
 
 // ── Idle session timeout — configurable with "never" option ──
 // Default 5 minutes; stored in localStorage so user selection persists
-let idleTimeoutMin = parseInt(localStorage.getItem('ws_idleTimeoutMin') || '5', 10);
+// Guard: if stored value is less than 1 (and not 0/"never"), reset to default
+const _storedTimeout = localStorage.getItem('ws_idleTimeoutMin');
+let idleTimeoutMin = _storedTimeout !== null ? parseInt(_storedTimeout, 10) : 5;
+if (isNaN(idleTimeoutMin) || (idleTimeoutMin < 0)) idleTimeoutMin = 5;
+// Ensure default is persisted so settings panel shows correct value
+if (_storedTimeout === null) localStorage.setItem('ws_idleTimeoutMin', '5');
+
 let _idleTimer = null;
 let _idleWarningTimer = null;
 
@@ -9205,6 +9263,8 @@ function resetIdleTimer() {
   // Show warning 60s before timeout (or 30s for short timeouts)
   const warnBefore = Math.min(60000, idleTimeoutMin * 60000 * 0.3);
   _idleWarningTimer = setTimeout(() => {
+    // Don't show warning if Claude is actively working
+    if (typeof aiStreaming !== 'undefined' && aiStreaming) { resetIdleTimer(); return; }
     if (document.getElementById('idleWarningBanner')) return;
     const banner = document.createElement('div');
     banner.id = 'idleWarningBanner';
@@ -9215,6 +9275,12 @@ function resetIdleTimer() {
     document.body.appendChild(banner);
   }, idleTimeoutMin * 60000 - warnBefore);
   _idleTimer = setTimeout(() => {
+    // NEVER boot user while Claude is actively processing a task
+    if (typeof aiStreaming !== 'undefined' && aiStreaming) {
+      console.log('[SESSION] Idle timeout suppressed — Claude is working. Timer restarted.');
+      resetIdleTimer();
+      return;
+    }
     // Return to login screen
     console.log('[SESSION] Idle timeout reached (' + idleTimeoutMin + 'min) — returning to login');
     localStorage.removeItem('ws_adminSession');
@@ -10241,6 +10307,14 @@ $('#aiSettingsBtn').onclick = () => {
         '&#9888; "Never" timeout: session stays active indefinitely. Ensure you are on a private/trusted device. API keys and env vars in server memory persist until server restart.</div>' +
     '</div>' +
 
+    // New User Default Materials section
+    '<div style="font-weight:600;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px;">New User Default Materials</div>' +
+    '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">' +
+      '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:4px;">Select up to 2 Claude-generated artifacts to pre-populate for new users. If none selected, new users start with blank workspace.</div>' +
+      '<div id="defaultArtifactsList" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:4px;background:var(--bg);"></div>' +
+      '<div style="font-size:.5rem;color:var(--text-dim);margin-top:2px;">Only applies to newly created users. Does not affect existing users.</div>' +
+    '</div>' +
+
     // Buttons
     '<div style="display:flex;gap:6px;margin-top:6px;">' +
       '<button id="settingsSaveBtn" style="flex:1;padding:6px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:.65rem;font-weight:600;cursor:pointer;">Save All Settings</button>' +
@@ -10269,6 +10343,46 @@ $('#aiSettingsBtn').onclick = () => {
         }
       }
     } catch(_) {}
+  })();
+
+  // Populate artifact selection list from audit log
+  (function populateDefaultArtifacts() {
+    const listEl = document.getElementById('defaultArtifactsList');
+    if (!listEl) return;
+    // Get currently selected defaults
+    const currentDefaults = JSON.parse(localStorage.getItem('ws_defaultArtifacts') || '[]');
+    const selectedIds = new Set(currentDefaults.map(a => a.id));
+    // Filter audit log for entries with exhibits/artifacts that have content
+    const withExhibits = aiAuditLog.filter(e =>
+      (e.artifacts || []).some(a => a.contentSnapshot || a.output) ||
+      (e.response && e.response.length > 50)
+    ).slice(-50); // Last 50 entries max
+    if (!withExhibits.length) {
+      listEl.innerHTML = '<div style="font-size:.52rem;color:var(--text-dim);padding:6px;text-align:center;">No artifacts with content found in audit log yet. Use Claude to generate content first.</div>';
+      return;
+    }
+    let html = '';
+    withExhibits.reverse().forEach(entry => {
+      const d = new Date(entry.timestamp);
+      const time = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      const query = (entry.query || '').substring(0, 60) + ((entry.query || '').length > 60 ? '...' : '');
+      const types = (entry.artifactTypes || []).join(', ');
+      const checked = selectedIds.has(entry.id) ? ' checked' : '';
+      html += '<label style="display:flex;align-items:flex-start;gap:6px;padding:4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:.52rem;" onmouseenter="this.style.background=\'rgba(99,102,241,.06)\'" onmouseleave="this.style.background=\'none\'">' +
+        '<input type="checkbox" class="default-artifact-cb" data-id="' + entry.id + '"' + checked + ' style="margin-top:2px;flex-shrink:0;">' +
+        '<div style="min-width:0;">' +
+        '<div style="color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + query.replace(/</g, '&lt;') + '</div>' +
+        '<div style="color:var(--text-dim);">' + time + ' &middot; ' + (entry.userName || '') + (types ? ' &middot; ' + types : '') + '</div>' +
+        '</div></label>';
+    });
+    listEl.innerHTML = html;
+    // Enforce max 2 selection
+    listEl.querySelectorAll('.default-artifact-cb').forEach(cb => {
+      cb.onchange = () => {
+        const allChecked = listEl.querySelectorAll('.default-artifact-cb:checked');
+        if (allChecked.length > 2) { cb.checked = false; toast('Maximum 2 default artifacts allowed'); }
+      };
+    });
   })();
 
   // Show/hide security note on change
@@ -10312,10 +10426,21 @@ $('#aiSettingsBtn').onclick = () => {
       localStorage.setItem('ws_idleTimeoutMin', String(newTimeout));
       resetIdleTimer();
 
+      // Save default artifacts selection
+      const selectedArtifactCbs = document.querySelectorAll('.default-artifact-cb:checked');
+      const selectedArtifacts = [];
+      selectedArtifactCbs.forEach(cb => {
+        const id = parseInt(cb.dataset.id);
+        const entry = aiAuditLog.find(e => e.id === id);
+        if (entry) selectedArtifacts.push(entry);
+      });
+      localStorage.setItem('ws_defaultArtifacts', JSON.stringify(selectedArtifacts));
+
+      const artifactMsg = selectedArtifacts.length ? selectedArtifacts.length + ' default artifact(s) set for new users.' : 'No default artifacts (new users start blank).';
       status.style.color = '#10b981';
       status.textContent = 'Settings saved. Server limits: ' + data.config.globalMax + ' global, ' +
         data.config.anthropicMax + ' Anthropic per ' + data.config.windowSec + 's window. ' +
-        'Idle timeout: ' + (newTimeout === 0 ? 'never' : newTimeout + ' min') + '.';
+        'Idle timeout: ' + (newTimeout === 0 ? 'never' : newTimeout + ' min') + '. ' + artifactMsg;
       // Log admin action to audit trail
       if (typeof logAdminAction === 'function') {
         logAdminAction('Rate Limit & Session Settings Update', 'Updated server rate limits and session timeout', [{
