@@ -2492,7 +2492,7 @@ const wsHardwareId = getHardwareFingerprint();
                   });
                 });
                 if (typeof ssSaveCurrentPage === 'function') setTimeout(ssSaveCurrentPage, 100);
-                if (typeof ssRender === 'function') setTimeout(ssRender, 150);
+                if (typeof ssRender === 'function') setTimeout(() => { ssRender(); ssShowHint(); }, 150);
               }
             }
           }
@@ -12514,7 +12514,7 @@ async function executeAgentTool(name, input) {
             count++;
           }
         });
-        LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
+        LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); ssShowHint();
         toast('Wrote ' + count + ' cells');
         return JSON.stringify({ success: true, count });
       }
@@ -12525,7 +12525,7 @@ async function executeAgentTool(name, input) {
         let count = 0;
         for (let r = s.row; r <= Math.min(e.row, ssR - 1); r++)
           for (let c = s.col; c <= Math.min(e.col, ssC - 1); c++) { ssD[r][c] = ''; count++; }
-        LS('sheet', ssD); ssRender();
+        LS('sheet', ssD); ssRender(); ssShowHint();
         toast('Cleared ' + count + ' cells');
         return JSON.stringify({ success: true, cleared: count });
       }
@@ -12549,7 +12549,7 @@ async function executeAgentTool(name, input) {
         rows.forEach((row, ri) => {
           row.forEach((val, ci) => { ssD[anchor.row + 1 + ri][anchor.col + ci] = String(val); });
         });
-        LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
+        LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); ssShowHint();
         toast('Created table: ' + headers.length + ' cols, ' + rows.length + ' rows');
         return JSON.stringify({ success: true, headers: headers.length, rows: rows.length });
       }
