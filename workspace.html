@@ -1343,56 +1343,133 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 
 /* ═══ MOBILE ═══ */
 .mobile-nav { display: none; }
+.mob-control-bar { display: none; }
+.mob-settings-overlay { display: none; }
+.mob-split-handle { display: none; }
 @media (max-width: 768px) {
-  .header { padding: 0 8px; gap: 4px; height: 40px; }
-  .header h1 { font-size: 12px; }
+  /* ═══ MOBILE HEADER ═══ */
+  .header { padding: 0 6px; gap: 3px; height: 34px; }
+  .header h1 { font-size: 10px; letter-spacing: .03em; }
   .nav-groups { display: none !important; }
   #resetGridBtn, #gridSettingsBtn { display: none !important; }
-  .header-right { gap: 4px; }
-  .header-right > button, .header-right > span, .header-right > select { font-size: .55rem !important; padding: 2px 4px !important; }
+  .header-right { display: none !important; }
+  .header-spacer { display: none; }
+  .header-toggles { display: none !important; }
+
+  /* ═══ MOBILE TWO-PANE LAYOUT ═══ */
   .workspace {
-    display: block !important;
-    height: calc(100vh - 40px - 36px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: calc(100vh - 34px - 32px) !important;
     overflow: hidden;
+    background: var(--border);
+    gap: 0;
+    grid-template-columns: unset !important;
+    grid-template-rows: unset !important;
   }
   .workspace .divider-h, .workspace .divider-v { display: none !important; }
   .workspace .pane {
-    position: absolute !important; top: 0; left: 0; right: 0; bottom: 0;
     display: none !important;
+    position: relative !important;
     grid-column: unset !important; grid-row: unset !important;
+    flex-shrink: 0;
+    overflow: hidden;
+    min-height: 0;
   }
-  .workspace .pane.mobile-active {
+  .workspace .pane.mob-top {
     display: flex !important;
+    flex: var(--mob-top-flex, 1) !important;
+    border-bottom: none;
   }
-  .mobile-nav {
+  .workspace .pane.mob-bottom {
+    display: flex !important;
+    flex: var(--mob-bottom-flex, 1) !important;
+  }
+  /* Split drag handle */
+  .mob-split-handle {
     display: flex; align-items: center; justify-content: center;
-    height: 36px; background: var(--bg); border-top: 1px solid var(--border);
-    gap: 0; padding: 0 4px; position: relative; z-index: 200;
+    height: 8px; background: var(--border); cursor: row-resize;
+    flex-shrink: 0; touch-action: none; z-index: 50;
   }
-  .mobile-nav button.mob-arrow {
-    width: 32px; height: 28px; background: none; border: 1px solid var(--border);
-    color: var(--text); font-size: 1rem; cursor: pointer; border-radius: 4px;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  .mob-split-handle::after {
+    content: ''; width: 32px; height: 3px; border-radius: 2px;
+    background: var(--text-dim); opacity: .5;
   }
-  .mobile-nav button.mob-arrow:hover { background: var(--panel-inset); }
-  .mobile-nav .mob-pages {
-    display: flex; gap: 2px; overflow-x: auto; padding: 0 4px; flex: 1;
-    justify-content: center;
+
+  /* ═══ MOBILE CONTROL BAR (bottom) ═══ */
+  .mob-control-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 32px; background: var(--bg); border-top: 1px solid var(--border);
+    padding: 0 3px; position: relative; z-index: 200; gap: 1px;
+    flex-shrink: 0;
   }
-  .mobile-nav .mob-page {
-    padding: 4px 8px; font-size: .6rem; border: none; background: none;
-    color: var(--text-dim); cursor: pointer; white-space: nowrap; border-radius: 4px;
-    font-weight: 600;
+  .mob-control-bar .mob-pane-btn {
+    flex: 1; height: 26px; border: none; border-radius: 3px;
+    background: none; color: var(--text-dim); font-size: .46rem;
+    font-weight: 600; cursor: pointer; padding: 0 1px;
+    white-space: nowrap; transition: all .12s;
+    display: flex; align-items: center; justify-content: center; gap: 2px;
   }
-  .mobile-nav .mob-page.active { color: var(--accent); background: rgba(80,80,221,.1); }
-  .pane .p-head { padding: 4px 8px; }
-  .pane .p-title { font-size: .7rem; }
-  .pane .toolbar { flex-wrap: wrap; gap: 2px; padding: 2px 4px; }
-  .pane .toolbar button, .pane .toolbar select { font-size: .55rem; padding: 1px 3px; }
-  .ai-input-row { padding: 6px 8px; }
-  .ai-input-row textarea { font-size: 16px !important; min-height: 40px; }
-  .ai-input-row button { min-height: 44px; min-width: 60px; font-size: .8rem !important; padding: 8px 14px !important; }
-  /* Auth gate mobile fixes */
+  .mob-control-bar .mob-pane-btn.mob-active-top {
+    color: #fff; background: var(--accent);
+  }
+  .mob-control-bar .mob-pane-btn.mob-active-bottom {
+    color: #fff; background: var(--accent2);
+  }
+  .mob-control-bar .mob-settings-btn {
+    width: 28px; height: 26px; border: 1px solid var(--border); border-radius: 3px;
+    background: none; color: var(--text-dim); font-size: .7rem;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* ═══ MOBILE SETTINGS DRAWER ═══ */
+  .mob-settings-overlay {
+    display: none; position: fixed; inset: 0; z-index: 9000;
+    background: rgba(0,0,0,.5);
+  }
+  .mob-settings-overlay.mob-open { display: flex; justify-content: flex-end; }
+  .mob-settings-drawer {
+    width: 80vw; max-width: 320px; height: 100%;
+    background: var(--panel); border-left: 1px solid var(--border);
+    overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .mob-settings-drawer .msd-section {
+    border-bottom: 1px solid var(--border); padding-bottom: 8px;
+  }
+  .mob-settings-drawer .msd-label {
+    font-size: .52rem; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px;
+  }
+  .mob-settings-drawer .msd-btn {
+    display: block; width: 100%; padding: 7px 8px; margin-bottom: 3px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: none; color: var(--text); font-size: .56rem;
+    cursor: pointer; text-align: left; font-weight: 500;
+  }
+  .mob-settings-drawer .msd-btn:active { background: var(--panel-inset); }
+  .mob-settings-drawer .msd-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 0; font-size: .56rem; color: var(--text);
+  }
+
+  /* ═══ MOBILE PANE CONTENT SIZING ═══ */
+  .pane .p-head { padding: 2px 6px; min-height: 24px; gap: 2px; }
+  .pane .p-title { font-size: .58rem; }
+  .pane .p-icon { font-size: .5rem; }
+  .pane .p-body { font-size: .6rem; }
+  .pane .p-btn { font-size: .5rem !important; padding: 1px 4px !important; min-height: 18px; }
+  .pane .toolbar { flex-wrap: wrap; gap: 1px; padding: 1px 3px; }
+  .pane .toolbar button, .pane .toolbar select { font-size: .48rem; padding: 1px 3px; min-height: 18px; }
+  .zoom-controls { display: none !important; }
+  .ai-input-row { padding: 4px 6px; }
+  .ai-input-row textarea { font-size: 16px !important; min-height: 36px; }
+  .ai-input-row button { min-height: 36px; min-width: 50px; font-size: .7rem !important; padding: 6px 10px !important; }
+  .ai-msg { font-size: .58rem !important; padding: 6px 8px !important; line-height: 1.4; }
+  .page-tab { font-size: .46rem !important; padding: 2px 6px !important; }
+  .page-tab-add { font-size: .52rem !important; }
+
+  /* ═══ AUTH GATE MOBILE ═══ */
   #authGate { padding: 8px; align-items: flex-start; padding-top: 40px; }
   #authBox { padding: 24px 16px !important; border-radius: 12px !important; }
   #authBox h2 { font-size: 1rem !important; }
@@ -1402,28 +1479,44 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   }
   #authBox button { font-size: .82rem !important; padding: 12px !important; min-height: 44px; }
   #authBox .auth-user-item { min-height: 52px; }
-  /* authVerifyCode removed — name-only auth */
-  /* Claude pane mobile fixes — shrink robot scene, fix backdrop overflow */
-  .robot-scene { height: 110px !important; overflow: visible !important; }
+
+  /* ═══ CLAUDE PANE MOBILE ═══ */
+  .robot-scene { height: 70px !important; overflow: visible !important; }
   .robot-scene-resize { display: none !important; }
-  .robot-bg { inset: 0 !important; min-height: 110px !important; }
-  .robot-workstation { transform: translateX(-50%) scale(0.65); transform-origin: bottom center; }
+  .robot-bg { inset: 0 !important; min-height: 70px !important; }
+  .robot-workstation { transform: translateX(-50%) scale(0.45); transform-origin: bottom center; }
   .robot-plant { display: none !important; }
-  .robot-controls { padding: 2px 0; }
-  .robot-controls select { font-size: .65rem !important; min-height: 28px; padding: 4px 6px !important; }
-  #q-claude .p-head { flex-wrap: wrap; gap: 2px; }
-  #q-claude .p-head .p-btn, #q-claude .p-head select, #q-claude .p-head label { font-size: .5rem !important; }
-  /* Hide less important Claude header buttons on mobile */
+  .robot-controls { padding: 1px 0; }
+  .robot-controls select { font-size: .55rem !important; min-height: 22px; padding: 2px 4px !important; }
+  #q-claude .p-head { flex-wrap: wrap; gap: 1px; }
+  #q-claude .p-head .p-btn, #q-claude .p-head select, #q-claude .p-head label { font-size: .46rem !important; }
+  /* Move all Claude admin buttons to settings drawer */
   #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn, #aiAuditBtn, #aiSettingsBtn { display: none !important; }
-  /* Make exit/logout buttons visible and tappable on mobile */
-  #userExitBtn, #logoutBtn { font-size: .6rem !important; padding: 4px 10px !important; min-height: 28px; }
-  #userNameDisplay { font-size: .6rem !important; }
-  /* Hide less-used header buttons on mobile to make room */
-  .header-right .fs-btn:not(#userExitBtn):not(#logoutBtn) { display: none !important; }
-  .header-right #themeToggle { display: inline-block !important; }
-  /* API key section on mobile — make inputs big enough to tap */
+  #aiInfoBtn, #aiHistoryBtn { font-size: .46rem !important; padding: 1px 4px !important; }
+
+  /* ═══ HEADER ITEMS HIDDEN (moved to settings) ═══ */
+  #userExitBtn, #logoutBtn, #userNameDisplay, #idleTimerDisplay, #wsSettingsBtn, #helpBtn, #fsBtn { display: none !important; }
+  .fun-btn-wrap, .fun-btn, .color-scheme-wrap, .toggle-switch { display: none !important; }
+
+  /* ═══ MOBILE INPUT FIXES ═══ */
   #aiApiKeySection input, #aiApiKeyLocked input { font-size: 16px !important; padding: 10px !important; }
   #aiApiKeySection button, #aiApiKeyLocked button { min-height: 36px; font-size: .72rem !important; }
+
+  /* ═══ WHITEBOARD MOBILE ═══ */
+  #wbLayerPanel { width: 120px !important; font-size: .48rem !important; }
+  #wbHistoryPanel { width: 140px !important; }
+  #wbImgPanel { width: 220px !important; }
+
+  /* ═══ SHEET MOBILE ═══ */
+  .ss-cell, #ssTable th { font-size: .5rem !important; padding: 1px 3px !important; }
+  #ssFormula { font-size: .5rem !important; }
+  #ssCellRef { font-size: .48rem !important; }
+
+  /* ═══ CONCEPT MAP / GRAPH MOBILE ═══ */
+  #cmToolbar button, #gcToolbar button { font-size: .46rem !important; padding: 1px 3px !important; }
+
+  /* ═══ OLD MOBILE NAV (disabled) ═══ */
+  .mobile-nav { display: none !important; }
 }
 </style>
 <!-- ADDED — Phase 6: Chart.js for whiteboard chart tool -->
@@ -2197,12 +2290,19 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 </div>
 
-<!-- Mobile navigation bar -->
-<div class="mobile-nav" id="mobileNav">
-  <button class="mob-arrow" id="mobPrev" title="Previous pane">&#8592;</button>
-  <div class="mob-pages" id="mobPages"></div>
-  <button class="mob-arrow" id="mobNext" title="Next pane">&#8594;</button>
+<!-- Mobile split handle (inserted between panes by JS) -->
+<div class="mob-split-handle" id="mobSplitHandle"></div>
+
+<!-- Mobile control bar (bottom) -->
+<div class="mob-control-bar" id="mobControlBar"></div>
+
+<!-- Mobile settings drawer -->
+<div class="mob-settings-overlay" id="mobSettingsOverlay">
+  <div class="mob-settings-drawer" id="mobSettingsDrawer"></div>
 </div>
+
+<!-- Legacy mobile nav (disabled) -->
+<div class="mobile-nav" id="mobileNav" style="display:none !important;"></div>
 
 <!-- Context menu -->
 <div class="ctx-menu" id="ctxMenu">
