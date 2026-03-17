@@ -48,6 +48,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// GET /health — service health check (required by workspace.html for proxy detection)
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    services: {
+      robinhood: !!rhToken,
+      anthropic: !!storedApiKey
+    }
+  });
+});
+
 // GET /proxy/yahoo?url=<encoded_url> → forwards to Yahoo Finance, returns JSON
 app.get('/proxy/yahoo', async (req, res) => {
   const url = req.query.url;
@@ -247,8 +258,8 @@ app.get('/proxy/ai/status', (req, res) => {
   });
 });
 
-// POST /proxy/ai/messages — Proxy to Anthropic Messages API (streaming supported)
-app.post('/proxy/ai/messages', async (req, res) => {
+// Anthropic Messages API handler (shared by /proxy/ai/messages and /proxy/anthropic)
+async function handleAnthropicProxy(req, res) {
   if (!storedApiKey) {
     return res.status(503).json({ error: true, message: 'API key not configured. Admin must set it first.' });
   }
@@ -271,6 +282,9 @@ app.post('/proxy/ai/messages', async (req, res) => {
 
     if (!anthropicResp.ok) {
       const errText = await anthropicResp.text();
+      // Forward rate-limit headers so frontend can react
+      const retryAfter = anthropicResp.headers.get('retry-after');
+      if (retryAfter) res.setHeader('retry-after', retryAfter);
       return res.status(anthropicResp.status).json({
         error: true,
         source: 'anthropic',
@@ -305,7 +319,13 @@ app.post('/proxy/ai/messages', async (req, res) => {
     console.error('[AI Proxy] Error:', e.message);
     res.status(502).json({ error: true, source: 'proxy', message: e.message });
   }
-});
+}
+
+// POST /proxy/ai/messages — legacy route (kept for backward compatibility)
+app.post('/proxy/ai/messages', handleAnthropicProxy);
+
+// POST /proxy/anthropic — new route used by workspace.html
+app.post('/proxy/anthropic', handleAnthropicProxy);
 
 // ═══════════════════════════════════════════
 // ROBINHOOD PROXY — Tier 1 (public) & Tier 2 (auth)
@@ -335,6 +355,54 @@ const RH_BROWSER_HEADERS = {
 // Stored Robinhood credentials (admin only) — set via env vars or POST /proxy/robinhood/set-credentials
 let rhStoredUsername = process.env.RH_USERNAME || '';
 let rhStoredPassword = process.env.RH_PASSWORD || '';
+
+// POST /proxy/robinhood — JSON body {endpoint, method, payload} — used by workspace.html
+// Attaches auth token when available, retries on 401
+app.post('/proxy/robinhood', async (req, res) => {
+  const { endpoint, method, payload } = req.body || {};
+  if (!endpoint || typeof endpoint !== 'string') {
+    return res.status(400).json({ error: true, message: 'Missing or invalid endpoint' });
+  }
+
+  const upperMethod = (method || 'GET').toUpperCase();
+  const url = 'https://api.robinhood.com' + (endpoint.startsWith('/') ? endpoint : '/' + endpoint);
+
+  const headers = { ...RH_BROWSER_HEADERS };
+  if (rhToken) headers['Authorization'] = 'Bearer ' + rhToken;
+
+  try {
+    const fetchOpts = {
+      method: upperMethod,
+      headers,
+      signal: AbortSignal.timeout(10000)
+    };
+    if (upperMethod === 'POST' && payload) {
+      headers['Content-Type'] = 'application/json';
+      fetchOpts.body = JSON.stringify(payload);
+    }
+
+    let resp = await fetch(url, fetchOpts);
+
+    // On 401, try token refresh then retry once
+    if (resp.status === 401 && rhToken) {
+      const refreshed = await refreshRobinhoodToken();
+      if (refreshed) {
+        fetchOpts.headers = { ...headers, 'Authorization': 'Bearer ' + rhToken };
+        resp = await fetch(url, fetchOpts);
+      }
+    }
+
+    if (!resp.ok) {
+      return res.status(resp.status).json({ error: true, source: 'robinhood', status: resp.status });
+    }
+
+    const data = await resp.text();
+    res.setHeader('Content-Type', 'application/json');
+    res.send(data);
+  } catch (e) {
+    res.status(502).json({ error: true, source: 'robinhood', message: e.message });
+  }
+});
 
 // GET /proxy/robinhood?endpoint=<path> — Public Robinhood API (no auth)
 app.get('/proxy/robinhood', async (req, res) => {
