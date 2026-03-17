@@ -565,6 +565,9 @@ body.light .fun-btn { background: var(--accent); }
 .pane.expanded .robot-scene-resize { display: block; }
 .pane.expanded .robot-scene-wrapper { max-height: 60%; }
 .pane.expanded .robot-scene { transition: height 0.3s ease; }
+/* Auto-fit robot in all-panes (non-expanded) view — scene fills wrapper, robot scales to fit head-to-toe */
+.pane:not(.expanded) .robot-scene-wrapper { overflow: hidden; }
+.pane:not(.expanded) .robot-scene { height: 100%; }
 
 /* ═══ GENIE MODE (user mode) ═══ */
 /* Genie hat — tall curved fez with gold band */
@@ -3182,16 +3185,11 @@ $$('[data-expand]').forEach(btn => {
         }, 60);
       }
     } else {
-      // Collapsing — restore robot scene to previous size
+      // Collapsing — clear inline height so CSS auto-fit (height:100%) takes over in all-panes view
       if (btn.dataset.expand === 'q-claude') {
         const rs = document.getElementById('robotScene');
         if (rs) {
-          const prevH = +(rs.dataset.prevHeight || localStorage.getItem('ws_robotSceneH') || 140);
-          rs.style.height = prevH + 'px';
-          const scale = prevH / 140;
-          const ws = rs.querySelector('.robot-workstation');
-          if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
-          rs.querySelectorAll('.robot-plant').forEach(pl => { pl.style.transform = 'scale(' + scale + ')'; });
+          rs.style.height = '';
         }
       }
       // Collapsing — re-apply grid order to restore correct visibility
@@ -3226,6 +3224,9 @@ $$('.nav-group-btns button[data-pane]').forEach(btn => {
       // Returning to "All" view — unhide panes and re-apply grid order
       $$('.pane').forEach(el => el.classList.remove('pane-hidden'));
       applyGridOrder(getGridOrder());
+      // Clear inline scene height so CSS auto-fit takes over
+      const rs = document.getElementById('robotScene');
+      if (rs) rs.style.height = '';
     }
     setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   });
@@ -3253,6 +3254,9 @@ $('#resetGridBtn').onclick = () => {
   applyGridOrder(DEFAULT_GRID_ORDER.slice());
   // Show dividers
   $$('.divider-h, .divider-v').forEach(d => d.style.display = '');
+  // Clear inline robot scene height so CSS auto-fit takes over
+  const robotScene = document.getElementById('robotScene');
+  if (robotScene) robotScene.style.height = '';
   // Reset nav buttons to "All"
   $$('.nav-group-btns button[data-pane]').forEach(b => b.classList.remove('active'));
   const allBtn = document.querySelector('.nav-group-btns button[data-pane="all"]');
@@ -13926,8 +13930,10 @@ async function renderAccessRequestsPanel() {
   if (!handle || !scene) return;
   const defaultH = 140;
   let dragging = false, startY = 0, startH = defaultH;
+  // Only restore saved height when pane is expanded; in all-panes view, auto-fit handles sizing
   const savedH = +localStorage.getItem('ws_robotSceneH');
-  if (savedH > 0) {
+  const paneEl = scene.closest('.pane');
+  if (savedH > 0 && paneEl && paneEl.classList.contains('expanded')) {
     scene.style.height = savedH + 'px';
     const scale = savedH / defaultH;
     const ws = scene.querySelector('.robot-workstation');
@@ -13981,11 +13987,18 @@ async function renderAccessRequestsPanel() {
   const defaultH = 140;
   let zoomPct = 100;
   const saved = +localStorage.getItem('ws_robotZoomPct');
-  if (saved > 0) { zoomPct = saved; applyRobotZoom(); }
+  if (saved > 0) { zoomPct = saved; }
+  // Only apply zoom on load if pane is expanded; auto-fit handles all-panes view
+  const zoomPane = scene.closest('.pane');
+  if (saved > 0 && zoomPane && zoomPane.classList.contains('expanded')) { applyRobotZoom(); }
 
   function applyRobotZoom() {
     const h = Math.round(defaultH * zoomPct / 100);
-    scene.style.height = h + 'px';
+    // Only set explicit height when pane is expanded
+    const p = scene.closest('.pane');
+    if (p && p.classList.contains('expanded')) {
+      scene.style.height = h + 'px';
+    }
     const scale = h / defaultH;
     const ws = scene.querySelector('.robot-workstation');
     if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
@@ -13996,6 +14009,34 @@ async function renderAccessRequestsPanel() {
   }
   btnIn.onclick = () => { zoomPct = Math.min(300, zoomPct + 50); applyRobotZoom(); };
   btnOut.onclick = () => { zoomPct = Math.max(50, zoomPct - 50); applyRobotZoom(); };
+})();
+
+// ── Auto-fit robot scene in all-panes view ──
+// Scales the robot character to show full head-to-toe within the background scene
+(function initRobotAutoFit() {
+  const wrapper = document.getElementById('robotSceneWrapper');
+  const scene = document.getElementById('robotScene');
+  if (!wrapper || !scene) return;
+  const DEFAULT_H = 140;
+
+  function autoFitRobot() {
+    const pane = scene.closest('.pane');
+    if (!pane || pane.classList.contains('expanded')) return;
+    // Get actual rendered scene height (CSS sets height:100% of wrapper minus controls)
+    const sceneH = scene.clientHeight;
+    if (sceneH <= 0) return;
+    const scale = sceneH / DEFAULT_H;
+    const ws = scene.querySelector('.robot-workstation');
+    if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
+    scene.querySelectorAll('.robot-plant').forEach(p => { p.style.transform = 'scale(' + scale + ')'; p.style.transformOrigin = 'bottom center'; });
+  }
+
+  // Observe wrapper resize (covers window resize, grid changes, pane switches)
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(autoFitRobot).observe(wrapper);
+  }
+  // Initial fit after layout settles
+  setTimeout(autoFitRobot, 100);
 })();
 
 // ── Output text zoom (+/- 50%) ──
