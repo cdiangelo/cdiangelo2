@@ -154,7 +154,7 @@ body.light .fun-btn { background: var(--accent); }
 /* Claude Agent Pane */
 #q-claude .p-body { overflow: hidden; }
 #q-claude .ai-msgs {
-  flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+  flex: 1; overflow-y: scroll; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
   min-height: 0;
 }
 #q-claude .ai-msg {
@@ -413,6 +413,7 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.validation-error { border-color: var(--danger); }
 
 /* ═══ ROBOT ASSISTANT ═══ */
+.robot-scene-wrapper { flex-shrink: 0; overflow-y: scroll; min-height: 0; max-height: 50%; border-top: 1px solid var(--border); }
 .robot-scene { position: relative; width: 100%; height: 140px; margin: 0; flex-shrink: 0; overflow: hidden; border-top: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); background: #0e0e1a; }
 /* Background layer + animated pseudo-elements */
 .robot-bg { position: absolute; inset: 0; z-index: 0; }
@@ -1847,6 +1848,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="aiMsgsZoomIn" style="font-size:.52rem;padding:0 5px;border:1px solid var(--border);border-radius:3px;background:none;color:var(--text);cursor:pointer;line-height:1.4;" title="Increase text size">+</button>
       </div>
       <div class="ai-msgs" id="aiMsgs"></div>
+      <div class="robot-scene-wrapper" id="robotSceneWrapper">
       <div class="robot-scene-resize" id="robotSceneResize" title="Drag to resize robot scene"></div>
       <div class="robot-scene" id="robotScene">
         <div id="robotZoomControls" style="position:absolute;top:4px;right:4px;z-index:10;display:flex;align-items:center;gap:3px;background:rgba(0,0,0,.55);border-radius:4px;padding:2px 5px;">
@@ -1920,6 +1922,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <option value="genie">Genie</option>
         </select>
       </div>
+      </div><!-- end robot-scene-wrapper -->
       <div id="aiApiKeySection" style="display:none;padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
         <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
           <input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
