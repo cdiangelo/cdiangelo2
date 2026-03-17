@@ -9619,9 +9619,12 @@ async function companyIntelligence(ticker, companyName) {
         const segResult = await safeParseJson(segResp, 'segment extraction');
         const text = (segResult.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
         // Track tokens
-        aiSessionTokensIn += segResult.usage?.input_tokens || 0;
-        aiSessionTokensOut += segResult.usage?.output_tokens || 0;
+        const _segTokIn = segResult.usage?.input_tokens || 0;
+        const _segTokOut = segResult.usage?.output_tokens || 0;
+        aiSessionTokensIn += _segTokIn;
+        aiSessionTokensOut += _segTokOut;
         aiSessionRequests++;
+        if (typeof trackUserUsage === 'function') trackUserUsage(_segTokIn, _segTokOut, segResult.model || 'claude-haiku-4-5-20251001');
         // Parse JSON from response
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
@@ -9808,6 +9811,22 @@ function updateCostPanel() {
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
     '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.65rem;"><span>Avg cost/req:</span><span>~$' + (aiSessionRequests ? (cost / aiSessionRequests).toFixed(4) : '0.00') + '</span></div>' +
     '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.65rem;"><span>Idle:</span><span>$0.00/hr (no polling)</span></div>';
+  // Historical all-time total from per-user data
+  try {
+    let histCost = 0, histReqs = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('ws_usage_')) {
+        const d = JSON.parse(localStorage.getItem(k) || '{}');
+        histCost += d.cost || 0; histReqs += d.requests || 0;
+      }
+    }
+    if (histCost > 0) {
+      el.innerHTML += '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:.65rem;font-weight:600;"><span>All-time total (all users):</span><span style="color:var(--accent2);">$' + histCost.toFixed(4) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;color:var(--text-dim);font-size:.6rem;"><span>Total requests:</span><span>' + histReqs + '</span></div>';
+    }
+  } catch(_) {}
 }
 
 // Close all admin action panels (mutually exclusive)
@@ -10082,7 +10101,33 @@ $('#aiUsageDashBtn').onclick = async () => {
         '<tr style="border-bottom:1px solid var(--border);"><th style="padding:3px 6px;text-align:left;">User</th><th style="padding:3px 6px;text-align:right;">Reqs</th><th style="padding:3px 6px;text-align:right;">Tok In</th><th style="padding:3px 6px;text-align:right;">Tok Out</th><th style="padding:3px 6px;text-align:right;">Cost</th><th style="padding:3px 6px;text-align:right;">Last Active</th><th></th></tr>' +
         rows +
         '</table>' +
-        '<div style="margin-top:6px;font-size:.55rem;color:var(--text-dim);">Click a user name or cost to drill into per-request detail. Annualized: $' + (totalCost * 365 / Math.max(1, Math.ceil((Date.now() - new Date(users[users.length-1]?.lastActive || Date.now()).getTime()) / 86400000) || 1)).toFixed(2) + '</div>';
+        '</table>';
+      // Historical total from audit log (reconciles with per-user totals)
+      let auditTotalCost = 0, auditTotalIn = 0, auditTotalOut = 0, auditTotalReqs = aiAuditLog.length;
+      aiAuditLog.forEach(e => { auditTotalCost += e.cost || 0; auditTotalIn += e.tokensIn || 0; auditTotalOut += e.tokensOut || 0; });
+      const bestTotalCost = Math.max(totalCost, auditTotalCost);
+      const bestTotalIn = Math.max(totalIn, auditTotalIn);
+      const bestTotalOut = Math.max(totalOut, auditTotalOut);
+      const daysSinceFirst = aiAuditLog.length ? Math.max(1, Math.ceil((Date.now() - new Date(aiAuditLog[0].timestamp).getTime()) / 86400000)) : 1;
+      el.innerHTML +=
+        '<div style="margin-top:8px;padding:8px 10px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:6px;font-size:.58rem;">' +
+        '<div style="font-weight:700;color:var(--accent2);margin-bottom:4px;">Historical API Cost Summary</div>' +
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;">' +
+        '<span><b>Per-user tracked:</b> $' + totalCost.toFixed(4) + ' (' + totalReqs + ' reqs)</span>' +
+        '<span><b>Audit log total:</b> $' + auditTotalCost.toFixed(4) + ' (' + auditTotalReqs + ' entries)</span>' +
+        '</div>' +
+        '<div style="margin-top:4px;display:flex;gap:12px;flex-wrap:wrap;">' +
+        '<span><b>Best estimate total:</b> <span style="color:var(--accent2);font-weight:700;">$' + bestTotalCost.toFixed(4) + '</span></span>' +
+        '<span><b>Tokens:</b> ' + bestTotalIn.toLocaleString() + ' in / ' + bestTotalOut.toLocaleString() + ' out</span>' +
+        '</div>' +
+        '<div style="margin-top:4px;color:var(--text-dim);">' +
+        '<b>Tracking period:</b> ' + daysSinceFirst + ' days' +
+        ' &middot; <b>Daily avg:</b> $' + (bestTotalCost / daysSinceFirst).toFixed(4) +
+        ' &middot; <b>Annualized:</b> $' + (bestTotalCost / daysSinceFirst * 365).toFixed(2) +
+        '</div>' +
+        '<div style="margin-top:4px;font-size:.5rem;color:var(--text-dim);">Note: Historical audit entries before this fix used cumulative session tokens (overcounted). Per-user totals are more accurate. Going forward, all entries use per-request deltas.</div>' +
+        '</div>' +
+        '<div style="margin-top:6px;font-size:.55rem;color:var(--text-dim);">Click a user name or cost to drill into per-request detail.</div>';
       // Bind drill-in links
       el.querySelectorAll('.user-drill-link').forEach(link => {
         link.onclick = (e) => { e.preventDefault(); showUserDrillIn(link.dataset.user); };
@@ -10718,9 +10763,12 @@ Perform a full cleanup pass. Return a JSON object with "patch" (array of changes
     if (resp.ok) {
       const data = await safeParseJson(resp, 'cleanup');
       const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-      aiSessionTokensIn += data.usage?.input_tokens || 0;
-      aiSessionTokensOut += data.usage?.output_tokens || 0;
+      const _cleanupTokIn = data.usage?.input_tokens || 0;
+      const _cleanupTokOut = data.usage?.output_tokens || 0;
+      aiSessionTokensIn += _cleanupTokIn;
+      aiSessionTokensOut += _cleanupTokOut;
       aiSessionRequests++;
+      if (typeof trackUserUsage === 'function') trackUserUsage(_cleanupTokIn, _cleanupTokOut, 'claude-haiku-4-5-20251001');
       // Parse Claude's JSON response
       let result;
       try {
@@ -10793,9 +10841,12 @@ Return ONLY the polished HTML content (no <html>, <body>, or <style> tags). The 
     if (resp.ok) {
       const data = await safeParseJson(resp, 'polish');
       let text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-      aiSessionTokensIn += data.usage?.input_tokens || 0;
-      aiSessionTokensOut += data.usage?.output_tokens || 0;
+      const _polishTokIn = data.usage?.input_tokens || 0;
+      const _polishTokOut = data.usage?.output_tokens || 0;
+      aiSessionTokensIn += _polishTokIn;
+      aiSessionTokensOut += _polishTokOut;
       aiSessionRequests++;
+      if (typeof trackUserUsage === 'function') trackUserUsage(_polishTokIn, _polishTokOut, 'claude-sonnet-4-6');
       // Strip markdown code fences if present
       text = text.replace(/^```(?:html)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
       npEl.innerHTML = text;
@@ -11690,6 +11741,9 @@ let aiInquiryLog = LS('aiInquiryLog') || [];
 // Uses a fixed global key (not user-scoped) so admin sees everything
 const AUDIT_LOG_KEY = 'ws_auditLog';
 let aiAuditLog = JSON.parse(localStorage.getItem(AUDIT_LOG_KEY) || '[]');
+// Delta tracking: record last-known token counts to compute per-request costs
+let _auditLastTokensIn = 0;
+let _auditLastTokensOut = 0;
 
 function saveInquiryLog(userQuery, model, actions) {
   // Collect the assistant's last response from aiMessages
@@ -11727,10 +11781,12 @@ function saveInquiryLog(userQuery, model, actions) {
     return exhibit;
   });
 
-  // Calculate cost for this inquiry
+  // Calculate cost for this inquiry using DELTA (not cumulative session total)
   const rates = (typeof MODEL_RATES !== 'undefined') ? (MODEL_RATES[model] || { input: 3, output: 15 }) : { input: 3, output: 15 };
-  const tokIn = aiSessionTokensIn || 0;
-  const tokOut = aiSessionTokensOut || 0;
+  const tokIn = (aiSessionTokensIn || 0) - _auditLastTokensIn;
+  const tokOut = (aiSessionTokensOut || 0) - _auditLastTokensOut;
+  _auditLastTokensIn = aiSessionTokensIn || 0;
+  _auditLastTokensOut = aiSessionTokensOut || 0;
 
   const entry = {
     id: Date.now(),
