@@ -6029,17 +6029,22 @@ function logStockProvenance(ticker, source, ts, isLive) {
 function updateStockFreshness() {
   const el = document.getElementById('stockFreshness');
   if (!el) return;
-  if (!stockTickers.length) { el.style.display = 'none'; return; }
+  if (!stockTickers.length && !Object.keys(stockDataCache).length) { el.style.display = 'none'; return; }
   el.style.display = 'inline-flex';
   const dot = el.querySelector('.sf-dot');
   const label = el.querySelector('.sf-label');
 
-  // Gather data status across all tickers
+  // Gather data status across all tickers (watchlist + any cached chart data)
   let allLive = true, anyLive = false, oldestTs = Date.now();
   let hasRhSource = false, hasYahooSource = false, hasAnyData = false;
-  stockTickers.forEach(t => {
-    const range = document.getElementById('stockRange')?.value || '1M';
-    const entry = stockDataCache[t + '_' + range];
+  const range = document.getElementById('stockRange')?.value || '1M';
+
+  // Build set of cache keys to check: watchlist tickers + any keys already in cache
+  const tickersToCheck = new Set(stockTickers.map(t => t + '_' + range));
+  Object.keys(stockDataCache).forEach(k => tickersToCheck.add(k));
+
+  tickersToCheck.forEach(key => {
+    const entry = stockDataCache[key];
     if (entry && stockIsLive(entry)) {
       anyLive = true;
       hasAnyData = true;
