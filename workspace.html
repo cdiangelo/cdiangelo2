@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Interactive Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
 <style>
 /* ═══ COLOR SCHEME ENGINE ═══ */
 :root {
@@ -59,7 +62,7 @@ body.neon.light {
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
-body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; font-size: 14px; transition: background .3s, color .3s; }
+body { background: var(--bg); color: var(--text); font-family: 'Aptos Narrow', 'Roboto Condensed', system-ui, -apple-system, sans-serif; font-size: 14px; transition: background .3s, color .3s; }
 
 /* ═══ SCROLLBAR ═══ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -239,6 +242,9 @@ body.light .fun-btn { background: var(--accent); }
 .pane.expanded .ss-table td .ci { font-size: .95rem; }
 .pane.expanded .ss-table th { font-size: .85rem; }
 .pane.expanded .ai-msgs { font-size: 1.05rem; }
+/* Claude actions bar: wrap to two rows in expanded/full pane mode — never hide buttons */
+.pane.expanded .p-head { flex-wrap: wrap; gap: 4px; }
+.pane.expanded .p-head .p-btn { display: inline-flex !important; }
 .pane.expanded .np-area { font-size: 1.1rem; }
 /* Zoom controls — only visible in expanded mode */
 .zoom-controls { display: none; margin-left: auto; gap: 4px; align-items: center; }
@@ -322,7 +328,7 @@ body.light .fun-btn { background: var(--accent); }
 /* ═══ Q1: NOTEPAD ═══ */
 .np-area {
   flex: 1; padding: 14px 18px; background: var(--bg); color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Aptos Narrow', 'Roboto Condensed', system-ui, -apple-system, sans-serif;
   font-size: .78rem; line-height: 1.55; overflow-y: auto; outline: none; min-height: 60px;
   letter-spacing: -.01em;
 }
@@ -499,7 +505,7 @@ body.light .fun-btn { background: var(--accent); }
 .robot-timer.active { opacity: 1; }
 .timer-clock { font-family: 'Courier New', monospace; font-size: .62rem; font-weight: 700; color: #4CAF50; background: rgba(0,0,0,.65); border: 1px solid rgba(76,175,80,.35); border-radius: 4px; padding: 1px 4px; text-shadow: 0 0 4px rgba(76,175,80,.5); white-space: nowrap; line-height: 1.2; }
 .timer-stats { display: flex; flex-direction: column; gap: 0; line-height: 1.1; }
-.timer-stats div { font-size: .42rem; color: rgba(76,175,80,.7); font-family: system-ui, sans-serif; white-space: nowrap; background: rgba(0,0,0,.5); border-radius: 2px; padding: 0 3px; }
+.timer-stats div { font-size: .42rem; color: rgba(76,175,80,.7); font-family: inherit; white-space: nowrap; background: rgba(0,0,0,.5); border-radius: 2px; padding: 0 3px; }
 /* ADDED — Phase 11: Mini-robot sub-agents */
 .mini-robot { position: absolute; bottom: 20px; z-index: 6; transform-origin: bottom center; opacity: 0; transition: opacity .3s; }
 .mini-robot.active { opacity: 1; }
@@ -1432,7 +1438,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <body class="neon">
 
 <!-- ═══ AUTH GATE ═══ -->
-<div id="authGate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:system-ui,-apple-system,sans-serif;padding:12px;">
+<div id="authGate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:inherit;padding:12px;">
   <div id="authBox" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:460px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);box-sizing:border-box;max-height:100%;overflow-y:auto;">
     <div style="font-size:2rem;margin-bottom:8px;">&#129302;</div>
     <h2 id="authTitle" style="color:var(--text);margin:0 0 6px;font-size:1.2rem;">Interactive Workspace</h2>
@@ -1609,6 +1615,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="npTimestamp" title="Insert timestamp">&#128339;</button>
         <div class="sep"></div>
         <button onclick="exportNotepadPdf()" title="Export as PDF">PDF</button>
+        <button id="npPolishBtn" title="AI Polish — reformat notes into hyper-polished professional deliverable" style="color:var(--accent2);font-weight:600;">&#10024; Polish</button>
       </div>
       <div class="np-area" id="npArea" contenteditable="true" spellcheck="true"></div>
       <div class="np-status">
@@ -1626,6 +1633,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-head">
       <span class="p-title"><span class="p-icon ic-claude"></span> Claude Agent</span>
       <div class="p-spacer"></div>
+      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
+      <button class="p-btn" data-expand="q-claude" title="Expand">&#x2922;</button>
+    </div>
+    <div class="ai-actions-bar" id="aiActionsBar" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 10px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;">
       <select id="aiModel" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
         <option value="claude-sonnet-4-6">Sonnet 4.6</option>
         <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
@@ -1636,7 +1647,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <input type="checkbox" id="aiDeepToggle" style="width:12px;height:12px;cursor:pointer;">
         <span>Deep</span>
       </label>
-      <!-- Orchestrator is automatic — no toggle needed -->
       <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
       <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
       <button id="aiAuditBtn" class="p-btn" title="Full inquiry audit log — all users (admin)" style="font-size:.55rem;">Audit</button>
@@ -1648,8 +1658,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button id="aiInfoBtn" class="p-btn" title="Capabilities &amp; settings" style="font-size:.6rem;">Info</button>
       <button id="aiLogBtn" class="p-btn" title="Chat session history" style="font-size:.55rem;">History</button>
       <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
-      <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
-      <button class="p-btn" data-expand="q-claude" title="Expand">&#x2922;</button>
     </div>
     <div class="p-body" style="display:flex;flex-direction:column;position:relative;">
       <!-- Cost estimator panel -->
@@ -1905,6 +1913,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div class="toolbar">
         <span class="cell-ref" id="ssCellRef">A1</span>
         <input type="text" id="ssFormula" placeholder="=SUM  =SUMIF  =COUNTIF  =VLOOKUP  =LEN  =A1&amp;B1  =TEXT(A1,&quot;0.00&quot;)  =UPPER  =LEFT  =IF" />
+        <div class="sep"></div>
+        <button id="ssBold" title="Toggle bold (Ctrl+B)" style="font-weight:900;min-width:22px;">B</button>
+        <input type="color" id="ssTextColor" value="#ffffff" title="Text color" style="width:22px;height:20px;padding:0;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg);" />
+        <input type="color" id="ssBgColor" value="#1a1a2e" title="Cell background color" style="width:22px;height:20px;padding:0;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg);" />
+        <button id="ssClearFmt" title="Clear formatting" style="font-size:.55rem;">&#10060;Fmt</button>
         <div class="sep"></div>
         <button id="ssAddRow" title="Add row">+Row</button>
         <button id="ssAddCol" title="Add column">+Col</button>
@@ -4364,7 +4377,7 @@ function wbRenderLayers() {
       const fontSize = layer.fontSize || 14;
       const textColor = layer.color || '#ffffff';
       textDiv.textContent = layer.content;
-      textDiv.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:' + (layer.textAlign || 'center') + ';font-size:' + fontSize + 'px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:' + textColor + ';font-weight:' + (layer.fontWeight || '600') + ';line-height:1.3;padding:4px 8px;box-sizing:border-box;pointer-events:none;user-select:none;word-break:break-word;overflow:hidden;text-overflow:ellipsis;';
+      textDiv.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:' + (layer.textAlign || 'center') + ';font-size:' + fontSize + 'px;font-family:Aptos Narrow,Roboto Condensed,system-ui,sans-serif;color:' + textColor + ';font-weight:' + (layer.fontWeight || '600') + ';line-height:1.3;padding:4px 8px;box-sizing:border-box;pointer-events:none;user-select:none;word-break:break-word;overflow:hidden;text-overflow:ellipsis;';
       if (layer.bgColor) textDiv.style.background = layer.bgColor;
       if (layer.borderRadius) textDiv.style.borderRadius = layer.borderRadius + 'px';
       el.appendChild(textDiv);
@@ -4566,6 +4579,8 @@ let ssSelecting = false, ssEditing = false;
 let ssClipboardRange = null; // { data: 2D array, rows, cols }
 let ssUndoHist = []; // array of { data, rows, cols } snapshots
 let ssColWidths = LS('ssColWidths') || []; // per-column widths
+// Cell formatting: ssFmt[r][c] = { bg, color, bold } — sparse, only set cells have entries
+let ssFmt = LS('ssFmt') || {};
 
 function ssSelRange() {
   if (!ssSel) return null;
@@ -4711,10 +4726,12 @@ function ssSaveCurrentPage() {
   if (page) {
     page.data = JSON.parse(JSON.stringify(ssD));
     page.colNames = ssColNames.slice();
+    page.fmt = JSON.parse(JSON.stringify(ssFmt));
   }
   saveSsPages();
   LS('sheet', ssD);
   LS('sheetColNames', ssColNames);
+  LS('ssFmt', ssFmt);
 }
 
 function ssSwitchPage(id) {
@@ -4725,10 +4742,12 @@ function ssSwitchPage(id) {
     ssD = JSON.parse(JSON.stringify(page.data));
     ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10;
     ssColNames = page.colNames ? page.colNames.slice() : [];
+    ssFmt = page.fmt ? JSON.parse(JSON.stringify(page.fmt)) : {};
   } else {
     ssD = []; ssR = 20; ssC = 10;
     for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; }
     ssColNames = [];
+    ssFmt = {};
   }
   LS('sheet', ssD); LS('sheetColNames', ssColNames);
   ssRender();
@@ -4782,6 +4801,7 @@ function ssInit() {
     ssD = JSON.parse(JSON.stringify(initPage.data));
     ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10;
     ssColNames = initPage.colNames ? initPage.colNames.slice() : [];
+    ssFmt = initPage.fmt ? JSON.parse(JSON.stringify(initPage.fmt)) : (LS('ssFmt') || {});
   } else {
     ssD = LS('sheet') || [];
     if (!ssD.length) { for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; } }
@@ -5218,6 +5238,14 @@ function ssRender() {
       const isSpark = typeof display === 'string' && display.startsWith('$$SPARK$$');
       let cls = isF && !ssShowFormulas ? 'formula-cell' : '';
       let style = '';
+      // Cell formatting (bg, color, bold)
+      const fmtKey = r + ',' + c;
+      const fmt = ssFmt[fmtKey];
+      if (fmt) {
+        if (fmt.bg) style += 'background:' + fmt.bg + ';';
+        if (fmt.color) style += 'color:' + fmt.color + ';';
+        if (fmt.bold) style += 'font-weight:700;';
+      }
       // Heat map
       if (ssHeatMap && !isSpark) {
         const nv = typeof display === 'number' ? display : parseFloat(display);
@@ -5229,9 +5257,15 @@ function ssRender() {
         }
       }
       if (isSpark) {
-        h += '<td class="'+cls+'" data-r="'+r+'" data-c="'+c+'"><canvas class="spark-cell" data-formula="'+raw+'" width="76" height="20"></canvas></td>';
+        h += '<td class="'+cls+'" data-r="'+r+'" data-c="'+c+'"' + (style ? ' style="'+style+'"' : '') + '><canvas class="spark-cell" data-formula="'+raw+'" width="76" height="20"></canvas></td>';
       } else {
-        h += '<td class="'+cls+'" data-r="'+r+'" data-c="'+c+'"><input class="ci" value="'+String(display == null ? '' : display).replace(/"/g,'&quot;')+'" data-r="'+r+'" data-c="'+c+'" readonly /></td>';
+        // Apply formatting to input as well so text color/bold render inside the cell
+        let inpStyle = '';
+        if (fmt) {
+          if (fmt.color) inpStyle += 'color:' + fmt.color + ';';
+          if (fmt.bold) inpStyle += 'font-weight:700;';
+        }
+        h += '<td class="'+cls+'" data-r="'+r+'" data-c="'+c+'"' + (style ? ' style="'+style+'"' : '') + '><input class="ci" value="'+String(display == null ? '' : display).replace(/"/g,'&quot;')+'" data-r="'+r+'" data-c="'+c+'"' + (inpStyle ? ' style="'+inpStyle+'"' : '') + ' readonly /></td>';
       }
     }
     h += '</tr>';
@@ -5415,8 +5449,10 @@ function ssRender() {
     if (ssEditing) {
       const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
       if (e.key === 'Escape') { e.preventDefault(); ssEditing = false; if (inp) { inp.value = ssD[ssSel.r1][ssSel.c1] || ''; inp.setAttribute('readonly', ''); } ssRenderSelection(); return; }
-      if (e.key === 'Enter') { e.preventDefault(); ssExitEdit(); const nr = Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); return; }
-      if (e.key === 'Tab') { e.preventDefault(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); ssExitEdit(); const nr = Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); ssEnterEdit(nr, ssSel.c1); return; }
+      if (e.key === 'Tab') { e.preventDefault(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); ssEnterEdit(ssSel.r1, nc); return; }
+      // Ctrl+B: toggle bold while editing
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); document.getElementById('ssBold').click(); return; }
       return; // let typing go to the input
     }
 
@@ -5439,6 +5475,8 @@ function ssRender() {
       // Scroll active cell into view
       const activeTd = t.querySelector('td[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
       if (activeTd) activeTd.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      // Auto-enter edit mode on arrow navigation (single cell, not extending selection)
+      if (!e.shiftKey) ssEnterEdit(ssSel.r1, ssSel.c1);
       return;
     }
     if (e.key === 'Enter') { e.preventDefault(); ssEnterEdit(ssSel.r1, ssSel.c1); return; }
@@ -5446,8 +5484,10 @@ function ssRender() {
       e.preventDefault();
       const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1);
       ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc };
-      ssRenderSelection(); return;
+      ssRenderSelection(); ssEnterEdit(ssSel.r1, nc); return;
     }
+    // Ctrl+B: toggle bold from navigation mode
+    if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); document.getElementById('ssBold').click(); return; }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       const sr = ssSelRange();
@@ -5586,6 +5626,43 @@ $('#ssFormula').addEventListener('keydown', e => {
     LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
   }
 });
+
+// ── Cell formatting helpers ──
+function ssApplyFmtToSelection(prop, value) {
+  if (!ssSel) return;
+  const sr = ssSelRange();
+  ssPushUndo();
+  for (let r = sr.minR; r <= sr.maxR; r++) {
+    for (let c = sr.minC; c <= sr.maxC; c++) {
+      const key = r + ',' + c;
+      if (!ssFmt[key]) ssFmt[key] = {};
+      if (value === null || value === undefined) delete ssFmt[key][prop];
+      else ssFmt[key][prop] = value;
+      if (Object.keys(ssFmt[key]).length === 0) delete ssFmt[key];
+    }
+  }
+  LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
+}
+
+$('#ssBold').onclick = () => {
+  if (!ssSel) return;
+  // Toggle: if first cell in selection is bold, un-bold all; otherwise bold all
+  const firstKey = ssSel.r1 + ',' + ssSel.c1;
+  const isBold = ssFmt[firstKey] && ssFmt[firstKey].bold;
+  ssApplyFmtToSelection('bold', isBold ? null : true);
+};
+
+$('#ssTextColor').oninput = function() { ssApplyFmtToSelection('color', this.value); };
+$('#ssBgColor').oninput = function() { ssApplyFmtToSelection('bg', this.value); };
+
+$('#ssClearFmt').onclick = () => {
+  if (!ssSel) return;
+  const sr = ssSelRange();
+  ssPushUndo();
+  for (let r = sr.minR; r <= sr.maxR; r++)
+    for (let c = sr.minC; c <= sr.maxC; c++) delete ssFmt[r + ',' + c];
+  LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
+};
 
 // Insert row/col at selection (or at end if no selection)
 $('#ssAddRow').onclick = () => {
@@ -10194,6 +10271,17 @@ $('#aiSettingsBtn').onclick = () => {
       status.textContent = 'Settings saved. Server limits: ' + data.config.globalMax + ' global, ' +
         data.config.anthropicMax + ' Anthropic per ' + data.config.windowSec + 's window. ' +
         'Idle timeout: ' + (newTimeout === 0 ? 'never' : newTimeout + ' min') + '.';
+      // Log admin action to audit trail
+      if (typeof logAdminAction === 'function') {
+        logAdminAction('Rate Limit & Session Settings Update', 'Updated server rate limits and session timeout', [{
+          action: 'settings_update',
+          before: 'Previous configuration',
+          after: JSON.stringify(data.config),
+          rateLimits: data.config,
+          retryDelays: retryDelays,
+          idleTimeout: newTimeout === 0 ? 'never' : newTimeout + ' min'
+        }]);
+      }
     } catch(e) {
       status.style.color = '#ef4444';
       status.textContent = 'Error saving server settings: ' + e.message + '. Client settings (timeout, retry) saved locally.';
@@ -10655,6 +10743,71 @@ Perform a full cleanup pass. Return a JSON object with "patch" (array of changes
     }
   } catch(e) {
     addAiMsg('system', 'Cleanup error: ' + e.message);
+  }
+  aiStreaming = false;
+};
+
+// ── Notepad Polish: AI-powered hyper-polished professional deliverable reformatter ──
+document.getElementById('npPolishBtn').onclick = async () => {
+  if (typeof aiStreaming !== 'undefined' && aiStreaming) { toast('Wait for current task to finish'); return; }
+  const npEl = document.getElementById('npArea');
+  if (!npEl || !npEl.textContent.trim()) { toast('Notepad is empty — add content first'); return; }
+
+  // Snapshot for undo
+  const originalHtml = npEl.innerHTML;
+  const polishSystemPrompt = `You are a world-class executive editor and document designer. Your job is to take rough, unstructured notes and transform them into HYPER-POLISHED, PROFESSIONAL deliverables that are immediately ready to export as PDF.
+
+DESIGN PRINCIPLES:
+  - Executive-ready: every document should look like it came from a top-tier consulting firm
+  - Clean typography: use consistent heading hierarchy (H2 for sections, H4 for subsections)
+  - Structured layout: logical flow from summary → detail → conclusions
+  - Concise: distill verbose content to its essence. Cut filler words ruthlessly
+  - Data-forward: highlight key metrics, numbers, and findings with <b> tags
+  - Professional formatting:
+    * Start with a brief Executive Summary in a <blockquote>
+    * Use <h2> for major sections
+    * Use <h4> for subsection labels
+    * Use <ul>/<li> for bullet points (never raw dashes)
+    * Use <b> for key terms, metrics, and emphasis
+    * Use <hr> between major sections
+    * Use <blockquote> for key takeaways and callouts
+  - Keep paragraphs to 2-3 sentences max
+  - Remove all redundancy and repetition
+  - Fix grammar, spelling, and awkward phrasing
+  - Do NOT add information that wasn't in the original — only reorganize, distill, and polish
+  - Remove any inline styles, font-family, or font-size overrides
+
+Return ONLY the polished HTML content (no <html>, <body>, or <style> tags). The content will be placed directly into a contenteditable div.`;
+
+  const userMsg = `Polish the following notes into a hyper-polished professional deliverable:\n\n${npEl.innerHTML}`;
+
+  if (typeof addAiMsg === 'function') addAiMsg('system', '✨ Polishing notepad into professional deliverable...');
+  aiStreaming = true;
+  try {
+    const resp = await aiApiFetch({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8000,
+      system: polishSystemPrompt,
+      messages: [{ role: 'user', content: userMsg }]
+    });
+    if (resp.ok) {
+      const data = await safeParseJson(resp, 'polish');
+      let text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+      aiSessionTokensIn += data.usage?.input_tokens || 0;
+      aiSessionTokensOut += data.usage?.output_tokens || 0;
+      aiSessionRequests++;
+      // Strip markdown code fences if present
+      text = text.replace(/^```(?:html)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+      npEl.innerHTML = text;
+      if (typeof npSaveCurrentPage === 'function') npSaveCurrentPage();
+      if (typeof addAiMsg === 'function') addAiMsg('assistant', '✨ Notes polished into professional deliverable. Use PDF button to export.\n\n_Click Undo (Ctrl+Z) in the notepad to revert._');
+      toast('Notes polished — ready to export as PDF');
+    } else {
+      if (typeof addAiMsg === 'function') addAiMsg('system', 'Polish failed: HTTP ' + resp.status);
+    }
+  } catch(e) {
+    if (typeof addAiMsg === 'function') addAiMsg('system', 'Polish error: ' + e.message);
+    npEl.innerHTML = originalHtml; // Restore on error
   }
   aiStreaming = false;
 };
@@ -11150,7 +11303,10 @@ function renderAuditPanel() {
         (tokStr ? '<span style="color:var(--text-dim);">' + tokStr + '</span>' : '') +
         '</span></div>' +
         '<div style="margin-top:2px;color:var(--text);font-size:.56rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + query.replace(/</g, '&lt;') + '</div>' +
-        (badges ? '<div style="margin-top:2px;">' + badges + '</div>' : '') +
+        (badges ? '<div style="margin-top:2px;">' + badges +
+          ((entry.artifacts || []).some(a => a.contentSnapshot || a.output) ?
+            '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:.45rem;background:#6366f1;color:#fff;margin:1px 2px;">&#128196; ' + (entry.artifacts || []).filter(a => a.contentSnapshot || a.output).length + ' exhibit(s)</span>' : '') +
+          '</div>' : '') +
         '</div>';
     }).join('');
 
@@ -11236,8 +11392,27 @@ function showAuditDetail(entry) {
     '<div style="font-weight:600;font-size:.55rem;color:var(--text-dim);margin-bottom:3px;">RESPONSE</div>' +
     '<div style="background:rgba(16,185,129,.06);border-radius:6px;padding:8px 10px;font-size:.6rem;color:var(--text);white-space:pre-wrap;word-break:break-word;max-height:50vh;overflow-y:auto;">' + (entry.response || '').replace(/</g, '&lt;') + '</div>' +
     '</div>' +
-    ((entry.artifacts || []).length ? '<div><div style="font-weight:600;font-size:.55rem;color:var(--text-dim);margin-bottom:3px;">ARTIFACTS (' + entry.artifacts.length + ')</div>' +
-    entry.artifacts.map(a => '<div style="font-size:.52rem;padding:3px 6px;margin:2px 0;background:var(--panel-inset);border-radius:3px;border:1px solid var(--border);"><b>' + a.tool + '</b> <span style="color:var(--text-dim);">(' + a.type + ')</span></div>').join('') +
+    ((entry.artifacts || []).length ? '<div><div style="font-weight:600;font-size:.55rem;color:var(--text-dim);margin-bottom:3px;">EXHIBITS / ARTIFACTS (' + entry.artifacts.length + ')</div>' +
+    entry.artifacts.map((a, idx) => {
+      let exhibitHtml = '<div style="font-size:.52rem;padding:5px 8px;margin:3px 0;background:var(--panel-inset);border-radius:4px;border:1px solid var(--border);">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span><b>' + a.tool + '</b> <span style="color:var(--text-dim);">(' + a.type + ')</span></span>' +
+        (a.contentSnapshot ? '<button onclick="this.parentElement.parentElement.querySelector(\'.exhibit-content\').style.display=this.parentElement.parentElement.querySelector(\'.exhibit-content\').style.display===\'none\'?\'block\':\'none\'" style="font-size:.45rem;padding:1px 6px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">View Exhibit</button>' : '') +
+        '</div>';
+      if (a.input) {
+        const inputStr = typeof a.input === 'string' ? a.input : JSON.stringify(a.input);
+        exhibitHtml += '<div style="margin-top:3px;color:var(--text-dim);font-size:.48rem;"><b>Input:</b> ' + inputStr.substring(0, 200).replace(/</g, '&lt;') + (inputStr.length > 200 ? '...' : '') + '</div>';
+      }
+      if (a.output) {
+        const outputStr = typeof a.output === 'string' ? a.output : JSON.stringify(a.output);
+        exhibitHtml += '<div style="margin-top:2px;color:var(--text-dim);font-size:.48rem;"><b>Output:</b> ' + outputStr.substring(0, 200).replace(/</g, '&lt;') + (outputStr.length > 200 ? '...' : '') + '</div>';
+      }
+      if (a.contentSnapshot) {
+        exhibitHtml += '<div class="exhibit-content" style="display:none;margin-top:4px;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;font-size:.5rem;color:var(--text);">' + a.contentSnapshot.replace(/</g, '&lt;') + '</div>';
+      }
+      exhibitHtml += '</div>';
+      return exhibitHtml;
+    }).join('') +
     '</div>' : '');
 }
 
@@ -11253,7 +11428,8 @@ function exportAuditPdf(entries, title) {
       '<div class="inq-meta">' + d.toLocaleString() + ' &mdash; ' + (e.model || '-') + ' &mdash; ' + costStr + '</div>' +
       '<div class="inq-query"><b>Query:</b> ' + (e.query || '').replace(/</g, '&lt;') + '</div>' +
       '<div class="inq-response"><b>Response:</b> ' + (e.response || '').replace(/</g, '&lt;') + '</div>' +
-      ((e.artifactTypes || []).length ? '<div class="inq-artifacts">Artifacts: ' + e.artifactTypes.join(', ') + '</div>' : '') +
+      ((e.artifacts || []).length ? '<div class="inq-artifacts"><b>Exhibits (' + e.artifacts.length + '):</b> ' + e.artifacts.map(a => a.tool + ' (' + a.type + ')' + (a.contentSnapshot ? ' [content preserved]' : '')).join(', ') + '</div>' : '') +
+      ((e.artifactTypes || []).length && !(e.artifacts || []).length ? '<div class="inq-artifacts">Artifacts: ' + e.artifactTypes.join(', ') + '</div>' : '') +
       '</div>';
   }).join('');
 
@@ -11522,7 +11698,7 @@ function saveInquiryLog(userQuery, model, actions) {
     if (aiMessages[i].role === 'assistant') assistantMsgs.unshift(aiMessages[i].content);
     else if (aiMessages[i].role === 'user') break;
   }
-  // Classify artifact types from actions
+  // Classify artifact types from actions and capture full exhibit content
   const artifacts = actions.map(a => {
     let type = 'tool';
     if (['write_cells', 'create_table', 'clear_range', 'create_template'].includes(a.tool)) type = 'sheet';
@@ -11533,7 +11709,22 @@ function saveInquiryLog(userQuery, model, actions) {
     else if (a.tool === 'deep_research') type = 'research';
     else if (['run_scenario', 'build_thesis', 'sentiment_summary', 'pricing_analysis'].includes(a.tool)) type = 'analysis';
     else if (a.tool === 'add_concept_node') type = 'concept';
-    return { type, tool: a.tool, input: a.input };
+    // Capture full exhibit output for each artifact
+    const exhibit = { type, tool: a.tool, input: a.input, output: a.result || null };
+    // Snapshot current content for key artifact types so exhibits are fully preserved
+    try {
+      if (type === 'note' && a.input) {
+        const npEl = document.getElementById('npArea');
+        if (npEl) exhibit.contentSnapshot = npEl.innerHTML.substring(0, 50000);
+      } else if (type === 'sheet' && a.input) {
+        exhibit.contentSnapshot = JSON.stringify((a.input.data || a.input.cells || a.input).toString().substring(0, 10000));
+      } else if (type === 'whiteboard' && a.input) {
+        exhibit.contentSnapshot = JSON.stringify(a.input).substring(0, 10000);
+      } else if (type === 'research' && a.result) {
+        exhibit.contentSnapshot = (typeof a.result === 'string' ? a.result : JSON.stringify(a.result)).substring(0, 50000);
+      }
+    } catch(_) {}
+    return exhibit;
   });
 
   // Calculate cost for this inquiry
@@ -11569,6 +11760,34 @@ function saveInquiryLog(userQuery, model, actions) {
   try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (e) {
     // If localStorage is full, trim oldest 20% to make room
     console.warn('[Audit] Storage full, trimming oldest entries');
+    aiAuditLog = aiAuditLog.slice(Math.floor(aiAuditLog.length * 0.2));
+    try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (_) {}
+  }
+}
+
+// ── Admin action audit logging — same completeness as user inquiry logs ──
+function logAdminAction(action, details, exhibits) {
+  const auditEntry = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    userName: localStorage.getItem('ws_userName') || 'admin',
+    type: 'admin_action',
+    query: '[ADMIN] ' + action,
+    model: 'N/A',
+    response: typeof details === 'string' ? details : JSON.stringify(details, null, 2),
+    artifacts: (exhibits || []).map(ex => ({ type: 'admin', tool: ex.action || action, input: ex })),
+    artifactTypes: ['admin'],
+    tokensIn: 0,
+    tokensOut: 0,
+    cost: 0,
+    sessionRequests: aiSessionRequests || 0,
+    adminAction: true,
+    actionCategory: action,
+    before: exhibits && exhibits[0] ? exhibits[0].before : undefined,
+    after: exhibits && exhibits[0] ? exhibits[0].after : undefined
+  };
+  aiAuditLog.push(auditEntry);
+  try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (e) {
     aiAuditLog = aiAuditLog.slice(Math.floor(aiAuditLog.length * 0.2));
     try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (_) {}
   }
@@ -13228,8 +13447,11 @@ async function sendAgentMessage() {
         if (window._robotTaskStart) window._robotTaskStart();
         addToolStatus(toolBlock.name, toolBlock.input);
         saveToolAction(toolBlock.name, toolBlock.input);
-        inquiryActions.push({ tool: toolBlock.name, input: JSON.parse(JSON.stringify(toolBlock.input)) });
+        const actionEntry = { tool: toolBlock.name, input: JSON.parse(JSON.stringify(toolBlock.input)) };
+        inquiryActions.push(actionEntry);
         const toolResult = await executeAgentTool(toolBlock.name, toolBlock.input);
+        // Capture result for exhibit logging (truncate large results)
+        try { actionEntry.result = typeof toolResult === 'string' ? toolResult.substring(0, 5000) : JSON.stringify(toolResult).substring(0, 5000); } catch(_) {}
         _stallPing();
         if (window._robotTaskDone) window._robotTaskDone();
         toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult });
