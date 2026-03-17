@@ -1408,7 +1408,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   #q-claude .p-head { flex-wrap: wrap; gap: 2px; }
   #q-claude .p-head .p-btn, #q-claude .p-head select, #q-claude .p-head label { font-size: .5rem !important; }
   /* Hide less important Claude header buttons on mobile */
-  #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn, #aiAuditBtn { display: none !important; }
+  #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn, #aiAuditBtn, #aiSettingsBtn { display: none !important; }
   /* Make exit/logout buttons visible and tappable on mobile */
   #userExitBtn, #logoutBtn { font-size: .6rem !important; padding: 4px 10px !important; min-height: 28px; }
   #userNameDisplay { font-size: .6rem !important; }
@@ -1642,6 +1642,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button id="aiAuditBtn" class="p-btn" title="Full inquiry audit log — all users (admin)" style="font-size:.55rem;">Audit</button>
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
       <button id="aiAccessReqBtn" class="p-btn" title="User access requests (admin)" style="font-size:.55rem;">Requests</button>
+      <button id="aiSettingsBtn" class="p-btn" title="Rate limits & session settings (admin)" style="font-size:.55rem;">Settings</button>
       <button id="aiSavedActionsBtn" class="p-btn" title="Saved tool actions" style="font-size:.55rem;">Actions</button>
       <button id="aiCleanupBtn" class="p-btn" title="Cleanup available in Whiteboard, Concept Map, Notepad, Scratch Sheet" style="font-size:.55rem;">&#x1F9F9; Cleanup</button>
       <button id="aiInfoBtn" class="p-btn" title="Capabilities &amp; settings" style="font-size:.6rem;">Info</button>
@@ -2498,7 +2499,7 @@ function applyRolePermissions() {
   console.log('[PROFILE] Applying role:', role, '| loadedAt:', loadedAt, '| source:', source);
 
   // Admin-only elements
-  const adminElements = ['aiPricingBtn', 'aiPricingPanel', 'aiUsageDashBtn', 'aiAccessReqBtn', 'aiAuditBtn'];
+  const adminElements = ['aiPricingBtn', 'aiPricingPanel', 'aiUsageDashBtn', 'aiAccessReqBtn', 'aiAuditBtn', 'aiSettingsBtn'];
   const adminShowElements = ['aiApiKeySection'];
 
   if (wsIsAdmin) {
@@ -9108,10 +9109,52 @@ async function checkSecureProxy() {
   console.error('[Proxy] All health check retries failed');
 })();
 
+// ── Configurable rate limit retry delays (synced from admin settings) ──
+let AI_RETRY_DELAYS = JSON.parse(localStorage.getItem('ws_retryDelays') || '[15000, 30000, 60000]');
+let _aiRateLimitPaused = false;
+
+// ── Idle session timeout — configurable with "never" option ──
+// Default 5 minutes; stored in localStorage so user selection persists
+let idleTimeoutMin = parseInt(localStorage.getItem('ws_idleTimeoutMin') || '5', 10);
+let _idleTimer = null;
+let _idleWarningTimer = null;
+
+function resetIdleTimer() {
+  if (_idleTimer) clearTimeout(_idleTimer);
+  if (_idleWarningTimer) clearTimeout(_idleWarningTimer);
+  const warningEl = document.getElementById('idleWarningBanner');
+  if (warningEl) warningEl.remove();
+  if (idleTimeoutMin <= 0) return; // "never" — no timeout
+  // Show warning 60s before timeout (or 30s for short timeouts)
+  const warnBefore = Math.min(60000, idleTimeoutMin * 60000 * 0.3);
+  _idleWarningTimer = setTimeout(() => {
+    if (document.getElementById('idleWarningBanner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'idleWarningBanner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#f59e0b;color:#000;text-align:center;padding:8px;font-size:.8rem;font-weight:600;cursor:pointer;';
+    const secLeft = Math.round(warnBefore / 1000);
+    banner.textContent = 'Session idle — will return to login in ~' + secLeft + 's. Click or press any key to stay.';
+    banner.onclick = resetIdleTimer;
+    document.body.appendChild(banner);
+  }, idleTimeoutMin * 60000 - warnBefore);
+  _idleTimer = setTimeout(() => {
+    // Return to login screen
+    console.log('[SESSION] Idle timeout reached (' + idleTimeoutMin + 'min) — returning to login');
+    localStorage.removeItem('ws_adminSession');
+    localStorage.removeItem('ws_userName');
+    location.reload();
+  }, idleTimeoutMin * 60000);
+}
+
+// Activity listeners — reset idle on any interaction
+['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel'].forEach(evt => {
+  document.addEventListener(evt, resetIdleTimer, { passive: true });
+});
+// Start idle timer on load
+resetIdleTimer();
+
 // Unified AI API fetch — routes through proxy when available, direct otherwise
 // Includes 429 rate-limit retry with exponential backoff
-const AI_RETRY_DELAYS = [15000, 30000, 60000]; // 15s, 30s, 60s
-let _aiRateLimitPaused = false;
 
 async function _aiRawFetch(body) {
   // All Anthropic calls go through the secure proxy — no client-side key
@@ -9699,6 +9742,8 @@ function closeAllAdminPanels(except) {
   if (accPanel && except !== 'aiAccessPanel') accPanel.remove();
   const auditPanel = document.getElementById('aiAuditPanel');
   if (auditPanel && except !== 'aiAuditPanel') auditPanel.remove();
+  const settingsPanel = document.getElementById('aiSettingsPanel');
+  if (settingsPanel && except !== 'aiSettingsPanel') settingsPanel.remove();
 }
 
 $('#aiCostBtn').onclick = () => {
@@ -9991,6 +10036,177 @@ $('#aiAccessReqBtn').onclick = renderAccessRequestsPanel;
   if (btn && pending > 0) btn.textContent = 'Requests (' + pending + ')';
   setTimeout(updateAccessBadge, 10000); // Refresh every 10s
 })();
+
+// ── Admin Settings Panel (rate limits + session timeout) ──
+$('#aiSettingsBtn').onclick = () => {
+  closeAllAdminPanels('aiSettingsPanel');
+  let panel = document.getElementById('aiSettingsPanel');
+  if (panel) { panel.remove(); return; }
+  if (!wsIsAdmin) return;
+
+  panel = document.createElement('div');
+  panel.id = 'aiSettingsPanel';
+  panel.style.cssText = 'position:absolute;top:0;left:4px;right:4px;z-index:80;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:12px 14px;font-size:.65rem;overflow-y:auto;max-height:90%;';
+
+  // Current values
+  const curTimeout = idleTimeoutMin;
+  const curRetry = AI_RETRY_DELAYS.map(d => d / 1000);
+
+  panel.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+      '<span style="font-weight:700;color:var(--accent2);">Admin Settings</span>' +
+      '<button onclick="document.getElementById(\'aiSettingsPanel\').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;">&times;</button>' +
+    '</div>' +
+
+    // Rate Limits section
+    '<div style="font-weight:600;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px;">Rate Limits (Server)</div>' +
+    '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<label style="flex:0 0 130px;">Global max/min:</label>' +
+        '<input type="number" id="setGlobalMax" value="60" min="1" max="1000" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:60px;">' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<label style="flex:0 0 130px;">Anthropic max/min:</label>' +
+        '<input type="number" id="setAnthropicMax" value="20" min="1" max="500" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:60px;">' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<label style="flex:0 0 130px;">Window (seconds):</label>' +
+        '<input type="number" id="setWindowSec" value="60" min="10" max="3600" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:60px;">' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<label style="flex:0 0 130px;">Admin multiplier:</label>' +
+        '<input type="number" id="setAdminMultiplier" value="3" min="1" max="10" step="0.5" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:60px;">' +
+      '</div>' +
+      '<div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Admin multiplier applies higher caps to admin sessions.</div>' +
+    '</div>' +
+
+    // Retry Delays section
+    '<div style="font-weight:600;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px;">Retry Delays (Client)</div>' +
+    '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<label style="flex:0 0 130px;">Retry 1 (seconds):</label>' +
+        '<input type="number" id="setRetry1" value="' + curRetry[0] + '" min="1" max="300" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:60px;">' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<label style="flex:0 0 130px;">Retry 2 (seconds):</label>' +
+        '<input type="number" id="setRetry2" value="' + curRetry[1] + '" min="1" max="300" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:60px;">' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<label style="flex:0 0 130px;">Retry 3 (seconds):</label>' +
+        '<input type="number" id="setRetry3" value="' + curRetry[2] + '" min="1" max="300" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:60px;">' +
+      '</div>' +
+      '<div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Delays between retries when rate limited (429). Set higher to reduce pressure.</div>' +
+    '</div>' +
+
+    // Session Timeout section
+    '<div style="font-weight:600;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px;">Session Idle Timeout</div>' +
+    '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<label style="flex:0 0 130px;">Timeout:</label>' +
+        '<select id="setIdleTimeout" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);">' +
+          '<option value="1"' + (curTimeout === 1 ? ' selected' : '') + '>1 minute</option>' +
+          '<option value="2"' + (curTimeout === 2 ? ' selected' : '') + '>2 minutes</option>' +
+          '<option value="5"' + (curTimeout === 5 ? ' selected' : '') + '>5 minutes (default)</option>' +
+          '<option value="10"' + (curTimeout === 10 ? ' selected' : '') + '>10 minutes</option>' +
+          '<option value="15"' + (curTimeout === 15 ? ' selected' : '') + '>15 minutes</option>' +
+          '<option value="30"' + (curTimeout === 30 ? ' selected' : '') + '>30 minutes</option>' +
+          '<option value="60"' + (curTimeout === 60 ? ' selected' : '') + '>1 hour</option>' +
+          '<option value="0"' + (curTimeout === 0 ? ' selected' : '') + '>Never</option>' +
+        '</select>' +
+      '</div>' +
+      '<div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">"Never" disables auto-logout. Any activity resets the timer.</div>' +
+      '<div id="setIdleSecurityNote" style="display:' + (curTimeout === 0 ? 'block' : 'none') + ';font-size:.55rem;color:#f59e0b;margin-top:2px;padding:3px 6px;background:rgba(245,158,11,.1);border-radius:4px;">' +
+        '&#9888; "Never" timeout: session stays active indefinitely. Ensure you are on a private/trusted device. API keys and env vars in server memory persist until server restart.</div>' +
+    '</div>' +
+
+    // Buttons
+    '<div style="display:flex;gap:6px;margin-top:6px;">' +
+      '<button id="settingsSaveBtn" style="flex:1;padding:6px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:.65rem;font-weight:600;cursor:pointer;">Save All Settings</button>' +
+      '<button onclick="document.getElementById(\'aiSettingsPanel\').remove()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--text-dim);font-size:.65rem;cursor:pointer;">Cancel</button>' +
+    '</div>' +
+    '<div id="settingsStatus" style="margin-top:6px;font-size:.58rem;"></div>';
+
+  // Insert into Claude pane body
+  const pBody = document.querySelector('#q-claude .p-body');
+  if (pBody) pBody.insertBefore(panel, pBody.firstChild);
+
+  // Load current server config
+  (async () => {
+    try {
+      const r = await fetch(PROXY_BASE + '/proxy/admin/rate-limits', { signal: AbortSignal.timeout(3000) });
+      if (r.ok) {
+        const cfg = await r.json();
+        document.getElementById('setGlobalMax').value = cfg.globalMax;
+        document.getElementById('setAnthropicMax').value = cfg.anthropicMax;
+        document.getElementById('setWindowSec').value = cfg.windowSec;
+        document.getElementById('setAdminMultiplier').value = cfg.adminMultiplier;
+        if (cfg.retryDelays && cfg.retryDelays.length >= 3) {
+          document.getElementById('setRetry1').value = cfg.retryDelays[0];
+          document.getElementById('setRetry2').value = cfg.retryDelays[1];
+          document.getElementById('setRetry3').value = cfg.retryDelays[2];
+        }
+      }
+    } catch(_) {}
+  })();
+
+  // Show/hide security note on change
+  document.getElementById('setIdleTimeout').onchange = function() {
+    document.getElementById('setIdleSecurityNote').style.display = this.value === '0' ? 'block' : 'none';
+  };
+
+  // Save handler
+  document.getElementById('settingsSaveBtn').onclick = async () => {
+    const status = document.getElementById('settingsStatus');
+    const retryDelays = [
+      parseInt(document.getElementById('setRetry1').value) || 15,
+      parseInt(document.getElementById('setRetry2').value) || 30,
+      parseInt(document.getElementById('setRetry3').value) || 60
+    ];
+
+    // Save server rate limits
+    try {
+      const r = await fetch(PROXY_BASE + '/proxy/admin/rate-limits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password: ADMIN_PASSWORD,
+          globalMax: parseInt(document.getElementById('setGlobalMax').value),
+          anthropicMax: parseInt(document.getElementById('setAnthropicMax').value),
+          windowSec: parseInt(document.getElementById('setWindowSec').value),
+          adminMultiplier: parseFloat(document.getElementById('setAdminMultiplier').value),
+          retryDelays
+        })
+      });
+      if (!r.ok) throw new Error('Server returned ' + r.status);
+      const data = await r.json();
+
+      // Update client-side retry delays
+      AI_RETRY_DELAYS = retryDelays.map(d => d * 1000);
+      localStorage.setItem('ws_retryDelays', JSON.stringify(AI_RETRY_DELAYS));
+
+      // Update idle timeout
+      const newTimeout = parseInt(document.getElementById('setIdleTimeout').value, 10);
+      idleTimeoutMin = newTimeout;
+      localStorage.setItem('ws_idleTimeoutMin', String(newTimeout));
+      resetIdleTimer();
+
+      status.style.color = '#10b981';
+      status.textContent = 'Settings saved. Server limits: ' + data.config.globalMax + ' global, ' +
+        data.config.anthropicMax + ' Anthropic per ' + data.config.windowSec + 's window. ' +
+        'Idle timeout: ' + (newTimeout === 0 ? 'never' : newTimeout + ' min') + '.';
+    } catch(e) {
+      status.style.color = '#ef4444';
+      status.textContent = 'Error saving server settings: ' + e.message + '. Client settings (timeout, retry) saved locally.';
+      // Still save client-side settings even if server fails
+      AI_RETRY_DELAYS = retryDelays.map(d => d * 1000);
+      localStorage.setItem('ws_retryDelays', JSON.stringify(AI_RETRY_DELAYS));
+      const newTimeout = parseInt(document.getElementById('setIdleTimeout').value, 10);
+      idleTimeoutMin = newTimeout;
+      localStorage.setItem('ws_idleTimeoutMin', String(newTimeout));
+      resetIdleTimer();
+    }
+  };
+};
 
 // Bind pricing sliders
 ['pricingModel', 'pricingUsers', 'pricingQpu'].forEach(id => {

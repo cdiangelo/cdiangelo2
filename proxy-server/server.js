@@ -260,24 +260,38 @@ app.use((req, res, next) => {
 // ── Body parsing ──
 app.use(express.json({ limit: '1mb' }));
 
-// ── Rate limiting — global ──
-const globalLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: true, message: 'Too many requests — try again in a minute' }
-});
-app.use(globalLimiter);
+// ── Rate limiting — configurable at runtime by admin ──
+let rateLimitConfig = {
+  globalMax: parseInt(process.env.RATE_LIMIT_GLOBAL_MAX) || 60,
+  anthropicMax: parseInt(process.env.RATE_LIMIT_ANTHROPIC_MAX) || 20,
+  windowSec: parseInt(process.env.RATE_LIMIT_WINDOW_SEC) || 60,
+  adminMultiplier: parseFloat(process.env.RATE_LIMIT_ADMIN_MULTIPLIER) || 3,
+  retryDelays: (process.env.RATE_LIMIT_RETRY_DELAYS || '15,30,60').split(',').map(Number)
+};
 
-// ── Rate limiting — stricter for Anthropic (expensive calls) ──
-const anthropicLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: true, message: 'Anthropic rate limit — max 20 requests per minute' }
-});
+function createGlobalLimiter() {
+  return rateLimit({
+    windowMs: rateLimitConfig.windowSec * 1000,
+    max: rateLimitConfig.globalMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: true, message: 'Too many requests — try again in a minute' }
+  });
+}
+function createAnthropicLimiter() {
+  return rateLimit({
+    windowMs: rateLimitConfig.windowSec * 1000,
+    max: rateLimitConfig.anthropicMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: true, message: `Anthropic rate limit — max ${rateLimitConfig.anthropicMax} requests per minute` }
+  });
+}
+
+let globalLimiter = createGlobalLimiter();
+let anthropicLimiter = createAnthropicLimiter();
+// Wrap in mutable handler so we can hot-swap limiters at runtime
+app.use((req, res, next) => globalLimiter(req, res, next));
 
 // ── Health check ──
 app.get('/health', (_req, res) => {
@@ -422,7 +436,7 @@ app.post('/proxy/robinhood', async (req, res) => {
 });
 
 // ── Anthropic Proxy ──
-app.post('/proxy/anthropic', anthropicLimiter, async (req, res) => {
+app.post('/proxy/anthropic', (req, res, next) => anthropicLimiter(req, res, next), async (req, res) => {
   if (!hasAnthropicKey) {
     return res.status(503).json({ error: true, message: 'Anthropic API key not configured on server' });
   }
@@ -486,6 +500,38 @@ app.post('/proxy/anthropic', anthropicLimiter, async (req, res) => {
     console.error('[Anthropic Proxy] Fetch error:', e.message);
     res.status(502).json({ error: true, message: 'Anthropic request failed' });
   }
+});
+
+// ── Admin: Get rate limit config ──
+app.get('/proxy/admin/rate-limits', (req, res) => {
+  res.json({
+    globalMax: rateLimitConfig.globalMax,
+    anthropicMax: rateLimitConfig.anthropicMax,
+    windowSec: rateLimitConfig.windowSec,
+    adminMultiplier: rateLimitConfig.adminMultiplier,
+    retryDelays: rateLimitConfig.retryDelays
+  });
+});
+
+// ── Admin: Update rate limit config ──
+app.post('/proxy/admin/rate-limits', (req, res) => {
+  const { password, globalMax, anthropicMax, windowSec, adminMultiplier, retryDelays } = req.body || {};
+  if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Admin password required' });
+
+  if (globalMax !== undefined) rateLimitConfig.globalMax = Math.max(1, Math.min(1000, parseInt(globalMax) || 60));
+  if (anthropicMax !== undefined) rateLimitConfig.anthropicMax = Math.max(1, Math.min(500, parseInt(anthropicMax) || 20));
+  if (windowSec !== undefined) rateLimitConfig.windowSec = Math.max(10, Math.min(3600, parseInt(windowSec) || 60));
+  if (adminMultiplier !== undefined) rateLimitConfig.adminMultiplier = Math.max(1, Math.min(10, parseFloat(adminMultiplier) || 3));
+  if (retryDelays !== undefined && Array.isArray(retryDelays)) {
+    rateLimitConfig.retryDelays = retryDelays.map(d => Math.max(1, Math.min(300, parseInt(d) || 30)));
+  }
+
+  // Hot-swap the limiters with new config
+  globalLimiter = createGlobalLimiter();
+  anthropicLimiter = createAnthropicLimiter();
+  console.log('[Admin] Rate limits updated:', JSON.stringify(rateLimitConfig));
+
+  res.json({ ok: true, message: 'Rate limits updated', config: rateLimitConfig });
 });
 
 // ── Start server ──
