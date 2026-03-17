@@ -371,17 +371,17 @@ body.light .fun-btn { background: var(--accent); }
 
 /* ═══ Q3: SPREADSHEET ═══ */
 .ss-wrap { flex: 1; overflow: auto; position: relative; }
-.ss-table { border-collapse: collapse; min-width: 100%; }
+.ss-table { border-collapse: collapse; table-layout: fixed; }
 .ss-table th {
   background: var(--panel-inset); color: var(--text-dim); font-size: .68rem;
   font-weight: 600; padding: 3px 5px; border: 1px solid var(--border);
-  position: sticky; top: 0; z-index: 2; min-width: 80px; text-align: center;
+  position: sticky; top: 0; z-index: 2; text-align: center; overflow: hidden;
   user-select: none;
 }
 .ss-table th.row-h { position: sticky; left: 0; z-index: 3; min-width: 32px; width: 32px; }
 .ss-table th.corner { position: sticky; left: 0; top: 0; z-index: 4; min-width: 32px; width: 32px; }
 .ss-table td {
-  padding: 0; border: 1px solid var(--border); min-width: 80px; height: 24px;
+  padding: 0; border: 1px solid var(--border); height: 24px; overflow: hidden;
   background: var(--bg); position: relative;
 }
 .ss-table td.active-cell { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 1; }
@@ -5061,13 +5061,16 @@ function evalF(formula, visited) {
 
 function ssRender() {
   const t = $('#ssTable');
-  // Colgroup for column widths
+  // Colgroup for column widths — explicit table width so resizing pushes out the end
+  let totalW = 40; // row header column
   let h = '<colgroup><col style="width:40px;">';
   for (let c = 0; c < ssC; c++) {
     const w = ssColWidths[c] || 80;
+    totalW += w;
     h += '<col style="width:' + w + 'px;">';
   }
   h += '</colgroup>';
+  t.style.width = totalW + 'px';
   h += '<thead><tr><th class="corner"></th>';
   for (let c = 0; c < ssC; c++) h += '<th data-c="'+c+'" style="position:relative;">' + (ssColNames[c] || colN(c)) + '<div class="col-resize-handle" data-col="'+c+'"></div></th>';
   h += '</tr></thead><tbody>';
@@ -5154,9 +5157,13 @@ function ssRender() {
     if (!resizing) return;
     const delta = e.clientX - startX;
     const newW = Math.max(40, startW + delta);
+    const oldW = ssColWidths[resizeCol] || 80;
     ssColWidths[resizeCol] = newW;
     const cols = table.querySelectorAll('colgroup col');
     if (cols[resizeCol + 1]) cols[resizeCol + 1].style.width = newW + 'px';
+    // Update total table width so only this column changes, pushing out the end
+    const curW = parseFloat(table.style.width) || 0;
+    table.style.width = (curW + newW - oldW) + 'px';
   });
   document.addEventListener('mouseup', () => {
     if (!resizing) return;
@@ -12935,11 +12942,17 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       const data = await resp.json();
       if (data.ok) {
         input.value = '';
-        toast(data.warning ? 'Token saved (verification pending)' : 'Connected to Robinhood!');
+        btn.textContent = 'Verifying...';
+        // Token saved on server — now validate it end-to-end
         await validateRhToken();
         updateRhBadge();
         updateRhTokenServerStatus();
-        if (rhLoggedIn) loadPortfolioSummary();
+        if (rhLoggedIn) {
+          toast('Connected to Robinhood!');
+          loadPortfolioSummary();
+        } else {
+          toast('Token saved but connection test failed — check token is current');
+        }
       } else {
         toast('Error: ' + (data.message || 'Failed to set token'));
       }
