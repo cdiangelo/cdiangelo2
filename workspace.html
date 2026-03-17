@@ -167,7 +167,7 @@ body.light .fun-btn { background: var(--accent); }
   font-style: italic; background: none; padding: 2px 8px; opacity: .85;
 }
 #q-claude .ai-input-row {
-  padding: 6px 10px; border-top: 1px solid var(--border); display: flex; gap: 6px;
+  padding: 6px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 6px;
   background: var(--panel-inset); flex-shrink: 0;
 }
 #q-claude .ai-input-row textarea {
@@ -1385,6 +1385,21 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     display: flex !important;
     flex: var(--mob-bottom-flex, 1) !important;
   }
+  /* Fullscreen mobile pane */
+  .workspace.mob-fullscreen .pane.mob-top { flex: 1 !important; }
+  .workspace.mob-fullscreen .pane.mob-bottom { display: none !important; }
+  .workspace.mob-fullscreen .mob-control-bar { display: none !important; }
+  .mob-exit-fullscreen {
+    display: none; position: fixed; z-index: 9999;
+    top: 50%; right: 14px; transform: translateY(-50%);
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 2px solid var(--border); background: var(--panel);
+    color: var(--text); font-size: 1.2rem; font-weight: 700;
+    cursor: pointer; box-shadow: 0 2px 12px rgba(0,0,0,.35);
+    align-items: center; justify-content: center;
+    touch-action: manipulation;
+  }
+  .mob-exit-fullscreen.mob-fs-active { display: flex; }
   /* Split drag handle — hidden, replaced by control bar */
   .mob-split-handle { display: none !important; }
 
@@ -1483,8 +1498,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   .robot-controls select { font-size: .55rem !important; min-height: 22px; padding: 2px 4px !important; }
   #q-claude .p-head { flex-wrap: wrap; gap: 1px; }
   #q-claude .p-head .p-btn, #q-claude .p-head select, #q-claude .p-head label { font-size: .46rem !important; }
-  /* Move all Claude admin buttons to settings drawer */
-  #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn, #aiAuditBtn, #aiSettingsBtn { display: none !important; }
+  /* Move all Claude admin buttons to settings drawer on mobile (admin tools now in drawer) */
+  #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn, #aiSettingsBtn { display: none !important; }
+  /* Keep audit btn hidden from header on mobile — available via drawer */
+  #aiAuditBtn { display: none !important; }
   #aiInfoBtn, #aiHistoryBtn { font-size: .46rem !important; padding: 1px 4px !important; }
 
   /* ═══ HEADER ITEMS HIDDEN (moved to settings) ═══ */
@@ -1811,17 +1828,17 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
         <div id="aiUsageDashContent"></div>
       </div>
-      <div class="ai-msgs" id="aiMsgs"></div>
+      <div class="ai-input-row" style="border-bottom:1px solid var(--border);border-top:none;">
+        <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="2"></textarea>
+        <button id="aiNudge" title="Nudge Claude — push to delegate, try a different approach, or take action" style="background:rgba(255,152,0,.7);color:#fff;font-size:.7rem;padding:6px 10px;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">Nudge</button>
+        <button id="aiSend">Send</button>
+      </div>
       <div style="display:flex;align-items:center;gap:6px;padding:0 8px;">
         <span id="personaIndicator" style="font-size:.52rem;color:var(--text-dim);white-space:nowrap;"></span>
         <button id="contextBadge" style="font-size:.5rem;color:var(--text-dim);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;white-space:nowrap;">&#128206; Context</button>
       </div>
       <div id="contextDrawer" style="display:none;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--panel-inset);max-height:200px;overflow-y:auto;font-size:.55rem;"></div>
-      <div class="ai-input-row">
-        <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="2"></textarea>
-        <button id="aiNudge" title="Nudge Claude — push to delegate, try a different approach, or take action" style="background:rgba(255,152,0,.7);color:#fff;font-size:.7rem;padding:6px 10px;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">Nudge</button>
-        <button id="aiSend">Send</button>
-      </div>
+      <div class="ai-msgs" id="aiMsgs"></div>
       <div class="robot-scene-resize" id="robotSceneResize" title="Drag to resize robot scene"></div>
       <div class="robot-scene" id="robotScene">
         <div class="robot-bg scene-office" id="robotBg"></div>
@@ -2288,6 +2305,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 
 <!-- Mobile control bar (bottom) -->
 <div class="mob-control-bar" id="mobControlBar"></div>
+<button class="mob-exit-fullscreen" id="mobExitFullscreen" title="Exit fullscreen">&times;</button>
 
 <!-- Mobile settings drawer -->
 <div class="mob-settings-overlay" id="mobSettingsOverlay">
@@ -3254,12 +3272,35 @@ $('#gridApplyBtn').onclick = () => {
       };
       controlBar.appendChild(btn);
     });
+    // Fullscreen button (expand top pane)
+    const fsBtn = document.createElement('button');
+    fsBtn.className = 'mob-settings-btn';
+    fsBtn.innerHTML = '\u26F6';
+    fsBtn.title = 'Fullscreen top pane';
+    fsBtn.onclick = () => enterMobileFullscreen();
+    controlBar.appendChild(fsBtn);
     // Settings gear button
     const gear = document.createElement('button');
     gear.className = 'mob-settings-btn';
     gear.innerHTML = '\u2699';
     gear.onclick = () => openSettingsDrawer();
     controlBar.appendChild(gear);
+  }
+
+  // ── Mobile fullscreen mode ──
+  const exitFsBtn = document.getElementById('mobExitFullscreen');
+  function enterMobileFullscreen() {
+    if (!ws) return;
+    ws.classList.add('mob-fullscreen');
+    if (exitFsBtn) exitFsBtn.classList.add('mob-fs-active');
+  }
+  function exitMobileFullscreen() {
+    if (!ws) return;
+    ws.classList.remove('mob-fullscreen');
+    if (exitFsBtn) exitFsBtn.classList.remove('mob-fs-active');
+  }
+  if (exitFsBtn) {
+    exitFsBtn.onclick = () => exitMobileFullscreen();
   }
 
   // Settings drawer
@@ -3331,6 +3372,32 @@ $('#gridApplyBtn').onclick = () => {
       sec2.appendChild(btn);
     });
     settingsDrawer.appendChild(sec2);
+
+    // Admin tools section (user management, audit, settings)
+    if (typeof wsIsAdmin !== 'undefined' && wsIsAdmin) {
+      const secAdmin = document.createElement('div');
+      secAdmin.className = 'msd-section';
+      const lblAdmin = document.createElement('div');
+      lblAdmin.className = 'msd-label';
+      lblAdmin.textContent = 'Admin Tools';
+      secAdmin.appendChild(lblAdmin);
+
+      const adminActions = [
+        { label: '\uD83D\uDCCA Audit Log', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiAuditBtn'); if (b) b.click(); }},
+        { label: '\uD83D\uDC65 User Dashboard', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiUsageDashBtn'); if (b) b.click(); }},
+        { label: '\uD83D\uDCE9 Access Requests', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiAccessReqBtn'); if (b) b.click(); }},
+        { label: '\u2699 Settings', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiSettingsBtn'); if (b) b.click(); }},
+        { label: '\uD83D\uDCB0 Pricing', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiPricingBtn'); if (b) b.click(); }},
+      ];
+      adminActions.forEach(a => {
+        const btn = document.createElement('button');
+        btn.className = 'msd-btn';
+        btn.textContent = a.label;
+        btn.onclick = a.action;
+        secAdmin.appendChild(btn);
+      });
+      settingsDrawer.appendChild(secAdmin);
+    }
 
     // Exit profile
     const userName = localStorage.getItem('ws_userName');
