@@ -1408,7 +1408,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   #q-claude .p-head { flex-wrap: wrap; gap: 2px; }
   #q-claude .p-head .p-btn, #q-claude .p-head select, #q-claude .p-head label { font-size: .5rem !important; }
   /* Hide less important Claude header buttons on mobile */
-  #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn { display: none !important; }
+  #aiUsageDashBtn, #aiAccessReqBtn, #aiSavedActionsBtn, #aiPricingBtn, #aiAuditBtn { display: none !important; }
   /* Make exit/logout buttons visible and tappable on mobile */
   #userExitBtn, #logoutBtn { font-size: .6rem !important; padding: 4px 10px !important; min-height: 28px; }
   #userNameDisplay { font-size: .6rem !important; }
@@ -1639,6 +1639,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <!-- Orchestrator is automatic — no toggle needed -->
       <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
       <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
+      <button id="aiAuditBtn" class="p-btn" title="Full inquiry audit log — all users (admin)" style="font-size:.55rem;">Audit</button>
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
       <button id="aiAccessReqBtn" class="p-btn" title="User access requests (admin)" style="font-size:.55rem;">Requests</button>
       <button id="aiSavedActionsBtn" class="p-btn" title="Saved tool actions" style="font-size:.55rem;">Actions</button>
@@ -2497,7 +2498,7 @@ function applyRolePermissions() {
   console.log('[PROFILE] Applying role:', role, '| loadedAt:', loadedAt, '| source:', source);
 
   // Admin-only elements
-  const adminElements = ['aiPricingBtn', 'aiPricingPanel', 'aiUsageDashBtn', 'aiAccessReqBtn'];
+  const adminElements = ['aiPricingBtn', 'aiPricingPanel', 'aiUsageDashBtn', 'aiAccessReqBtn', 'aiAuditBtn'];
   const adminShowElements = ['aiApiKeySection'];
 
   if (wsIsAdmin) {
@@ -9696,6 +9697,8 @@ function closeAllAdminPanels(except) {
   });
   const accPanel = document.getElementById('aiAccessPanel');
   if (accPanel && except !== 'aiAccessPanel') accPanel.remove();
+  const auditPanel = document.getElementById('aiAuditPanel');
+  if (auditPanel && except !== 'aiAuditPanel') auditPanel.remove();
 }
 
 $('#aiCostBtn').onclick = () => {
@@ -10840,6 +10843,238 @@ function deleteInquiry(idx) {
   renderHistoryPanel();
 }
 
+// ── Admin Audit Log panel — permanent cross-user inquiry history with cost tracking ──
+$('#aiAuditBtn').onclick = () => { renderAuditPanel(); };
+
+function renderAuditPanel() {
+  let panel = document.getElementById('aiAuditPanel');
+  if (panel) { panel.remove(); return; }
+  if (!wsIsAdmin) return;
+
+  panel = document.createElement('div');
+  panel.id = 'aiAuditPanel';
+  panel.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:30;background:var(--bg);overflow-y:auto;padding:10px 12px;font-size:.6rem;';
+
+  const users = [...new Set(aiAuditLog.map(e => e.userName || 'unknown'))].sort();
+  const userOptions = users.map(u => '<option value="' + u.replace(/"/g, '&quot;') + '">' + u + '</option>').join('');
+
+  let totalCost = 0, totalIn = 0, totalOut = 0;
+  aiAuditLog.forEach(e => { totalCost += e.cost || 0; totalIn += e.tokensIn || 0; totalOut += e.tokensOut || 0; });
+
+  const topBar = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
+    '<span style="font-weight:700;font-size:.72rem;">Audit Log <span style="font-weight:400;color:var(--text-dim);font-size:.58rem;">(' + aiAuditLog.length + ' inquiries)</span></span>' +
+    '<div style="display:flex;gap:6px;align-items:center;">' +
+    '<button id="auditExportBtn" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--accent2);color:var(--accent2);background:none;border-radius:3px;cursor:pointer;" title="Export admin inquiries as PDF">Export My PDF</button>' +
+    '<button id="auditExportCsvBtn" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;" title="Export all as CSV">CSV</button>' +
+    '<button id="auditClearBtn" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:3px;cursor:pointer;">Clear All</button>' +
+    '<button onclick="this.closest(\'#aiAuditPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button>' +
+    '</div></div>';
+
+  const costSummary = '<div style="display:flex;gap:16px;margin-bottom:8px;padding:6px 8px;background:rgba(59,130,246,.06);border-radius:4px;font-size:.58rem;">' +
+    '<span><b>Total Cost:</b> <span style="color:var(--accent2);font-weight:700;">$' + totalCost.toFixed(4) + '</span></span>' +
+    '<span><b>Tokens:</b> ' + totalIn.toLocaleString() + ' in / ' + totalOut.toLocaleString() + ' out</span>' +
+    '<span><b>Inquiries:</b> ' + aiAuditLog.length + '</span>' +
+    '</div>';
+
+  const filters = '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">' +
+    '<select id="auditUserFilter" style="font-size:.55rem;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:var(--panel-inset);color:var(--text);">' +
+    '<option value="">All Users</option><option value="admin">Admin Only</option>' + userOptions + '</select>' +
+    '<input id="auditSearch" type="text" placeholder="Search queries..." style="flex:1;font-size:.55rem;padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:var(--panel-inset);color:var(--text);">' +
+    '<select id="auditSort" style="font-size:.55rem;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:var(--panel-inset);color:var(--text);">' +
+    '<option value="newest">Newest First</option><option value="oldest">Oldest First</option><option value="costliest">Highest Cost</option></select>' +
+    '</div>';
+
+  panel.innerHTML = topBar + costSummary + filters + '<div id="auditRows"></div>';
+  $('#q-claude .p-body').appendChild(panel);
+
+  function renderAuditRows() {
+    const userFilter = document.getElementById('auditUserFilter').value;
+    const searchVal = document.getElementById('auditSearch').value.toLowerCase().trim();
+    const sortVal = document.getElementById('auditSort').value;
+
+    let filtered = aiAuditLog.filter(e => {
+      if (userFilter && e.userName !== userFilter) return false;
+      if (searchVal && !(e.query || '').toLowerCase().includes(searchVal) && !(e.response || '').toLowerCase().includes(searchVal)) return false;
+      return true;
+    });
+
+    if (sortVal === 'newest') filtered = filtered.slice().reverse();
+    else if (sortVal === 'oldest') { /* already chronological */ }
+    else if (sortVal === 'costliest') filtered = filtered.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0));
+
+    let filteredCost = 0, filteredIn = 0, filteredOut = 0;
+    filtered.forEach(e => { filteredCost += e.cost || 0; filteredIn += e.tokensIn || 0; filteredOut += e.tokensOut || 0; });
+
+    const typeIcons = { sheet: '&#9638;', whiteboard: '&#9998;', note: '&#9776;', graph: '&#8767;', stocks: '&#8599;', research: '&#128269;', analysis: '&#9879;', concept: '&#9673;', tool: '&#9881;' };
+    const typeColors = { sheet: '#10b981', whiteboard: '#e64a19', note: 'var(--accent)', graph: '#8b5cf6', stocks: '#f59e0b', research: '#3b82f6', analysis: '#ec4899', concept: '#6366f1', tool: 'var(--text-dim)' };
+
+    const filterSummary = (userFilter || searchVal) ? '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:6px;">Showing ' + filtered.length + ' of ' + aiAuditLog.length + ' — Filtered cost: <b style="color:var(--accent2);">$' + filteredCost.toFixed(4) + '</b> | ' + filteredIn.toLocaleString() + ' in / ' + filteredOut.toLocaleString() + ' out</div>' : '';
+
+    if (!filtered.length) {
+      document.getElementById('auditRows').innerHTML = filterSummary + '<div style="color:var(--text-dim);text-align:center;padding:20px;">No matching inquiries.</div>';
+      return;
+    }
+
+    const rows = filtered.map((entry, i) => {
+      const d = new Date(entry.timestamp);
+      const time = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      const query = (entry.query || '').substring(0, 90) + ((entry.query || '').length > 90 ? '...' : '');
+      const badges = (entry.artifactTypes || []).map(t =>
+        '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:.45rem;background:' + (typeColors[t] || 'var(--text-dim)') + ';color:#fff;margin:1px 2px;">' + (typeIcons[t] || '') + ' ' + t + '</span>'
+      ).join('');
+      const costStr = entry.cost ? '$' + entry.cost.toFixed(4) : '-';
+      const tokStr = entry.tokensIn ? (entry.tokensIn + entry.tokensOut).toLocaleString() + ' tok' : '';
+      return '<div class="audit-row" data-idx="' + i + '" style="padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer;" onmouseenter="this.style.background=\'rgba(99,102,241,.08)\'" onmouseleave="this.style.background=\'none\'">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="color:var(--text-dim);font-size:.5rem;">' + time + '</span>' +
+        '<span style="display:flex;gap:6px;align-items:center;font-size:.5rem;">' +
+        '<span style="color:var(--accent2);font-weight:600;">' + (entry.userName || 'unknown') + '</span>' +
+        '<span style="color:var(--text-dim);">' + (entry.model || '').replace('claude-', '').split('-202')[0] + '</span>' +
+        '<span style="color:var(--accent2);">' + costStr + '</span>' +
+        (tokStr ? '<span style="color:var(--text-dim);">' + tokStr + '</span>' : '') +
+        '</span></div>' +
+        '<div style="margin-top:2px;color:var(--text);font-size:.56rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + query.replace(/</g, '&lt;') + '</div>' +
+        (badges ? '<div style="margin-top:2px;">' + badges + '</div>' : '') +
+        '</div>';
+    }).join('');
+
+    document.getElementById('auditRows').innerHTML = filterSummary + rows;
+
+    // Click to expand detail
+    document.getElementById('auditRows').querySelectorAll('.audit-row').forEach(row => {
+      row.onclick = () => {
+        const idx = parseInt(row.dataset.idx);
+        const entry = filtered[idx];
+        if (!entry) return;
+        showAuditDetail(entry);
+      };
+    });
+  }
+
+  renderAuditRows();
+
+  document.getElementById('auditUserFilter').onchange = renderAuditRows;
+  document.getElementById('auditSearch').oninput = renderAuditRows;
+  document.getElementById('auditSort').onchange = renderAuditRows;
+
+  document.getElementById('auditClearBtn').onclick = () => {
+    if (!confirm('Permanently delete ALL audit log entries? This cannot be undone.')) return;
+    aiAuditLog = [];
+    localStorage.setItem(AUDIT_LOG_KEY, '[]');
+    panel.remove();
+    toast('Audit log cleared');
+  };
+
+  // Export admin-only inquiries as PDF
+  document.getElementById('auditExportBtn').onclick = () => {
+    const adminEntries = aiAuditLog.filter(e => e.userName === 'admin');
+    if (!adminEntries.length) { toast('No admin inquiries to export'); return; }
+    exportAuditPdf(adminEntries, 'Admin Inquiries');
+  };
+
+  // Export all as CSV
+  document.getElementById('auditExportCsvBtn').onclick = () => {
+    if (!aiAuditLog.length) { toast('Audit log is empty'); return; }
+    const userFilter = document.getElementById('auditUserFilter').value;
+    const entries = userFilter ? aiAuditLog.filter(e => e.userName === userFilter) : aiAuditLog;
+    const header = 'Timestamp,User,Model,Query,Response,Cost,Tokens In,Tokens Out,Artifacts';
+    const csvRows = entries.map(e => {
+      const q = '"' + (e.query || '').replace(/"/g, '""').replace(/\n/g, ' ') + '"';
+      const r = '"' + (e.response || '').substring(0, 500).replace(/"/g, '""').replace(/\n/g, ' ') + '"';
+      return [e.timestamp, e.userName || '', e.model || '', q, r, (e.cost || 0).toFixed(6), e.tokensIn || 0, e.tokensOut || 0, (e.artifactTypes || []).join(';')].join(',');
+    });
+    const csv = header + '\n' + csvRows.join('\n');
+    const a = document.createElement('a');
+    a.download = 'audit_log_' + new Date().toISOString().split('T')[0] + '.csv';
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.click();
+    toast('CSV exported (' + entries.length + ' entries)');
+  };
+}
+
+function showAuditDetail(entry) {
+  const panel = document.getElementById('aiAuditPanel');
+  if (!panel) return;
+  const d = new Date(entry.timestamp);
+  const costStr = entry.cost ? '$' + entry.cost.toFixed(4) : '-';
+  const tokStr = entry.tokensIn ? entry.tokensIn.toLocaleString() + ' in / ' + (entry.tokensOut || 0).toLocaleString() + ' out' : '';
+
+  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
+    '<span style="font-weight:700;font-size:.72rem;">Inquiry Detail</span>' +
+    '<div style="display:flex;gap:6px;align-items:center;">' +
+    '<button onclick="document.getElementById(\'aiAuditPanel\')?.remove();renderAuditPanel();" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--accent);color:var(--accent);background:none;border-radius:3px;cursor:pointer;">Back</button>' +
+    '<button onclick="this.closest(\'#aiAuditPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button>' +
+    '</div></div>' +
+    '<div style="display:flex;gap:12px;margin-bottom:10px;font-size:.55rem;color:var(--text-dim);">' +
+    '<span><b>User:</b> <span style="color:var(--accent2);font-weight:600;">' + (entry.userName || 'unknown') + '</span></span>' +
+    '<span><b>Date:</b> ' + d.toLocaleString() + '</span>' +
+    '<span><b>Model:</b> ' + (entry.model || '-') + '</span>' +
+    '<span><b>Cost:</b> <span style="color:var(--accent2);">' + costStr + '</span></span>' +
+    (tokStr ? '<span><b>Tokens:</b> ' + tokStr + '</span>' : '') +
+    '</div>' +
+    '<div style="margin-bottom:8px;">' +
+    '<div style="font-weight:600;font-size:.55rem;color:var(--text-dim);margin-bottom:3px;">QUERY</div>' +
+    '<div style="background:rgba(99,102,241,.1);border-radius:6px;padding:8px 10px;font-size:.6rem;color:var(--text);white-space:pre-wrap;word-break:break-word;">' + (entry.query || '').replace(/</g, '&lt;') + '</div>' +
+    '</div>' +
+    '<div style="margin-bottom:8px;">' +
+    '<div style="font-weight:600;font-size:.55rem;color:var(--text-dim);margin-bottom:3px;">RESPONSE</div>' +
+    '<div style="background:rgba(16,185,129,.06);border-radius:6px;padding:8px 10px;font-size:.6rem;color:var(--text);white-space:pre-wrap;word-break:break-word;max-height:50vh;overflow-y:auto;">' + (entry.response || '').replace(/</g, '&lt;') + '</div>' +
+    '</div>' +
+    ((entry.artifacts || []).length ? '<div><div style="font-weight:600;font-size:.55rem;color:var(--text-dim);margin-bottom:3px;">ARTIFACTS (' + entry.artifacts.length + ')</div>' +
+    entry.artifacts.map(a => '<div style="font-size:.52rem;padding:3px 6px;margin:2px 0;background:var(--panel-inset);border-radius:3px;border:1px solid var(--border);"><b>' + a.tool + '</b> <span style="color:var(--text-dim);">(' + a.type + ')</span></div>').join('') +
+    '</div>' : '');
+}
+
+function exportAuditPdf(entries, title) {
+  const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  let totalCost = 0, totalIn = 0, totalOut = 0;
+  entries.forEach(e => { totalCost += e.cost || 0; totalIn += e.tokensIn || 0; totalOut += e.tokensOut || 0; });
+
+  const entriesHtml = entries.slice().reverse().map((e, i) => {
+    const d = new Date(e.timestamp);
+    const costStr = e.cost ? '$' + e.cost.toFixed(4) : '-';
+    return '<div class="inquiry">' +
+      '<div class="inq-meta">' + d.toLocaleString() + ' &mdash; ' + (e.model || '-') + ' &mdash; ' + costStr + '</div>' +
+      '<div class="inq-query"><b>Query:</b> ' + (e.query || '').replace(/</g, '&lt;') + '</div>' +
+      '<div class="inq-response"><b>Response:</b> ' + (e.response || '').replace(/</g, '&lt;') + '</div>' +
+      ((e.artifactTypes || []).length ? '<div class="inq-artifacts">Artifacts: ' + e.artifactTypes.join(', ') + '</div>' : '') +
+      '</div>';
+  }).join('');
+
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + ' — ' + dateStr + '</title>' +
+    '<style>' +
+    '@page { size: letter; margin: 0.8in 1in; }' +
+    'body { font-family: Georgia, serif; font-size: 11pt; line-height: 1.6; color: #1a1a1a; max-width: 6.5in; margin: 0 auto; padding: 0.5in 0; }' +
+    'h1 { font-family: Helvetica, Arial, sans-serif; font-size: 18pt; border-bottom: 2px solid #333; padding-bottom: 6pt; }' +
+    '.summary { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #555; margin-bottom: 20pt; padding: 8pt 12pt; background: #f5f5f5; border-radius: 4pt; }' +
+    '.summary b { color: #333; }' +
+    '.inquiry { margin-bottom: 16pt; padding-bottom: 12pt; border-bottom: 1px solid #ddd; page-break-inside: avoid; }' +
+    '.inq-meta { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #888; margin-bottom: 4pt; }' +
+    '.inq-query { margin-bottom: 6pt; white-space: pre-wrap; }' +
+    '.inq-response { white-space: pre-wrap; color: #333; }' +
+    '.inq-artifacts { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #666; margin-top: 4pt; font-style: italic; }' +
+    '.print-footer { margin-top: 20pt; padding-top: 8pt; border-top: 1px solid #ccc; font-family: Arial, sans-serif; font-size: 8pt; color: #999; text-align: right; }' +
+    '.no-print { font-family: Arial, sans-serif; background: #f5f5f5; padding: 12px 20px; margin: -0.5in 0 20px 0; border-bottom: 1px solid #ddd; text-align: center; }' +
+    '@media print { .no-print { display: none !important; } }' +
+    '</style></head><body>' +
+    '<div class="no-print"><button onclick="window.print()" style="font-size:14px;padding:8px 24px;background:#333;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:8px;">Print / Save as PDF</button>' +
+    '<span style="color:#666;font-size:13px;">Use your browser\'s print dialog to save as PDF</span></div>' +
+    '<h1>' + title + '</h1>' +
+    '<div class="summary"><b>Period:</b> ' + (entries.length ? new Date(entries[0].timestamp).toLocaleDateString() : '-') + ' &mdash; ' + (entries.length ? new Date(entries[entries.length - 1].timestamp).toLocaleDateString() : '-') +
+    ' &nbsp;|&nbsp; <b>Inquiries:</b> ' + entries.length +
+    ' &nbsp;|&nbsp; <b>Total Cost:</b> $' + totalCost.toFixed(4) +
+    ' &nbsp;|&nbsp; <b>Tokens:</b> ' + totalIn.toLocaleString() + ' in / ' + totalOut.toLocaleString() + ' out</div>' +
+    entriesHtml +
+    '<div class="print-footer">Exported from Workspace &mdash; ' + dateStr + '</div>' +
+    '</body></html>';
+
+  const w = window.open('', '_blank');
+  if (!w) { toast('Pop-up blocked — allow pop-ups and try again'); return; }
+  w.document.write(html);
+  w.document.close();
+  toast('PDF export opened');
+}
+
 // Auto-save chat to log at end of each conversation
 // ── Auto-saved tool actions (linkage) ──
 let aiSavedActions = LS('aiSavedActions') || [];
@@ -11059,6 +11294,11 @@ function getTaskVersionBadge(taskId) {
 // ── Per-inquiry log with artifacts ──
 let aiInquiryLog = LS('aiInquiryLog') || [];
 
+// ── Global admin audit log — permanent, all users, with cost tracking ──
+// Uses a fixed global key (not user-scoped) so admin sees everything
+const AUDIT_LOG_KEY = 'ws_auditLog';
+let aiAuditLog = JSON.parse(localStorage.getItem(AUDIT_LOG_KEY) || '[]');
+
 function saveInquiryLog(userQuery, model, actions) {
   // Collect the assistant's last response from aiMessages
   const assistantMsgs = [];
@@ -11080,6 +11320,11 @@ function saveInquiryLog(userQuery, model, actions) {
     return { type, tool: a.tool, input: a.input };
   });
 
+  // Calculate cost for this inquiry
+  const rates = (typeof MODEL_RATES !== 'undefined') ? (MODEL_RATES[model] || { input: 3, output: 15 }) : { input: 3, output: 15 };
+  const tokIn = aiSessionTokensIn || 0;
+  const tokOut = aiSessionTokensOut || 0;
+
   const entry = {
     id: Date.now(),
     timestamp: new Date().toISOString(),
@@ -11089,9 +11334,28 @@ function saveInquiryLog(userQuery, model, actions) {
     artifacts: artifacts,
     artifactTypes: [...new Set(artifacts.map(a => a.type))]
   };
+
+  // Save to per-user inquiry log (capped)
   aiInquiryLog.push(entry);
   if (aiInquiryLog.length > 200) aiInquiryLog = aiInquiryLog.slice(-200);
   LS('aiInquiryLog', aiInquiryLog);
+
+  // Save to global admin audit log (permanent, with user + cost data)
+  const userName = localStorage.getItem('ws_userName') || (wsIsAdmin ? 'admin' : 'anonymous');
+  const auditEntry = Object.assign({}, entry, {
+    userName: userName,
+    tokensIn: tokIn,
+    tokensOut: tokOut,
+    cost: (tokIn / 1e6 * rates.input) + (tokOut / 1e6 * rates.output),
+    sessionRequests: aiSessionRequests || 0
+  });
+  aiAuditLog.push(auditEntry);
+  try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (e) {
+    // If localStorage is full, trim oldest 20% to make room
+    console.warn('[Audit] Storage full, trimming oldest entries');
+    aiAuditLog = aiAuditLog.slice(Math.floor(aiAuditLog.length * 0.2));
+    try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(aiAuditLog)); } catch (_) {}
+  }
 }
 
 function addAiMsg(role, text) {
