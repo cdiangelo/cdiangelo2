@@ -1513,7 +1513,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="fun-btn-wrap">
       <button class="fun-btn" id="wsToggle">&#128190; Workspaces</button>
       <div class="fun-panel" id="wsPanel" style="min-width:340px;">
-        <h3 style="margin-bottom:8px;">Workspaces</h3>
+        <h3 style="margin-bottom:4px;">Workspaces</h3>
+        <div style="font-size:.55rem;color:var(--text-dim);margin-bottom:8px;line-height:1.4;">Optional &mdash; for version control &amp; merging. All inquiries and exhibits are saved automatically regardless of workspace.</div>
         <div style="display:flex;gap:4px;margin-bottom:8px;">
           <button class="btn-sm btn-add" id="wsNew">+ New</button>
           <button class="btn-sm" id="wsMergeBtn" style="background:var(--accent);color:#fff;">Merge</button>
@@ -2804,7 +2805,7 @@ async function safeParseJson(resp, context) {
   return resp.json();
 }
 // Per-profile scoped localStorage — user data is isolated from admin
-const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','registeredUsers','adminSession','userName','deviceId','aiApiKey','accessRequests','blockedUsers','gmailSignedIn','gmailEmail']);
+const LS_GLOBAL_KEYS = new Set(['scheme','lightMode','helpSeen','registeredContacts','registeredUsers','adminSession','userName','deviceId','aiApiKey','accessRequests','blockedUsers','gmailSignedIn','gmailEmail','aiInquiryLog','aiSavedActions']);
 function _lsPrefix(k) {
   if (LS_GLOBAL_KEYS.has(k) || k.startsWith('usage_') || k.startsWith('geniePrompts_')) return 'ws_';
   if (wsIsAdmin) return 'ws_admin_';
@@ -3141,6 +3142,39 @@ $('#gridApplyBtn').onclick = () => {
         card.onclick = () => { mobIdx = i; showMobPane(); };
         mobTocEl.appendChild(card);
       });
+
+      // Exit Profile button — visible when user is logged in
+      const exitProfileBtn = document.createElement('button');
+      exitProfileBtn.id = 'mobExitProfileBtn';
+      exitProfileBtn.style.cssText = 'display:none;width:100%;padding:12px 16px;margin-top:16px;border:1px solid var(--danger);border-radius:10px;background:none;color:var(--danger);cursor:pointer;font-size:.78rem;font-weight:600;text-align:center;transition:all .15s;';
+      exitProfileBtn.innerHTML = '&#8592; Exit Profile';
+      exitProfileBtn.onmouseenter = exitProfileBtn.ontouchstart = function() { exitProfileBtn.style.background = 'rgba(239,68,68,.1)'; };
+      exitProfileBtn.onmouseleave = exitProfileBtn.ontouchend = function() { exitProfileBtn.style.background = 'none'; };
+      exitProfileBtn.onclick = () => {
+        if (wsIsAdmin) {
+          localStorage.removeItem('ws_adminSession');
+        } else {
+          localStorage.removeItem('ws_userName');
+        }
+        location.reload();
+      };
+      mobTocEl.appendChild(exitProfileBtn);
+
+      // Show/hide exit button based on login state
+      function updateMobExitBtn() {
+        const btn = document.getElementById('mobExitProfileBtn');
+        if (btn) {
+          const userName = localStorage.getItem('ws_userName');
+          if (wsIsAdmin || userName) {
+            btn.style.display = '';
+            btn.innerHTML = '&#8592; Exit' + (wsIsAdmin ? ' Admin' : (userName ? ' (' + userName + ')' : ''));
+          } else {
+            btn.style.display = 'none';
+          }
+        }
+      }
+      updateMobExitBtn();
+      window.addEventListener('profileReady', updateMobExitBtn);
 
       document.getElementById('workspace').appendChild(mobTocEl);
     }
@@ -7832,7 +7866,7 @@ function deserializeState(s) {
 let wsIndex = LS('workspaces') || [];
 let wsActiveId = LS('activeWorkspace') || null;
 
-// Auto-create a default workspace if none exist
+// Auto-create a default workspace if none exist (optional — workspaces are for version control/merging only)
 if (!wsIndex.length) {
   const id = genId();
   wsIndex.push({ id, name: 'Default', createdAt: Date.now(), updatedAt: Date.now() });
@@ -7842,6 +7876,7 @@ if (!wsIndex.length) {
   // Save current state as the default workspace
   LS('workspace_' + id, serializeState());
 }
+// Note: Inquiries and exhibits are always saved globally (not workspace-scoped)
 
 function saveActiveWorkspace() {
   if (!wsActiveId) return;
