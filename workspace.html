@@ -1636,11 +1636,12 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     errorCount++;
     var info = msg + ' at ' + (src || '?') + ':' + line + ':' + col;
     console.error('[ERROR BOUNDARY]', info, err);
-    if (startupPhase && errorCount <= 3) {
+    if (startupPhase) {
       startupErrors.push(info);
-      showErrorScreen('Error: ' + msg + '\n\nSource: ' + (src || 'unknown') + ':' + line);
     }
-    // Don't suppress — let DevTools still show it
+    // Don't show error screen for individual errors — they may be non-fatal.
+    // The app has a safety-net re-render that recovers from transient init errors.
+    // Only the 10s timeout below triggers the visible error screen.
     return false;
   };
 
@@ -1648,15 +1649,20 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     var msg = e.reason ? (e.reason.message || String(e.reason)) : 'Unknown promise rejection';
     console.error('[ERROR BOUNDARY] Unhandled rejection:', msg, e.reason);
     if (startupPhase) {
-      showErrorScreen('Async error: ' + msg);
+      startupErrors.push('async: ' + msg);
     }
   };
 
   // Startup health check — if app hasn't initialized after 10s, show error
+  // This is the ONLY trigger for the visible error screen, ensuring non-fatal
+  // transient errors (e.g. TDZ during init ordering) don't block the app.
   setTimeout(function() {
     if (!window.__appReady) {
       console.error('[INIT] App did not reach ready state within 10s');
-      showErrorScreen('App initialization timed out.\nThis may be caused by a restricted browser environment.\n\nTry opening in Chrome, Safari, or Firefox.');
+      var detail = startupErrors.length
+        ? 'Errors during startup:\n' + startupErrors.join('\n')
+        : 'No errors logged — app may be blocked by a restricted browser environment.';
+      showErrorScreen('App initialization timed out.\n\n' + detail + '\n\nTry opening in Chrome, Safari, or Firefox.');
     }
   }, 10000);
 
@@ -7304,6 +7310,9 @@ const COMPARE_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec48
 
 async function renderStockDash() {
   const dash = $('#stockDash');
+  // Guard: stockTickers may not be initialized yet if called during early init (e.g. applyScheme).
+  // Cannot use typeof check for let-TDZ, so use try-catch.
+  try { if (!stockTickers) return; } catch(_) { return; }
   if (!stockTickers.length) {
     dash.innerHTML = '<div style="width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px;">Add a ticker symbol above to start tracking stocks.<br>Live data via Robinhood &amp; Yahoo Finance.</div>';
     renderCompareChart();
@@ -7812,6 +7821,7 @@ $('#stockRefresh').onclick = () => { renderStockDash(); toast('Refreshed'); };
 function renderStockChips() {
   const el = $('#stockChips');
   el.innerHTML = '';
+  try { if (!stockTickers) return; } catch(_) { return; }
   stockTickers.forEach((t, i) => {
     const chip = document.createElement('span');
     chip.className = 'ticker-chip';
