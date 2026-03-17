@@ -1964,8 +1964,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </select>
           <button id="stockRefresh">Refresh</button>
           <span id="stockFreshness" style="display:none;align-items:center;gap:3px;font-size:.55rem;color:var(--text-dim);margin-left:4px;" title="Data freshness"><span class="sf-dot" style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;"></span><span class="sf-label">—</span></span>
-          <span id="rhConnectionStatus" style="display:none;align-items:center;gap:3px;font-size:.55rem;color:var(--text-dim);margin-left:4px;"></span>
-          <button id="rhLoginBtn" title="Login to Robinhood" style="font-size:.62rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;">RH: Login</button>
+          <button id="rhLoginBtn" title="Robinhood connection — click to manage" style="font-size:.62rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;display:inline-flex;align-items:center;gap:4px;"><span id="rhBtnDot" style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;"></span><span id="rhBtnLabel">RH: Setup</span></button>
         </div>
         <!-- Comparison chart (big overlay) -->
         <div id="stockCompareWrap" style="display:none;flex-direction:column;border-bottom:1px solid var(--border);min-height:0;">
@@ -2837,8 +2836,9 @@ $('#resetGridBtn').onclick = () => {
   const ws = $('#workspace');
   ws.style.gridTemplateColumns = '';
   ws.style.gridTemplateRows = '';
-  // Restore pane positions (saved layout or default)
-  applyGridOrder(getGridOrder());
+  // Restore default pane arrangement and clear any saved custom layout
+  LS('gridOrder', null);
+  applyGridOrder(DEFAULT_GRID_ORDER.slice());
   // Show dividers
   $$('.divider-h, .divider-v').forEach(d => d.style.display = '');
   // Reset nav buttons to "All"
@@ -6234,21 +6234,47 @@ async function validateRhToken() {
 const detectRobinhoodSession = validateRhToken;
 
 function updateRhConnectionStatus() {
-  const el = document.getElementById('rhConnectionStatus');
-  if (!el) return;
-  el.style.display = 'inline-flex';
+  const dot = document.getElementById('rhBtnDot');
+  const label = document.getElementById('rhBtnLabel');
+  const btn = document.getElementById('rhLoginBtn');
+  if (!dot || !label) return;
+
   if (RH_SESSION.status === 'active') {
-    const mask = RH_SESSION.accountMask ? ' \u00B7 \u2022\u2022\u2022\u2022' + RH_SESSION.accountMask : '';
-    el.innerHTML = '<span style="color:#10b981;">&#x1F7E2;</span> <span>RH Connected' + mask + '</span>';
-    el.title = 'Robinhood Connected via token — Full data access';
+    // Check data freshness: bright green = live/recent, soft green = cached
+    const age = RH_SESSION.validatedAt ? (Date.now() - RH_SESSION.validatedAt) / 1000 : Infinity;
+    if (age < 60) {
+      // Live / just validated — bright green
+      dot.style.background = '#22c55e';
+      label.textContent = 'RH: Live';
+      btn.title = 'Robinhood connected — live data';
+    } else if (age < 600) {
+      // Recent cached data (< 10 min) — soft/muted green
+      dot.style.background = '#86efac';
+      label.textContent = 'RH: Connected';
+      btn.title = 'Robinhood connected — cached data (' + Math.round(age / 60) + 'm ago)';
+    } else {
+      // Stale but still connected — dim green
+      dot.style.background = '#a7f3d0';
+      label.textContent = 'RH: Connected';
+      btn.title = 'Robinhood connected — data may be stale';
+    }
   } else if (RH_SESSION.status === 'none') {
-    el.innerHTML = '<span style="color:#f59e0b;">&#x1F7E1;</span> <span>RH: Public Only</span>';
-    el.title = 'No RH token configured on server — using public data only';
+    dot.style.background = '#f59e0b';
+    label.textContent = 'RH: Public';
+    btn.title = 'No token — public quotes only (click to add token)';
+  } else if (RH_SESSION.status === 'validating') {
+    dot.style.background = '#f59e0b';
+    label.textContent = 'RH: Checking...';
+    btn.title = 'Validating Robinhood connection...';
   } else {
-    el.innerHTML = '<span style="color:#ef4444;">&#x1F534;</span> <span>Offline</span>';
-    el.title = 'Offline — No market data available';
+    dot.style.background = '#ef4444';
+    label.textContent = 'RH: Offline';
+    btn.title = 'Proxy unreachable — click to troubleshoot';
   }
 }
+
+// Periodically refresh the RH status dot color as cached data ages
+setInterval(updateRhConnectionStatus, 30000);
 
 // Tiered data fetcher — RH authenticated → Yahoo → metadata only
 async function fetchStockData(ticker, range, preferredSource) {
@@ -6487,17 +6513,8 @@ async function checkRobinhoodStatus() {
 }
 
 function updateRhLoginUI() {
-  const btn = $('#rhLoginBtn');
-  if (!btn) return;
-  if (rhLoggedIn) {
-    btn.textContent = 'RH: Connected';
-    btn.style.color = '#22c55e';
-    btn.title = 'Robinhood token active — click to manage';
-  } else {
-    btn.textContent = 'RH: Setup';
-    btn.style.color = 'var(--text-dim)';
-    btn.title = 'Robinhood connection managed server-side';
-  }
+  // Status is now handled entirely by updateRhConnectionStatus
+  updateRhConnectionStatus();
 }
 
 // Track which tickers have real data available
@@ -12787,8 +12804,17 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
         <div id="rhTokenServerStatus" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);font-size:.6rem;color:var(--text-dim);">
           Checking server configuration...
         </div>
-        <div style="font-size:.48rem;color:var(--text-dim);margin-top:6px;font-style:italic;">
-          Robinhood token is managed server-side via the secure proxy.
+
+        <!-- Token paste option -->
+        <div style="margin-top:10px;">
+          <label style="font-size:.65rem;font-weight:600;color:var(--text);display:block;margin-bottom:4px;">Paste Token</label>
+          <div style="display:flex;gap:6px;">
+            <input id="rhTokenInput" type="password" placeholder="Paste Robinhood auth token" style="flex:1;font-size:.6rem;padding:6px 8px;border:1px solid var(--border);border-radius:5px;background:var(--panel-inset);color:var(--text);font-family:monospace;" />
+            <button id="rhTokenSubmit" style="font-size:.58rem;padding:4px 10px;border:1px solid var(--accent);border-radius:5px;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap;">Connect</button>
+          </div>
+          <div style="font-size:.48rem;color:var(--text-dim);margin-top:4px;font-style:italic;">
+            Token is sent to the proxy server and stored in memory only.
+          </div>
         </div>
       </div>
 
@@ -12880,6 +12906,41 @@ window.fetchRobinhoodNews = fetchRobinhoodNews;
       el.innerHTML = '<span style="color:#ef4444;">Proxy offline</span>';
     }
   }
+
+  // Token paste submit
+  $('#rhTokenSubmit').onclick = async () => {
+    const input = $('#rhTokenInput');
+    const btn = $('#rhTokenSubmit');
+    const token = input.value.trim();
+    if (!token || token.length < 10) { toast('Paste a valid Robinhood auth token'); return; }
+    btn.disabled = true; btn.textContent = 'Connecting...';
+    try {
+      const resp = await fetch(PROXY_BASE + '/proxy/robinhood/set-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: ADMIN_PASSWORD, token })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        input.value = '';
+        toast(data.warning ? 'Token saved (verification pending)' : 'Connected to Robinhood!');
+        await validateRhToken();
+        updateRhBadge();
+        updateRhTokenServerStatus();
+        if (rhLoggedIn) loadPortfolioSummary();
+      } else {
+        toast('Error: ' + (data.message || 'Failed to set token'));
+      }
+    } catch(e) {
+      toast('Connection error: ' + e.message);
+    }
+    btn.disabled = false; btn.textContent = 'Connect';
+  };
+
+  // Allow Enter key to submit token
+  $('#rhTokenInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('#rhTokenSubmit').click();
+  });
 
   // Open modal — just show status
   $('#rhLoginBtn').onclick = () => {
