@@ -563,6 +563,8 @@ body.light .fun-btn { background: var(--accent); }
 .robot-scene-resize::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 30px; height: 2px; background: var(--text-dim); border-radius: 1px; opacity: .3; }
 .robot-scene-resize:hover { background: var(--accent); opacity: .8; }
 .pane.expanded .robot-scene-resize { display: block; }
+.pane.expanded .robot-scene-wrapper { max-height: 60%; }
+.pane.expanded .robot-scene { transition: height 0.3s ease; }
 
 /* ═══ GENIE MODE (user mode) ═══ */
 /* Genie hat — tall curved fez with gold band */
@@ -3164,7 +3166,34 @@ $$('[data-expand]').forEach(btn => {
       if (btn.dataset.expand === 'q-media' && typeof snapVideoToMediaPane === 'function') {
         setTimeout(snapVideoToMediaPane, 50);
       }
+      // Auto-scale robot scene to show full body in expanded Claude pane
+      if (btn.dataset.expand === 'q-claude') {
+        setTimeout(() => {
+          const rs = document.getElementById('robotScene');
+          if (!rs) return;
+          const paneH = p.offsetHeight;
+          const expandedH = Math.max(200, Math.round(paneH * 0.38));
+          rs.dataset.prevHeight = rs.offsetHeight;
+          rs.style.height = expandedH + 'px';
+          const scale = expandedH / 140;
+          const ws = rs.querySelector('.robot-workstation');
+          if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
+          rs.querySelectorAll('.robot-plant').forEach(pl => { pl.style.transform = 'scale(' + scale + ')'; });
+        }, 60);
+      }
     } else {
+      // Collapsing — restore robot scene to previous size
+      if (btn.dataset.expand === 'q-claude') {
+        const rs = document.getElementById('robotScene');
+        if (rs) {
+          const prevH = +(rs.dataset.prevHeight || localStorage.getItem('ws_robotSceneH') || 140);
+          rs.style.height = prevH + 'px';
+          const scale = prevH / 140;
+          const ws = rs.querySelector('.robot-workstation');
+          if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
+          rs.querySelectorAll('.robot-plant').forEach(pl => { pl.style.transform = 'scale(' + scale + ')'; });
+        }
+      }
       // Collapsing — re-apply grid order to restore correct visibility
       applyGridOrder(getGridOrder());
     }
