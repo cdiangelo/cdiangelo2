@@ -3172,190 +3172,250 @@ $('#gridApplyBtn').onclick = () => {
   }
 })();
 
-// ── Mobile navigation ──
+// ── Mobile two-pane navigation ──
 (function initMobileNav() {
   const MOBILE_PANES = [
-    { id: 'q-claude', label: 'Claude', icon: '\uD83E\uDD16', desc: 'Ask Claude to build tables, analyze stocks, create charts, and more' },
-    { id: 'q-map', label: 'Analytics', icon: '\uD83D\uDCC8', desc: 'Stock charts, concept maps, and graph calculator' },
-    { id: 'q-news', label: 'News', icon: '\uD83D\uDCF0', desc: 'Search news by keyword or track market tickers' },
-    { id: 'q-notepad', label: 'Notes', icon: '\uD83D\uDCDD', desc: 'Rich text editor with formatting and colors' },
-    { id: 'q-whiteboard', label: 'Draw', icon: '\uD83C\uDFA8', desc: 'Freeform drawing with shapes, text, and layers' },
-    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA', desc: 'Spreadsheet with formulas like SUM, AVG, VLOOKUP' },
-    { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F', desc: 'YouTube video player and playlist' }
+    { id: 'q-claude', label: 'Claude', icon: '\uD83E\uDD16' },
+    { id: 'q-map', label: 'Analytics', icon: '\uD83D\uDCC8' },
+    { id: 'q-news', label: 'News', icon: '\uD83D\uDCF0' },
+    { id: 'q-notepad', label: 'Notes', icon: '\uD83D\uDCDD' },
+    { id: 'q-whiteboard', label: 'Draw', icon: '\uD83C\uDFA8' },
+    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA' },
+    { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F' }
   ];
-  let mobIdx = -1; // -1 = table of contents home
+
   const isMobile = () => window.innerWidth <= 768;
-  const pagesEl = document.getElementById('mobPages');
-  const prevBtn = document.getElementById('mobPrev');
-  const nextBtn = document.getElementById('mobNext');
-  if (!pagesEl || !prevBtn || !nextBtn) return;
+  const ws = document.getElementById('workspace');
+  const splitHandle = document.getElementById('mobSplitHandle');
+  const controlBar = document.getElementById('mobControlBar');
+  const settingsOverlay = document.getElementById('mobSettingsOverlay');
+  const settingsDrawer = document.getElementById('mobSettingsDrawer');
+  if (!ws || !controlBar) return;
 
-  // ADDED — Phase 11: Table of contents home screen
-  let mobTocEl = null;
-  function showMobToc() {
-    $$('.pane').forEach(el => el.classList.remove('mobile-active'));
-    if (!mobTocEl) {
-      mobTocEl = document.createElement('div');
-      mobTocEl.id = 'mobileToc';
-      mobTocEl.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:100;overflow-y:auto;padding:20px 16px;';
-      const title = document.createElement('div');
-      title.style.cssText = 'font-size:1.1rem;font-weight:700;color:var(--accent2);margin-bottom:16px;text-align:center;';
-      title.textContent = 'Interactive Workspace';
-      mobTocEl.appendChild(title);
-
-      const intro = document.createElement('div');
-      intro.style.cssText = 'background:var(--panel-inset);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:.68rem;color:var(--text);line-height:1.5;';
-      intro.innerHTML = '<strong style="color:var(--accent2);">Quick Start</strong><br>' +
-        'Open <b>Claude</b> and type what you need \u2014 he can build tables, fetch stock data, chart comparisons, write analyses, and draw on the whiteboard. ' +
-        'Or use the other tools directly: edit the <b>Sheet</b>, draw on the <b>Whiteboard</b>, search <b>News</b>, and more.';
-      mobTocEl.appendChild(intro);
-
-      const swipeHint = document.createElement('div');
-      swipeHint.style.cssText = 'text-align:center;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;opacity:.7;';
-      swipeHint.innerHTML = '\u2190 Swipe left/right to switch panes \u2192';
-      mobTocEl.appendChild(swipeHint);
-
-      MOBILE_PANES.forEach((p, i) => {
-        const card = document.createElement('button');
-        card.style.cssText = 'display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:var(--text);cursor:pointer;text-align:left;transition:all .15s;';
-        card.onmouseenter = card.ontouchstart = function() { card.style.borderColor = 'var(--accent)'; card.style.background = 'var(--panel-inset)'; };
-        card.onmouseleave = card.ontouchend = function() { card.style.borderColor = 'var(--border)'; card.style.background = 'var(--panel)'; };
-        const iconSpan = document.createElement('span');
-        iconSpan.style.cssText = 'font-size:1.6rem;flex-shrink:0;width:40px;text-align:center;';
-        iconSpan.textContent = p.icon;
-        const textDiv = document.createElement('div');
-        textDiv.style.cssText = 'flex:1;';
-        const nameDiv = document.createElement('div');
-        nameDiv.style.cssText = 'font-weight:700;font-size:.85rem;color:var(--text);';
-        nameDiv.textContent = p.label;
-        const descDiv = document.createElement('div');
-        descDiv.style.cssText = 'font-size:.65rem;color:var(--text-dim);margin-top:2px;';
-        descDiv.textContent = p.desc;
-        textDiv.appendChild(nameDiv);
-        textDiv.appendChild(descDiv);
-        card.appendChild(iconSpan);
-        card.appendChild(textDiv);
-        const arrow = document.createElement('span');
-        arrow.style.cssText = 'color:var(--text-dim);font-size:.8rem;';
-        arrow.textContent = '\u203A';
-        card.appendChild(arrow);
-        card.onclick = () => { mobIdx = i; showMobPane(); };
-        mobTocEl.appendChild(card);
-      });
-
-      // Exit Profile button — visible when user is logged in
-      const exitProfileBtn = document.createElement('button');
-      exitProfileBtn.id = 'mobExitProfileBtn';
-      exitProfileBtn.style.cssText = 'display:none;width:100%;padding:12px 16px;margin-top:16px;border:1px solid var(--danger);border-radius:10px;background:none;color:var(--danger);cursor:pointer;font-size:.78rem;font-weight:600;text-align:center;transition:all .15s;';
-      exitProfileBtn.innerHTML = '&#8592; Exit Profile';
-      exitProfileBtn.onmouseenter = exitProfileBtn.ontouchstart = function() { exitProfileBtn.style.background = 'rgba(239,68,68,.1)'; };
-      exitProfileBtn.onmouseleave = exitProfileBtn.ontouchend = function() { exitProfileBtn.style.background = 'none'; };
-      exitProfileBtn.onclick = () => {
-        if (wsIsAdmin) {
-          localStorage.removeItem('ws_adminSession');
-        } else {
-          localStorage.removeItem('ws_userName');
-        }
-        location.reload();
-      };
-      mobTocEl.appendChild(exitProfileBtn);
-
-      // Show/hide exit button based on login state
-      function updateMobExitBtn() {
-        const btn = document.getElementById('mobExitProfileBtn');
-        if (btn) {
-          const userName = localStorage.getItem('ws_userName');
-          if (wsIsAdmin || userName) {
-            btn.style.display = '';
-            btn.innerHTML = '&#8592; Exit' + (wsIsAdmin ? ' Admin' : (userName ? ' (' + userName + ')' : ''));
-          } else {
-            btn.style.display = 'none';
-          }
-        }
-      }
-      updateMobExitBtn();
-      window.addEventListener('profileReady', updateMobExitBtn);
-
-      document.getElementById('workspace').appendChild(mobTocEl);
-    }
-    mobTocEl.style.display = '';
-    renderMobPages();
+  // State: which pane indices are shown top/bottom
+  let topIdx = 0;  // Claude
+  let bottomIdx = 3; // Notes
+  const saved = localStorage.getItem('ws_mob_panes');
+  if (saved) {
+    try { const s = JSON.parse(saved); topIdx = s.top; bottomIdx = s.bottom; } catch(e) {}
   }
 
-  function hideMobToc() {
-    if (mobTocEl) mobTocEl.style.display = 'none';
+  function savePaneState() {
+    localStorage.setItem('ws_mob_panes', JSON.stringify({ top: topIdx, bottom: bottomIdx }));
   }
 
-  function renderMobPages() {
-    const homeBtn = '<button class="mob-page' + (mobIdx === -1 ? ' active' : '') + '" data-idx="-1">\u2302</button>';
-    pagesEl.innerHTML = homeBtn + MOBILE_PANES.map((p, i) =>
-      '<button class="mob-page' + (i === mobIdx ? ' active' : '') + '" data-idx="' + i + '">' + p.label + '</button>'
-    ).join('');
-    pagesEl.querySelectorAll('.mob-page').forEach(btn => {
+  function resizePanes() {
+    setTimeout(() => {
+      resizeWB(); resizeCM();
+      if (typeof resizeGC === 'function') resizeGC();
+      if (typeof renderStockDash === 'function') renderStockDash();
+    }, 50);
+  }
+
+  // Apply two-pane layout
+  function applyMobileLayout() {
+    if (!isMobile()) return;
+    // Clear all pane mobile classes
+    $$('.pane').forEach(el => { el.classList.remove('mob-top', 'mob-bottom', 'mobile-active'); });
+
+    // Move split handle inside workspace between the two panes
+    const topPane = document.getElementById(MOBILE_PANES[topIdx].id);
+    const bottomPane = document.getElementById(MOBILE_PANES[bottomIdx].id);
+    if (!topPane || !bottomPane) return;
+
+    topPane.classList.add('mob-top');
+    bottomPane.classList.add('mob-bottom');
+
+    // Ensure proper DOM order: top pane, split handle, bottom pane (append to workspace)
+    ws.appendChild(topPane);
+    ws.appendChild(splitHandle);
+    ws.appendChild(bottomPane);
+
+    renderControlBar();
+    resizePanes();
+  }
+
+  // Build the control bar buttons
+  function renderControlBar() {
+    controlBar.innerHTML = '';
+    MOBILE_PANES.forEach((p, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'mob-pane-btn';
+      btn.textContent = p.icon + ' ' + p.label;
+      if (i === topIdx) btn.classList.add('mob-active-top');
+      if (i === bottomIdx) btn.classList.add('mob-active-bottom');
       btn.onclick = () => {
-        mobIdx = +btn.dataset.idx;
-        if (mobIdx === -1) showMobToc();
-        else showMobPane();
+        // Tap logic: if already top, make it bottom; if already bottom, make it top; otherwise replace bottom
+        if (i === topIdx) {
+          // Swap top and bottom
+          const tmp = topIdx; topIdx = bottomIdx; bottomIdx = tmp;
+        } else if (i === bottomIdx) {
+          // Swap top and bottom
+          const tmp = topIdx; topIdx = bottomIdx; bottomIdx = tmp;
+        } else {
+          // Replace whichever pane was least recently tapped — default to replacing bottom
+          bottomIdx = i;
+        }
+        savePaneState();
+        applyMobileLayout();
       };
+      controlBar.appendChild(btn);
+    });
+    // Settings gear button
+    const gear = document.createElement('button');
+    gear.className = 'mob-settings-btn';
+    gear.innerHTML = '\u2699';
+    gear.onclick = () => openSettingsDrawer();
+    controlBar.appendChild(gear);
+  }
+
+  // Settings drawer
+  function openSettingsDrawer() {
+    buildSettingsDrawer();
+    settingsOverlay.classList.add('mob-open');
+  }
+  function closeSettingsDrawer() {
+    settingsOverlay.classList.remove('mob-open');
+  }
+  // Close on backdrop tap
+  if (settingsOverlay) {
+    settingsOverlay.addEventListener('click', (e) => {
+      if (e.target === settingsOverlay) closeSettingsDrawer();
     });
   }
 
-  let _swipeHintShown = localStorage.getItem('ws_swipeHintShown');
-  function showMobPane() {
-    if (!isMobile()) return;
-    hideMobToc();
-    $$('.pane').forEach(el => el.classList.remove('mobile-active'));
-    if (mobIdx < 0 || mobIdx >= MOBILE_PANES.length) { showMobToc(); return; }
-    const el = document.getElementById(MOBILE_PANES[mobIdx].id);
-    if (el) el.classList.add('mobile-active');
-    renderMobPages();
-    // Show swipe hint once on first pane visit
-    if (!_swipeHintShown) {
-      _swipeHintShown = true;
-      localStorage.setItem('ws_swipeHintShown', '1');
-      const hint = document.createElement('div');
-      hint.style.cssText = 'position:fixed;bottom:44px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:8px 18px;border-radius:20px;font-size:.72rem;z-index:9999;pointer-events:none;transition:opacity .5s;white-space:nowrap;';
-      hint.textContent = '\u2190 Swipe to switch panes \u2192';
-      document.body.appendChild(hint);
-      setTimeout(() => { hint.style.opacity = '0'; }, 3000);
-      setTimeout(() => { hint.remove(); }, 3500);
+  function buildSettingsDrawer() {
+    settingsDrawer.innerHTML = '';
+
+    // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.style.cssText = 'align-self:flex-end;border:none;background:none;color:var(--text-dim);font-size:1.2rem;cursor:pointer;padding:4px 8px;';
+    closeBtn.innerHTML = '\u2715';
+    closeBtn.onclick = closeSettingsDrawer;
+    settingsDrawer.appendChild(closeBtn);
+
+    // Pane selection section
+    const sec1 = document.createElement('div');
+    sec1.className = 'msd-section';
+    const lbl1 = document.createElement('div');
+    lbl1.className = 'msd-label';
+    lbl1.textContent = 'Top Pane';
+    sec1.appendChild(lbl1);
+    MOBILE_PANES.forEach((p, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'msd-btn';
+      btn.textContent = p.icon + ' ' + p.label;
+      if (i === topIdx) btn.style.borderColor = 'var(--accent)';
+      btn.onclick = () => {
+        if (i === bottomIdx) bottomIdx = topIdx; // swap
+        topIdx = i;
+        savePaneState();
+        applyMobileLayout();
+        closeSettingsDrawer();
+      };
+      sec1.appendChild(btn);
+    });
+    settingsDrawer.appendChild(sec1);
+
+    const sec2 = document.createElement('div');
+    sec2.className = 'msd-section';
+    const lbl2 = document.createElement('div');
+    lbl2.className = 'msd-label';
+    lbl2.textContent = 'Bottom Pane';
+    sec2.appendChild(lbl2);
+    MOBILE_PANES.forEach((p, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'msd-btn';
+      btn.textContent = p.icon + ' ' + p.label;
+      if (i === bottomIdx) btn.style.borderColor = 'var(--accent2)';
+      btn.onclick = () => {
+        if (i === topIdx) topIdx = bottomIdx; // swap
+        bottomIdx = i;
+        savePaneState();
+        applyMobileLayout();
+        closeSettingsDrawer();
+      };
+      sec2.appendChild(btn);
+    });
+    settingsDrawer.appendChild(sec2);
+
+    // Exit profile
+    const userName = localStorage.getItem('ws_userName');
+    if (typeof wsIsAdmin !== 'undefined' && (wsIsAdmin || userName)) {
+      const sec3 = document.createElement('div');
+      sec3.className = 'msd-section';
+      const exitBtn = document.createElement('button');
+      exitBtn.className = 'msd-btn';
+      exitBtn.style.cssText = 'color:var(--danger);border-color:var(--danger);';
+      exitBtn.textContent = '\u2190 Exit' + (wsIsAdmin ? ' Admin' : (userName ? ' (' + userName + ')' : ''));
+      exitBtn.onclick = () => {
+        if (wsIsAdmin) localStorage.removeItem('ws_adminSession');
+        else localStorage.removeItem('ws_userName');
+        location.reload();
+      };
+      sec3.appendChild(exitBtn);
+      settingsDrawer.appendChild(sec3);
     }
-    setTimeout(() => { resizeWB(); resizeCM(); if (typeof resizeGC === 'function') resizeGC(); if (typeof renderStockDash === 'function') renderStockDash(); }, 50);
   }
 
-  prevBtn.onclick = () => {
-    if (mobIdx <= 0) { mobIdx = -1; showMobToc(); }
-    else { mobIdx--; showMobPane(); }
-  };
-  nextBtn.onclick = () => {
-    if (mobIdx === -1) { mobIdx = 0; showMobPane(); }
-    else { mobIdx = (mobIdx + 1) % MOBILE_PANES.length; showMobPane(); }
-  };
+  // ── Split handle drag to resize ──
+  if (splitHandle) {
+    let dragging = false, startY = 0, startTopFlex = 1, startBottomFlex = 1;
 
-  // Initialize on load if mobile — show table of contents
+    function onDragStart(e) {
+      if (!isMobile()) return;
+      dragging = true;
+      startY = e.touches ? e.touches[0].clientY : e.clientY;
+      const topPane = document.getElementById(MOBILE_PANES[topIdx].id);
+      const bottomPane = document.getElementById(MOBILE_PANES[bottomIdx].id);
+      if (topPane && bottomPane) {
+        const totalH = topPane.offsetHeight + bottomPane.offsetHeight;
+        startTopFlex = topPane.offsetHeight / totalH;
+        startBottomFlex = bottomPane.offsetHeight / totalH;
+      }
+      e.preventDefault();
+    }
+
+    function onDragMove(e) {
+      if (!dragging) return;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const topPane = document.getElementById(MOBILE_PANES[topIdx].id);
+      const bottomPane = document.getElementById(MOBILE_PANES[bottomIdx].id);
+      if (!topPane || !bottomPane) return;
+      const totalH = topPane.offsetHeight + bottomPane.offsetHeight;
+      const dy = clientY - startY;
+      const deltaRatio = dy / totalH;
+      let newTop = Math.max(0.15, Math.min(0.85, startTopFlex + deltaRatio));
+      let newBottom = 1 - newTop;
+      ws.style.setProperty('--mob-top-flex', newTop.toFixed(3));
+      ws.style.setProperty('--mob-bottom-flex', newBottom.toFixed(3));
+    }
+
+    function onDragEnd() {
+      if (!dragging) return;
+      dragging = false;
+      resizePanes();
+    }
+
+    splitHandle.addEventListener('touchstart', onDragStart, { passive: false });
+    splitHandle.addEventListener('mousedown', onDragStart);
+    document.addEventListener('touchmove', onDragMove, { passive: true });
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('touchend', onDragEnd);
+    document.addEventListener('mouseup', onDragEnd);
+  }
+
+  // ── Initialize / resize handler ──
   function checkMobile() {
     if (isMobile()) {
-      if (mobIdx === -1) showMobToc();
-      else showMobPane();
+      applyMobileLayout();
     } else {
-      hideMobToc();
-      $$('.pane').forEach(el => el.classList.remove('mobile-active'));
+      // Clean up mobile classes
+      $$('.pane').forEach(el => { el.classList.remove('mob-top', 'mob-bottom', 'mobile-active'); });
     }
   }
   window.addEventListener('resize', checkMobile);
   checkMobile();
-
-  // Swipe support
-  let touchStartX = 0;
-  document.getElementById('workspace').addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
-  document.getElementById('workspace').addEventListener('touchend', e => {
-    if (!isMobile()) return;
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(dx) > 50) {
-      if (dx > 0) { if (mobIdx <= 0) { mobIdx = -1; showMobToc(); } else { mobIdx--; showMobPane(); } }
-      else { if (mobIdx === -1) { mobIdx = 0; } else { mobIdx = (mobIdx + 1) % MOBILE_PANES.length; } showMobPane(); }
-    }
-  }, { passive: true });
 })();
 
 let urls = LS('urls') || [];
