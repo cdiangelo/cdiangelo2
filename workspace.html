@@ -565,9 +565,9 @@ body.light .fun-btn { background: var(--accent); }
 .pane.expanded .robot-scene-resize { display: block; }
 .pane.expanded .robot-scene-wrapper { max-height: 60%; }
 .pane.expanded .robot-scene { transition: height 0.3s ease; }
-/* Auto-fit robot in all-panes (non-expanded) view — scene fills wrapper, robot scales to fit head-to-toe */
-.pane:not(.expanded) .robot-scene-wrapper { overflow: hidden; }
-.pane:not(.expanded) .robot-scene { height: 100%; }
+/* Auto-fit robot in all-panes (non-expanded) view — independent scroll, fills bottom section */
+.pane:not(.expanded) .robot-scene-wrapper { overflow-y: auto; flex: 1; min-height: 0; max-height: none; }
+.pane:not(.expanded) .robot-scene { height: 250px; }
 
 /* ═══ GENIE MODE (user mode) ═══ */
 /* Genie hat — tall curved fez with gold band */
@@ -14013,6 +14013,7 @@ async function renderAccessRequestsPanel() {
 
 // ── Auto-fit robot scene in all-panes view ──
 // Scales the robot character to show full head-to-toe within the background scene
+// Also auto-scrolls the wrapper to the bottom so Claude is visible
 (function initRobotAutoFit() {
   const wrapper = document.getElementById('robotSceneWrapper');
   const scene = document.getElementById('robotScene');
@@ -14022,21 +14023,36 @@ async function renderAccessRequestsPanel() {
   function autoFitRobot() {
     const pane = scene.closest('.pane');
     if (!pane || pane.classList.contains('expanded')) return;
-    // Get actual rendered scene height (CSS sets height:100% of wrapper minus controls)
+    // Get actual rendered scene height
     const sceneH = scene.clientHeight;
     if (sceneH <= 0) return;
     const scale = sceneH / DEFAULT_H;
     const ws = scene.querySelector('.robot-workstation');
     if (ws) { ws.style.transform = 'translateX(-50%) scale(' + scale + ')'; ws.style.transformOrigin = 'bottom center'; }
     scene.querySelectorAll('.robot-plant').forEach(p => { p.style.transform = 'scale(' + scale + ')'; p.style.transformOrigin = 'bottom center'; });
+    // Auto-scroll wrapper to bottom so Claude robot is visible
+    autoScrollRobotWrapper();
+  }
+
+  function autoScrollRobotWrapper() {
+    if (wrapper.scrollHeight > wrapper.clientHeight) {
+      wrapper.scrollTop = wrapper.scrollHeight;
+    }
   }
 
   // Observe wrapper resize (covers window resize, grid changes, pane switches)
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(autoFitRobot).observe(wrapper);
   }
-  // Initial fit after layout settles
+  // Initial fit and scroll after layout settles
   setTimeout(autoFitRobot, 100);
+  // Also auto-scroll when switching back to all-panes view
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('[data-pane]');
+    if (btn && (btn.dataset.pane === 'all' || btn.dataset.pane === 'q-claude')) {
+      setTimeout(autoScrollRobotWrapper, 150);
+    }
+  });
 })();
 
 // ── Output text zoom (+/- 50%) ──
