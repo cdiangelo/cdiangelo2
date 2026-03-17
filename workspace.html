@@ -4215,16 +4215,16 @@ function exportNotepadPdf() {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
 <style>
-  @page { size: letter; margin: 1in 1.2in; }
+  @page { size: letter; margin: 0.4in 0.5in; }
   * { box-sizing: border-box; }
   body {
     font-family: 'Aptos Narrow', 'Roboto Condensed', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     font-size: 11pt;
     line-height: 1.65;
     color: #1a1a1a;
-    max-width: 6.5in;
+    max-width: 7.5in;
     margin: 0 auto;
-    padding: 0.5in 0;
+    padding: 0.25in 0;
   }
   .np-page { margin-bottom: 1em; }
   .np-page-title {
@@ -11499,6 +11499,7 @@ Tab-specific rules:
     * Keep paragraphs SHORT — 2-3 sentences max, then break
     * Remove excessive blank lines (max 1 between sections)
     * Font consistency: remove inline font-size/font-family overrides
+    * Margin normalization for PDF: strip any inline margin, padding, or width overrides on block elements (divs, paragraphs, sections). Remove max-width constraints. Content should flow to fill the full available page width with no wasted whitespace. Remove any inline styles that add large left/right margins or padding. The goal is small margins with text filling the screen when exported to PDF.
     * Structure: Section Heading → context sentence → bullet details → divider → next section
   - SCRATCH SHEET: flag broken embeds, normalize cell formatting
 
