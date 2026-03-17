@@ -1542,6 +1542,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
     </div>
     <span id="userNameDisplay" style="display:none;font-size:.65rem;color:var(--text-dim);padding:0 4px;"></span>
+    <span id="idleTimerDisplay" style="display:none;font-size:.55rem;color:var(--text-dim);padding:0 2px;font-variant-numeric:tabular-nums;"></span>
+    <button class="fs-btn" id="wsSettingsBtn" title="Session & device settings" style="font-size:.7rem;color:var(--text-dim);border:1px solid var(--border);border-radius:4px;padding:2px 8px;display:none;">&#9881; Settings</button>
     <button class="fs-btn" id="userExitBtn" title="Exit to login screen" style="font-size:.65rem;color:var(--accent2);display:none;border:1px solid var(--accent2);border-radius:4px;padding:2px 8px;">&#8592; Exit</button>
     <button class="fs-btn" id="logoutBtn" title="Exit admin mode — return to guest/user view" style="font-size:.65rem;color:var(--danger);display:none;border:1px solid var(--danger);border-radius:4px;padding:2px 8px;">&#128274; Logout</button>
     <button class="fs-btn" id="helpBtn" title="Help" style="font-size:1rem;">?</button>
@@ -2265,34 +2267,34 @@ const API_KEY_PASSWORD = 'alphabetsoup'; // Unlock API key entry in user mode
 }
 
 // ── Device fingerprint for user tracking ──
+// Two fingerprints: (1) stable hardware-only for device-user binding, (2) unique instance ID
+function _hashString(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
+  return Math.abs(h).toString(36);
+}
+function getHardwareFingerprint() {
+  // Deterministic — same on every visit from same browser/device (no random component)
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'top'; ctx.font = '14px Arial'; ctx.fillText('fingerprint', 2, 2);
+  const canvasHash = canvas.toDataURL().slice(-32);
+  const parts = [
+    navigator.userAgent, navigator.language, navigator.hardwareConcurrency,
+    screen.width + 'x' + screen.height, screen.colorDepth,
+    new Date().getTimezoneOffset(), canvasHash
+  ].join('|');
+  return 'hw_' + _hashString(parts);
+}
 function getDeviceFingerprint() {
   let fp = localStorage.getItem('ws_deviceId');
   if (fp) return fp;
-  // Generate a stable fingerprint from browser properties + random component
-  const nav = navigator;
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  ctx.textBaseline = 'top';
-  ctx.font = '14px Arial';
-  ctx.fillText('fingerprint', 2, 2);
-  const canvasHash = canvas.toDataURL().slice(-32);
-  const components = [
-    nav.userAgent, nav.language, nav.hardwareConcurrency,
-    screen.width + 'x' + screen.height, screen.colorDepth,
-    new Date().getTimezoneOffset(), canvasHash,
-    crypto.randomUUID().slice(0, 8) // unique per device install
-  ].join('|');
-  // Simple hash
-  let hash = 0;
-  for (let i = 0; i < components.length; i++) {
-    hash = ((hash << 5) - hash) + components.charCodeAt(i);
-    hash |= 0;
-  }
-  fp = 'dev_' + Math.abs(hash).toString(36) + '_' + Date.now().toString(36);
+  fp = getHardwareFingerprint() + '_' + Date.now().toString(36);
   localStorage.setItem('ws_deviceId', fp);
   return fp;
 }
 const wsDeviceId = getDeviceFingerprint();
+const wsHardwareId = getHardwareFingerprint();
 
 (function initAuthGate() {
   const gate = document.getElementById('authGate');
@@ -2314,12 +2316,21 @@ const wsDeviceId = getDeviceFingerprint();
   function registerUser(name) {
     const users = getRegisteredUsers();
     const key = name.toLowerCase().trim();
-    users[key] = { name, deviceId: wsDeviceId, lastLogin: new Date().toISOString() };
+    users[key] = { name, deviceId: wsDeviceId, hardwareId: wsHardwareId, lastLogin: new Date().toISOString() };
     localStorage.setItem('ws_registeredUsers', JSON.stringify(users));
     // Also keep legacy registeredContacts for backward compat with usage tracking
     const contacts = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
     contacts[key] = name;
     localStorage.setItem('ws_registeredContacts', JSON.stringify(contacts));
+  }
+
+  // Find existing user bound to this hardware fingerprint
+  function findUserForDevice() {
+    const users = getRegisteredUsers();
+    for (const [, data] of Object.entries(users)) {
+      if (data.hardwareId === wsHardwareId) return data.name;
+    }
+    return null;
   }
 
   // ---- Screen helpers ----
@@ -2435,6 +2446,16 @@ const wsDeviceId = getDeviceFingerprint();
       document.getElementById('authUserName').focus();
       return;
     }
+    // Check if this device already has a registered profile
+    const existingUser = findUserForDevice();
+    if (existingUser && existingUser.toLowerCase() !== name.toLowerCase()) {
+      errorEl.innerHTML = 'This device already has a profile: <strong>' + existingUser + '</strong>. ' +
+        '<a href="#" id="authUseExisting" style="color:var(--accent);text-decoration:underline;">Sign in as ' + existingUser + '</a>';
+      errorEl.style.display = 'block';
+      const link = document.getElementById('authUseExisting');
+      if (link) link.onclick = (e) => { e.preventDefault(); registerUser(existingUser); completeUserLogin(existingUser); };
+      return;
+    }
     registerUser(name);
     // Populate default artifacts for new users (admin-selected examples)
     populateDefaultArtifactsForNewUser(name);
@@ -2503,6 +2524,22 @@ const wsDeviceId = getDeviceFingerprint();
   }
 
   document.getElementById('authNewUserBtn').onclick = () => {
+    // Check if this device already has a profile — offer redirect instead
+    const existingUser = findUserForDevice();
+    if (existingUser) {
+      document.getElementById('authTitle').textContent = 'Welcome Back';
+      document.getElementById('authSubtitle').innerHTML = 'This device is registered to <strong>' + existingUser + '</strong>';
+      showScreen('authUserNameForm');
+      document.getElementById('authUserName').value = '';
+      const errorEl = document.getElementById('authNameError');
+      errorEl.innerHTML = 'A profile already exists on this device. ' +
+        '<a href="#" id="authUseExisting" style="color:var(--accent);text-decoration:underline;">Sign in as ' + existingUser + '</a>';
+      errorEl.style.display = 'block';
+      const link = document.getElementById('authUseExisting');
+      if (link) link.onclick = (e) => { e.preventDefault(); registerUser(existingUser); completeUserLogin(existingUser); };
+      document.getElementById('authUserName').focus();
+      return;
+    }
     document.getElementById('authTitle').textContent = 'Enter Workspace';
     document.getElementById('authSubtitle').textContent = 'Enter your name to get started';
     document.getElementById('authUserName').value = '';
@@ -2585,6 +2622,12 @@ function applyRolePermissions() {
     showUserInfo();
     if (typeof activateGenieMode === 'function') setTimeout(activateGenieMode, 300);
   }
+
+  // Show workspace settings button for all logged-in users
+  const wsSettingsBtn = document.getElementById('wsSettingsBtn');
+  if (wsSettingsBtn && (wsIsAdmin || wsUserName)) wsSettingsBtn.style.display = '';
+  const idleTimerEl = document.getElementById('idleTimerDisplay');
+  if (idleTimerEl && (wsIsAdmin || wsUserName)) idleTimerEl.style.display = '';
 
   // Reset idle timer with correct role-based timeout after login
   if (typeof getIdleTimeoutForRole === 'function') {
@@ -9266,8 +9309,8 @@ function getIdleTimeoutForRole() {
     const v = parseInt(globalStored, 10);
     if (!isNaN(v) && v >= 0) { localStorage.setItem(key, String(v)); return v; }
   }
-  // Defaults: admin = never (0), user = 5 min
-  const def = wsIsAdmin ? 0 : 5;
+  // Defaults: admin = never (0), user = 10 min
+  const def = wsIsAdmin ? 0 : 10;
   localStorage.setItem(key, String(def));
   return def;
 }
@@ -9275,15 +9318,41 @@ let idleTimeoutMin = getIdleTimeoutForRole();
 
 let _idleTimer = null;
 let _idleWarningTimer = null;
+let _idleCountdownInterval = null;
+let _idleDeadline = 0; // timestamp when idle timeout fires
+
+function _updateIdleDisplay() {
+  const el = document.getElementById('idleTimerDisplay');
+  if (!el) return;
+  if (idleTimeoutMin <= 0) { el.textContent = ''; return; }
+  const secLeft = Math.max(0, Math.round((_idleDeadline - Date.now()) / 1000));
+  const m = Math.floor(secLeft / 60);
+  const s = secLeft % 60;
+  el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+  // Color: normal → yellow under 60s → red under 15s
+  if (secLeft <= 15) el.style.color = 'var(--danger, #ef4444)';
+  else if (secLeft <= 60) el.style.color = '#f59e0b';
+  else el.style.color = 'var(--text-dim)';
+}
 
 function resetIdleTimer() {
   if (_idleTimer) clearTimeout(_idleTimer);
   if (_idleWarningTimer) clearTimeout(_idleWarningTimer);
+  if (_idleCountdownInterval) clearInterval(_idleCountdownInterval);
   const warningEl = document.getElementById('idleWarningBanner');
   if (warningEl) warningEl.remove();
-  if (idleTimeoutMin <= 0) return; // "never" — no timeout
-  // Show warning 60s before timeout (or 30s for short timeouts)
-  const warnBefore = Math.min(60000, idleTimeoutMin * 60000 * 0.3);
+  if (idleTimeoutMin <= 0) {
+    const el = document.getElementById('idleTimerDisplay');
+    if (el) el.textContent = '';
+    return; // "never" — no timeout
+  }
+  const totalMs = idleTimeoutMin * 60000;
+  _idleDeadline = Date.now() + totalMs;
+  // Start live countdown display
+  _updateIdleDisplay();
+  _idleCountdownInterval = setInterval(_updateIdleDisplay, 1000);
+  // Show warning 60s before timeout (or 30% for short timeouts)
+  const warnBefore = Math.min(60000, totalMs * 0.3);
   _idleWarningTimer = setTimeout(() => {
     // Don't show warning if Claude is actively working
     if (typeof aiStreaming !== 'undefined' && aiStreaming) { resetIdleTimer(); return; }
@@ -9295,8 +9364,9 @@ function resetIdleTimer() {
     banner.textContent = 'Session idle — will return to login in ~' + secLeft + 's. Click or press any key to stay.';
     banner.onclick = resetIdleTimer;
     document.body.appendChild(banner);
-  }, idleTimeoutMin * 60000 - warnBefore);
+  }, totalMs - warnBefore);
   _idleTimer = setTimeout(() => {
+    if (_idleCountdownInterval) clearInterval(_idleCountdownInterval);
     // NEVER boot user while Claude is actively processing a task
     if (typeof aiStreaming !== 'undefined' && aiStreaming) {
       console.log('[SESSION] Idle timeout suppressed — Claude is working. Timer restarted.');
@@ -9308,7 +9378,7 @@ function resetIdleTimer() {
     localStorage.removeItem('ws_adminSession');
     localStorage.removeItem('ws_userName');
     location.reload();
-  }, idleTimeoutMin * 60000);
+  }, totalMs);
 }
 
 // Activity listeners — reset idle on any interaction
@@ -10247,7 +10317,7 @@ $('#aiAccessReqBtn').onclick = renderAccessRequestsPanel;
   setTimeout(updateAccessBadge, 10000); // Refresh every 10s
 })();
 
-// ── Admin Settings Panel (rate limits + session timeout) ──
+// ── Admin Settings Panel (rate limits + default materials) ──
 $('#aiSettingsBtn').onclick = () => {
   closeAllAdminPanels('aiSettingsPanel');
   let panel = document.getElementById('aiSettingsPanel');
@@ -10259,12 +10329,11 @@ $('#aiSettingsBtn').onclick = () => {
   panel.style.cssText = 'position:absolute;top:0;left:4px;right:4px;z-index:80;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:12px 14px;font-size:.65rem;overflow-y:auto;max-height:90%;';
 
   // Current values
-  const curTimeout = idleTimeoutMin;
   const curRetry = AI_RETRY_DELAYS.map(d => d / 1000);
 
   panel.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-      '<span style="font-weight:700;color:var(--accent2);">Admin Settings</span>' +
+      '<span style="font-weight:700;color:var(--accent2);">Claude AI Settings</span>' +
       '<button onclick="document.getElementById(\'aiSettingsPanel\').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;">&times;</button>' +
     '</div>' +
 
@@ -10306,27 +10375,6 @@ $('#aiSettingsBtn').onclick = () => {
         '<input type="number" id="setRetry3" value="' + curRetry[2] + '" min="1" max="300" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:60px;">' +
       '</div>' +
       '<div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Delays between retries when rate limited (429). Set higher to reduce pressure.</div>' +
-    '</div>' +
-
-    // Session Timeout section
-    '<div style="font-weight:600;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px;">Session Idle Timeout</div>' +
-    '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">' +
-      '<div style="display:flex;align-items:center;gap:6px;">' +
-        '<label style="flex:0 0 130px;">Timeout:</label>' +
-        '<select id="setIdleTimeout" style="flex:1;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);">' +
-          '<option value="1"' + (curTimeout === 1 ? ' selected' : '') + '>1 minute</option>' +
-          '<option value="2"' + (curTimeout === 2 ? ' selected' : '') + '>2 minutes</option>' +
-          '<option value="5"' + (curTimeout === 5 ? ' selected' : '') + '>5 minutes (default)</option>' +
-          '<option value="10"' + (curTimeout === 10 ? ' selected' : '') + '>10 minutes</option>' +
-          '<option value="15"' + (curTimeout === 15 ? ' selected' : '') + '>15 minutes</option>' +
-          '<option value="30"' + (curTimeout === 30 ? ' selected' : '') + '>30 minutes</option>' +
-          '<option value="60"' + (curTimeout === 60 ? ' selected' : '') + '>1 hour</option>' +
-          '<option value="0"' + (curTimeout === 0 ? ' selected' : '') + '>Never</option>' +
-        '</select>' +
-      '</div>' +
-      '<div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">"Never" disables auto-logout. Any activity resets the timer.</div>' +
-      '<div id="setIdleSecurityNote" style="display:' + (curTimeout === 0 ? 'block' : 'none') + ';font-size:.55rem;color:#f59e0b;margin-top:2px;padding:3px 6px;background:rgba(245,158,11,.1);border-radius:4px;">' +
-        '&#9888; "Never" timeout: session stays active indefinitely. Ensure you are on a private/trusted device. API keys and env vars in server memory persist until server restart.</div>' +
     '</div>' +
 
     // New User Default Materials section
@@ -10407,11 +10455,6 @@ $('#aiSettingsBtn').onclick = () => {
     });
   })();
 
-  // Show/hide security note on change
-  document.getElementById('setIdleTimeout').onchange = function() {
-    document.getElementById('setIdleSecurityNote').style.display = this.value === '0' ? 'block' : 'none';
-  };
-
   // Save handler — always saves client-side, optionally syncs to server
   document.getElementById('settingsSaveBtn').onclick = async () => {
     const status = document.getElementById('settingsStatus');
@@ -10425,13 +10468,6 @@ $('#aiSettingsBtn').onclick = () => {
     AI_RETRY_DELAYS = retryDelays.map(d => d * 1000);
     localStorage.setItem('ws_retryDelays', JSON.stringify(AI_RETRY_DELAYS));
 
-    const newTimeout = parseInt(document.getElementById('setIdleTimeout').value, 10);
-    idleTimeoutMin = newTimeout;
-    const roleKey = 'ws_idleTimeoutMin_' + (wsIsAdmin ? 'admin' : 'user');
-    localStorage.setItem(roleKey, String(newTimeout));
-    localStorage.setItem('ws_idleTimeoutMin', String(newTimeout)); // legacy compat
-    resetIdleTimer();
-
     // Save default artifacts selection
     const selectedArtifactCbs = document.querySelectorAll('.default-artifact-cb:checked');
     const selectedArtifacts = [];
@@ -10443,7 +10479,6 @@ $('#aiSettingsBtn').onclick = () => {
     localStorage.setItem('ws_defaultArtifacts', JSON.stringify(selectedArtifacts));
 
     const artifactMsg = selectedArtifacts.length ? selectedArtifacts.length + ' default artifact(s).' : 'No default artifacts.';
-    const timeoutMsg = newTimeout === 0 ? 'never' : newTimeout + ' min';
 
     // 2. Try to sync server rate limits (optional — may fail if proxy not updated)
     let serverMsg = '';
@@ -10471,15 +10506,132 @@ $('#aiSettingsBtn').onclick = () => {
     }
 
     status.style.color = '#10b981';
-    status.textContent = 'Settings saved. Timeout: ' + timeoutMsg + '. ' + artifactMsg + serverMsg;
+    status.textContent = 'Settings saved. ' + artifactMsg + serverMsg;
 
     // Log admin action
     if (typeof logAdminAction === 'function') {
-      logAdminAction('Settings Update', 'Timeout: ' + timeoutMsg + ', retry: ' + retryDelays.join('/') + 's, artifacts: ' + selectedArtifacts.length, [{
-        action: 'settings_update', idleTimeout: timeoutMsg, retryDelays
+      logAdminAction('Admin Settings Update', 'Retry: ' + retryDelays.join('/') + 's, artifacts: ' + selectedArtifacts.length, [{
+        action: 'settings_update', retryDelays
       }]);
     }
   };
+};
+
+// ── Workspace Settings Panel (session timeout — available to all logged-in users) ──
+$('#wsSettingsBtn').onclick = () => {
+  let panel = document.getElementById('wsSettingsPanel');
+  if (panel) { panel.remove(); return; }
+
+  panel = document.createElement('div');
+  panel.id = 'wsSettingsPanel';
+  panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9500;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,.5);padding:20px 24px;font-size:.7rem;width:90%;max-width:380px;';
+
+  const curTimeout = idleTimeoutMin;
+  const userName = wsUserName || 'Admin';
+  const deviceId = wsHardwareId || wsDeviceId || '—';
+
+  panel.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
+      '<span style="font-weight:700;font-size:.85rem;color:var(--text);">Session Settings</span>' +
+      '<button id="wsSettingsClose" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.1rem;">&times;</button>' +
+    '</div>' +
+
+    // User & device info
+    '<div style="background:var(--panel-inset);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:14px;">' +
+      '<div style="font-size:.62rem;color:var(--text-dim);margin-bottom:4px;">Signed in as</div>' +
+      '<div style="font-weight:600;color:var(--text);font-size:.78rem;">' + userName + (wsIsAdmin ? ' <span style="color:var(--accent);font-size:.6rem;">(Admin)</span>' : '') + '</div>' +
+      '<div style="font-size:.55rem;color:var(--text-dim);margin-top:4px;">Device: ' + deviceId.substring(0, 16) + '</div>' +
+    '</div>' +
+
+    // Session Timeout
+    '<div style="font-weight:600;color:var(--text);margin-bottom:6px;">Idle Timeout</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+      '<select id="wsSetIdleTimeout" style="flex:1;font-size:.68rem;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);">' +
+        '<option value="1"' + (curTimeout === 1 ? ' selected' : '') + '>1 minute</option>' +
+        '<option value="2"' + (curTimeout === 2 ? ' selected' : '') + '>2 minutes</option>' +
+        '<option value="5"' + (curTimeout === 5 ? ' selected' : '') + '>5 minutes</option>' +
+        '<option value="10"' + (curTimeout === 10 ? ' selected' : '') + '>10 minutes (default)</option>' +
+        '<option value="15"' + (curTimeout === 15 ? ' selected' : '') + '>15 minutes</option>' +
+        '<option value="30"' + (curTimeout === 30 ? ' selected' : '') + '>30 minutes</option>' +
+        '<option value="60"' + (curTimeout === 60 ? ' selected' : '') + '>1 hour</option>' +
+        (wsIsAdmin ? '<option value="0"' + (curTimeout === 0 ? ' selected' : '') + '>Never (admin only)</option>' : '') +
+      '</select>' +
+    '</div>' +
+    '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:6px;">Any activity (mouse, keyboard, touch) resets the countdown. Timer pauses while Claude is working.</div>' +
+    '<div id="wsIdleSecurityNote" style="display:' + (curTimeout === 0 ? 'block' : 'none') + ';font-size:.55rem;color:#f59e0b;margin-bottom:10px;padding:6px 8px;background:rgba(245,158,11,.1);border-radius:6px;">' +
+      '&#9888; "Never" keeps the session open indefinitely. Only use on trusted devices.</div>' +
+
+    // Current timer status
+    '<div style="background:var(--panel-inset);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:14px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-size:.62rem;color:var(--text-dim);">Time until logout:</span>' +
+        '<span id="wsIdleTimerLive" style="font-size:.78rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;">' +
+          (idleTimeoutMin <= 0 ? 'Never' : '') +
+        '</span>' +
+      '</div>' +
+    '</div>' +
+
+    // Buttons
+    '<div style="display:flex;gap:8px;">' +
+      '<button id="wsSettingsSaveBtn" style="flex:1;padding:8px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.72rem;font-weight:600;cursor:pointer;">Save</button>' +
+      '<button id="wsSettingsCancelBtn" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;">Cancel</button>' +
+    '</div>' +
+    '<div id="wsSettingsStatus" style="margin-top:6px;font-size:.58rem;text-align:center;"></div>';
+
+  document.body.appendChild(panel);
+
+  // Close handlers
+  document.getElementById('wsSettingsClose').onclick = () => panel.remove();
+  document.getElementById('wsSettingsCancelBtn').onclick = () => panel.remove();
+
+  // Security note toggle
+  document.getElementById('wsSetIdleTimeout').onchange = function() {
+    document.getElementById('wsIdleSecurityNote').style.display = this.value === '0' ? 'block' : 'none';
+  };
+
+  // Live timer update in panel
+  const liveEl = document.getElementById('wsIdleTimerLive');
+  function updatePanelTimer() {
+    if (!document.getElementById('wsIdleTimerLive')) return;
+    if (idleTimeoutMin <= 0) { liveEl.textContent = 'Never'; return; }
+    const secLeft = Math.max(0, Math.round((_idleDeadline - Date.now()) / 1000));
+    const m = Math.floor(secLeft / 60);
+    const s = secLeft % 60;
+    liveEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    if (secLeft <= 15) liveEl.style.color = 'var(--danger, #ef4444)';
+    else if (secLeft <= 60) liveEl.style.color = '#f59e0b';
+    else liveEl.style.color = 'var(--text)';
+  }
+  updatePanelTimer();
+  const panelTimerInterval = setInterval(() => {
+    if (!document.getElementById('wsSettingsPanel')) { clearInterval(panelTimerInterval); return; }
+    updatePanelTimer();
+  }, 1000);
+
+  // Save handler
+  document.getElementById('wsSettingsSaveBtn').onclick = () => {
+    const newTimeout = parseInt(document.getElementById('wsSetIdleTimeout').value, 10);
+    idleTimeoutMin = newTimeout;
+    const roleKey = 'ws_idleTimeoutMin_' + (wsIsAdmin ? 'admin' : 'user');
+    localStorage.setItem(roleKey, String(newTimeout));
+    localStorage.setItem('ws_idleTimeoutMin', String(newTimeout));
+    resetIdleTimer();
+    const status = document.getElementById('wsSettingsStatus');
+    status.style.color = '#10b981';
+    status.textContent = 'Saved. Idle timeout: ' + (newTimeout === 0 ? 'never' : newTimeout + ' min');
+    if (typeof logAdminAction === 'function') {
+      logAdminAction('Session Settings', 'Idle timeout changed to ' + (newTimeout === 0 ? 'never' : newTimeout + ' min'), []);
+    }
+    setTimeout(() => { if (document.getElementById('wsSettingsPanel')) panel.remove(); }, 1200);
+  };
+
+  // Close on click outside
+  panel.addEventListener('click', e => e.stopPropagation());
+  const closeOnOutside = (e) => {
+    if (!document.getElementById('wsSettingsPanel')) { document.removeEventListener('click', closeOnOutside); return; }
+    if (!panel.contains(e.target) && e.target.id !== 'wsSettingsBtn') panel.remove();
+  };
+  setTimeout(() => document.addEventListener('click', closeOnOutside), 100);
 };
 
 // Bind pricing sliders
