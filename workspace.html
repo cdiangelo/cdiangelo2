@@ -2586,6 +2586,13 @@ function applyRolePermissions() {
     if (typeof activateGenieMode === 'function') setTimeout(activateGenieMode, 300);
   }
 
+  // Reset idle timer with correct role-based timeout after login
+  if (typeof getIdleTimeoutForRole === 'function') {
+    idleTimeoutMin = getIdleTimeoutForRole();
+    if (typeof resetIdleTimer === 'function') resetIdleTimer();
+    console.log('[SESSION] Idle timeout set to ' + (idleTimeoutMin === 0 ? 'never' : idleTimeoutMin + 'min') + ' for role: ' + role);
+  }
+
   // Dispatch event for any components that need to react to profile changes
   window.dispatchEvent(new CustomEvent('profileReady', { detail: { role, userName: wsUserName, isAdmin: wsIsAdmin } }));
 }
@@ -9243,13 +9250,28 @@ let AI_RETRY_DELAYS = JSON.parse(localStorage.getItem('ws_retryDelays') || '[150
 let _aiRateLimitPaused = false;
 
 // ── Idle session timeout — configurable with "never" option ──
-// Default 5 minutes; stored in localStorage so user selection persists
-// Guard: if stored value is less than 1 (and not 0/"never"), reset to default
-const _storedTimeout = localStorage.getItem('ws_idleTimeoutMin');
-let idleTimeoutMin = _storedTimeout !== null ? parseInt(_storedTimeout, 10) : 5;
-if (isNaN(idleTimeoutMin) || (idleTimeoutMin < 0)) idleTimeoutMin = 5;
-// Ensure default is persisted so settings panel shows correct value
-if (_storedTimeout === null) localStorage.setItem('ws_idleTimeoutMin', '5');
+// Default 5 minutes for users, "never" for admin
+// Stored per-role: ws_idleTimeoutMin_admin / ws_idleTimeoutMin_user
+function getIdleTimeoutForRole() {
+  const role = wsIsAdmin ? 'admin' : 'user';
+  const key = 'ws_idleTimeoutMin_' + role;
+  const stored = localStorage.getItem(key);
+  if (stored !== null) {
+    const v = parseInt(stored, 10);
+    if (!isNaN(v) && v >= 0) return v;
+  }
+  // Also check the old global key for migration
+  const globalStored = localStorage.getItem('ws_idleTimeoutMin');
+  if (globalStored !== null) {
+    const v = parseInt(globalStored, 10);
+    if (!isNaN(v) && v >= 0) { localStorage.setItem(key, String(v)); return v; }
+  }
+  // Defaults: admin = never (0), user = 5 min
+  const def = wsIsAdmin ? 0 : 5;
+  localStorage.setItem(key, String(def));
+  return def;
+}
+let idleTimeoutMin = getIdleTimeoutForRole();
 
 let _idleTimer = null;
 let _idleWarningTimer = null;
@@ -10390,7 +10412,7 @@ $('#aiSettingsBtn').onclick = () => {
     document.getElementById('setIdleSecurityNote').style.display = this.value === '0' ? 'block' : 'none';
   };
 
-  // Save handler
+  // Save handler — always saves client-side, optionally syncs to server
   document.getElementById('settingsSaveBtn').onclick = async () => {
     const status = document.getElementById('settingsStatus');
     const retryDelays = [
@@ -10399,7 +10421,32 @@ $('#aiSettingsBtn').onclick = () => {
       parseInt(document.getElementById('setRetry3').value) || 60
     ];
 
-    // Save server rate limits
+    // 1. Always save client-side settings first (these always work)
+    AI_RETRY_DELAYS = retryDelays.map(d => d * 1000);
+    localStorage.setItem('ws_retryDelays', JSON.stringify(AI_RETRY_DELAYS));
+
+    const newTimeout = parseInt(document.getElementById('setIdleTimeout').value, 10);
+    idleTimeoutMin = newTimeout;
+    const roleKey = 'ws_idleTimeoutMin_' + (wsIsAdmin ? 'admin' : 'user');
+    localStorage.setItem(roleKey, String(newTimeout));
+    localStorage.setItem('ws_idleTimeoutMin', String(newTimeout)); // legacy compat
+    resetIdleTimer();
+
+    // Save default artifacts selection
+    const selectedArtifactCbs = document.querySelectorAll('.default-artifact-cb:checked');
+    const selectedArtifacts = [];
+    selectedArtifactCbs.forEach(cb => {
+      const id = parseInt(cb.dataset.id);
+      const entry = aiAuditLog.find(e => e.id === id);
+      if (entry) selectedArtifacts.push(entry);
+    });
+    localStorage.setItem('ws_defaultArtifacts', JSON.stringify(selectedArtifacts));
+
+    const artifactMsg = selectedArtifacts.length ? selectedArtifacts.length + ' default artifact(s).' : 'No default artifacts.';
+    const timeoutMsg = newTimeout === 0 ? 'never' : newTimeout + ' min';
+
+    // 2. Try to sync server rate limits (optional — may fail if proxy not updated)
+    let serverMsg = '';
     try {
       const r = await fetch(PROXY_BASE + '/proxy/admin/rate-limits', {
         method: 'POST',
@@ -10413,55 +10460,24 @@ $('#aiSettingsBtn').onclick = () => {
           retryDelays
         })
       });
-      if (!r.ok) throw new Error('Server returned ' + r.status);
-      const data = await r.json();
-
-      // Update client-side retry delays
-      AI_RETRY_DELAYS = retryDelays.map(d => d * 1000);
-      localStorage.setItem('ws_retryDelays', JSON.stringify(AI_RETRY_DELAYS));
-
-      // Update idle timeout
-      const newTimeout = parseInt(document.getElementById('setIdleTimeout').value, 10);
-      idleTimeoutMin = newTimeout;
-      localStorage.setItem('ws_idleTimeoutMin', String(newTimeout));
-      resetIdleTimer();
-
-      // Save default artifacts selection
-      const selectedArtifactCbs = document.querySelectorAll('.default-artifact-cb:checked');
-      const selectedArtifacts = [];
-      selectedArtifactCbs.forEach(cb => {
-        const id = parseInt(cb.dataset.id);
-        const entry = aiAuditLog.find(e => e.id === id);
-        if (entry) selectedArtifacts.push(entry);
-      });
-      localStorage.setItem('ws_defaultArtifacts', JSON.stringify(selectedArtifacts));
-
-      const artifactMsg = selectedArtifacts.length ? selectedArtifacts.length + ' default artifact(s) set for new users.' : 'No default artifacts (new users start blank).';
-      status.style.color = '#10b981';
-      status.textContent = 'Settings saved. Server limits: ' + data.config.globalMax + ' global, ' +
-        data.config.anthropicMax + ' Anthropic per ' + data.config.windowSec + 's window. ' +
-        'Idle timeout: ' + (newTimeout === 0 ? 'never' : newTimeout + ' min') + '. ' + artifactMsg;
-      // Log admin action to audit trail
-      if (typeof logAdminAction === 'function') {
-        logAdminAction('Rate Limit & Session Settings Update', 'Updated server rate limits and session timeout', [{
-          action: 'settings_update',
-          before: 'Previous configuration',
-          after: JSON.stringify(data.config),
-          rateLimits: data.config,
-          retryDelays: retryDelays,
-          idleTimeout: newTimeout === 0 ? 'never' : newTimeout + ' min'
-        }]);
+      if (r.ok) {
+        const data = await r.json();
+        serverMsg = ' Server synced: ' + data.config.globalMax + '/' + data.config.anthropicMax + ' per ' + data.config.windowSec + 's.';
+      } else {
+        serverMsg = ' Server sync skipped (proxy needs redeploy).';
       }
-    } catch(e) {
-      status.style.color = '#ef4444';
-      status.textContent = 'Error saving server settings: ' + e.message + '. Client settings (timeout, retry) saved locally.';
-      // Still save client-side settings even if server fails
-      AI_RETRY_DELAYS = retryDelays.map(d => d * 1000);
-      localStorage.setItem('ws_retryDelays', JSON.stringify(AI_RETRY_DELAYS));
-      const newTimeout = parseInt(document.getElementById('setIdleTimeout').value, 10);
-      idleTimeoutMin = newTimeout;
-      localStorage.setItem('ws_idleTimeoutMin', String(newTimeout));
-      resetIdleTimer();
+    } catch(_) {
+      serverMsg = ' Server sync skipped (proxy offline).';
+    }
+
+    status.style.color = '#10b981';
+    status.textContent = 'Settings saved. Timeout: ' + timeoutMsg + '. ' + artifactMsg + serverMsg;
+
+    // Log admin action
+    if (typeof logAdminAction === 'function') {
+      logAdminAction('Settings Update', 'Timeout: ' + timeoutMsg + ', retry: ' + retryDelays.join('/') + 's, artifacts: ' + selectedArtifacts.length, [{
+        action: 'settings_update', idleTimeout: timeoutMsg, retryDelays
+      }]);
     }
   };
 };
