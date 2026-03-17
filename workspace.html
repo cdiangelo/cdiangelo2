@@ -2221,6 +2221,13 @@ window.__initErrors = [];
 /* ═══════════════════════════════════════════
    AUTH GATE
    ═══════════════════════════════════════════ */
+// On Render, always clear stored session so user must re-enter profile
+// This prevents getting stuck on a stale/broken cached session
+if (window.location.hostname.includes('onrender.com')) {
+  localStorage.removeItem('ws_adminSession');
+  localStorage.removeItem('ws_userName');
+}
+
 let wsIsAdmin = localStorage.getItem('ws_adminSession') === 'true';
 let wsUserName = localStorage.getItem('ws_userName') || '';
 const ADMIN_PASSWORD = 'animalcrackers'; // Full admin workspace access
@@ -8953,20 +8960,33 @@ let aiMessages = [];
 let aiStreaming = false;
 let aiProxyAvailable = false; // Set true once proxy health check passes
 
-// Check proxy health via /health endpoint
-(async function checkSecureProxy() {
+// Check proxy health via /health endpoint — retries on failure (Render cold starts can be slow)
+async function checkSecureProxy() {
   try {
-    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(3000) });
+    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(5000) });
     if (r.ok) {
       const data = await r.json();
       aiProxyAvailable = !!data.services?.anthropic;
       _proxyAlive = true; _proxyLastCheck = Date.now();
       console.log('[Proxy] Health:', JSON.stringify(data.services));
       if (!data.services?.anthropic) console.warn('[AI] Proxy running but Anthropic key not configured');
+      return true;
     }
   } catch (_) {
     console.warn('[Proxy] Health check failed — proxy may be down');
   }
+  return false;
+}
+// Initial check with retries for cold-start
+(async function initProxyCheck() {
+  if (await checkSecureProxy()) return;
+  // Retry after 3s, 8s, 15s for Render cold starts
+  for (const delay of [3000, 8000, 15000]) {
+    await new Promise(r => setTimeout(r, delay));
+    console.log('[Proxy] Retrying health check...');
+    if (await checkSecureProxy()) return;
+  }
+  console.error('[Proxy] All health check retries failed');
 })();
 
 // Unified AI API fetch — routes through proxy when available, direct otherwise
@@ -8976,7 +8996,11 @@ let _aiRateLimitPaused = false;
 
 async function _aiRawFetch(body) {
   // All Anthropic calls go through the secure proxy — no client-side key
-  if (!aiProxyAvailable) throw new Error('Proxy not available — check server status');
+  // If proxy wasn't available at startup, try once more before giving up
+  if (!aiProxyAvailable) {
+    await checkSecureProxy();
+    if (!aiProxyAvailable) throw new Error('Proxy not available — check server status');
+  }
   return fetch(PROXY_BASE + '/proxy/anthropic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
