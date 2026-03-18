@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<title>Interactive Workspace</title>
+<title>QuantBot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -1694,7 +1694,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <div id="authGate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:inherit;padding:12px;">
   <div id="authBox" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:460px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);box-sizing:border-box;max-height:100%;overflow-y:auto;">
     <div style="font-size:2rem;margin-bottom:8px;">&#129302;</div>
-    <h2 id="authTitle" style="color:var(--text);margin:0 0 6px;font-size:1.2rem;">Interactive Workspace</h2>
+    <h2 id="authTitle" style="color:var(--text);margin:0 0 6px;font-size:1.2rem;">QuantBot</h2>
     <p id="authSubtitle" style="color:var(--text-dim);font-size:.78rem;margin:0 0 24px;">Select your account to continue</p>
 
     <!-- Step 1: User list + New User + Admin -->
@@ -2498,7 +2498,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 
 <div id="helpOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px 28px;max-width:500px;color:var(--text);line-height:1.7;">
-    <h3 style="margin-bottom:14px;font-size:1rem;color:var(--accent2);">Welcome to Interactive Workspace</h3>
+    <h3 style="margin-bottom:14px;font-size:1rem;color:var(--accent2);">Welcome to QuantBot</h3>
     <p style="margin-bottom:6px;"><b>Notepad</b> (top-left) &mdash; Rich text editor with formatting, colors, and auto-save.</p>
     <p style="margin-bottom:6px;"><b>Whiteboard</b> (top-right) &mdash; Draw with pen, shapes, text. Use <i>Size</i> and <i>Opacity</i> sliders to adjust.</p>
     <p style="margin-bottom:6px;"><b>Scratch Sheet</b> (bottom-left) &mdash; Click any cell to edit. Supports formulas: <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SUM(A1:A5)</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=AVG</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SPARK</code></p>
@@ -2795,7 +2795,7 @@ const wsHardwareId = getHardwareFingerprint();
 
   // ---- Screen navigation ----
   function showMainScreen() {
-    document.getElementById('authTitle').textContent = 'Interactive Workspace';
+    document.getElementById('authTitle').textContent = 'QuantBot';
     document.getElementById('authSubtitle').textContent = 'Select your account to continue';
     buildUserList(); // Refresh list
     showScreen('authUserList');
