@@ -6061,6 +6061,26 @@ function ssRender() {
       if (e.key === 'Escape') { e.preventDefault(); ssEditing = false; if (inp) { inp.value = ssD[ssSel.r1][ssSel.c1] || ''; inp.setAttribute('readonly', ''); } ssRenderSelection(); return; }
       if (e.key === 'Enter') { e.preventDefault(); ssExitEdit(); const nr = Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); ssEnterEdit(nr, ssSel.c1); return; }
       if (e.key === 'Tab') { e.preventDefault(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); ssEnterEdit(ssSel.r1, nc); return; }
+      // Arrow keys: exit edit mode and navigate to adjacent cell
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault(); ssExitEdit();
+        let nr = ssSel.r1, nc = ssSel.c1;
+        if (e.key === 'ArrowDown') nr = Math.min(nr+1, ssR-1);
+        if (e.key === 'ArrowUp') nr = Math.max(nr-1, 0);
+        if (e.key === 'ArrowRight') nc = Math.min(nc+1, ssC-1);
+        if (e.key === 'ArrowLeft') nc = Math.max(nc-1, 0);
+        if (e.shiftKey) {
+          ssSel.r2 = e.key === 'ArrowDown' ? Math.min(ssSel.r2+1, ssR-1) : e.key === 'ArrowUp' ? Math.max(ssSel.r2-1, 0) : ssSel.r2;
+          ssSel.c2 = e.key === 'ArrowRight' ? Math.min(ssSel.c2+1, ssC-1) : e.key === 'ArrowLeft' ? Math.max(ssSel.c2-1, 0) : ssSel.c2;
+        } else {
+          ssSel = { r1: nr, c1: nc, r2: nr, c2: nc };
+        }
+        ssRenderSelection();
+        const activeTd = t.querySelector('td[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+        if (activeTd) activeTd.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        if (!e.shiftKey) ssEnterEdit(ssSel.r1, ssSel.c1);
+        return;
+      }
       // Ctrl+B: toggle bold while editing
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); document.getElementById('ssBold').click(); return; }
       return; // let typing go to the input
