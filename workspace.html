@@ -412,6 +412,8 @@ body.light .fun-btn { background: var(--accent); }
   padding: 0; border: 1px solid var(--border); height: 24px; overflow: hidden;
   background: var(--bg); position: relative;
 }
+.ss-table td.spill { overflow: visible; }
+.ss-table td.spill .ci { position: relative; z-index: 1; }
 .ss-table td.active-cell { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 1; }
 .ss-table td.in-selection { background: rgba(59,130,246,.12); }
 .ss-table td.sel-top { border-top: 2px solid var(--accent); }
@@ -5969,7 +5971,28 @@ function ssRender() {
           if (fmt.color) inpStyle += 'color:' + fmt.color + ';';
           if (fmt.bold) inpStyle += 'font-weight:700;';
         }
-        h += '<td class="'+cls+'" data-r="'+r+'" data-c="'+c+'"' + (style ? ' style="'+style+'"' : '') + '><input class="ci" value="'+String(display == null ? '' : display).replace(/"/g,'&quot;')+'" data-r="'+r+'" data-c="'+c+'"' + (inpStyle ? ' style="'+inpStyle+'"' : '') + ' readonly /></td>';
+        // Text spill: if cell has content and cells to the right are empty, widen input
+        const displayStr = String(display == null ? '' : display);
+        let spillCls = '';
+        if (displayStr.length > 0) {
+          const cellW = ssColWidths[c] || 80;
+          // Estimate text width: ~7px per char in monospace .72rem + 10px padding
+          const textW = displayStr.length * 7 + 10;
+          if (textW > cellW) {
+            let spillW = 0;
+            for (let sc = c + 1; sc < ssC; sc++) {
+              const scRaw = ssD[r][sc] || '';
+              if (scRaw !== '') break;
+              spillW += ssColWidths[sc] || 80;
+              if (cellW + spillW >= textW) break;
+            }
+            if (spillW > 0) {
+              spillCls = ' spill';
+              inpStyle += 'width:' + (cellW + spillW) + 'px;';
+            }
+          }
+        }
+        h += '<td class="'+cls+spillCls+'" data-r="'+r+'" data-c="'+c+'"' + (style ? ' style="'+style+'"' : '') + '><input class="ci" value="'+displayStr.replace(/"/g,'&quot;')+'" data-r="'+r+'" data-c="'+c+'"' + (inpStyle ? ' style="'+inpStyle+'"' : '') + ' readonly /></td>';
       }
     }
     h += '</tr>';
