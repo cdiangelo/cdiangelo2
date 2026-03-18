@@ -1259,6 +1259,37 @@ body.light .fun-btn { background: var(--accent); }
 }
 .page-tab-add:hover { color: var(--text); border-color: var(--accent); }
 
+/* Sports pane */
+.sp-empty { width:100%;text-align:center;color:var(--text-dim);font-size:.78rem;padding:40px 10px; }
+.sp-card {
+  background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;
+  padding:10px 12px;margin-bottom:6px;font-size:.72rem;
+}
+.sp-card .sp-card-head { display:flex;align-items:center;justify-content:space-between;margin-bottom:4px; }
+.sp-card .sp-card-head strong { color:var(--text);font-size:.76rem; }
+.sp-card .sp-card-meta { color:var(--text-dim);font-size:.62rem; }
+.sp-card .sp-card-body { color:var(--text);line-height:1.4; }
+.sp-card .sp-del { font-size:.6rem;opacity:.5;cursor:pointer;margin-left:6px; }
+.sp-card .sp-del:hover { opacity:1;color:var(--danger); }
+.sp-game-teams { display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:600; }
+.sp-game-vs { color:var(--text-dim);font-size:.68rem;font-weight:400; }
+.sp-game-score { color:var(--accent);font-weight:700; }
+.sp-line-odds { font-size:.78rem;font-weight:700;color:var(--accent); }
+.sp-stat-row { display:flex;gap:12px;flex-wrap:wrap; }
+.sp-stat-item { display:flex;flex-direction:column;align-items:center;min-width:50px; }
+.sp-stat-item .sp-stat-val { font-size:.82rem;font-weight:700;color:var(--accent); }
+.sp-stat-item .sp-stat-lbl { font-size:.55rem;color:var(--text-dim);text-transform:uppercase; }
+.sp-yt-card { display:flex;align-items:center;gap:10px; }
+.sp-yt-thumb { width:80px;height:45px;border-radius:4px;background:var(--bg);object-fit:cover;flex-shrink:0; }
+.sp-yt-info { flex:1;min-width:0; }
+.sp-yt-title { font-size:.72rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.sp-yt-channel { font-size:.6rem;color:var(--text-dim); }
+.sp-copy-btn {
+  font-size:.58rem;padding:2px 6px;border:1px solid var(--border);border-radius:3px;
+  background:none;color:var(--text-dim);cursor:pointer;white-space:nowrap;
+}
+.sp-copy-btn:hover { border-color:var(--accent);color:var(--accent); }
+
 /* Chart right margin so labels are readable */
 #stockDash { padding-right: 6px; }
 #stockCompareWrap canvas { margin-right: 4px; }
@@ -2223,6 +2254,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button class="active" data-q4="stocks">Stocks</button>
         <button data-q4="cmap">Concept Map</button>
         <button data-q4="graphcalc">Graph Calc</button>
+        <button data-q4="sports">Sports</button>
       </div>
       <div class="p-spacer"></div>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
@@ -2400,6 +2432,68 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
         <div id="gcCanvasWrap" style="flex:1;position:relative;overflow:hidden;">
           <canvas id="gcCanvas" style="width:100%;height:100%;"></canvas>
+        </div>
+      </div>
+      <!-- SPORTS VIEW -->
+      <div id="sportsView" style="display:none;flex-direction:column;flex:1;">
+        <div class="page-tabs" id="spTabs">
+          <div class="page-tab active" data-sptab="games">Games</div>
+          <div class="page-tab" data-sptab="betting">Betting Lines</div>
+          <div class="page-tab" data-sptab="stats">Player Stats</div>
+          <div class="page-tab" data-sptab="youtube">YouTube</div>
+        </div>
+        <!-- Games sub-tab -->
+        <div id="spGamesTab" class="sp-subtab" style="display:flex;flex-direction:column;flex:1;">
+          <div class="toolbar">
+            <select id="spLeague" style="font-size:.68rem;">
+              <option value="nba">NBA</option>
+              <option value="nfl">NFL</option>
+              <option value="mlb">MLB</option>
+              <option value="nhl">NHL</option>
+              <option value="soccer">Soccer</option>
+            </select>
+            <button id="spAddGame" style="font-size:.68rem;">+ Add Game</button>
+            <div class="p-spacer" style="flex:1;"></div>
+            <button id="spClearGames" style="font-size:.68rem;color:var(--text-dim);">Clear</button>
+          </div>
+          <div id="spGamesList" style="flex:1;overflow-y:auto;padding:8px;">
+            <div class="sp-empty">Add games to track scores and schedules.</div>
+          </div>
+        </div>
+        <!-- Betting Lines sub-tab -->
+        <div id="spBettingTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+          <div class="toolbar">
+            <button id="spAddLine" style="font-size:.68rem;">+ Add Line</button>
+            <div class="p-spacer" style="flex:1;"></div>
+            <button id="spClearLines" style="font-size:.68rem;color:var(--text-dim);">Clear</button>
+          </div>
+          <div id="spBettingList" style="flex:1;overflow-y:auto;padding:8px;">
+            <div class="sp-empty">Add betting lines to track odds and spreads.</div>
+          </div>
+        </div>
+        <!-- Player Stats sub-tab -->
+        <div id="spStatsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+          <div class="toolbar">
+            <input type="text" id="spPlayerSearch" placeholder="Search player..." style="max-width:160px;font-size:.68rem;" />
+            <button id="spAddPlayer" style="font-size:.68rem;">+ Add</button>
+            <div class="p-spacer" style="flex:1;"></div>
+            <button id="spClearPlayers" style="font-size:.68rem;color:var(--text-dim);">Clear</button>
+          </div>
+          <div id="spStatsList" style="flex:1;overflow-y:auto;padding:8px;">
+            <div class="sp-empty">Search and add players to view stats.</div>
+          </div>
+        </div>
+        <!-- YouTube sub-tab -->
+        <div id="spYoutubeTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+          <div class="toolbar">
+            <input type="text" id="spYtUrl" placeholder="Paste YouTube link..." style="flex:1;max-width:300px;font-size:.68rem;" />
+            <button id="spAddYt" style="font-size:.68rem;">+ Add</button>
+            <div class="p-spacer" style="flex:1;"></div>
+            <button id="spClearYt" style="font-size:.68rem;color:var(--text-dim);">Clear</button>
+          </div>
+          <div id="spYtList" style="flex:1;overflow-y:auto;padding:8px;">
+            <div class="sp-empty">Add YouTube links of game recaps and analysis.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -6806,9 +6900,11 @@ $$('#q4Tabs button').forEach(btn => {
     $('#stocksView').style.display = tab === 'stocks' ? 'flex' : 'none';
     $('#cmapView').style.display = tab === 'cmap' ? 'flex' : 'none';
     $('#graphCalcView').style.display = tab === 'graphcalc' ? 'flex' : 'none';
+    $('#sportsView').style.display = tab === 'sports' ? 'flex' : 'none';
     if (tab === 'cmap') setTimeout(resizeCM, 50);
     if (tab === 'graphcalc') setTimeout(resizeGC, 50);
-    if (tab === 'stocks') detectRobinhoodSession(); // Re-check RH session on pane open
+    if (tab === 'stocks') detectRobinhoodSession();
+    if (tab === 'sports') renderSportsTab();
   });
 });
 
@@ -8240,6 +8336,200 @@ $('#gcExportSvg').onclick = () => {
 renderGCExprList();
 // Initial render when tab is shown
 setTimeout(() => { if ($('#graphCalcView').style.display === 'flex') resizeGC(); }, 100);
+
+/* ═══════════════════════════════════════════
+   SPORTS PANE
+   ═══════════════════════════════════════════ */
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+let spGames = LS('spGames') || [];
+let spLines = LS('spLines') || [];
+let spPlayers = LS('spPlayers') || [];
+let spYtLinks = LS('spYtLinks') || [];
+
+// Sub-tab switching
+$$('#spTabs .page-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('#spTabs .page-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const st = tab.dataset.sptab;
+    $('#spGamesTab').style.display = st === 'games' ? 'flex' : 'none';
+    $('#spBettingTab').style.display = st === 'betting' ? 'flex' : 'none';
+    $('#spStatsTab').style.display = st === 'stats' ? 'flex' : 'none';
+    $('#spYoutubeTab').style.display = st === 'youtube' ? 'flex' : 'none';
+  });
+});
+
+function renderSportsTab() {
+  renderSpGames();
+  renderSpLines();
+  renderSpPlayers();
+  renderSpYtLinks();
+}
+
+// ── Games ──
+function renderSpGames() {
+  const el = $('#spGamesList');
+  if (!spGames.length) { el.innerHTML = '<div class="sp-empty">Add games to track scores and schedules.</div>'; return; }
+  el.innerHTML = spGames.map((g, i) => `
+    <div class="sp-card">
+      <div class="sp-card-head">
+        <div class="sp-game-teams">${esc(g.away)} <span class="sp-game-vs">@</span> ${esc(g.home)}</div>
+        <span><span class="sp-card-meta">${esc(g.league.toUpperCase())}</span><span class="sp-del" onclick="spDelGame(${i})">&times;</span></span>
+      </div>
+      <div class="sp-card-body">
+        ${g.score ? `<span class="sp-game-score">${esc(g.score)}</span> &nbsp;` : ''}
+        ${g.date ? `<span class="sp-card-meta">${esc(g.date)}</span>` : ''}
+        ${g.note ? `<div style="margin-top:4px;color:var(--text-dim);font-size:.65rem;">${esc(g.note)}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+$('#spAddGame').onclick = () => {
+  const league = $('#spLeague').value;
+  const away = prompt('Away team:');
+  if (!away) return;
+  const home = prompt('Home team:');
+  if (!home) return;
+  const date = prompt('Date/time (optional):') || '';
+  const score = prompt('Score (optional, e.g. "110-105"):') || '';
+  const note = prompt('Note (optional):') || '';
+  spGames.push({ league, away, home, date, score, note });
+  LS('spGames', spGames);
+  renderSpGames();
+};
+
+$('#spClearGames').onclick = () => { if (confirm('Clear all games?')) { spGames = []; LS('spGames', spGames); renderSpGames(); } };
+
+window.spDelGame = (i) => { spGames.splice(i, 1); LS('spGames', spGames); renderSpGames(); };
+
+// ── Betting Lines ──
+function renderSpLines() {
+  const el = $('#spBettingList');
+  if (!spLines.length) { el.innerHTML = '<div class="sp-empty">Add betting lines to track odds and spreads.</div>'; return; }
+  el.innerHTML = spLines.map((l, i) => `
+    <div class="sp-card">
+      <div class="sp-card-head">
+        <strong>${esc(l.matchup)}</strong>
+        <span><span class="sp-line-odds">${esc(l.odds)}</span><span class="sp-del" onclick="spDelLine(${i})">&times;</span></span>
+      </div>
+      <div class="sp-card-body">
+        ${l.type ? `<span class="sp-card-meta">${esc(l.type)}</span> &nbsp;` : ''}
+        ${l.spread ? `Spread: <b>${esc(l.spread)}</b> &nbsp;` : ''}
+        ${l.overUnder ? `O/U: <b>${esc(l.overUnder)}</b> &nbsp;` : ''}
+        ${l.note ? `<div style="margin-top:4px;color:var(--text-dim);font-size:.65rem;">${esc(l.note)}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+$('#spAddLine').onclick = () => {
+  const matchup = prompt('Matchup (e.g. "Lakers vs Celtics"):');
+  if (!matchup) return;
+  const type = prompt('Bet type (e.g. Moneyline, Spread, Over/Under):') || '';
+  const odds = prompt('Odds (e.g. "-110", "+150"):') || '';
+  const spread = prompt('Spread (optional, e.g. "-3.5"):') || '';
+  const overUnder = prompt('Over/Under (optional, e.g. "215.5"):') || '';
+  const note = prompt('Note (optional):') || '';
+  spLines.push({ matchup, type, odds, spread, overUnder, note });
+  LS('spLines', spLines);
+  renderSpLines();
+};
+
+$('#spClearLines').onclick = () => { if (confirm('Clear all betting lines?')) { spLines = []; LS('spLines', spLines); renderSpLines(); } };
+
+window.spDelLine = (i) => { spLines.splice(i, 1); LS('spLines', spLines); renderSpLines(); };
+
+// ── Player Stats ──
+function renderSpPlayers() {
+  const el = $('#spStatsList');
+  if (!spPlayers.length) { el.innerHTML = '<div class="sp-empty">Search and add players to view stats.</div>'; return; }
+  el.innerHTML = spPlayers.map((p, i) => `
+    <div class="sp-card">
+      <div class="sp-card-head">
+        <strong>${esc(p.name)}</strong>
+        <span><span class="sp-card-meta">${esc(p.team || '')} &middot; ${esc(p.position || '')}</span><span class="sp-del" onclick="spDelPlayer(${i})">&times;</span></span>
+      </div>
+      <div class="sp-card-body">
+        <div class="sp-stat-row">
+          ${(p.stats || []).map(s => `
+            <div class="sp-stat-item">
+              <span class="sp-stat-val">${esc(String(s.val))}</span>
+              <span class="sp-stat-lbl">${esc(s.label)}</span>
+            </div>
+          `).join('')}
+        </div>
+        ${p.note ? `<div style="margin-top:4px;color:var(--text-dim);font-size:.65rem;">${esc(p.note)}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+$('#spAddPlayer').onclick = () => {
+  const name = $('#spPlayerSearch').value.trim() || prompt('Player name:');
+  if (!name) return;
+  const team = prompt('Team (optional):') || '';
+  const position = prompt('Position (optional):') || '';
+  const statsRaw = prompt('Stats (comma-separated label:value, e.g. "PPG:24.5, RPG:8.2, APG:5.1"):') || '';
+  const stats = statsRaw.split(',').map(s => s.trim()).filter(Boolean).map(s => {
+    const [label, val] = s.split(':').map(x => x.trim());
+    return { label: label || '', val: val || '' };
+  });
+  const note = prompt('Note (optional):') || '';
+  spPlayers.push({ name, team, position, stats, note });
+  LS('spPlayers', spPlayers);
+  $('#spPlayerSearch').value = '';
+  renderSpPlayers();
+};
+
+$('#spClearPlayers').onclick = () => { if (confirm('Clear all players?')) { spPlayers = []; LS('spPlayers', spPlayers); renderSpPlayers(); } };
+
+window.spDelPlayer = (i) => { spPlayers.splice(i, 1); LS('spPlayers', spPlayers); renderSpPlayers(); };
+
+// ── YouTube Links ──
+function extractYtId(url) {
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function renderSpYtLinks() {
+  const el = $('#spYtList');
+  if (!spYtLinks.length) { el.innerHTML = '<div class="sp-empty">Add YouTube links of game recaps and analysis.</div>'; return; }
+  el.innerHTML = spYtLinks.map((yt, i) => {
+    const vid = extractYtId(yt.url);
+    const thumb = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : '';
+    return `
+    <div class="sp-card">
+      <div class="sp-yt-card">
+        ${thumb ? `<img class="sp-yt-thumb" src="${thumb}" alt="thumb" onerror="this.style.display='none'"/>` : ''}
+        <div class="sp-yt-info">
+          <div class="sp-yt-title">${esc(yt.title || yt.url)}</div>
+          <div class="sp-yt-channel">${esc(yt.channel || '')}</div>
+        </div>
+        <button class="sp-copy-btn" onclick="navigator.clipboard.writeText('${esc(yt.url)}');toast('Link copied!')">Copy Link</button>
+        <span class="sp-del" onclick="spDelYt(${i})">&times;</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+$('#spAddYt').onclick = () => {
+  const url = $('#spYtUrl').value.trim();
+  if (!url) return;
+  const title = prompt('Title (optional):') || '';
+  const channel = prompt('Channel name (optional):') || '';
+  spYtLinks.push({ url, title, channel });
+  LS('spYtLinks', spYtLinks);
+  $('#spYtUrl').value = '';
+  renderSpYtLinks();
+};
+
+$('#spClearYt').onclick = () => { if (confirm('Clear all YouTube links?')) { spYtLinks = []; LS('spYtLinks', spYtLinks); renderSpYtLinks(); } };
+
+window.spDelYt = (i) => { spYtLinks.splice(i, 1); LS('spYtLinks', spYtLinks); renderSpYtLinks(); };
+
+// Initial render
+renderSportsTab();
 
 /* ═══════════════════════════════════════════
    WORKSPACE MANAGER (Local Persistence)
