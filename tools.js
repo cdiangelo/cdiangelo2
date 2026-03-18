@@ -1347,6 +1347,9 @@ export const toolHandlers = {
         break;
       }
     }
+    // Auto-size nodes and resolve any remaining overlaps after layout
+    if (typeof cmAutoSizeNodes === 'function') cmAutoSizeNodes();
+    if (typeof cmResolveOverlaps === 'function') cmResolveOverlaps();
     cmSave(); cmRender();
     toast('Layout: ' + input.layout);
     return JSON.stringify({ layout: input.layout, nodesRepositioned: cmNodes.length });
