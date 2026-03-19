@@ -461,6 +461,27 @@ app.get('/proxy/espn/*', async (req, res) => {
   }
 });
 
+// ── ESPN Core API Proxy (for leaders, season stats, etc.) ──
+app.get('/proxy/espn-core/*', async (req, res) => {
+  const corePath = req.params[0];
+  if (!corePath || corePath.includes('..')) {
+    return res.status(400).json({ error: true, message: 'Invalid ESPN core path' });
+  }
+  const qs = new URLSearchParams(req.query).toString();
+  const url = 'https://sports.core.api.espn.com/v2/sports/' + corePath + (qs ? '?' + qs : '');
+  try {
+    const r = await fetch(url, { timeout: 10000, headers: { 'Accept': 'application/json' } });
+    if (!r.ok) {
+      return res.status(r.status).json({ error: true, message: 'ESPN Core API returned HTTP ' + r.status });
+    }
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    console.error('[ESPN Core Proxy] Error:', e.message);
+    res.status(502).json({ error: true, message: 'ESPN Core API request failed' });
+  }
+});
+
 // ── YouTube Search Proxy (via Invidious, with fallback) ──
 const YT_INSTANCES = [
   'https://vid.puffyan.us',

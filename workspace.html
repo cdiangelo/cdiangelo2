@@ -10704,7 +10704,7 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
   });
 };
 
-// Fetch league leaders
+// Fetch league leaders — uses ESPN core API with site API fallback
 function spFetchLeaders() {
   const league = $('#spPlayersLeague').value;
   const el = $('#spPlayersList');
@@ -10712,14 +10712,20 @@ function spFetchLeaders() {
   const l = SP_LEAGUE_MAP[league];
   if (!l) return;
 
-  // ESPN leaders endpoint
-  const url = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders';
-  fetch(url)
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  // ESPN core API for leaders (more reliable than site API)
+  const leagueCode = l.league === 'mens-college-basketball' ? 'mens-college-basketball' : l.league;
+  const coreUrl = PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + leagueCode + '/leaders?limit=5';
+  const siteUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders';
+
+  // Try core API first, then site API fallback
+  fetch(coreUrl)
+    .then(r => { if (!r.ok) throw new Error('core-' + r.status); return r.json(); })
+    .catch(() => fetch(siteUrl).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }))
     .then(data => {
-      const categories = data.leaders || data.categories || [];
+      // Core API returns { categories: [...] } or { leaders: [...] }
+      const categories = data.categories || data.leaders || [];
       if (!categories.length) {
-        el.innerHTML = '<div class="sp-empty">No leader data available.</div>';
+        el.innerHTML = '<div class="sp-empty">No leader data available for this league.</div>';
         return;
       }
       let html = '';
@@ -10731,7 +10737,7 @@ function spFetchLeaders() {
         html += '<div style="font-weight:700;font-size:.68rem;color:var(--accent);margin-bottom:4px;text-transform:uppercase;">'+esc(catName)+'</div>';
         leaders.slice(0, 5).forEach((entry, i) => {
           const athlete = entry.athlete || entry.team || {};
-          const name = athlete.displayName || athlete.shortName || '';
+          const name = athlete.displayName || athlete.shortName || athlete.fullName || '';
           const headshot = athlete.headshot ? (athlete.headshot.href || athlete.headshot) : '';
           const team = athlete.team ? (athlete.team.abbreviation || athlete.team.displayName || '') : '';
           const value = entry.displayValue || entry.value || '';
@@ -17583,6 +17589,60 @@ async function sendAgentMessage() {
   aiStreaming = false;
   _updateStopBtnVisibility();
   setRobotWorking(false);
+
+  // ── Deliverable verification ──
+  // Check what write tools were used and summarize where outputs landed
+  if (inquiryActions.length && !_stall.aborted) {
+    const WRITE_TOOLS = {
+      write_cells: function(inp) { return 'Sheet: ' + (inp.cells ? inp.cells.length + ' cells written' : 'cells updated'); },
+      create_table: function(inp) { return 'Sheet: table at ' + (inp.anchor || '?'); },
+      clear_range: function(inp) { return 'Sheet: cleared ' + (inp.range || '?'); },
+      write_note: function(inp) { return 'Notepad' + (inp.target_page ? ': page "' + inp.target_page + '"' : '') + (inp.append ? ' (appended)' : ''); },
+      update_graph: function() { return 'Graph: expressions updated'; },
+      add_stock: function(inp) { return 'Watchlist: added ' + (inp.ticker || '?'); },
+      remove_stock: function(inp) { return 'Watchlist: removed ' + (inp.ticker || '?'); },
+      set_comparison: function() { return 'Comparison chart updated'; },
+      add_news_ticker: function(inp) { return 'News feed: added ' + (inp.ticker || '?'); },
+      add_concept_node: function() { return 'Concept map: node added'; },
+      add_concept_edge: function() { return 'Concept map: edge added'; },
+      write_to_draw_pane: function() { return 'Whiteboard: image added'; },
+      add_text_overlay: function() { return 'Whiteboard: text added'; },
+      draw_shape: function() { return 'Whiteboard: shape drawn'; },
+      draw_chart_on_whiteboard: function() { return 'Whiteboard: chart drawn'; },
+      draw_summary_card: function() { return 'Whiteboard: summary card drawn'; },
+      draw_table: function() { return 'Whiteboard: table drawn'; },
+      create_meme: function() { return 'Meme generated'; },
+      show_toast: null // skip — not a real deliverable
+    };
+    const deliverables = [];
+    const readOnly = [];
+    inquiryActions.forEach(function(a) {
+      if (WRITE_TOOLS[a.tool] && WRITE_TOOLS[a.tool] !== null) {
+        try { deliverables.push(WRITE_TOOLS[a.tool](a.input || {})); } catch(_) { deliverables.push(a.tool); }
+      } else if (!WRITE_TOOLS.hasOwnProperty(a.tool)) {
+        readOnly.push(a.tool);
+      }
+    });
+    if (deliverables.length) {
+      // Show a verification summary of where outputs were placed
+      var vDiv = document.createElement('div');
+      vDiv.className = 'ai-msg system';
+      vDiv.style.cssText = 'font-size:.58rem;padding:5px 10px;color:var(--accent2);background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:6px;margin:4px 0;';
+      vDiv.innerHTML = '<span style="font-weight:700;">\u2705 Deliverables placed:</span><br/>' +
+        deliverables.map(function(d) { return '\u2022 ' + d; }).join('<br/>');
+      $('#aiMsgs').appendChild(vDiv);
+      $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+    } else if (readOnly.length && readOnly.length === inquiryActions.length) {
+      // Only read tools were used — no output was written anywhere
+      var wDiv = document.createElement('div');
+      wDiv.className = 'ai-msg system';
+      wDiv.style.cssText = 'font-size:.56rem;padding:4px 10px;color:#f59e0b;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15);border-radius:6px;margin:4px 0;';
+      wDiv.textContent = '\u26A0 No workspace outputs written — results were only shown in chat. Ask Claude to write results to a specific pane if needed.';
+      $('#aiMsgs').appendChild(wDiv);
+      $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
+    }
+  }
+
   if (aiTaskAttempts[taskId]?.attempts?.length) {
     const lastAtt = aiTaskAttempts[taskId].attempts[aiTaskAttempts[taskId].attempts.length - 1];
     if (lastAtt.status === 'running') {
