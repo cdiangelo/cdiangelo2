@@ -1697,32 +1697,96 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 </noscript>
 <script>
 // ── PDF Viewer Intercept ──
-// If URL has ?pdf=<id>, render the stored PDF in a clean view and stop loading the app
+// Supports two modes:
+//   1. ?pdf=<id>      — loads from localStorage (same device)
+//   2. ?report=<data> — self-contained compressed report in URL (cross-device sharing)
+//
+// Compression uses built-in DecompressionStream (deflate-raw) for modern browsers,
+// with a base64 fallback for simple uncompressed sharing.
 (function() {
   var params = new URLSearchParams(window.location.search);
   var pdfId = params.get('pdf');
-  if (!pdfId) return;
-  var stored = null;
-  try { stored = localStorage.getItem('spPdf_' + pdfId); } catch(e) {}
-  if (stored) {
+  var reportData = params.get('report');
+
+  // Also check hash fragment for very long URLs (some apps truncate query strings)
+  if (!reportData && window.location.hash.startsWith('#report=')) {
+    reportData = window.location.hash.slice(8); // '#report='.length
+  }
+
+  if (!pdfId && !reportData) return;
+
+  // Helper: render HTML content as full page
+  function renderReport(html) {
     document.open();
-    document.write(stored);
+    document.write(html);
     document.close();
-  } else {
-    document.open();
-    document.write('<!DOCTYPE html><html><head><title>PDF Not Found</title>' +
+    window.stop();
+  }
+
+  function renderNotFound() {
+    renderReport('<!DOCTYPE html><html><head><title>Report Not Found</title>' +
       '<style>body{font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f5;color:#333;}' +
       '.card{text-align:center;padding:40px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.1);max-width:400px;}' +
       'h1{font-size:1.3em;margin-bottom:8px;}p{color:#888;font-size:.9em;line-height:1.5;}' +
       'a{color:#3b82f6;text-decoration:none;font-weight:600;}</style></head>' +
-      '<body><div class="card"><h1>PDF Not Found</h1>' +
-      '<p>This report may have been cleared from storage or generated on a different device.</p>' +
+      '<body><div class="card"><h1>Report Not Found</h1>' +
+      '<p>This report may have been cleared from storage or the link may be incomplete.</p>' +
       '<p style="margin-top:16px;"><a href="' + window.location.pathname + '">Back to Workspace</a></p>' +
       '</div></body></html>');
-    document.close();
   }
-  window.stop(); // Stop loading rest of the page
-  return;
+
+  // Mode 1: localStorage lookup
+  if (pdfId) {
+    var stored = null;
+    try { stored = localStorage.getItem('spPdf_' + pdfId); } catch(e) {}
+    if (stored) { renderReport(stored); } else { renderNotFound(); }
+    return;
+  }
+
+  // Mode 2: self-contained report data in URL
+  if (reportData) {
+    try {
+      // Try deflate decompression first (modern browsers)
+      var raw = atob(reportData.replace(/-/g, '+').replace(/_/g, '/'));
+      var bytes = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+
+      if (typeof DecompressionStream !== 'undefined') {
+        var ds = new DecompressionStream('deflate-raw');
+        var writer = ds.writable.getWriter();
+        var reader = ds.readable.getReader();
+        var chunks = [];
+        writer.write(bytes);
+        writer.close();
+        (function readChunks() {
+          reader.read().then(function(result) {
+            if (result.value) chunks.push(result.value);
+            if (!result.done) { readChunks(); return; }
+            // Combine chunks and decode
+            var total = chunks.reduce(function(s, c) { return s + c.length; }, 0);
+            var combined = new Uint8Array(total);
+            var offset = 0;
+            chunks.forEach(function(c) { combined.set(c, offset); offset += c.length; });
+            var html = new TextDecoder().decode(combined);
+            renderReport(html);
+          }).catch(function() {
+            // Decompression failed — try as plain base64
+            try {
+              var html = decodeURIComponent(escape(raw));
+              renderReport(html);
+            } catch(e2) { renderNotFound(); }
+          });
+        })();
+      } else {
+        // No DecompressionStream — treat as plain base64 UTF-8
+        var html = decodeURIComponent(escape(raw));
+        renderReport(html);
+      }
+    } catch(e) {
+      renderNotFound();
+    }
+    return;
+  }
 })();
 
 // ── Global error boundary — catches uncaught errors and shows fallback ──
@@ -13141,13 +13205,14 @@ Format this as a polished research report. Cite specific sources by name. Use re
       window.open(spGetPdfUrl(_researchPdfId), '_blank');
     };
 
-    // Copy shareable link
+    // Copy shareable link (self-contained, works cross-device)
     document.getElementById('researchCopyLink').onclick = () => {
-      var url = spGetPdfUrl(_researchPdfId);
-      navigator.clipboard.writeText(url).then(() => toast('Link copied!')).catch(() => {
-        var ta = document.createElement('textarea'); ta.value = url;
-        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-        document.body.removeChild(ta); toast('Link copied!');
+      spGetShareableUrl(_researchHtml).then(function(url) {
+        navigator.clipboard.writeText(url).then(() => toast('Shareable link copied! Works on any device.')).catch(() => {
+          var ta = document.createElement('textarea'); ta.value = url;
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+          document.body.removeChild(ta); toast('Link copied!');
+        });
       });
     };
 
@@ -16171,8 +16236,52 @@ function spLoadPdf(id) {
   try { return localStorage.getItem(_spPdfStorageKey(id)); } catch(e) { return null; }
 }
 
+// Local link (same device, localStorage)
 function spGetPdfUrl(id) {
   return window.location.origin + window.location.pathname + '?pdf=' + id;
+}
+
+// Generate a self-contained shareable URL with compressed report data
+// Uses CompressionStream (deflate-raw) → base64url, with plain base64 fallback
+function spGetShareableUrl(htmlContent) {
+  return new Promise(function(resolve) {
+    var encoded = new TextEncoder().encode(htmlContent);
+
+    if (typeof CompressionStream !== 'undefined') {
+      // Compress with deflate-raw
+      var cs = new CompressionStream('deflate-raw');
+      var writer = cs.writable.getWriter();
+      var reader = cs.readable.getReader();
+      var chunks = [];
+      writer.write(encoded);
+      writer.close();
+      (function readChunks() {
+        reader.read().then(function(result) {
+          if (result.value) chunks.push(result.value);
+          if (!result.done) { readChunks(); return; }
+          var total = chunks.reduce(function(s, c) { return s + c.length; }, 0);
+          var combined = new Uint8Array(total);
+          var offset = 0;
+          chunks.forEach(function(c) { combined.set(c, offset); offset += c.length; });
+          // Convert to base64url
+          var binary = '';
+          for (var i = 0; i < combined.length; i++) binary += String.fromCharCode(combined[i]);
+          var b64 = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+          resolve(window.location.origin + window.location.pathname + '?report=' + b64);
+        }).catch(function() {
+          // Fallback to uncompressed base64
+          resolve(_spPlainBase64Url(htmlContent));
+        });
+      })();
+    } else {
+      resolve(_spPlainBase64Url(htmlContent));
+    }
+  });
+}
+
+function _spPlainBase64Url(html) {
+  var b64 = btoa(unescape(encodeURIComponent(html))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return window.location.origin + window.location.pathname + '?report=' + b64;
 }
 
 function generateResearchPDF(title, content, meta) {
@@ -16210,31 +16319,34 @@ function renderPdfAttachment(pdfResult, taskDescription, persona) {
   div.className = 'ai-msg system';
   div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--panel-inset);font-size:.6rem;margin-top:4px;';
   const dateStr = new Date(pdfResult.generatedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  const shareUrl = spGetPdfUrl(pdfResult.pdfId);
+  const localUrl = spGetPdfUrl(pdfResult.pdfId);
   const downloadName = 'research_' + pdfResult.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) + '_' + new Date().toISOString().slice(0, 10) + '.html';
 
   div.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">\uD83D\uDCC4 ' + esc(pdfResult.title) + ' \u2014 ' + dateStr + '</div>' +
     '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">' +
-    '<a href="' + esc(shareUrl) + '" target="_blank" style="padding:3px 10px;border:1px solid var(--accent);border-radius:4px;color:var(--accent);text-decoration:none;font-size:.56rem;cursor:pointer;">Open</a>' +
+    '<a href="' + esc(localUrl) + '" target="_blank" style="padding:3px 10px;border:1px solid var(--accent);border-radius:4px;color:var(--accent);text-decoration:none;font-size:.56rem;cursor:pointer;">Open</a>' +
     '<a href="' + esc(pdfResult.url) + '" download="' + esc(downloadName) + '" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);text-decoration:none;font-size:.56rem;cursor:pointer;">Download</a>' +
-    '<button class="sp-copy-link-btn" data-pdf-url="' + esc(shareUrl) + '" style="padding:3px 10px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);font-size:.56rem;cursor:pointer;font-weight:600;">\uD83D\uDD17 Copy Link</button>' +
+    '<button class="sp-share-link-btn" style="padding:3px 10px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);font-size:.56rem;cursor:pointer;font-weight:600;">\uD83D\uDD17 Copy Shareable Link</button>' +
     '</div>' +
-    '<div style="margin-top:4px;font-size:.48rem;color:var(--text-dim);word-break:break-all;">' + esc(shareUrl) + '</div>';
+    '<div class="sp-share-url-display" style="margin-top:4px;font-size:.48rem;color:var(--text-dim);">Generating shareable link...</div>';
 
-  // Wire up copy button
-  div.querySelector('.sp-copy-link-btn').addEventListener('click', function() {
-    var url = this.getAttribute('data-pdf-url');
-    navigator.clipboard.writeText(url).then(function() {
-      toast('Link copied to clipboard!');
-    }).catch(function() {
-      // Fallback for older browsers
-      var ta = document.createElement('textarea');
-      ta.value = url;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      toast('Link copied!');
+  // Generate compressed shareable URL (async) then wire up copy
+  spGetShareableUrl(pdfResult.htmlContent).then(function(shareUrl) {
+    var urlDisplay = div.querySelector('.sp-share-url-display');
+    if (shareUrl.length > 50000) {
+      urlDisplay.textContent = 'Shareable link ready (' + Math.round(shareUrl.length / 1024) + 'KB — may be long for some apps, use Download for large reports)';
+    } else {
+      urlDisplay.textContent = 'Shareable link ready (' + Math.round(shareUrl.length / 1024) + 'KB)';
+    }
+    var copyBtn = div.querySelector('.sp-share-link-btn');
+    copyBtn.addEventListener('click', function() {
+      navigator.clipboard.writeText(shareUrl).then(function() {
+        toast('Shareable link copied! Works on any device.');
+      }).catch(function() {
+        var ta = document.createElement('textarea'); ta.value = shareUrl;
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta); toast('Link copied!');
+      });
     });
   });
 
