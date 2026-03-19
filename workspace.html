@@ -10333,14 +10333,25 @@ function _spOddsKey(away, home) {
   return (away + ' @ ' + home).toLowerCase().trim();
 }
 
-// Store opening odds for a game — only when game is pre-game (state === 'pre')
-// and we don't already have an entry. Once stored, the opening line is locked.
+// Store opening odds for a game. Prefers pre-game lines but will also store
+// the first live odds seen as a baseline if no pre-game line was captured.
+// Once stored, the opening line is locked and never overwritten.
 function spStoreOpeningOdds(key, odds, gameState) {
-  if (gameState && gameState !== 'pre') return;
-  if (spOpeningOdds[key]) return;
+  if (spOpeningOdds[key]) {
+    // Already have an entry. If it was captured live and we now have pre-game
+    // data, upgrade it. Otherwise leave it locked.
+    if (spOpeningOdds[key].capturedLive && gameState === 'pre') {
+      // Replace live-captured baseline with actual pre-game line
+      spOpeningOdds[key] = { ...odds, timestamp: Date.now(), capturedLive: false };
+      _spSaveOpeningOdds(spOpeningOdds);
+    }
+    return;
+  }
   // Only store if we have at least one valid value
   if (odds.spread == null && odds.total == null && odds.awayML == null && odds.homeML == null) return;
-  spOpeningOdds[key] = { ...odds, timestamp: Date.now() };
+  // Store with flag indicating whether this is a true pre-game line or live baseline
+  var isLive = gameState && gameState !== 'pre';
+  spOpeningOdds[key] = { ...odds, timestamp: Date.now(), capturedLive: isLive };
   _spSaveOpeningOdds(spOpeningOdds);
 }
 
@@ -10588,7 +10599,9 @@ function spRenderOddsCard(game) {
   // Swing alert banner (for major movements)
   if (hasMajorSwing) {
     html += '<div style="background:rgba(234,88,12,.1);border:1px solid rgba(234,88,12,.25);border-radius:4px;padding:4px 7px;margin-bottom:6px;font-size:.54rem;">';
-    html += '<span style="font-weight:700;color:#ea580c;">\u26A0 LINE MOVEMENT vs OPENING</span>';
+    var openEntry = spOpeningOdds[oddsKey];
+    var baseLabel = (openEntry && openEntry.capturedLive) ? 'LINE MOVEMENT (since first check)' : 'LINE MOVEMENT vs OPENING';
+    html += '<span style="font-weight:700;color:#ea580c;">\u26A0 ' + baseLabel + '</span>';
     swings.filter(function(s) { return s.isMajor; }).forEach(function(s) {
       var openFmt = spOddsFmt(s.open, s.key.includes('ML') ? 0 : 1);
       var curFmt = spOddsFmt(s.current, s.key.includes('ML') ? 0 : 1);
@@ -10806,7 +10819,7 @@ function spFetchOdds() {
           var liveMatch = spMatchLiveScore(game.away, game.home);
           var gameState = liveMatch ? liveMatch.state : 'pre';
 
-          // Track opening odds — only stores when game is still pre-game
+          // Track opening odds — stores pre-game line or first-seen live baseline
           var oddsKey = _spOddsKey(game.away, game.home);
           spStoreOpeningOdds(oddsKey, currentOdds, gameState);
 
@@ -10900,7 +10913,7 @@ function spFetchOddsEspn(league) {
           });
         }
 
-        // Track opening odds for ESPN fallback — only pre-game lines
+        // Track opening odds for ESPN fallback
         var oddsKey = _spOddsKey(game.away, game.home);
         var spreadVal = null, totalVal = null, awayMLVal = null, homeMLVal = null;
         game.lines.forEach(function(ln) {
