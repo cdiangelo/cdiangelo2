@@ -1305,6 +1305,8 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table th { position: relative; }
 .col-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 5; background: transparent; }
 .col-resize-handle:hover, .col-resize-handle.dragging { background: var(--accent); }
+.row-resize-handle { position: absolute; left: 0; right: 0; bottom: -2px; height: 5px; cursor: row-resize; z-index: 5; background: transparent; }
+.row-resize-handle:hover, .row-resize-handle.dragging { background: var(--accent); }
 
 /* Page tabs for multi-page panes */
 .page-tabs {
@@ -5766,6 +5768,8 @@ let ssFormulaRef = null; // { anchorR, anchorC, endR, endC, inputPos, inputLen }
 let ssExtraSelections = []; // array of { r1, c1, r2, c2 } for Ctrl+Click multi-select
 let ssUndoHist = []; // array of { data, rows, cols } snapshots
 let ssColWidths = LS('ssColWidths') || []; // per-column widths
+let ssRowHeights = LS('ssRowHeights') || []; // per-row heights
+let ssHeaderDragType = null; // 'row' | 'col' | null — for header drag selection
 // Cell formatting: ssFmt[r][c] = { bg, color, bold } — sparse, only set cells have entries
 let ssFmt = LS('ssFmt') || {};
 // Row/column grouping: arrays of { start, end, collapsed }
@@ -6070,11 +6074,13 @@ function ssSaveCurrentPage() {
     page.rowGroups = JSON.parse(JSON.stringify(ssRowGroups));
     page.colGroups = JSON.parse(JSON.stringify(ssColGroups));
     page.rowIndent = JSON.parse(JSON.stringify(ssRowIndent));
+    page.rowHeights = ssRowHeights.slice();
   }
   saveSsPages();
   LS('sheet', ssD);
   LS('sheetColNames', ssColNames);
   LS('ssFmt', ssFmt);
+  LS('ssRowHeights', ssRowHeights);
 }
 
 function ssSwitchPage(id) {
@@ -6089,12 +6095,14 @@ function ssSwitchPage(id) {
     ssRowGroups = page.rowGroups ? JSON.parse(JSON.stringify(page.rowGroups)) : [];
     ssColGroups = page.colGroups ? JSON.parse(JSON.stringify(page.colGroups)) : [];
     ssRowIndent = page.rowIndent ? JSON.parse(JSON.stringify(page.rowIndent)) : {};
+    ssRowHeights = page.rowHeights ? page.rowHeights.slice() : [];
   } else {
     ssD = []; ssR = 20; ssC = 10;
     for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; }
     ssColNames = [];
     ssFmt = {};
     ssRowGroups = []; ssColGroups = []; ssRowIndent = {};
+    ssRowHeights = [];
   }
   LS('sheet', ssD); LS('sheetColNames', ssColNames);
   ssRender();
@@ -6950,11 +6958,12 @@ function ssRender() {
     const rowGrp = ssRowGroups.find(g => r === g.start);
     const indent = ssRowIndent[r] || 0;
     const indentCls = indent > 0 ? ' grp-indent-' + Math.min(indent, 3) : '';
-    h += '<tr' + (rowHidden ? ' class="grp-hidden"' : '') + '><th class="row-h' + indentCls + '">';
+    const rowH = ssRowHeights[r] || 24;
+    h += '<tr' + (rowHidden ? ' class="grp-hidden"' : '') + ' style="height:'+rowH+'px;"><th class="row-h' + indentCls + '" data-row="'+r+'" style="position:relative;">';
     if (rowGrp) {
       h += '<span class="grp-toggle" data-grp-type="row" data-grp-start="'+rowGrp.start+'" data-grp-end="'+rowGrp.end+'">' + (rowGrp.collapsed ? '+' : '−') + '</span>';
     }
-    h += '<span class="row-num">' + (r+1) + '</span></th>';
+    h += '<span class="row-num">' + (r+1) + '</span><div class="row-resize-handle" data-row="'+r+'"></div></th>';
     for (let c = 0; c < ssC; c++) {
       if (ssIsColHidden(c)) { h += '<td class="grp-hidden-col" data-r="'+r+'" data-c="'+c+'"></td>'; continue; }
       const raw = ssD[r][c] || '';
@@ -7101,6 +7110,39 @@ function ssRender() {
   });
 })();
 
+// ── Row resize drag handler ──
+(function initRowResize() {
+  const table = $('#ssTable');
+  if (!table) return;
+  let resizing = false, resizeRow = -1, startY = 0, startH = 0;
+  table.addEventListener('mousedown', e => {
+    const handle = e.target.closest('.row-resize-handle');
+    if (!handle) return;
+    e.preventDefault(); e.stopPropagation();
+    resizing = true; resizeRow = +handle.dataset.row;
+    startY = e.clientY; startH = ssRowHeights[resizeRow] || 24;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'row-resize';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!resizing) return;
+    const delta = e.clientY - startY;
+    const newH = Math.max(16, startH + delta);
+    ssRowHeights[resizeRow] = newH;
+    const row = table.querySelector('tr:nth-child(' + (resizeRow + 2) + ')') || table.rows[resizeRow + 1];
+    // Find the row by its row header data-row attribute
+    const rh = table.querySelector('th.row-h[data-row="'+resizeRow+'"]');
+    if (rh && rh.parentElement) rh.parentElement.style.height = newH + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!resizing) return;
+    resizing = false;
+    document.body.style.cursor = '';
+    table.querySelectorAll('.row-resize-handle.dragging').forEach(h => h.classList.remove('dragging'));
+    LS('ssRowHeights', ssRowHeights);
+  });
+})();
+
 // ── Sheet mouse/keyboard event delegation ──
 (function initSheetEvents() {
   const t = $('#ssTable');
@@ -7134,15 +7176,32 @@ function ssRender() {
     const td = e.target.closest('td[data-r]');
     if (!td) {
       const rh = e.target.closest('th.row-h');
-      if (rh) {
-        const idx = Array.from(t.querySelectorAll('th.row-h')).indexOf(rh);
-        if (idx >= 0) { ssExitEdit(); ssSel = { r1: idx, c1: 0, r2: idx, c2: ssC-1 }; ssSelecting = true; ssRenderSelection(); }
+      if (rh && !e.target.closest('.row-resize-handle')) {
+        const idx = rh.dataset.row !== undefined ? +rh.dataset.row : Array.from(t.querySelectorAll('th.row-h')).indexOf(rh);
+        if (idx >= 0) {
+          ssExitEdit();
+          if (e.shiftKey && ssSel) {
+            // Extend row selection
+            ssSel.r2 = idx; ssSel.c1 = 0; ssSel.c2 = ssC-1;
+          } else {
+            ssSel = { r1: idx, c1: 0, r2: idx, c2: ssC-1 };
+            ssExtraSelections = [];
+          }
+          ssSelecting = true; ssHeaderDragType = 'row'; ssRenderSelection();
+        }
         return;
       }
       const ch = e.target.closest('th[data-c]');
-      if (ch) {
+      if (ch && !e.target.closest('.col-resize-handle')) {
         const c = +ch.dataset.c;
-        ssExitEdit(); ssSel = { r1: 0, c1: c, r2: ssR-1, c2: c }; ssSelecting = true; ssRenderSelection();
+        ssExitEdit();
+        if (e.shiftKey && ssSel) {
+          ssSel.c2 = c; ssSel.r1 = 0; ssSel.r2 = ssR-1;
+        } else {
+          ssSel = { r1: 0, c1: c, r2: ssR-1, c2: c };
+          ssExtraSelections = [];
+        }
+        ssSelecting = true; ssHeaderDragType = 'col'; ssRenderSelection();
         return;
       }
       if (e.target.closest('th.corner')) {
@@ -7172,6 +7231,52 @@ function ssRender() {
   // mousemove: extend selection during drag — set isDragged flag
   t.addEventListener('mousemove', e => {
     if (!ssSelecting || !ssSel) return;
+    // Row header drag: extend row selection
+    if (ssHeaderDragType === 'row') {
+      const rh = e.target.closest('th.row-h');
+      if (rh) {
+        const idx = rh.dataset.row !== undefined ? +rh.dataset.row : Array.from(t.querySelectorAll('th.row-h')).indexOf(rh);
+        if (idx >= 0 && idx !== ssSel.r2) {
+          ssDragged = true;
+          ssSel.r2 = idx; ssSel.c1 = 0; ssSel.c2 = ssC - 1;
+          ssRenderSelection();
+        }
+      }
+      // Also allow extending by hovering cells in a row
+      const td = e.target.closest('td[data-r]');
+      if (td) {
+        const r = +td.dataset.r;
+        if (r !== ssSel.r2) {
+          ssDragged = true;
+          ssSel.r2 = r; ssSel.c1 = 0; ssSel.c2 = ssC - 1;
+          ssRenderSelection();
+        }
+      }
+      return;
+    }
+    // Column header drag: extend column selection
+    if (ssHeaderDragType === 'col') {
+      const ch = e.target.closest('th[data-c]');
+      if (ch) {
+        const c = +ch.dataset.c;
+        if (c !== ssSel.c2) {
+          ssDragged = true;
+          ssSel.c2 = c; ssSel.r1 = 0; ssSel.r2 = ssR - 1;
+          ssRenderSelection();
+        }
+      }
+      const td = e.target.closest('td[data-r]');
+      if (td) {
+        const c = +td.dataset.c;
+        if (c !== ssSel.c2) {
+          ssDragged = true;
+          ssSel.c2 = c; ssSel.r1 = 0; ssSel.r2 = ssR - 1;
+          ssRenderSelection();
+        }
+      }
+      return;
+    }
+    // Normal cell drag
     const td = e.target.closest('td[data-r]');
     if (!td) return;
     const r = +td.dataset.r, c = +td.dataset.c;
@@ -7193,6 +7298,7 @@ function ssRender() {
     }
     ssSelecting = false;
     ssMouseDownCell = null;
+    ssHeaderDragType = null;
   });
 
   // dblclick: still works — ensures edit mode on double click for reliability
@@ -12685,6 +12791,7 @@ function serializeState() {
     sheetColNames: ssColNames.slice(),
     ssFmt: JSON.parse(JSON.stringify(ssFmt)),
     ssColWidths: ssColWidths.slice(),
+    ssRowHeights: ssRowHeights.slice(),
     ssR: ssR,
     ssC: ssC,
     ssPages: JSON.parse(JSON.stringify(ssPages)),
@@ -12747,11 +12854,12 @@ function deserializeState(s) {
     ssFmt = pg && pg.fmt ? JSON.parse(JSON.stringify(pg.fmt)) : (s.ssFmt ? JSON.parse(JSON.stringify(s.ssFmt)) : {});
     // Restore column widths
     ssColWidths = s.ssColWidths ? s.ssColWidths.slice() : [];
+    ssRowHeights = s.ssRowHeights ? s.ssRowHeights.slice() : [];
     // Restore grouping
     ssRowGroups = s.ssRowGroups ? JSON.parse(JSON.stringify(s.ssRowGroups)) : [];
     ssColGroups = s.ssColGroups ? JSON.parse(JSON.stringify(s.ssColGroups)) : [];
     ssRowIndent = s.ssRowIndent ? JSON.parse(JSON.stringify(s.ssRowIndent)) : {};
-    LS('sheet', ssD); LS('sheetColNames', ssColNames); LS('ssFmt', ssFmt); LS('ssColWidths', ssColWidths);
+    LS('sheet', ssD); LS('sheetColNames', ssColNames); LS('ssFmt', ssFmt); LS('ssColWidths', ssColWidths); LS('ssRowHeights', ssRowHeights);
     LS('ssRowGroups', ssRowGroups); LS('ssColGroups', ssColGroups); LS('ssRowIndent', ssRowIndent);
     ssRender(); renderSsTabs();
   } else {
