@@ -2519,6 +2519,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <div class="page-tab" data-sptab="news">News</div>
           <div class="page-tab" data-sptab="players">Players</div>
           <div class="page-tab" data-sptab="standings">Standings</div>
+          <div class="page-tab" data-sptab="bracket" id="spBracketTabBtn" style="display:none;">Bracket</div>
           <div class="page-tab" data-sptab="youtube">YouTube</div>
           <div style="flex:1;"></div>
           <div id="spConnStatus" style="display:flex;align-items:center;gap:4px;padding:0 6px;font-size:.5rem;color:var(--text-dim);cursor:pointer;" title="Sports data connection status">
@@ -2627,6 +2628,25 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
         </div>
 
+        <!-- Bracket sub-tab (seasonal: Feb-Apr) -->
+        <div id="spBracketTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+          <div class="toolbar">
+            <span style="font-size:.62rem;font-weight:700;color:var(--text);">NCAA Tournament Bracket</span>
+            <div class="p-spacer" style="flex:1;"></div>
+            <select id="spBracketSim" style="font-size:.62rem;">
+              <option value="">Select Simulation...</option>
+            </select>
+            <button id="spBracketRunSim" style="font-size:.62rem;background:rgba(59,130,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;" title="Ask Claude to run bracket simulations">Simulate</button>
+          </div>
+          <div id="spBracketLegend" style="display:none;padding:2px 8px;font-size:.5rem;color:var(--text-dim);display:flex;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--border);">
+          </div>
+          <div id="spBracketView" style="flex:1;overflow:auto;padding:6px;position:relative;">
+            <div class="sp-empty" style="text-align:center;padding:30px 10px;">
+              <div style="font-size:.72rem;margin-bottom:6px;">No bracket loaded</div>
+              <div style="font-size:.58rem;color:var(--text-dim);">Switch to the <b>March Madness</b> persona and ask Claude:<br/><i>"Run a bracket simulation"</i> or <i>"Fill out my bracket"</i></div>
+            </div>
+          </div>
+        </div>
         <div id="spYoutubeTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
           <div class="toolbar">
             <input type="text" id="spYtSearch" placeholder="Search sports videos..." style="flex:1;max-width:260px;font-size:.68rem;" />
@@ -9809,6 +9829,7 @@ $$('#spTabs .page-tab').forEach(tab => {
     if ($('#spOddsTab')) $('#spOddsTab').style.display = st === 'odds' ? 'flex' : 'none';
     if ($('#spNewsTab')) $('#spNewsTab').style.display = st === 'news' ? 'flex' : 'none';
     if ($('#spPlayersTab')) $('#spPlayersTab').style.display = st === 'players' ? 'flex' : 'none';
+    if ($('#spBracketTab')) $('#spBracketTab').style.display = st === 'bracket' ? 'flex' : 'none';
     $('#spYoutubeTab').style.display = st === 'youtube' ? 'flex' : 'none';
     // Re-apply pink tints for disconnected tabs
     spUpdateConnBadge();
@@ -10819,6 +10840,225 @@ $('#spYtSearchBtn').onclick = () => {
 $('#spYtSearch').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); $('#spYtSearchBtn').click(); }
 });
+
+// ── NCAA Tournament Bracket System ──
+// Show bracket tab during Feb-Apr
+(function() {
+  var m = new Date().getMonth() + 1;
+  if (m >= 2 && m <= 4) {
+    var btn = $('#spBracketTabBtn');
+    if (btn) btn.style.display = '';
+  }
+})();
+
+// Bracket data store
+let spBracketData = null;
+let spBracketSimulations = LS('sp_bracket_sims') || []; // saved simulations
+
+function spRenderBracket(data) {
+  spBracketData = data;
+  var view = $('#spBracketView');
+  if (!view) return;
+
+  // Tag colors
+  var tagColors = {
+    lock: { bg: '#16a34a', label: '\uD83D\uDD12 Lock' },
+    upset: { bg: '#f59e0b', label: '\u26A0\uFE0F Upset' },
+    run_candidate: { bg: '#3b82f6', label: '\uD83C\uDFC3 Run' },
+    vegas_fade: { bg: '#ef4444', label: '\uD83C\uDFB0 Fade' },
+    value: { bg: '#8b5cf6', label: '\uD83D\uDCA1 Value' },
+    contrarian: { bg: '#ec4899', label: '\uD83D\uDD04 Contrarian' }
+  };
+
+  var html = '';
+
+  // Title
+  html += '<div style="text-align:center;margin-bottom:8px;">';
+  html += '<div style="font-size:.82rem;font-weight:700;color:var(--text);">'+esc(data.title || 'NCAA Tournament Bracket')+'</div>';
+  if (data.sim_count) html += '<div style="font-size:.52rem;color:var(--text-dim);">Based on '+data.sim_count+' simulations</div>';
+  if (data.factor_sets && data.factor_sets.length) {
+    html += '<div style="font-size:.48rem;color:var(--text-dim);margin-top:2px;">Factors: '+data.factor_sets.map(function(f){return esc(f);}).join(', ')+'</div>';
+  }
+  html += '</div>';
+
+  // Legend
+  html += '<div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px;flex-wrap:wrap;">';
+  Object.keys(tagColors).forEach(function(k) {
+    html += '<span style="font-size:.48rem;padding:1px 6px;border-radius:3px;background:'+tagColors[k].bg+';color:#fff;">'+tagColors[k].label+'</span>';
+  });
+  html += '<span style="font-size:.48rem;color:var(--text-dim);">Bar = sim probability</span>';
+  html += '</div>';
+
+  // Render each region as a compact bracket
+  (data.regions || []).forEach(function(region) {
+    html += '<div style="margin-bottom:10px;border:1px solid var(--border);border-radius:6px;overflow:hidden;">';
+    html += '<div style="background:rgba(59,130,246,.12);padding:4px 8px;font-weight:700;font-size:.68rem;color:var(--accent);">'+esc(region.name)+' Region</div>';
+
+    // Build rounds from picks
+    var rounds = [[], [], [], []]; // R64→Elite8
+    (region.picks || []).forEach(function(p) {
+      if (p.round >= 1 && p.round <= 4) rounds[p.round - 1].push(p);
+    });
+
+    // Compact grid: show round headers + picks
+    html += '<div style="display:flex;gap:1px;padding:4px;overflow-x:auto;">';
+    var roundLabels = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8'];
+    rounds.forEach(function(rPicks, ri) {
+      html += '<div style="flex:1;min-width:110px;">';
+      html += '<div style="font-size:.48rem;color:var(--text-dim);font-weight:600;text-align:center;padding:2px 0;border-bottom:1px solid var(--border);">'+roundLabels[ri]+'</div>';
+      rPicks.forEach(function(p) {
+        var pct = p.pct || 0;
+        var pctColor = pct >= 75 ? '#16a34a' : pct >= 50 ? '#86efac' : pct >= 30 ? '#f59e0b' : '#ef4444';
+        var pickTags = (p.tags || []).map(function(t) {
+          var tc = tagColors[t];
+          return tc ? '<span style="font-size:.4rem;padding:0 3px;border-radius:2px;background:'+tc.bg+';color:#fff;margin-left:2px;">'+tc.label.split(' ')[0]+'</span>' : '';
+        }).join('');
+
+        html += '<div style="padding:3px 4px;border-bottom:1px solid rgba(255,255,255,.04);position:relative;" title="'+esc(p.edge || '')+'">';
+        // Probability bar background
+        html += '<div style="position:absolute;left:0;top:0;bottom:0;width:'+pct+'%;background:'+pctColor+';opacity:.1;"></div>';
+        html += '<div style="position:relative;display:flex;align-items:center;gap:3px;">';
+        html += '<span style="font-size:.5rem;color:var(--text-dim);min-width:12px;">'+p.seed+'</span>';
+        html += '<span style="font-size:.58rem;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.team)+'</span>';
+        html += '<span style="font-size:.48rem;font-weight:700;color:'+pctColor+';">'+pct+'%</span>';
+        html += pickTags;
+        html += '</div>';
+        // Edge annotation on hover line
+        if (p.edge) html += '<div style="font-size:.42rem;color:var(--text-dim);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.edge)+'</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+
+  // Final Four + Championship
+  html += '<div style="border:1px solid var(--accent);border-radius:6px;overflow:hidden;margin-bottom:6px;">';
+  html += '<div style="background:rgba(59,130,246,.2);padding:4px 8px;font-weight:700;font-size:.72rem;color:var(--accent);text-align:center;">Final Four & Championship</div>';
+  html += '<div style="display:flex;gap:2px;padding:6px;">';
+
+  // Final Four picks
+  html += '<div style="flex:1;">';
+  html += '<div style="font-size:.5rem;color:var(--text-dim);font-weight:600;text-align:center;margin-bottom:3px;">Final Four</div>';
+  (data.final_four || []).forEach(function(p) {
+    var pct = p.pct || 0;
+    var pctColor = pct >= 50 ? '#16a34a' : pct >= 30 ? '#f59e0b' : '#ef4444';
+    var pickTags = (p.tags || []).map(function(t) { var tc = tagColors[t]; return tc ? '<span style="font-size:.4rem;padding:0 3px;border-radius:2px;background:'+tc.bg+';color:#fff;margin-left:2px;">'+tc.label.split(' ')[0]+'</span>' : ''; }).join('');
+    html += '<div style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;margin-bottom:3px;" title="'+esc(p.edge || '')+'">';
+    html += '<div style="display:flex;align-items:center;gap:4px;">';
+    html += '<span style="font-size:.5rem;color:var(--text-dim);">('+p.seed+') '+esc(p.region || '')+'</span>';
+    html += '<span style="font-size:.66rem;font-weight:700;">'+esc(p.team)+'</span>';
+    html += '<span style="font-size:.52rem;font-weight:700;color:'+pctColor+';margin-left:auto;">'+pct+'%</span>';
+    html += pickTags;
+    html += '</div>';
+    if (p.edge) html += '<div style="font-size:.44rem;color:var(--text-dim);">'+esc(p.edge)+'</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Champion
+  if (data.champion) {
+    var c = data.champion;
+    html += '<div style="flex:1;display:flex;align-items:center;justify-content:center;">';
+    html += '<div style="text-align:center;padding:10px;border:2px solid gold;border-radius:8px;background:rgba(255,215,0,.06);">';
+    html += '<div style="font-size:.5rem;color:gold;font-weight:700;margin-bottom:2px;">\uD83C\uDFC6 CHAMPION</div>';
+    html += '<div style="font-size:.82rem;font-weight:800;color:var(--text);">'+esc(c.team)+'</div>';
+    html += '<div style="font-size:.52rem;color:var(--text-dim);">('+c.seed+') '+esc(c.region || '')+'</div>';
+    html += '<div style="font-size:.58rem;font-weight:700;color:#16a34a;margin-top:2px;">'+c.pct+'% of sims</div>';
+    if (c.edge) html += '<div style="font-size:.44rem;color:var(--text-dim);margin-top:2px;">'+esc(c.edge)+'</div>';
+    html += '</div></div>';
+  }
+
+  html += '</div></div>';
+
+  view.innerHTML = html;
+
+  // Save to simulations list
+  if (data.title) {
+    var sim = { title: data.title, timestamp: new Date().toISOString(), data: data };
+    spBracketSimulations.push(sim);
+    if (spBracketSimulations.length > 10) spBracketSimulations = spBracketSimulations.slice(-10);
+    LS('sp_bracket_sims', spBracketSimulations);
+    _spUpdateSimSelector();
+  }
+}
+
+function _spUpdateSimSelector() {
+  var sel = $('#spBracketSim');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select Simulation...</option>';
+  spBracketSimulations.forEach(function(s, i) {
+    var opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = s.title + ' (' + new Date(s.timestamp).toLocaleDateString() + ')';
+    sel.appendChild(opt);
+  });
+}
+
+// Load saved simulation on select
+if ($('#spBracketSim')) {
+  $('#spBracketSim').onchange = function() {
+    var idx = parseInt(this.value);
+    if (!isNaN(idx) && spBracketSimulations[idx]) {
+      spRenderBracket(spBracketSimulations[idx].data);
+    }
+  };
+}
+
+// "Simulate" button → auto-send prompt to Claude
+if ($('#spBracketRunSim')) {
+  $('#spBracketRunSim').onclick = function() {
+    var input = $('#aiInput');
+    if (input) {
+      input.value = 'Run a bracket simulation for the NCAA Tournament. Use the generate_bracket tool to populate the bracket view. Run 25 simulations varying factor weights across: defensive efficiency, 3PT shooting variance, coaching tournament pedigree, guard experience, tempo mismatches, and injury/fatigue factors. Focus on identifying where Vegas is mispricing or where factors exist that the market is not capturing. Flag specific teams with deep-run potential. Output the consensus bracket with annotations.';
+      if (typeof sendAgentMessage === 'function') sendAgentMessage();
+    }
+  };
+}
+
+_spUpdateSimSelector();
+
+// Tool handler for generate_bracket
+window._bracketToolHandler = function(input) {
+  // Render the bracket visualization
+  spRenderBracket(input);
+
+  // Also generate a sheet table with the detailed picks
+  var headers = ['Region', 'Round', 'Seed', 'Team', 'Adv. Prob %', 'Edge/Annotation', 'Tags'];
+  var rows = [];
+  (input.regions || []).forEach(function(region) {
+    (region.picks || []).forEach(function(p) {
+      var roundLabel = {1:'R64', 2:'R32', 3:'Sweet 16', 4:'Elite 8'}[p.round] || 'R'+p.round;
+      rows.push([region.name, roundLabel, String(p.seed), p.team, String(p.pct || ''), p.edge || '', (p.tags || []).join(', ')]);
+    });
+  });
+  (input.final_four || []).forEach(function(p) {
+    rows.push([p.region || '', 'Final Four', String(p.seed), p.team, String(p.pct || ''), p.edge || '', (p.tags || []).join(', ')]);
+  });
+  if (input.champion) {
+    var c = input.champion;
+    rows.push([c.region || '', 'Champion', String(c.seed), c.team, String(c.pct || ''), c.edge || '', (c.tags || []).join(', ')]);
+  }
+
+  // Write to sheet using create_table
+  if (typeof executeAgentTool === 'function') {
+    executeAgentTool('create_table', {
+      anchor: 'A1',
+      headers: headers,
+      rows: rows,
+      title: (input.title || 'Bracket Simulation')
+    });
+  }
+
+  // Switch to bracket tab
+  $$('#spTabs .page-tab').forEach(function(t) { t.classList.remove('active'); t.style.background = ''; t.style.color = ''; });
+  var bracketBtn = $('#spBracketTabBtn');
+  if (bracketBtn) { bracketBtn.classList.add('active'); bracketBtn.style.display = ''; }
+  $$('.sp-subtab').forEach(function(st) { st.style.display = 'none'; });
+  if ($('#spBracketTab')) $('#spBracketTab').style.display = 'flex';
+
+  return JSON.stringify({ success: true, message: 'Bracket populated with ' + rows.length + ' picks across ' + (input.regions || []).length + ' regions. Visualization rendered in Bracket tab. Detailed analysis table written to Sheet.' });
+};
 
 // Auto-refresh scores every 60 seconds when sports tab is visible
 let spAutoRefreshTimer = null;
@@ -12780,12 +13020,19 @@ const PERSONA_MODES = {
       '- Favorable bracket path (soft region, avoid elite matchups until late rounds)\n' +
       '- "Getting hot at the right time" — teams on 8+ game win streaks or dominant conf tourney runs\n' +
       'Name these teams explicitly: "\uD83C\uDFC3 RUN CANDIDATE: [Team] — [why they can make a run to the [round]]"\n\n' +
-      'BRACKET PICKS:\n' +
+      'BRACKET PICKS & SIMULATION:\n' +
       'When asked about bracket construction, give SPECIFIC team picks for every round — not "consider" or "could go either way". Name the team. For each round, designate:\n' +
       '- \uD83D\uDD12 LOCKS: Teams you\'re most confident in advancing\n' +
       '- \uD83D\uDCA3 UPSET PICKS: Specific upsets with the underdog named and the round\n' +
       '- \uD83C\uDFC6 FINAL FOUR + CHAMPION: Commit to specific teams\n' +
       'Ask for pool format (standard, confidence, survivor) and tailor aggressiveness accordingly.\n\n' +
+      'BRACKET SIMULATION DELIVERABLE:\n' +
+      'When asked to "run a bracket simulation" or "simulate the bracket", you MUST use the generate_bracket tool to populate the visual bracket in the Sports pane. Run your analysis as multiple simulated scenarios (20-30) varying factor weights: defensive efficiency, 3PT variance, coaching pedigree, guard experience, tempo mismatches, fatigue/injury. Aggregate results into consensus advancement probabilities. Focus on:\n' +
+      '- Where Vegas is mispricing (tag: vegas_fade)\n' +
+      '- Factors not captured in the line (tag: value)\n' +
+      '- Teams with deep-run profiles (tag: run_candidate)\n' +
+      '- High-confidence chalk (tag: lock) vs. upset value (tag: upset)\n' +
+      'The tool writes both a visual bracket AND a detailed analysis table to the sheet.\n\n' +
       'SHARP MONEY (use to SUPPORT picks, not replace them):\n' +
       '- Flag reverse line movement, steam moves, sharp vs public splits\n' +
       '- When sharp money aligns with your pick, emphasize it as confirmation\n' +
@@ -15759,7 +16006,8 @@ function addToolStatus(toolName, input) {
     add_concept_edge: 'Connecting concept map nodes',
     remove_concept_node: 'Removing concept map node',
     clear_concept_map: 'Clearing concept map',
-    set_concept_map_layout: 'Repositioning concept map'
+    set_concept_map_layout: 'Repositioning concept map',
+    generate_bracket: 'Generating NCAA Tournament bracket'
   };
   const ts = '[' + new Date().toTimeString().slice(0, 8) + ']';
   const div = document.createElement('div');
@@ -15938,7 +16186,37 @@ const AGENT_TOOLS_INLINE = [
   { name: 'deep_research', description: 'Trigger a deep research scan on a topic. Fetches real articles from Google News, then you can analyze them. Returns article list for your synthesis.', input_schema: { type: 'object', properties: { topic: { type: 'string', description: 'Research topic or query' } }, required: ['topic'] } },
 
   // PRICING/BUSINESS TOOLS
-  { name: 'pricing_analysis', description: 'Run pricing scenario analysis. Models API costs at different user scales, evaluates unit economics and profitability dynamics. Returns cost scenarios for analysis. Write results to sheet and notepad.', input_schema: { type: 'object', properties: { product_type: { type: 'string', description: 'Type of product (SaaS tool, API wrapper, consumer app, etc.)' }, target_users: { type: 'number', description: 'Target user count' }, queries_per_user: { type: 'number', description: 'Expected queries per user per month' }, competitors: { type: 'string', description: 'Comma-separated competitor names to research' } }, required: ['product_type'] } }
+  { name: 'pricing_analysis', description: 'Run pricing scenario analysis. Models API costs at different user scales, evaluates unit economics and profitability dynamics. Returns cost scenarios for analysis. Write results to sheet and notepad.', input_schema: { type: 'object', properties: { product_type: { type: 'string', description: 'Type of product (SaaS tool, API wrapper, consumer app, etc.)' }, target_users: { type: 'number', description: 'Target user count' }, queries_per_user: { type: 'number', description: 'Expected queries per user per month' }, competitors: { type: 'string', description: 'Comma-separated competitor names to research' } }, required: ['product_type'] } },
+
+  // BRACKET TOOLS
+  { name: 'generate_bracket', description: 'Populate the NCAA Tournament bracket visualization with picks for all rounds. Provide teams and picks per region. Each pick should include the team name, seed, advancement probability (0-100), edge annotation, and tags (lock/upset/run_candidate/vegas_fade). Also writes a detailed analysis table to the sheet.', input_schema: { type: 'object', properties: {
+    title: { type: 'string', description: 'Bracket title (e.g. "Simulation Consensus - 25 Runs")' },
+    regions: { type: 'array', description: 'Array of 4 region objects', items: { type: 'object', properties: {
+      name: { type: 'string', description: 'Region name (e.g. "South", "East", "West", "Midwest")' },
+      seeds: { type: 'array', description: 'Array of 16 team objects seeded 1-16', items: { type: 'object', properties: {
+        seed: { type: 'number' }, team: { type: 'string' }
+      }, required: ['seed', 'team'] } },
+      picks: { type: 'array', description: 'Array of round-by-round winners. Round 1 = 8 winners, Round 2 = 4, Sweet 16 = 2, Elite 8 = 1 region champ. 15 picks total.', items: { type: 'object', properties: {
+        round: { type: 'number', description: '1=R64, 2=R32, 3=Sweet16, 4=Elite8' },
+        team: { type: 'string' }, seed: { type: 'number' },
+        pct: { type: 'number', description: 'Advancement probability 0-100 from simulations' },
+        edge: { type: 'string', description: 'Brief annotation: why this pick (e.g. "Sharp money, elite D", "Vegas fade - public overvaluing")' },
+        tags: { type: 'array', items: { type: 'string', enum: ['lock', 'upset', 'run_candidate', 'vegas_fade', 'value', 'contrarian'] } }
+      }, required: ['round', 'team', 'seed', 'pct', 'edge'] } }
+    }, required: ['name', 'seeds', 'picks'] } },
+    final_four: { type: 'array', description: '2 semifinal picks', items: { type: 'object', properties: {
+      team: { type: 'string' }, seed: { type: 'number' }, region: { type: 'string' },
+      pct: { type: 'number' }, edge: { type: 'string' },
+      tags: { type: 'array', items: { type: 'string' } }
+    }, required: ['team', 'seed', 'region', 'pct', 'edge'] } },
+    champion: { type: 'object', properties: {
+      team: { type: 'string' }, seed: { type: 'number' }, region: { type: 'string' },
+      pct: { type: 'number' }, edge: { type: 'string' },
+      tags: { type: 'array', items: { type: 'string' } }
+    }, required: ['team', 'seed', 'region', 'pct', 'edge'] },
+    sim_count: { type: 'number', description: 'Number of simulations run' },
+    factor_sets: { type: 'array', description: 'Factor weights used across simulations', items: { type: 'string' } }
+  }, required: ['title', 'regions', 'final_four', 'champion'] } }
 ];
 // ADDED — Phase 5: Getter that prefers module definitions, falls back to inline
 Object.defineProperty(window, 'AGENT_TOOLS', { get: () => window._toolDefinitions || AGENT_TOOLS_INLINE, configurable: true });
@@ -16416,6 +16694,11 @@ async function executeAgentTool(name, input) {
         } catch (err) {
           return JSON.stringify({ error: 'Research fetch failed: ' + err.message });
         }
+      }
+
+      case 'generate_bracket': {
+        if (window._bracketToolHandler) return window._bracketToolHandler(input);
+        return JSON.stringify({ error: 'Bracket system not loaded' });
       }
 
       default: return JSON.stringify({ error: 'Unknown tool: ' + name });
@@ -17620,6 +17903,7 @@ async function sendAgentMessage() {
       draw_summary_card: function() { return 'Whiteboard: summary card drawn'; },
       draw_table: function() { return 'Whiteboard: table drawn'; },
       create_meme: function() { return 'Meme generated'; },
+      generate_bracket: function(inp) { return 'Bracket: ' + (inp.title || 'NCAA Tournament') + ' rendered + Sheet table'; },
       show_toast: null // skip — not a real deliverable
     };
     const deliverables = [];
