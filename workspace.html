@@ -5243,8 +5243,9 @@ function generatePlaceholderSVG(label) {
 }
 
 function wbSafeDrawImage(ctx, imgSrc, x, y, w, h) {
+  if (!imgSrc) return; // Skip null/empty content — nothing to draw
   const img = new Image();
-  if (imgSrc && !imgSrc.startsWith('data:')) img.crossOrigin = 'anonymous';
+  if (!imgSrc.startsWith('data:')) img.crossOrigin = 'anonymous';
   img.onload = () => {
     if (w !== undefined && h !== undefined) ctx.drawImage(img, x || 0, y || 0, w, h);
     else ctx.drawImage(img, x || 0, y || 0);
@@ -5255,7 +5256,8 @@ function wbSafeDrawImage(ctx, imgSrc, x, y, w, h) {
 
 function validateExhibitImages() {
   wbLayers.forEach(layer => {
-    if ((layer.type === 'image' || layer.type === 'chart') && layer.content) {
+    if ((layer.type === 'image' || layer.type === 'chart')) {
+      if (!layer.content) return; // null/empty content handled by renderer
       if (layer.content.startsWith('data:')) return; // base64 — always valid
       const img = new Image();
       img.onerror = () => {
@@ -5280,13 +5282,21 @@ function wbRenderLayers() {
     el.style.cssText = 'position:absolute;left:' + layer.x + 'px;top:' + layer.y + 'px;width:' + layer.w + 'px;height:' + layer.h + 'px;z-index:' + layer.zIndex + ';cursor:move;border:1.5px solid transparent;overflow:' + (layer.type === 'text' ? 'visible' : 'hidden') + ';';
 
     if (layer.type === 'image' || layer.type === 'chart') {
-      const img = document.createElement('img');
-      if (layer.content && !layer.content.startsWith('data:')) img.crossOrigin = 'anonymous';
-      img.style.cssText = 'width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;';
-      img.draggable = false;
-      img.onerror = function() { this.onerror = null; this.src = generatePlaceholderSVG(layer.label || 'Image unavailable'); };
-      img.src = layer.content;
-      el.appendChild(img);
+      if (!layer.content) {
+        // No image content — show a clean placeholder instead of triggering img.onerror
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(30,41,59,.5);border:1px dashed rgba(59,130,246,.3);border-radius:4px;color:#64748b;font-size:11px;font-family:system-ui;pointer-events:none;user-select:none;';
+        placeholder.textContent = layer.label || layer.type;
+        el.appendChild(placeholder);
+      } else {
+        const img = document.createElement('img');
+        if (!layer.content.startsWith('data:')) img.crossOrigin = 'anonymous';
+        img.style.cssText = 'width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;';
+        img.draggable = false;
+        img.onerror = function() { this.onerror = null; this.src = generatePlaceholderSVG(layer.label || 'Image unavailable'); };
+        img.src = layer.content;
+        el.appendChild(img);
+      }
     } else if (layer.type === 'table') {
       const div = document.createElement('div');
       div.innerHTML = layer.content;
