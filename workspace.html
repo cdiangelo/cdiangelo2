@@ -346,6 +346,20 @@ body.light .fun-btn { background: var(--accent); }
   border: 1px solid var(--border); border-radius: 4px; color: var(--text);
   font-size: .72rem; font-family: monospace;
 }
+/* Formula bar: full-width own row in all-panes view */
+.ss-formula-row {
+  display: flex; gap: 3px; align-items: center;
+  flex: 0 0 100%; order: -1;
+}
+.ss-formula-row input[type=text] {
+  flex: 1; min-width: 0; padding: 3px 7px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 4px; color: var(--text);
+  font-size: .72rem; font-family: monospace;
+}
+/* When expanded, formula row flows inline with buttons instead */
+.pane.expanded .ss-formula-row {
+  flex: 1 1 auto; order: 0;
+}
 
 /* ═══ Q1: NOTEPAD ═══ */
 .np-area {
@@ -2234,9 +2248,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
     <div class="p-body">
       <div class="page-tabs" id="ssPageTabs"></div>
-      <div class="toolbar">
-        <span class="cell-ref" id="ssCellRef">A1</span>
-        <input type="text" id="ssFormula" placeholder="=SUM  =SUMIFS  =COUNTIFS  =AVERAGEIF  =MAXIFS  =MINIFS  =VLOOKUP  =IF  =STOCK" />
+      <div class="toolbar ss-toolbar">
+        <div class="ss-formula-row">
+          <span class="cell-ref" id="ssCellRef">A1</span>
+          <input type="text" id="ssFormula" placeholder="=SUM  =SUMIFS  =COUNTIFS  =AVERAGEIF  =MAXIFS  =MINIFS  =VLOOKUP  =IF  =STOCK" />
+        </div>
         <div class="sep"></div>
         <button id="ssBold" title="Toggle bold (Ctrl+B)" style="font-weight:900;min-width:22px;">B</button>
         <input type="color" id="ssTextColor" value="#ffffff" title="Text color" style="width:22px;height:20px;padding:0;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg);" />
