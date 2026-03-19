@@ -785,6 +785,7 @@ body.light .fun-btn { background: var(--accent); }
 }
 
 /* ═══ SCENE ANIMATIONS ═══ */
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
 @keyframes sceneDrift { 0% { transform: translateX(-8%); } 100% { transform: translateX(8%); } }
 @keyframes sceneTwinkle { 0%,100% { opacity: .15; } 50% { opacity: .7; } }
 @keyframes sceneTwinkle2 { 0%,100% { opacity: .25; } 50% { opacity: .85; } }
@@ -5243,8 +5244,9 @@ function generatePlaceholderSVG(label) {
 }
 
 function wbSafeDrawImage(ctx, imgSrc, x, y, w, h) {
+  if (!imgSrc) return; // Skip null/empty content — nothing to draw
   const img = new Image();
-  if (imgSrc && !imgSrc.startsWith('data:')) img.crossOrigin = 'anonymous';
+  if (!imgSrc.startsWith('data:')) img.crossOrigin = 'anonymous';
   img.onload = () => {
     if (w !== undefined && h !== undefined) ctx.drawImage(img, x || 0, y || 0, w, h);
     else ctx.drawImage(img, x || 0, y || 0);
@@ -5255,7 +5257,8 @@ function wbSafeDrawImage(ctx, imgSrc, x, y, w, h) {
 
 function validateExhibitImages() {
   wbLayers.forEach(layer => {
-    if ((layer.type === 'image' || layer.type === 'chart') && layer.content) {
+    if ((layer.type === 'image' || layer.type === 'chart')) {
+      if (!layer.content) return; // null/empty content handled by renderer
       if (layer.content.startsWith('data:')) return; // base64 — always valid
       const img = new Image();
       img.onerror = () => {
@@ -5280,13 +5283,21 @@ function wbRenderLayers() {
     el.style.cssText = 'position:absolute;left:' + layer.x + 'px;top:' + layer.y + 'px;width:' + layer.w + 'px;height:' + layer.h + 'px;z-index:' + layer.zIndex + ';cursor:move;border:1.5px solid transparent;overflow:' + (layer.type === 'text' ? 'visible' : 'hidden') + ';';
 
     if (layer.type === 'image' || layer.type === 'chart') {
-      const img = document.createElement('img');
-      if (layer.content && !layer.content.startsWith('data:')) img.crossOrigin = 'anonymous';
-      img.style.cssText = 'width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;';
-      img.draggable = false;
-      img.onerror = function() { this.onerror = null; this.src = generatePlaceholderSVG(layer.label || 'Image unavailable'); };
-      img.src = layer.content;
-      el.appendChild(img);
+      if (!layer.content) {
+        // No image content — show a clean placeholder instead of triggering img.onerror
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(30,41,59,.5);border:1px dashed rgba(59,130,246,.3);border-radius:4px;color:#64748b;font-size:11px;font-family:system-ui;pointer-events:none;user-select:none;';
+        placeholder.textContent = layer.label || layer.type;
+        el.appendChild(placeholder);
+      } else {
+        const img = document.createElement('img');
+        if (!layer.content.startsWith('data:')) img.crossOrigin = 'anonymous';
+        img.style.cssText = 'width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;';
+        img.draggable = false;
+        img.onerror = function() { this.onerror = null; this.src = generatePlaceholderSVG(layer.label || 'Image unavailable'); };
+        img.src = layer.content;
+        el.appendChild(img);
+      }
     } else if (layer.type === 'table') {
       const div = document.createElement('div');
       div.innerHTML = layer.content;
@@ -10263,6 +10274,142 @@ function spFetchStandings() {
 // Primary: The Odds API (free, 500 req/mo), Fallback: ESPN scoreboard odds
 // User can set their own API key in localStorage for higher limits
 $('#spRefreshOdds').onclick = () => spFetchOdds();
+$('#spOddsLeague').onchange = () => spFetchOdds();
+
+// ── Opening Odds Tracking (in-memory per session) ──
+// Stores first-seen odds per game to detect line movement / swings
+// Key: "away @ home" normalized, Value: { spread, total, awayML, homeML, timestamp }
+const spOpeningOdds = {};
+
+function _spOddsKey(away, home) {
+  return (away + ' @ ' + home).toLowerCase().trim();
+}
+
+// Store opening odds for a game (only saves the FIRST time we see it)
+function spStoreOpeningOdds(key, odds) {
+  if (!spOpeningOdds[key]) {
+    spOpeningOdds[key] = { ...odds, timestamp: Date.now() };
+  }
+}
+
+// Compute swing between opening and current odds
+// Returns { field, open, current, delta, pctChange, isMajor } or null
+function spComputeSwings(key, currentOdds) {
+  const open = spOpeningOdds[key];
+  if (!open) return [];
+  const swings = [];
+  const fields = [
+    { key: 'spread', label: 'Spread', threshold: 2.5 },
+    { key: 'total', label: 'Total', threshold: 4 },
+    { key: 'awayML', label: 'Away ML', threshold: 80 },
+    { key: 'homeML', label: 'Home ML', threshold: 80 }
+  ];
+  fields.forEach(function(f) {
+    var o = open[f.key], c = currentOdds[f.key];
+    if (o == null || c == null || isNaN(o) || isNaN(c)) return;
+    var delta = c - o;
+    if (delta === 0) return;
+    // For moneylines, compute effective probability shift
+    // For spreads/totals, use raw point difference
+    var isMajor = Math.abs(delta) >= f.threshold;
+    // Extra check: moneyline sign flip = massive swing (favorite became underdog)
+    var signFlip = (f.key === 'awayML' || f.key === 'homeML') && ((o < 0 && c > 0) || (o > 0 && c < 0));
+    if (signFlip) isMajor = true;
+    swings.push({
+      field: f.label, key: f.key, open: o, current: c,
+      delta: delta, isMajor: isMajor, signFlip: signFlip
+    });
+  });
+  return swings;
+}
+
+// Format a swing badge for display
+function spSwingBadge(swing) {
+  if (!swing || swing.delta === 0) return '';
+  var arrow = swing.delta > 0 ? '\u25B2' : '\u25BC'; // ▲ or ▼
+  var color, bg;
+  if (swing.signFlip) {
+    // Dramatic sign flip - bright highlight
+    color = '#fff'; bg = swing.delta > 0 ? '#dc2626' : '#16a34a';
+  } else if (swing.isMajor) {
+    color = '#fff'; bg = swing.delta > 0 ? '#ea580c' : '#0891b2';
+  } else {
+    // Minor movement - subtle
+    color = swing.delta > 0 ? 'var(--danger)' : 'var(--success)';
+    bg = 'transparent';
+  }
+  var deltaFmt = (swing.key === 'awayML' || swing.key === 'homeML')
+    ? spOddsFmt(swing.delta, 0) : spOddsFmt(swing.delta, 1);
+  var title = swing.field + ': opened ' + spOddsFmt(swing.open, swing.key.includes('ML') ? 0 : 1) +
+    ', now ' + spOddsFmt(swing.current, swing.key.includes('ML') ? 0 : 1) +
+    (swing.signFlip ? ' (SIGN FLIP!)' : '');
+  return '<span title="'+esc(title)+'" style="display:inline-flex;align-items:center;gap:1px;font-size:.5rem;' +
+    'padding:1px 4px;border-radius:3px;font-weight:700;color:'+color+';background:'+bg+';' +
+    (bg === 'transparent' ? '' : 'margin-left:3px;') + '">' +
+    arrow + ' ' + esc(deltaFmt) +
+    (swing.signFlip ? ' <span style="font-size:.42rem;margin-left:1px;">FLIP</span>' : '') +
+    '</span>';
+}
+
+// Live scores cache (refreshed alongside odds)
+let spLiveScoresCache = {};
+
+// Fetch ESPN scores for a league and cache them (used by odds cards)
+function spFetchLiveScoresForOdds(league) {
+  if (league === 'global') return Promise.resolve({});
+  var today = new Date();
+  var todayStr = _spDateStr(today);
+  return fetch(spEspnUrl(league, 'scoreboard') + '?dates=' + todayStr)
+    .then(spSafeJson)
+    .then(function(data) {
+      var cache = {};
+      (data.events || []).forEach(function(ev) {
+        var comp = ev.competitions && ev.competitions[0];
+        if (!comp) return;
+        var teams = comp.competitors || [];
+        var home = teams.find(function(t) { return t.homeAway === 'home'; }) || teams[0] || {};
+        var away = teams.find(function(t) { return t.homeAway === 'away'; }) || teams[1] || {};
+        var homeName = home.team ? (home.team.shortDisplayName || home.team.displayName || '') : '';
+        var awayName = away.team ? (away.team.shortDisplayName || away.team.displayName || '') : '';
+        var state = ev.status && ev.status.type ? ev.status.type.state : '';
+        var statusDetail = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
+        // Store by normalized team names for fuzzy matching
+        var entry = {
+          homeScore: home.score || '0', awayScore: away.score || '0',
+          state: state, status: statusDetail,
+          homeName: homeName, awayName: awayName,
+          homeLogo: home.team && home.team.logo ? home.team.logo : '',
+          awayLogo: away.team && away.team.logo ? away.team.logo : ''
+        };
+        // Index by multiple keys for matching
+        cache[awayName.toLowerCase() + ' @ ' + homeName.toLowerCase()] = entry;
+        if (home.team && home.team.displayName) {
+          var fullKey = (away.team && away.team.displayName ? away.team.displayName : awayName).toLowerCase() + ' @ ' + home.team.displayName.toLowerCase();
+          cache[fullKey] = entry;
+        }
+      });
+      spLiveScoresCache = cache;
+      return cache;
+    })
+    .catch(function() { return {}; });
+}
+
+// Try to find a live score entry for a game (fuzzy match on team names)
+function spMatchLiveScore(away, home) {
+  var key = away.toLowerCase() + ' @ ' + home.toLowerCase();
+  if (spLiveScoresCache[key]) return spLiveScoresCache[key];
+  // Fuzzy: try partial matches
+  var keys = Object.keys(spLiveScoresCache);
+  for (var i = 0; i < keys.length; i++) {
+    var entry = spLiveScoresCache[keys[i]];
+    if (entry.awayName && entry.homeName &&
+        (away.toLowerCase().includes(entry.awayName.toLowerCase()) || entry.awayName.toLowerCase().includes(away.toLowerCase())) &&
+        (home.toLowerCase().includes(entry.homeName.toLowerCase()) || entry.homeName.toLowerCase().includes(home.toLowerCase()))) {
+      return entry;
+    }
+  }
+  return null;
+}
 
 // Odds API — proxied through server (ODDS_API_KEY env var)
 const SP_ODDS_LEAGUE_MAP = {
@@ -10328,11 +10475,81 @@ function spRangeBar(stats, color, dec) {
 }
 
 function spRenderOddsCard(game) {
-  var html = '<div class="sp-card">';
+  // Check for live score data
+  var live = spMatchLiveScore(game.away, game.home);
+  var isLive = live && live.state === 'in';
+  var isFinal = live && live.state === 'post';
+
+  // Check for swings from opening odds
+  var oddsKey = _spOddsKey(game.away, game.home);
+  var swings = game._swings || [];
+  var hasMajorSwing = swings.some(function(s) { return s.isMajor; });
+  var hasSignFlip = swings.some(function(s) { return s.signFlip; });
+
+  // Card border color based on live state and swing severity
+  var cardStyle = '';
+  if (hasSignFlip) {
+    cardStyle = 'border-left:3px solid #dc2626;background:rgba(220,38,38,.06);';
+  } else if (hasMajorSwing) {
+    cardStyle = 'border-left:3px solid #ea580c;background:rgba(234,88,12,.04);';
+  } else if (isLive) {
+    cardStyle = 'border-left:3px solid var(--accent2);';
+  }
+
+  var html = '<div class="sp-card" style="'+cardStyle+'">';
+
+  // Header row: teams + time/status
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
-  html += '<div style="font-size:.72rem;font-weight:600;color:var(--text);">'+esc(game.away)+' <span style="color:var(--text-dim);font-size:.62rem;">@</span> '+esc(game.home)+'</div>';
-  html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(game.time)+'</span>';
+
+  if (isLive || isFinal) {
+    // Show live scoreboard inline
+    var stateColor = isLive ? 'var(--accent2)' : 'var(--text-dim)';
+    var awayWin = isFinal && parseInt(live.awayScore) > parseInt(live.homeScore);
+    var homeWin = isFinal && parseInt(live.homeScore) > parseInt(live.awayScore);
+    html += '<div style="flex:1;">';
+    // Score lines
+    html += '<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">';
+    if (live.awayLogo) html += '<img src="'+esc(live.awayLogo)+'" style="width:14px;height:14px;" onerror="this.style.display=\'none\'" />';
+    html += '<span style="font-size:.7rem;font-weight:'+(awayWin?'700':'500')+';color:var(--text);flex:1;">'+esc(game.away)+'</span>';
+    html += '<span style="font-size:.78rem;font-weight:700;color:'+stateColor+';min-width:22px;text-align:right;">'+esc(live.awayScore)+'</span>';
+    html += '</div>';
+    html += '<div style="display:flex;align-items:center;gap:5px;">';
+    if (live.homeLogo) html += '<img src="'+esc(live.homeLogo)+'" style="width:14px;height:14px;" onerror="this.style.display=\'none\'" />';
+    html += '<span style="font-size:.7rem;font-weight:'+(homeWin?'700':'500')+';color:var(--text);flex:1;">'+esc(game.home)+'</span>';
+    html += '<span style="font-size:.78rem;font-weight:700;color:'+stateColor+';min-width:22px;text-align:right;">'+esc(live.homeScore)+'</span>';
+    html += '</div>';
+    html += '</div>';
+    // Status badge (e.g., "2nd Half", "Final")
+    html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">';
+    if (isLive) {
+      html += '<span style="font-size:.5rem;font-weight:700;color:var(--accent2);background:rgba(59,130,246,.12);padding:1px 5px;border-radius:3px;animation:pulse 2s infinite;">LIVE</span>';
+    }
+    html += '<span style="font-size:.52rem;color:'+stateColor+';">'+esc(live.status)+'</span>';
+    html += '</div>';
+  } else {
+    // Pre-game: show team names and start time
+    html += '<div style="font-size:.72rem;font-weight:600;color:var(--text);">'+esc(game.away)+' <span style="color:var(--text-dim);font-size:.62rem;">@</span> '+esc(game.home)+'</div>';
+    html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(game.time)+'</span>';
+  }
   html += '</div>';
+
+  // Swing alert banner (for major movements)
+  if (hasMajorSwing) {
+    html += '<div style="background:rgba(234,88,12,.1);border:1px solid rgba(234,88,12,.25);border-radius:4px;padding:4px 7px;margin-bottom:6px;font-size:.54rem;">';
+    html += '<span style="font-weight:700;color:#ea580c;">\u26A0 LINE MOVEMENT</span>';
+    swings.filter(function(s) { return s.isMajor; }).forEach(function(s) {
+      var openFmt = spOddsFmt(s.open, s.key.includes('ML') ? 0 : 1);
+      var curFmt = spOddsFmt(s.current, s.key.includes('ML') ? 0 : 1);
+      html += '<div style="color:var(--text);margin-top:2px;">';
+      html += '<b>' + esc(s.field) + ':</b> ' + esc(openFmt) + ' \u2192 ' + esc(curFmt);
+      html += spSwingBadge(s);
+      if (s.signFlip) {
+        html += ' <span style="font-size:.48rem;color:#dc2626;font-weight:700;">\u2014 Favorite/underdog FLIP \u2014 potential arb</span>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  }
 
   if (!game.lines || !game.lines.length) {
     html += '<div style="font-size:.58rem;color:var(--text-dim);font-style:italic;">No lines available</div></div>';
@@ -10387,9 +10604,11 @@ function spRenderOddsCard(game) {
     var spreadColor = spOddsColor(sS.med);
     var spreadTxt = spOddsFmt(sS.med);
     if (sJ) spreadTxt += ' (' + spOddsFmt(sJ.med, 0) + ')';
+    var spreadSwing = swings.find(function(s) { return s.key === 'spread'; });
     html += '<div style="min-width:70px;">';
     html += '<div style="color:var(--text-dim);font-size:.5rem;font-weight:600;margin-bottom:2px;">SPREAD</div>';
     html += '<span style="font-weight:700;color:'+spreadColor+';font-size:.76rem;">'+esc(spreadTxt)+'</span>';
+    if (spreadSwing) html += spSwingBadge(spreadSwing);
     html += spRangeBar(sS, spreadColor);
     if (sS.n > 1 && sS.min !== sS.max) {
       html += '<div style="font-size:.45rem;color:var(--text-dim);margin-top:1px;">'+spOddsFmt(sS.min)+' to '+spOddsFmt(sS.max)+'</div>';
@@ -10399,9 +10618,11 @@ function spRenderOddsCard(game) {
 
   // TOTAL
   if (sT) {
+    var totalSwing = swings.find(function(s) { return s.key === 'total'; });
     html += '<div style="min-width:60px;">';
     html += '<div style="color:var(--text-dim);font-size:.5rem;font-weight:600;margin-bottom:2px;">TOTAL</div>';
     html += '<span style="font-weight:700;color:var(--warning);font-size:.76rem;">O/U '+sT.med.toFixed(1).replace(/\.0$/,'')+'</span>';
+    if (totalSwing) html += spSwingBadge(totalSwing);
     html += spRangeBar(sT, 'var(--warning)');
     if (sT.n > 1 && sT.min !== sT.max) {
       html += '<div style="font-size:.45rem;color:var(--text-dim);margin-top:1px;">'+sT.min+' to '+sT.max+'</div>';
@@ -10411,6 +10632,8 @@ function spRenderOddsCard(game) {
 
   // MONEYLINE
   if (sAM || sHM) {
+    var awayMLSwing = swings.find(function(s) { return s.key === 'awayML'; });
+    var homeMLSwing = swings.find(function(s) { return s.key === 'homeML'; });
     html += '<div>';
     html += '<div style="color:var(--text-dim);font-size:.5rem;font-weight:600;margin-bottom:2px;">MONEYLINE</div>';
     if (sAM) {
@@ -10418,6 +10641,7 @@ function spRenderOddsCard(game) {
       html += '<div style="display:flex;align-items:center;gap:3px;margin-bottom:1px;">';
       html += '<span style="font-size:.58rem;color:var(--text-dim);min-width:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(game.away)+'</span> ';
       html += '<b style="color:'+amColor+';font-size:.72rem;">'+spOddsFmt(sAM.med, 0)+'</b>';
+      if (awayMLSwing) html += spSwingBadge(awayMLSwing);
       html += spRangeBar(sAM, amColor, 0);
       html += '</div>';
     }
@@ -10426,6 +10650,7 @@ function spRenderOddsCard(game) {
       html += '<div style="display:flex;align-items:center;gap:3px;">';
       html += '<span style="font-size:.58rem;color:var(--text-dim);min-width:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(game.home)+'</span> ';
       html += '<b style="color:'+hmColor+';font-size:.72rem;">'+spOddsFmt(sHM.med, 0)+'</b>';
+      if (homeMLSwing) html += spSwingBadge(homeMLSwing);
       html += spRangeBar(sHM, hmColor, 0);
       html += '</div>';
     }
@@ -10439,37 +10664,57 @@ function spRenderOddsCard(game) {
 function spFetchOdds() {
   const league = $('#spOddsLeague').value;
   const el = $('#spOddsList');
-  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading odds...</div>';
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading odds & live scores...</div>';
   if (league === 'global') {
     el.innerHTML = '<div class="sp-empty">Odds are not available for Global Events. Select a specific league.</div>';
     return;
   }
 
+  // Fetch live scores in parallel with odds for in-progress game display
+  const scoresPromise = spFetchLiveScoresForOdds(league);
+
   // Try The Odds API via server proxy (ODDS_API_KEY env var on server)
   const oddsApiSport = SP_ODDS_LEAGUE_MAP[league];
   if (oddsApiSport) {
     const oddsUrl = PROXY_BASE + '/proxy/odds/' + oddsApiSport + '?markets=spreads,totals,h2h&regions=us&oddsFormat=american';
-    fetch(oddsUrl)
-      .then(r => {
+    Promise.all([
+      fetch(oddsUrl).then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        // Log remaining requests from headers
         const remaining = r.headers.get('x-requests-remaining');
         if (remaining) console.log('[Odds API] Requests remaining this month: ' + remaining);
         return r.json();
-      })
-      .then(games => {
+      }),
+      scoresPromise
+    ])
+      .then(function(results) {
+        var games = results[0];
         if (!games || !games.length) {
-          // Fallback to ESPN
           spFetchOddsEspn(league);
           return;
         }
+
+        // Sort: live games first, then upcoming, then completed
+        games.sort(function(a, b) {
+          var liveA = spMatchLiveScore(a.away_team, a.home_team);
+          var liveB = spMatchLiveScore(b.away_team, b.home_team);
+          var stateA = liveA ? liveA.state : 'pre';
+          var stateB = liveB ? liveB.state : 'pre';
+          var order = { 'in': 0, 'pre': 1, 'post': 2 };
+          return (order[stateA] || 1) - (order[stateB] || 1);
+        });
+
         let html = '';
+        var liveCount = 0, swingCount = 0;
         games.forEach(function(g) {
           const game = { away: g.away_team, home: g.home_team, time: '', lines: [] };
           if (g.commence_time) {
             const d = new Date(g.commence_time);
             game.time = d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
           }
+
+          // Compute consensus odds for swing tracking
+          var consensusSpread = [], consensusTotal = [], consensusAwayML = [], consensusHomeML = [];
+
           (g.bookmakers || []).forEach(function(bk) {
             const line = { book: bk.title || bk.key || 'Unknown' };
             (bk.markets || []).forEach(function(mkt) {
@@ -10479,36 +10724,70 @@ function spFetchOdds() {
                   line.spreadNum = away.point;
                   line.spreadPrice = away.price;
                   line.spread = (away.point > 0 ? '+' : '') + away.point + ' (' + away.price + ')';
+                  consensusSpread.push(away.point);
                 }
               }
               if (mkt.key === 'totals') {
                 const over = (mkt.outcomes || []).find(function(o) { return o.name === 'Over'; });
-                if (over) { line.totalNum = over.point; line.total = String(over.point); }
+                if (over) { line.totalNum = over.point; line.total = String(over.point); consensusTotal.push(over.point); }
               }
               if (mkt.key === 'h2h') {
                 const away = (mkt.outcomes || []).find(function(o) { return o.name === g.away_team; });
                 const home = (mkt.outcomes || []).find(function(o) { return o.name === g.home_team; });
-                if (away) { line.awayMLnum = away.price; line.awayML = (away.price > 0 ? '+' : '') + String(away.price); }
-                if (home) { line.homeMLnum = home.price; line.homeML = (home.price > 0 ? '+' : '') + String(home.price); }
+                if (away) { line.awayMLnum = away.price; line.awayML = (away.price > 0 ? '+' : '') + String(away.price); consensusAwayML.push(away.price); }
+                if (home) { line.homeMLnum = home.price; line.homeML = (home.price > 0 ? '+' : '') + String(home.price); consensusHomeML.push(home.price); }
               }
             });
             if (line.spread || line.total || line.awayML || line.homeML) game.lines.push(line);
           });
+
+          // Compute median consensus values for opening odds tracking
+          function median(arr) { if (!arr.length) return null; arr.sort(function(a,b){return a-b;}); var m = Math.floor(arr.length/2); return arr.length%2 ? arr[m] : (arr[m-1]+arr[m])/2; }
+          var currentOdds = {
+            spread: median(consensusSpread),
+            total: median(consensusTotal),
+            awayML: median(consensusAwayML),
+            homeML: median(consensusHomeML)
+          };
+
+          // Track opening odds (first time we see this game)
+          var oddsKey = _spOddsKey(game.away, game.home);
+          spStoreOpeningOdds(oddsKey, currentOdds);
+
+          // Compute swings from opening
+          var swings = spComputeSwings(oddsKey, currentOdds);
+          game._swings = swings;
+
+          // Track counts for summary header
+          var liveMatch = spMatchLiveScore(game.away, game.home);
+          if (liveMatch && liveMatch.state === 'in') liveCount++;
+          if (swings.some(function(s) { return s.isMajor; })) swingCount++;
+
           html += spRenderOddsCard(game);
         });
-        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
-        el.innerHTML = html || '<div class="sp-empty">No odds available for this league right now.</div>';
+
+        // Summary header
+        var summary = '';
+        if (liveCount > 0 || swingCount > 0) {
+          summary = '<div style="display:flex;gap:10px;padding:4px 8px;margin-bottom:4px;font-size:.55rem;">';
+          if (liveCount > 0) summary += '<span style="color:var(--accent2);font-weight:700;">\uD83D\uDFE2 ' + liveCount + ' live game' + (liveCount !== 1 ? 's' : '') + ' with odds</span>';
+          if (swingCount > 0) summary += '<span style="color:#ea580c;font-weight:700;">\u26A0 ' + swingCount + ' game' + (swingCount !== 1 ? 's' : '') + ' with major line movement</span>';
+          summary += '</div>';
+        }
+
+        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + ' (auto-refreshes every 60s)';
+        el.innerHTML = summary + html || '<div class="sp-empty">No odds available for this league right now.</div>';
       })
       .catch(function(err) {
         console.warn('[Odds API] Failed, falling back to ESPN:', err.message);
         spFetchOddsEspn(league);
       });
   } else {
-    spFetchOddsEspn(league);
+    scoresPromise.then(function() { spFetchOddsEspn(league); });
   }
 }
 
-// Fallback: try ESPN scoreboard for odds
+// Fallback: try ESPN scoreboard for odds (also provides live scores natively)
 function spFetchOddsEspn(league) {
   const el = $('#spOddsList');
   fetch(spEspnUrl(league, 'scoreboard'))
@@ -10516,8 +10795,18 @@ function spFetchOddsEspn(league) {
     .then(data => {
       const events = data.events || [];
       console.log('[Sports] ESPN odds: ' + events.length + ' events found');
+
+      // Sort: live first, then scheduled, then final
+      events.sort(function(a, b) {
+        var stateA = a.status && a.status.type ? a.status.type.state : '';
+        var stateB = b.status && b.status.type ? b.status.type.state : '';
+        var order = { 'in': 0, 'pre': 1, 'post': 2 };
+        return (order[stateA] || 1) - (order[stateB] || 1);
+      });
+
       let html = '';
       let hasOdds = false;
+      var liveCount = 0, swingCount = 0;
       events.forEach(function(ev) {
         const comp = ev.competitions && ev.competitions[0];
         if (!comp) return;
@@ -10528,7 +10817,21 @@ function spFetchOddsEspn(league) {
         const homeName = home.team ? (home.team.shortDisplayName || home.team.displayName) : 'TBD';
         const awayName = away.team ? (away.team.shortDisplayName || away.team.displayName) : 'TBD';
         const status = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
+        const state = ev.status && ev.status.type ? ev.status.type.state : '';
         const game = { away: awayName, home: homeName, time: status, lines: [] };
+
+        // Populate live score cache from ESPN data directly
+        var cacheKey = awayName.toLowerCase() + ' @ ' + homeName.toLowerCase();
+        spLiveScoresCache[cacheKey] = {
+          homeScore: home.score || '0', awayScore: away.score || '0',
+          state: state, status: status,
+          homeName: homeName, awayName: awayName,
+          homeLogo: home.team && home.team.logo ? home.team.logo : '',
+          awayLogo: away.team && away.team.logo ? away.team.logo : ''
+        };
+
+        if (state === 'in') liveCount++;
+
         if (odds.length) {
           hasOdds = true;
           odds.forEach(function(o) {
@@ -10541,13 +10844,37 @@ function spFetchOddsEspn(league) {
             if (line.spread || line.total || line.awayML) game.lines.push(line);
           });
         }
+
+        // Track opening odds for ESPN fallback too
+        var oddsKey = _spOddsKey(game.away, game.home);
+        var spreadVal = null, totalVal = null, awayMLVal = null, homeMLVal = null;
+        game.lines.forEach(function(ln) {
+          if (ln.spread) { var m = String(ln.spread).match(/^([+-]?\d+\.?\d*)/); if (m) spreadVal = parseFloat(m[1]); }
+          if (ln.total) { var t = parseFloat(ln.total); if (!isNaN(t)) totalVal = t; }
+          if (ln.awayML) { var a = parseFloat(String(ln.awayML).replace(/[^0-9.\-+]/g, '')); if (!isNaN(a)) awayMLVal = a; }
+          if (ln.homeML) { var h = parseFloat(String(ln.homeML).replace(/[^0-9.\-+]/g, '')); if (!isNaN(h)) homeMLVal = h; }
+        });
+        spStoreOpeningOdds(oddsKey, { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal });
+        game._swings = spComputeSwings(oddsKey, { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal });
+        if (game._swings.some(function(s) { return s.isMajor; })) swingCount++;
+
         html += spRenderOddsCard(game);
       });
+
+      // Summary header
+      var summary = '';
+      if (liveCount > 0 || swingCount > 0) {
+        summary = '<div style="display:flex;gap:10px;padding:4px 8px;margin-bottom:4px;font-size:.55rem;">';
+        if (liveCount > 0) summary += '<span style="color:var(--accent2);font-weight:700;">\uD83D\uDFE2 ' + liveCount + ' live game' + (liveCount !== 1 ? 's' : '') + ' with odds</span>';
+        if (swingCount > 0) summary += '<span style="color:#ea580c;font-weight:700;">\u26A0 ' + swingCount + ' game' + (swingCount !== 1 ? 's' : '') + ' with major line movement</span>';
+        summary += '</div>';
+      }
+
       if (!html) {
         el.innerHTML = '<div class="sp-empty">No games scheduled. Lines will appear when games are upcoming.</div>';
       } else {
-        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + (hasOdds ? '' : ' (no lines yet)');
-        el.innerHTML = html;
+        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + (hasOdds ? ' (auto-refreshes every 60s)' : ' (no lines yet)');
+        el.innerHTML = summary + html;
       }
     })
     .catch(function(err) {
@@ -11115,12 +11442,18 @@ window._bracketToolHandler = function(input) {
   return JSON.stringify({ success: true, message: 'Bracket populated with ' + rows.length + ' picks across ' + (input.regions || []).length + ' regions. Visualization rendered in Bracket tab. Detailed analysis table written to Sheet.' });
 };
 
-// Auto-refresh scores every 60 seconds when sports tab is visible
+// Auto-refresh scores AND odds every 60 seconds when sports tab is visible
 let spAutoRefreshTimer = null;
 function spStartAutoRefresh() {
   clearInterval(spAutoRefreshTimer);
   spAutoRefreshTimer = setInterval(() => {
-    if ($('#sportsView').style.display !== 'none') spFetchScores();
+    if ($('#sportsView').style.display === 'none') return;
+    // Always refresh scores
+    spFetchScores();
+    // Also refresh odds if odds tab is currently active
+    if ($('#spOddsTab') && $('#spOddsTab').style.display !== 'none') {
+      spFetchOdds();
+    }
   }, 60000);
 }
 

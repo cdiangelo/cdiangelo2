@@ -1173,7 +1173,9 @@ export const toolHandlers = {
     wbX.setLineDash([]);
     wbX.restore();
 
-    wbAddLayer('chart', null, { label: input.layerName || 'Template: ' + template, x: 0, y: 0, w: cw, h: ch, source: 'bot', category: 'shape' });
+    // Capture the rendered template as a data URL so the layer has valid image content
+    const templateDataUrl = wbC.toDataURL('image/png');
+    wbAddLayer('chart', templateDataUrl, { label: input.layerName || 'Template: ' + template, x: 0, y: 0, w: cw, h: ch, source: 'bot', category: 'template' });
     toast('Template applied: ' + template);
     return JSON.stringify({ success: true, template, regions, canvasWidth: cw, canvasHeight: ch });
   },
