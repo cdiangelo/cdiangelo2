@@ -48,15 +48,120 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Odds API key (server-side only) ──
+const oddsApiKey = process.env.ODDS_API_KEY || '';
+if (!oddsApiKey) console.log('[Sports] ODDS_API_KEY not set — odds proxy disabled (get free key at the-odds-api.com)');
+
 // GET /health — service health check (required by workspace.html for proxy detection)
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     services: {
       robinhood: !!rhToken,
-      anthropic: !!storedApiKey
+      anthropic: !!storedApiKey,
+      odds: !!oddsApiKey
     }
   });
+});
+
+// ── ESPN API Proxy (avoids browser CORS issues) ──
+app.get('/proxy/espn/*', async (req, res) => {
+  const espnPath = req.params[0];
+  if (!espnPath || espnPath.includes('..')) {
+    return res.status(400).json({ error: true, message: 'Invalid ESPN path' });
+  }
+  const qs = new URLSearchParams(req.query).toString();
+  const url = 'https://site.api.espn.com/apis/site/v2/sports/' + espnPath + (qs ? '?' + qs : '');
+
+  // Check cache first
+  const cached = getCached('espn:' + espnPath + '?' + qs);
+  if (cached) return res.json(JSON.parse(cached.data));
+
+  try {
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(10000),
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }
+    });
+    if (!r.ok) {
+      return res.status(r.status).json({ error: true, message: 'ESPN returned HTTP ' + r.status });
+    }
+    const text = await r.text();
+    setCache('espn:' + espnPath + '?' + qs, text, 'application/json');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(text);
+  } catch (e) {
+    console.error('[ESPN] Error:', e.message);
+    res.status(502).json({ error: true, message: 'ESPN request failed: ' + e.message });
+  }
+});
+
+// ── Odds API Proxy (the-odds-api.com) ──
+app.get('/proxy/odds/status', (_req, res) => {
+  res.json({ available: !!oddsApiKey });
+});
+
+app.get('/proxy/odds/:sport', async (req, res) => {
+  if (!oddsApiKey) {
+    return res.status(503).json({ error: true, message: 'ODDS_API_KEY not configured' });
+  }
+  const sport = req.params.sport;
+  const markets = req.query.markets || 'spreads,totals,h2h';
+  const regions = req.query.regions || 'us';
+  const oddsFormat = req.query.oddsFormat || 'american';
+  const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${oddsApiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}`;
+
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const remaining = r.headers.get('x-requests-remaining');
+    const used = r.headers.get('x-requests-used');
+    if (remaining) res.setHeader('x-requests-remaining', remaining);
+    if (used) res.setHeader('x-requests-used', used);
+    if (!r.ok) {
+      const errText = await r.text();
+      console.error(`[Odds] HTTP ${r.status}: ${errText.substring(0, 200)}`);
+      return res.status(r.status).json({ error: true, message: 'Odds API HTTP ' + r.status });
+    }
+    const data = await r.json();
+    if (remaining) console.log(`[Odds] Remaining: ${remaining}, Used: ${used}`);
+    res.json(data);
+  } catch (e) {
+    console.error('[Odds] Error:', e.message);
+    res.status(502).json({ error: true, message: 'Odds API request failed' });
+  }
+});
+
+// ── YouTube Search Proxy (via Invidious instances) ──
+const YT_INSTANCES = [
+  'https://vid.puffyan.us',
+  'https://invidious.fdn.fr',
+  'https://yewtu.be',
+  'https://inv.nadeko.net',
+  'https://invidious.snopyta.org'
+];
+
+app.get('/proxy/youtube/search', async (req, res) => {
+  const q = req.query.q;
+  if (!q) return res.status(400).json({ error: true, message: 'Missing q parameter' });
+
+  for (let i = 0; i < YT_INSTANCES.length; i++) {
+    const base = YT_INSTANCES[i];
+    const url = base + '/api/v1/search?q=' + encodeURIComponent(q) + '&type=video&sort_by=relevance';
+    try {
+      const r = await fetch(url, {
+        signal: AbortSignal.timeout(8000),
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!r.ok) { console.warn('[YT] ' + base + ' → HTTP ' + r.status); continue; }
+      const data = await r.json();
+      if (data && data.length) {
+        console.log('[YT] Success via ' + base);
+        return res.json(data);
+      }
+    } catch (e) {
+      console.warn('[YT] ' + base + ' failed: ' + e.message);
+    }
+  }
+  res.status(502).json({ error: true, message: 'All YouTube instances unavailable' });
 });
 
 // GET /proxy/yahoo?url=<encoded_url> → forwards to Yahoo Finance, returns JSON
@@ -969,5 +1074,8 @@ app.listen(PORT, () => {
   console.log('  RH Auth:    http://localhost:' + PORT + '/proxy/robinhood/auth?endpoint=...');
   console.log('  RH Login:   http://localhost:' + PORT + '/proxy/robinhood/login (POST)');
   console.log('  RH Status:  http://localhost:' + PORT + '/proxy/robinhood/status');
+  console.log('  ESPN:       http://localhost:' + PORT + '/proxy/espn/<sport>/<league>/<endpoint>');
+  console.log('  Odds:       http://localhost:' + PORT + '/proxy/odds/<sport> ' + (oddsApiKey ? '(key set)' : '(NO KEY)'));
+  console.log('  YouTube:    http://localhost:' + PORT + '/proxy/youtube/search?q=...');
   if (storedApiKey) console.log('  API key pre-loaded from ANTHROPIC_API_KEY env var');
 });
