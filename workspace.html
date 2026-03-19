@@ -1347,11 +1347,6 @@ body.light .fun-btn { background: var(--accent); }
 .sp-stat-item { display:flex;flex-direction:column;align-items:center;min-width:50px; }
 .sp-stat-item .sp-stat-val { font-size:.82rem;font-weight:700;color:var(--accent); }
 .sp-stat-item .sp-stat-lbl { font-size:.55rem;color:var(--text-dim);text-transform:uppercase; }
-.sp-yt-card { display:flex;align-items:center;gap:10px; }
-.sp-yt-thumb { width:80px;height:45px;border-radius:4px;background:var(--bg);object-fit:cover;flex-shrink:0; }
-.sp-yt-info { flex:1;min-width:0; }
-.sp-yt-title { font-size:.72rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-.sp-yt-channel { font-size:.6rem;color:var(--text-dim); }
 .sp-copy-btn {
   font-size:.58rem;padding:2px 6px;border:1px solid var(--border);border-radius:3px;
   background:none;color:var(--text-dim);cursor:pointer;white-space:nowrap;
@@ -2714,7 +2709,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <div class="sp-empty">Select a league and click Refresh to load news.</div>
           </div>
         </div>
-        <!-- YouTube sub-tab -->
+        <!-- Players sub-tab -->
         <div id="spPlayersTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
           <div class="toolbar">
             <input type="text" id="spPlayerSearch" placeholder="Search player name..." style="flex:1;max-width:200px;font-size:.68rem;" />
@@ -2764,7 +2759,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             </div>
           </div>
         </div>
-        <!-- YouTube tab removed -->
       </div>
     </div>
   </div>
@@ -10038,7 +10032,6 @@ $$('#spTabs .page-tab').forEach(tab => {
 });
 
 function renderSportsTab() {
-  // YouTube search tab is self-contained, no init needed
 }
 
 // ── Sports Connection Status ──
@@ -11189,11 +11182,7 @@ function spFetchNews() {
     });
 }
 
-// ── YouTube Search & In-Pane Player ──
-function extractYtId(url) {
-  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
-  return m ? m[1] : null;
-}
+
 
 // ── Player Stats ──
 $('#spRefreshPlayers').onclick = () => spFetchLeaders();
@@ -11437,64 +11426,7 @@ function spFetchLeaders() {
     });
 }
 
-// YouTube search via server proxy (tries multiple Invidious instances server-side)
-function spYtSearchVideos(query) {
-  const el = $('#spYtList');
-  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Searching...</div>';
-  const url = PROXY_BASE + '/proxy/youtube/search?q=' + encodeURIComponent(query);
-  fetch(url)
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(results => {
-      if (!results || !results.length) { el.innerHTML = '<div class="sp-empty">No results found.</div>'; return; }
-      el.innerHTML = results.slice(0, 15).map(v => {
-        const vid = v.videoId;
-        const thumb = v.videoThumbnails && v.videoThumbnails.length ? v.videoThumbnails.find(t => t.quality === 'medium') || v.videoThumbnails[0] : null;
-        const thumbUrl = thumb ? thumb.url : 'https://img.youtube.com/vi/' + vid + '/mqdefault.jpg';
-        const dur = v.lengthSeconds ? Math.floor(v.lengthSeconds/60) + ':' + String(v.lengthSeconds%60).padStart(2,'0') : '';
-        const views = v.viewCount ? (v.viewCount > 1000000 ? (v.viewCount/1000000).toFixed(1)+'M' : v.viewCount > 1000 ? (v.viewCount/1000).toFixed(0)+'K' : v.viewCount) + ' views' : '';
-        return '<div class="sp-card" style="cursor:pointer;" onclick="spPlayYt(\''+vid+'\')">' +
-          '<div class="sp-yt-card">' +
-            '<div style="position:relative;flex-shrink:0;">' +
-              '<img class="sp-yt-thumb" src="'+esc(thumbUrl)+'" onerror="this.src=\'https://img.youtube.com/vi/'+vid+'/mqdefault.jpg\'" />' +
-              (dur ? '<span style="position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.8);color:#fff;font-size:.5rem;padding:1px 3px;border-radius:2px;">'+esc(dur)+'</span>' : '') +
-            '</div>' +
-            '<div class="sp-yt-info">' +
-              '<div class="sp-yt-title">'+esc(v.title || '')+'</div>' +
-              '<div class="sp-yt-channel">'+esc(v.author || '')+' &middot; '+esc(views)+'</div>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
-      }).join('');
-    })
-    .catch(err => {
-      console.error('[Sports YT] Search failed:', err.message);
-      el.innerHTML = '<div class="sp-empty">Search service unavailable. <a href="https://www.youtube.com/results?search_query='+encodeURIComponent(query)+'" target="_blank" style="color:var(--accent);">Search on YouTube</a></div>';
-    });
-}
 
-window.spPlayYt = function(vid) {
-  const player = $('#spYtPlayer');
-  const frame = $('#spYtFrame');
-  player.style.display = 'block';
-  // Use same domain as media pane based on auth state
-  const domain = (typeof ytPremium !== 'undefined' && ytPremium) ? 'www.youtube.com' : 'www.youtube-nocookie.com';
-  frame.src = 'https://' + domain + '/embed/' + vid + '?autoplay=1&rel=0&modestbranding=1';
-};
-
-if ($('#spYtClose')) $('#spYtClose').onclick = () => {
-  if ($('#spYtPlayer')) $('#spYtPlayer').style.display = 'none';
-  if ($('#spYtFrame')) $('#spYtFrame').src = '';
-};
-
-if ($('#spYtSearchBtn')) $('#spYtSearchBtn').onclick = () => {
-  const q = $('#spYtSearch') ? $('#spYtSearch').value.trim() : '';
-  if (!q) return;
-  spYtInstance = 0;
-  spYtSearchVideos(q);
-};
-if ($('#spYtSearch')) $('#spYtSearch').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); $('#spYtSearchBtn').click(); }
-});
 
 // ── NCAA Tournament Bracket System ──
 // Show bracket tab + bracket output checkbox during Feb-Apr
