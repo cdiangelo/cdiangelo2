@@ -11481,18 +11481,18 @@ window.spPlayYt = function(vid) {
   frame.src = 'https://' + domain + '/embed/' + vid + '?autoplay=1&rel=0&modestbranding=1';
 };
 
-$('#spYtClose').onclick = () => {
-  $('#spYtPlayer').style.display = 'none';
-  $('#spYtFrame').src = '';
+if ($('#spYtClose')) $('#spYtClose').onclick = () => {
+  if ($('#spYtPlayer')) $('#spYtPlayer').style.display = 'none';
+  if ($('#spYtFrame')) $('#spYtFrame').src = '';
 };
 
-$('#spYtSearchBtn').onclick = () => {
-  const q = $('#spYtSearch').value.trim();
+if ($('#spYtSearchBtn')) $('#spYtSearchBtn').onclick = () => {
+  const q = $('#spYtSearch') ? $('#spYtSearch').value.trim() : '';
   if (!q) return;
   spYtInstance = 0;
   spYtSearchVideos(q);
 };
-$('#spYtSearch').addEventListener('keydown', e => {
+if ($('#spYtSearch')) $('#spYtSearch').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); $('#spYtSearchBtn').click(); }
 });
 
@@ -14358,10 +14358,10 @@ function getIdleTimeoutForRole() {
 }
 var idleTimeoutMin = getIdleTimeoutForRole();
 
-let _idleTimer = null;
-let _idleWarningTimer = null;
-let _idleCountdownInterval = null;
-let _idleDeadline = 0; // timestamp when idle timeout fires
+var _idleTimer = null;
+var _idleWarningTimer = null;
+var _idleCountdownInterval = null;
+var _idleDeadline = 0; // timestamp when idle timeout fires
 
 function _updateIdleDisplay() {
   const el = document.getElementById('idleTimerDisplay');
