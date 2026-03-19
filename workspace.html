@@ -10277,16 +10277,21 @@ $('#spRefreshOdds').onclick = () => spFetchOdds();
 $('#spOddsLeague').onchange = () => spFetchOdds();
 
 // ── Opening Odds Tracking (in-memory per session) ──
-// Stores first-seen odds per game to detect line movement / swings
+// Stores PRE-GAME odds per game to detect live line movement vs opening lines
 // Key: "away @ home" normalized, Value: { spread, total, awayML, homeML, timestamp }
+// Only stores odds captured while game state is 'pre' (before tipoff/kickoff)
 const spOpeningOdds = {};
 
 function _spOddsKey(away, home) {
   return (away + ' @ ' + home).toLowerCase().trim();
 }
 
-// Store opening odds for a game (only saves the FIRST time we see it)
-function spStoreOpeningOdds(key, odds) {
+// Store opening odds for a game — ONLY when game hasn't started yet (state === 'pre')
+// Once a game goes live, we stop updating the opening line so swings reflect
+// the movement from the actual pre-game line to the current live line.
+function spStoreOpeningOdds(key, odds, gameState) {
+  // Only capture opening odds from pre-game lines
+  if (gameState && gameState !== 'pre') return;
   if (!spOpeningOdds[key]) {
     spOpeningOdds[key] = { ...odds, timestamp: Date.now() };
   }
@@ -10536,7 +10541,7 @@ function spRenderOddsCard(game) {
   // Swing alert banner (for major movements)
   if (hasMajorSwing) {
     html += '<div style="background:rgba(234,88,12,.1);border:1px solid rgba(234,88,12,.25);border-radius:4px;padding:4px 7px;margin-bottom:6px;font-size:.54rem;">';
-    html += '<span style="font-weight:700;color:#ea580c;">\u26A0 LINE MOVEMENT</span>';
+    html += '<span style="font-weight:700;color:#ea580c;">\u26A0 LINE MOVEMENT vs OPENING</span>';
     swings.filter(function(s) { return s.isMajor; }).forEach(function(s) {
       var openFmt = spOddsFmt(s.open, s.key.includes('ML') ? 0 : 1);
       var curFmt = spOddsFmt(s.current, s.key.includes('ML') ? 0 : 1);
@@ -10750,17 +10755,20 @@ function spFetchOdds() {
             homeML: median(consensusHomeML)
           };
 
-          // Track opening odds (first time we see this game)
-          var oddsKey = _spOddsKey(game.away, game.home);
-          spStoreOpeningOdds(oddsKey, currentOdds);
+          // Determine game state from live scores
+          var liveMatch = spMatchLiveScore(game.away, game.home);
+          var gameState = liveMatch ? liveMatch.state : 'pre';
 
-          // Compute swings from opening
-          var swings = spComputeSwings(oddsKey, currentOdds);
+          // Track opening odds — only stores when game is still pre-game
+          var oddsKey = _spOddsKey(game.away, game.home);
+          spStoreOpeningOdds(oddsKey, currentOdds, gameState);
+
+          // Compute swings from opening — only show for live games
+          var swings = (gameState === 'in') ? spComputeSwings(oddsKey, currentOdds) : [];
           game._swings = swings;
 
           // Track counts for summary header
-          var liveMatch = spMatchLiveScore(game.away, game.home);
-          if (liveMatch && liveMatch.state === 'in') liveCount++;
+          if (gameState === 'in') liveCount++;
           if (swings.some(function(s) { return s.isMajor; })) swingCount++;
 
           html += spRenderOddsCard(game);
@@ -10845,7 +10853,7 @@ function spFetchOddsEspn(league) {
           });
         }
 
-        // Track opening odds for ESPN fallback too
+        // Track opening odds for ESPN fallback — only pre-game lines
         var oddsKey = _spOddsKey(game.away, game.home);
         var spreadVal = null, totalVal = null, awayMLVal = null, homeMLVal = null;
         game.lines.forEach(function(ln) {
@@ -10854,8 +10862,10 @@ function spFetchOddsEspn(league) {
           if (ln.awayML) { var a = parseFloat(String(ln.awayML).replace(/[^0-9.\-+]/g, '')); if (!isNaN(a)) awayMLVal = a; }
           if (ln.homeML) { var h = parseFloat(String(ln.homeML).replace(/[^0-9.\-+]/g, '')); if (!isNaN(h)) homeMLVal = h; }
         });
-        spStoreOpeningOdds(oddsKey, { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal });
-        game._swings = spComputeSwings(oddsKey, { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal });
+        var currentOddsEspn = { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal };
+        spStoreOpeningOdds(oddsKey, currentOddsEspn, state);
+        // Only show line movement for live games
+        game._swings = (state === 'in') ? spComputeSwings(oddsKey, currentOddsEspn) : [];
         if (game._swings.some(function(s) { return s.isMajor; })) swingCount++;
 
         html += spRenderOddsCard(game);
