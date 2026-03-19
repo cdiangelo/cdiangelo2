@@ -5366,6 +5366,7 @@ let ssClipboard = null, ssClipboardSrc = null, ssColNames = [];
 let ssSelecting = false, ssEditing = false;
 let ssClipboardRange = null; // { data: 2D array, rows, cols }
 let ssFormulaRef = null; // { anchorR, anchorC, endR, endC, inputPos, inputLen } — active formula cell-reference selection
+let ssExtraSelections = []; // array of { r1, c1, r2, c2 } for Ctrl+Click multi-select
 let ssUndoHist = []; // array of { data, rows, cols } snapshots
 let ssColWidths = LS('ssColWidths') || []; // per-column widths
 // Cell formatting: ssFmt[r][c] = { bg, color, bold } — sparse, only set cells have entries
@@ -5474,7 +5475,13 @@ function ssSelRange() {
   };
 }
 function ssInSelection(r, c) {
-  const s = ssSelRange(); return s && r >= s.minR && r <= s.maxR && c >= s.minC && c <= s.maxC;
+  const s = ssSelRange();
+  if (s && r >= s.minR && r <= s.maxR && c >= s.minC && c <= s.maxC) return true;
+  return ssExtraSelections.some(sel => {
+    const minR = Math.min(sel.r1, sel.r2), maxR = Math.max(sel.r1, sel.r2);
+    const minC = Math.min(sel.c1, sel.c2), maxC = Math.max(sel.c1, sel.c2);
+    return r >= minR && r <= maxR && c >= minC && c <= maxC;
+  });
 }
 function ssIsActiveCell(r, c) { return ssSel && r === ssSel.r1 && c === ssSel.c1; }
 
@@ -5510,35 +5517,49 @@ function ssRenderSelection() {
   t.querySelectorAll('.in-selection,.active-cell,.sel-top,.sel-bottom,.sel-left,.sel-right,.row-selected,.col-selected')
     .forEach(el => el.classList.remove('in-selection','active-cell','sel-top','sel-bottom','sel-left','sel-right','row-selected','col-selected'));
   if (!ssSel) return;
-  const s = ssSelRange();
-  for (let r = s.minR; r <= s.maxR; r++) {
-    for (let c = s.minC; c <= s.maxC; c++) {
-      const td = t.querySelector('td[data-r="'+r+'"][data-c="'+c+'"]');
-      if (!td) continue;
-      td.classList.add('in-selection');
-      if (r === s.minR) td.classList.add('sel-top');
-      if (r === s.maxR) td.classList.add('sel-bottom');
-      if (c === s.minC) td.classList.add('sel-left');
-      if (c === s.maxC) td.classList.add('sel-right');
+  // Helper to highlight a range
+  function highlightRange(minR, maxR, minC, maxC) {
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        const td = t.querySelector('td[data-r="'+r+'"][data-c="'+c+'"]');
+        if (!td) continue;
+        td.classList.add('in-selection');
+        if (r === minR) td.classList.add('sel-top');
+        if (r === maxR) td.classList.add('sel-bottom');
+        if (c === minC) td.classList.add('sel-left');
+        if (c === maxC) td.classList.add('sel-right');
+      }
     }
   }
+  const s = ssSelRange();
+  highlightRange(s.minR, s.maxR, s.minC, s.maxC);
+  // Render extra (Ctrl+Click) selections
+  ssExtraSelections.forEach(sel => {
+    const minR = Math.min(sel.r1, sel.r2), maxR = Math.max(sel.r1, sel.r2);
+    const minC = Math.min(sel.c1, sel.c2), maxC = Math.max(sel.c1, sel.c2);
+    highlightRange(minR, maxR, minC, maxC);
+  });
   const activeTd = t.querySelector('td[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
   if (activeTd) activeTd.classList.add('active-cell');
   // Row header highlighting
   const rowHeaders = t.querySelectorAll('th.row-h');
   rowHeaders.forEach((rh, idx) => {
-    if (idx >= s.minR && idx <= s.maxR) rh.classList.add('row-selected');
+    if (ssInSelection(idx, 0) || (idx >= s.minR && idx <= s.maxR)) rh.classList.add('row-selected');
   });
   // Col header highlighting
-  for (let c = s.minC; c <= s.maxC; c++) {
-    const ch = t.querySelector('thead th[data-c="'+c+'"]');
-    if (ch) ch.classList.add('col-selected');
+  for (let c = 0; c < ssC; c++) {
+    if (ssInSelection(0, c) || (c >= s.minC && c <= s.maxC)) {
+      const ch = t.querySelector('thead th[data-c="'+c+'"]');
+      if (ch) ch.classList.add('col-selected');
+    }
   }
   // Update formula bar
-  if (s.minR === s.maxR && s.minC === s.maxC) {
+  if (s.minR === s.maxR && s.minC === s.maxC && ssExtraSelections.length === 0) {
     $('#ssCellRef').textContent = colN(ssSel.c1) + (ssSel.r1 + 1);
   } else {
-    $('#ssCellRef').textContent = colN(s.minC) + (s.minR+1) + ':' + colN(s.maxC) + (s.maxR+1);
+    let ref = colN(s.minC) + (s.minR+1) + ':' + colN(s.maxC) + (s.maxR+1);
+    if (ssExtraSelections.length > 0) ref += ' +' + ssExtraSelections.length;
+    $('#ssCellRef').textContent = ref;
   }
   $('#ssFormula').value = ssD[ssSel.r1]?.[ssSel.c1] || '';
   // Position drag-fill handle at bottom-right of selection
@@ -5615,7 +5636,7 @@ function ssRenderSelection() {
 }
 
 // ── Sheet multi-page system ──
-let ssPages = LS('ssPages') || [{ id: 1, title: 'Sheet 1', data: null, colNames: [], fmt: {} }];
+let ssPages = LS('ssPages') || [{ id: 1, title: 'Sheet 1', data: (function(){ const d=[]; for(let r=0;r<20;r++) d.push(new Array(10).fill('')); return d; })(), colNames: [], fmt: {} }];
 let ssActivePageId = LS('ssActivePageId') || 1;
 let ssPageIdCounter = LS('ssPageIdCounter') || 1;
 
@@ -5675,7 +5696,10 @@ function ssSwitchPage(id) {
 function ssAddPage() {
   ssSaveCurrentPage();
   ssPageIdCounter++;
-  const page = { id: ssPageIdCounter, title: 'Sheet ' + ssPageIdCounter, data: null, colNames: [] };
+  // Initialize with empty data grid instead of null to prevent data loss on serialize
+  const emptyData = [];
+  for (let r = 0; r < 20; r++) emptyData.push(new Array(10).fill(''));
+  const page = { id: ssPageIdCounter, title: 'Sheet ' + ssPageIdCounter, data: emptyData, colNames: [], fmt: {}, rowGroups: [], colGroups: [], rowIndent: {} };
   ssPages.push(page);
   ssSwitchPage(page.id);
 }
@@ -6725,8 +6749,13 @@ function ssRender() {
     ssMouseDownCell = { r, c };
     if (e.shiftKey && ssSel) {
       ssSel.r2 = r; ssSel.c2 = c;
+    } else if ((e.ctrlKey || e.metaKey) && ssSel) {
+      // Ctrl+Click: save current selection as extra, start new primary
+      ssExtraSelections.push({ r1: ssSel.r1, c1: ssSel.c1, r2: ssSel.r2, c2: ssSel.c2 });
+      ssSel = { r1: r, c1: c, r2: r, c2: c };
     } else {
       ssSel = { r1: r, c1: c, r2: r, c2: c };
+      ssExtraSelections = []; // clear multi-select on plain click
     }
     ssSelecting = true;
     ssRenderSelection();
@@ -6914,9 +6943,11 @@ function ssRender() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); document.getElementById('ssItalic').click(); return; }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
-      const sr = ssSelRange();
-      for (let r = sr.minR; r <= sr.maxR; r++)
-        for (let c = sr.minC; c <= sr.maxC; c++) ssD[r][c] = '';
+      const ranges = ssAllSelectedRanges();
+      ranges.forEach(sr => {
+        for (let r = sr.minR; r <= sr.maxR; r++)
+          for (let c = sr.minC; c <= sr.maxC; c++) ssD[r][c] = '';
+      });
       LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); return;
     }
     // Ctrl+C: copy range (data + formatting)
@@ -7088,19 +7119,37 @@ $('#ssFormula').addEventListener('keydown', e => {
 });
 
 // ── Cell formatting helpers ──
+function ssAllSelectedRanges() {
+  // Returns array of { minR, maxR, minC, maxC } for primary + extra selections
+  const ranges = [];
+  if (ssSel) {
+    const s = ssSelRange();
+    ranges.push(s);
+  }
+  ssExtraSelections.forEach(sel => {
+    ranges.push({
+      minR: Math.min(sel.r1, sel.r2), maxR: Math.max(sel.r1, sel.r2),
+      minC: Math.min(sel.c1, sel.c2), maxC: Math.max(sel.c1, sel.c2)
+    });
+  });
+  return ranges;
+}
+
 function ssApplyFmtToSelection(prop, value) {
   if (!ssSel) return;
-  const sr = ssSelRange();
+  const ranges = ssAllSelectedRanges();
   ssPushUndo();
-  for (let r = sr.minR; r <= sr.maxR; r++) {
-    for (let c = sr.minC; c <= sr.maxC; c++) {
-      const key = r + ',' + c;
-      if (!ssFmt[key]) ssFmt[key] = {};
-      if (value === null || value === undefined) delete ssFmt[key][prop];
-      else ssFmt[key][prop] = value;
-      if (Object.keys(ssFmt[key]).length === 0) delete ssFmt[key];
+  ranges.forEach(sr => {
+    for (let r = sr.minR; r <= sr.maxR; r++) {
+      for (let c = sr.minC; c <= sr.maxC; c++) {
+        const key = r + ',' + c;
+        if (!ssFmt[key]) ssFmt[key] = {};
+        if (value === null || value === undefined) delete ssFmt[key][prop];
+        else ssFmt[key][prop] = value;
+        if (Object.keys(ssFmt[key]).length === 0) delete ssFmt[key];
+      }
     }
-  }
+  });
   LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
 }
 
@@ -7122,58 +7171,66 @@ $('#ssBgColor').oninput = function() { ssApplyFmtToSelection('bg', this.value); 
 
 $('#ssClearFmt').onclick = () => {
   if (!ssSel) return;
-  const sr = ssSelRange();
+  const ranges = ssAllSelectedRanges();
   ssPushUndo();
-  for (let r = sr.minR; r <= sr.maxR; r++)
-    for (let c = sr.minC; c <= sr.maxC; c++) delete ssFmt[r + ',' + c];
+  ranges.forEach(sr => {
+    for (let r = sr.minR; r <= sr.maxR; r++)
+      for (let c = sr.minC; c <= sr.maxC; c++) delete ssFmt[r + ',' + c];
+  });
   LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
 };
 
 // Number format helpers
 function ssApplyNumFmt(updater) {
   if (!ssSel) return;
-  const sr = ssSelRange();
+  const ranges = ssAllSelectedRanges();
   ssPushUndo();
-  for (let r = sr.minR; r <= sr.maxR; r++) {
-    for (let c = sr.minC; c <= sr.maxC; c++) {
-      const k = r + ',' + c;
-      if (!ssFmt[k]) ssFmt[k] = {};
-      if (!ssFmt[k].numFmt) ssFmt[k].numFmt = { type: 'decimal', decimals: 2 };
-      updater(ssFmt[k].numFmt);
+  ranges.forEach(sr => {
+    for (let r = sr.minR; r <= sr.maxR; r++) {
+      for (let c = sr.minC; c <= sr.maxC; c++) {
+        const k = r + ',' + c;
+        if (!ssFmt[k]) ssFmt[k] = {};
+        if (!ssFmt[k].numFmt) ssFmt[k].numFmt = { type: 'decimal', decimals: 2 };
+        updater(ssFmt[k].numFmt);
+      }
     }
-  }
+  });
   LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
 }
 $('#ssIncDec').onclick = () => ssApplyNumFmt(nf => { nf.decimals = (nf.decimals != null ? nf.decimals : 0) + 1; });
 $('#ssDecDec').onclick = () => ssApplyNumFmt(nf => { nf.decimals = Math.max(0, (nf.decimals != null ? nf.decimals : 2) - 1); });
 $('#ssPctFmt').onclick = () => {
   if (!ssSel) return;
-  const sr = ssSelRange();
   const firstKey = ssSel.r1 + ',' + ssSel.c1;
   const isAlreadyPct = ssFmt[firstKey] && ssFmt[firstKey].numFmt && ssFmt[firstKey].numFmt.type === 'percent';
+  const ranges = ssAllSelectedRanges();
   ssPushUndo();
-  for (let r = sr.minR; r <= sr.maxR; r++) {
-    for (let c = sr.minC; c <= sr.maxC; c++) {
-      const k = r + ',' + c;
-      if (isAlreadyPct) { if (ssFmt[k] && ssFmt[k].numFmt) delete ssFmt[k].numFmt; }
-      else { if (!ssFmt[k]) ssFmt[k] = {}; ssFmt[k].numFmt = { type: 'percent', decimals: 1 }; }
+  ranges.forEach(sr => {
+    for (let r = sr.minR; r <= sr.maxR; r++) {
+      for (let c = sr.minC; c <= sr.maxC; c++) {
+        const k = r + ',' + c;
+        if (isAlreadyPct) { if (ssFmt[k] && ssFmt[k].numFmt) delete ssFmt[k].numFmt; }
+        else { if (!ssFmt[k]) ssFmt[k] = {}; ssFmt[k].numFmt = { type: 'percent', decimals: 1 }; }
+      }
     }
-  }
+  });
   LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
 };
 $('#ssCurrFmt').onclick = () => {
   if (!ssSel) return;
-  const sr = ssSelRange();
   const firstKey = ssSel.r1 + ',' + ssSel.c1;
   const isAlreadyCurr = ssFmt[firstKey] && ssFmt[firstKey].numFmt && ssFmt[firstKey].numFmt.type === 'currency';
+  const ranges = ssAllSelectedRanges();
   ssPushUndo();
-  for (let r = sr.minR; r <= sr.maxR; r++) {
-    for (let c = sr.minC; c <= sr.maxC; c++) {
-      const k = r + ',' + c;
-      if (isAlreadyCurr) { if (ssFmt[k] && ssFmt[k].numFmt) delete ssFmt[k].numFmt; }
-      else { if (!ssFmt[k]) ssFmt[k] = {}; ssFmt[k].numFmt = { type: 'currency', decimals: 2, symbol: '$' }; }
+  ranges.forEach(sr => {
+    for (let r = sr.minR; r <= sr.maxR; r++) {
+      for (let c = sr.minC; c <= sr.maxC; c++) {
+        const k = r + ',' + c;
+        if (isAlreadyCurr) { if (ssFmt[k] && ssFmt[k].numFmt) delete ssFmt[k].numFmt; }
+        else { if (!ssFmt[k]) ssFmt[k] = {}; ssFmt[k].numFmt = { type: 'currency', decimals: 2, symbol: '$' }; }
+      }
     }
-  }
+  });
   LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
 };
 
@@ -9709,6 +9766,7 @@ function deserializeState(s) {
     saveSsPages();
     const pg = ssPages.find(p => p.id === ssActivePageId) || ssPages[0];
     if (pg && pg.data) { ssD = JSON.parse(JSON.stringify(pg.data)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; }
+    else if (s.sheet && s.sheet.length) { ssD = JSON.parse(JSON.stringify(s.sheet)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; }
     else { ssR = s.ssR || 20; ssC = s.ssC || 10; ssD = []; for (let r = 0; r < ssR; r++) ssD.push(new Array(ssC).fill('')); }
     ssColNames = pg && pg.colNames ? pg.colNames.slice() : [];
     // Restore formatting from page data, or top-level fallback
@@ -9819,6 +9877,13 @@ localStorage.setItem = function(k, v) {
   // Match prefixed keys: ws_, ws_admin_, ws_u_<name>_
   if (lsWriteKeys.some(key => k.endsWith('_' + key))) wsAutoSave();
 };
+
+// Save workspace before page unload to prevent data loss
+window.addEventListener('beforeunload', () => {
+  if (wsActiveId) {
+    try { saveActiveWorkspace(); } catch(e) { /* best effort */ }
+  }
+});
 
 function switchWorkspace(id) {
   // Save current first
@@ -9965,7 +10030,7 @@ $('#wsNew').onclick = () => {
   for (let r = 0; r < ssR; r++) ssD.push(new Array(ssC).fill(''));
   ssFmt = {}; ssColNames = []; ssColWidths = [];
   ssRowGroups = []; ssColGroups = []; ssRowIndent = {};
-  ssPages = [{ id: 1, title: 'Sheet 1', data: null, colNames: [], fmt: {} }];
+  ssPages = [{ id: 1, title: 'Sheet 1', data: JSON.parse(JSON.stringify(ssD)), colNames: [], fmt: {} }];
   ssActivePageId = 1; ssPageIdCounter = 1;
   LS('sheet', ssD); LS('ssFmt', ssFmt); LS('sheetColNames', ssColNames); LS('ssColWidths', ssColWidths);
   LS('ssRowGroups', ssRowGroups); LS('ssColGroups', ssColGroups); LS('ssRowIndent', ssRowIndent);
@@ -11434,6 +11499,8 @@ function resetIdleTimer() {
       resetIdleTimer();
       return;
     }
+    // Save workspace before booting to prevent data loss
+    try { if (typeof saveActiveWorkspace === 'function') saveActiveWorkspace(); } catch(e) {}
     // Return to login screen
     console.log('[SESSION] Idle timeout reached (' + idleTimeoutMin + 'min) — returning to login');
     localStorage.removeItem('ws_adminSession');
@@ -11443,7 +11510,19 @@ function resetIdleTimer() {
 }
 
 // Activity listeners — reset idle on any interaction
-['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel'].forEach(evt => {
+// Throttle mousemove/scroll/wheel to avoid excessive timer resets (max once per 5s)
+let _idleThrottled = false;
+function _throttledIdleReset() {
+  if (_idleThrottled) return;
+  _idleThrottled = true;
+  resetIdleTimer();
+  setTimeout(() => { _idleThrottled = false; }, 5000);
+}
+['mousemove', 'scroll', 'wheel'].forEach(evt => {
+  document.addEventListener(evt, _throttledIdleReset, { passive: true });
+});
+// Direct reset on explicit interaction (clicks, keys, touch)
+['mousedown', 'keydown', 'touchstart'].forEach(evt => {
   document.addEventListener(evt, resetIdleTimer, { passive: true });
 });
 // Start idle timer on load
