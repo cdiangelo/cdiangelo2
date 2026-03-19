@@ -434,6 +434,18 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.heat-yellow { background: rgba(204,153,51,.15); }
 .ss-table td.validation-error { border-color: var(--danger); }
 
+/* Formula parameter hint tooltip */
+.ss-formula-tooltip {
+  position: absolute; z-index: 30; background: var(--panel-inset); border: 1px solid var(--border);
+  border-radius: 5px; padding: 4px 10px; font-size: .68rem; font-family: monospace;
+  color: var(--text-dim); box-shadow: 0 3px 10px rgba(0,0,0,.35); pointer-events: none;
+  white-space: nowrap; line-height: 1.5;
+}
+.ss-formula-tooltip .fn-name { color: var(--accent); font-weight: 700; }
+.ss-formula-tooltip .fn-param { color: var(--text-dim); }
+.ss-formula-tooltip .fn-param.active { color: var(--accent2); font-weight: 700; text-decoration: underline; }
+.ss-formula-tooltip .fn-param.optional { font-style: italic; }
+
 /* ═══ CLAUDE HORIZONTAL LAYOUT ═══ */
 .claude-content-row { display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; }
 .claude-content-row .ai-msgs { flex: 1; min-width: 0; border-top: none; }
@@ -6070,6 +6082,7 @@ function ssRender() {
   function ssExitEdit() {
     if (!ssEditing || !ssSel) return;
     ssEditing = false;
+    ssHideFormulaTooltip();
     const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
     if (inp && inp.value !== (ssD[ssSel.r1][ssSel.c1] || '')) { ssPushUndo(); ssD[ssSel.r1][ssSel.c1] = inp.value; inp.setAttribute('readonly', ''); }
     else if (inp) { inp.setAttribute('readonly', ''); }
@@ -6175,7 +6188,7 @@ function ssRender() {
     // In edit mode, only handle Enter/Tab/Escape
     if (ssEditing) {
       const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
-      if (e.key === 'Escape') { e.preventDefault(); ssEditing = false; if (inp) { inp.value = ssD[ssSel.r1][ssSel.c1] || ''; inp.setAttribute('readonly', ''); } ssRenderSelection(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); ssEditing = false; ssHideFormulaTooltip(); if (inp) { inp.value = ssD[ssSel.r1][ssSel.c1] || ''; inp.setAttribute('readonly', ''); } ssRenderSelection(); return; }
       if (e.key === 'Enter') { e.preventDefault(); ssExitEdit(); const nr = Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); ssEnterEdit(nr, ssSel.c1); return; }
       if (e.key === 'Tab') { e.preventDefault(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); ssEnterEdit(ssSel.r1, nc); return; }
       // Arrow keys: exit edit mode and navigate to adjacent cell
@@ -6371,7 +6384,9 @@ $('#ssFormula').addEventListener('keydown', e => {
   if (e.key === 'Enter' && ssSel) {
     ssD[ssSel.r1][ssSel.c1] = $('#ssFormula').value;
     LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
+    ssHideFormulaTooltip();
   }
+  if (e.key === 'Escape') ssHideFormulaTooltip();
 });
 
 // ── Cell formatting helpers ──
@@ -6563,6 +6578,167 @@ $$('.ctx-item').forEach(item => {
     LS('sheet', ssD); ssRender();
     toast(action.charAt(0).toUpperCase() + action.slice(1));
   };
+});
+
+// ── Formula parameter hint tooltip ──
+const ssFormulaSigs = {
+  SUM:         [{ name: 'range', ex: 'A1:A10' }],
+  AVERAGE:     [{ name: 'range', ex: 'A1:A10' }],
+  AVG:         [{ name: 'range', ex: 'A1:A10' }],
+  MIN:         [{ name: 'range', ex: 'A1:A10' }],
+  MAX:         [{ name: 'range', ex: 'A1:A10' }],
+  COUNT:       [{ name: 'range', ex: 'A1:A10' }],
+  MEDIAN:      [{ name: 'range', ex: 'A1:A10' }],
+  PRODUCT:     [{ name: 'range', ex: 'A1:A10' }],
+  SUMIF:       [{ name: 'criteria_range', ex: 'A1:A10' }, { name: 'criteria', ex: '">5"' }, { name: 'sum_range', ex: 'B1:B10', opt: true }],
+  COUNTIF:     [{ name: 'range', ex: 'A1:A10' }, { name: 'criteria', ex: '">5"' }],
+  VLOOKUP:     [{ name: 'lookup_value', ex: 'A1' }, { name: 'table_range', ex: 'B1:D10' }, { name: 'col_index', ex: '2' }],
+  IF:          [{ name: 'condition', ex: 'A1>5' }, { name: 'value_if_true', ex: '"Yes"' }, { name: 'value_if_false', ex: '"No"' }],
+  LEN:         [{ name: 'text', ex: 'A1' }],
+  UPPER:       [{ name: 'text', ex: 'A1' }],
+  LOWER:       [{ name: 'text', ex: 'A1' }],
+  TRIM:        [{ name: 'text', ex: 'A1' }],
+  PROPER:      [{ name: 'text', ex: 'A1' }],
+  LEFT:        [{ name: 'text', ex: 'A1' }, { name: 'num_chars', ex: '3' }],
+  RIGHT:       [{ name: 'text', ex: 'A1' }, { name: 'num_chars', ex: '3' }],
+  MID:         [{ name: 'text', ex: 'A1' }, { name: 'start_pos', ex: '2' }, { name: 'num_chars', ex: '3' }],
+  SUBSTITUTE:  [{ name: 'text', ex: 'A1' }, { name: 'old_text', ex: '"old"' }, { name: 'new_text', ex: '"new"' }],
+  CONCATENATE: [{ name: 'text1', ex: 'A1' }, { name: 'text2', ex: 'B1' }],
+  CONCAT:      [{ name: 'text1', ex: 'A1' }, { name: 'text2', ex: 'B1' }],
+  TEXT:        [{ name: 'value', ex: 'A1' }, { name: 'format', ex: '"0.00"' }],
+  ROUND:       [{ name: 'number', ex: 'A1' }, { name: 'decimals', ex: '2' }],
+  ROUNDUP:     [{ name: 'number', ex: 'A1' }, { name: 'decimals', ex: '2' }],
+  ROUNDDOWN:   [{ name: 'number', ex: 'A1' }, { name: 'decimals', ex: '2' }],
+  ABS:         [{ name: 'number', ex: 'A1' }],
+  SQRT:        [{ name: 'number', ex: 'A1' }],
+  POWER:       [{ name: 'base', ex: 'A1' }, { name: 'exponent', ex: '2' }],
+  POW:         [{ name: 'base', ex: 'A1' }, { name: 'exponent', ex: '2' }],
+  LOG:         [{ name: 'number', ex: 'A1' }, { name: 'base', ex: '10', opt: true }],
+  MOD:         [{ name: 'number', ex: 'A1' }, { name: 'divisor', ex: '3' }],
+  SPARK:       [{ name: 'range', ex: 'A1:A10' }],
+  NOW:         [],
+  TODAY:       [],
+  PI:          []
+};
+
+// Count commas at the top level (outside nested parens/quotes) to determine current param index
+function ssCountTopCommas(str) {
+  let depth = 0, inQ = false, count = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '"') inQ = !inQ;
+    else if (!inQ) {
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (ch === ',' && depth === 0) count++;
+    }
+  }
+  return count;
+}
+
+// Parse the formula text being typed to extract function name + which param is active
+function ssParseFormulaContext(text) {
+  if (!text || !text.startsWith('=')) return null;
+  const body = text.substring(1);
+  // Find the last open function call — walk backwards to find unmatched '('
+  let depth = 0;
+  for (let i = body.length - 1; i >= 0; i--) {
+    if (body[i] === ')') depth++;
+    else if (body[i] === '(') {
+      if (depth === 0) {
+        // Found unmatched '(' — extract function name before it
+        const before = body.substring(0, i);
+        const fnMatch = before.match(/([A-Z_]+)\s*$/i);
+        if (!fnMatch) return null;
+        const fnName = fnMatch[1].toUpperCase();
+        const sig = ssFormulaSigs[fnName];
+        if (!sig) return null;
+        const insideParens = body.substring(i + 1);
+        const paramIdx = ssCountTopCommas(insideParens);
+        return { fn: fnName, sig, paramIdx };
+      }
+      depth--;
+    }
+  }
+  return null;
+}
+
+let ssFormulaTooltipEl = null;
+
+function ssShowFormulaTooltip(inputEl) {
+  const val = inputEl ? inputEl.value : '';
+  const ctx = ssParseFormulaContext(val);
+
+  if (!ctx) {
+    if (ssFormulaTooltipEl) { ssFormulaTooltipEl.remove(); ssFormulaTooltipEl = null; }
+    return;
+  }
+
+  if (!ssFormulaTooltipEl) {
+    ssFormulaTooltipEl = document.createElement('div');
+    ssFormulaTooltipEl.className = 'ss-formula-tooltip';
+    document.getElementById('q-sheet').appendChild(ssFormulaTooltipEl);
+  }
+
+  // Build the hint HTML: FN_NAME( param1, param2, ... )
+  let html = '<span class="fn-name">' + ctx.fn + '</span>(';
+  ctx.sig.forEach((p, i) => {
+    if (i > 0) html += ', ';
+    const isActive = i === ctx.paramIdx || (ctx.paramIdx >= ctx.sig.length && i === ctx.sig.length - 1);
+    const cls = 'fn-param' + (isActive ? ' active' : '') + (p.opt ? ' optional' : '');
+    const label = p.opt ? '[' + p.name + ']' : p.name;
+    html += '<span class="' + cls + '" title="e.g. ' + (p.ex || '') + '">' + label + '</span>';
+  });
+  if (ctx.sig.length === 0) html += '<span class="fn-param active">no arguments</span>';
+  html += ')';
+  // Add example for active param
+  const activeParam = ctx.sig[Math.min(ctx.paramIdx, ctx.sig.length - 1)];
+  if (activeParam && activeParam.ex) {
+    html += '  <span style="color:var(--text-dim);opacity:.6;">— e.g. ' + activeParam.ex + '</span>';
+  }
+  ssFormulaTooltipEl.innerHTML = html;
+
+  // Position: below the formula bar input
+  const isFormulaBar = inputEl.id === 'ssFormula';
+  if (isFormulaBar) {
+    const rect = inputEl.getBoundingClientRect();
+    const paneRect = document.getElementById('q-sheet').getBoundingClientRect();
+    ssFormulaTooltipEl.style.left = (rect.left - paneRect.left) + 'px';
+    ssFormulaTooltipEl.style.top = (rect.bottom - paneRect.top + 2) + 'px';
+  } else {
+    // Position near the cell being edited
+    const td = inputEl.closest('td');
+    if (td) {
+      const rect = td.getBoundingClientRect();
+      const paneRect = document.getElementById('q-sheet').getBoundingClientRect();
+      ssFormulaTooltipEl.style.left = (rect.left - paneRect.left) + 'px';
+      ssFormulaTooltipEl.style.top = (rect.bottom - paneRect.top + 2) + 'px';
+    }
+  }
+}
+
+function ssHideFormulaTooltip() {
+  if (ssFormulaTooltipEl) { ssFormulaTooltipEl.remove(); ssFormulaTooltipEl = null; }
+}
+
+// Listen on formula bar input
+$('#ssFormula').addEventListener('input', function() { ssShowFormulaTooltip(this); });
+$('#ssFormula').addEventListener('blur', ssHideFormulaTooltip);
+
+// Listen on cell inputs — use event delegation on the table
+$('#ssTable').addEventListener('input', function(e) {
+  if (e.target.classList.contains('ci')) ssShowFormulaTooltip(e.target);
+});
+
+// Hide tooltip when editing ends (on blur of cell inputs)
+$('#ssTable').addEventListener('focusout', function(e) {
+  if (e.target.classList.contains('ci')) {
+    // Small delay to avoid flicker when focus moves to formula bar
+    setTimeout(() => {
+      if (document.activeElement && document.activeElement.id === 'ssFormula') return;
+      ssHideFormulaTooltip();
+    }, 100);
+  }
 });
 
 function ssShowHint() {
