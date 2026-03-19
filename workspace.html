@@ -10102,37 +10102,147 @@ const SP_ODDS_LEAGUE_MAP = {
 };
 
 function spOddsColor(val) {
-  // Color code odds values: negative (favorite) = red, positive (underdog) = green, even/zero = accent
   const n = parseFloat(String(val).replace(/[^0-9.\-+]/g, ''));
   if (isNaN(n) || n === 0) return 'var(--accent)';
   return n < 0 ? 'var(--danger)' : 'var(--success)';
 }
 
+// Compute consensus stats from an array of numbers: { med, min, max, n }
+function spOddsStats(arr) {
+  const nums = arr.filter(function(v) { return !isNaN(v); }).sort(function(a,b) { return a - b; });
+  if (!nums.length) return null;
+  const mid = Math.floor(nums.length / 2);
+  const med = nums.length % 2 ? nums[mid] : (nums[mid-1] + nums[mid]) / 2;
+  return { med: med, min: nums[0], max: nums[nums.length-1], n: nums.length };
+}
+
+// Format a number with +/- sign
+function spOddsFmt(n, dec) {
+  if (dec === undefined) dec = 1;
+  const s = n.toFixed(dec).replace(/\.0$/, '');
+  return n > 0 ? '+' + s : s;
+}
+
+// Render an inline SVG range bar: thin line from min→max with a dot at median
+// w=width in px, color=CSS color string
+function spRangeBar(stats, color) {
+  if (!stats || stats.n < 2 || stats.min === stats.max) return '';
+  var w = 48, h = 10, pad = 3;
+  var range = stats.max - stats.min;
+  if (range === 0) return '';
+  var medX = pad + ((stats.med - stats.min) / range) * (w - 2*pad);
+  return '<svg width="'+w+'" height="'+h+'" style="vertical-align:middle;margin-left:4px;opacity:.7;">' +
+    '<line x1="'+pad+'" y1="'+(h/2)+'" x2="'+(w-pad)+'" y2="'+(h/2)+'" stroke="'+color+'" stroke-width="1.5" stroke-linecap="round"/>' +
+    '<circle cx="'+medX+'" cy="'+(h/2)+'" r="2.5" fill="'+color+'"/>' +
+    '<title>Range: '+spOddsFmt(stats.min)+' to '+spOddsFmt(stats.max)+' ('+stats.n+' books)</title>' +
+    '</svg>';
+}
+
 function spRenderOddsCard(game) {
-  let html = '<div class="sp-card">';
+  var html = '<div class="sp-card">';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
   html += '<div style="font-size:.72rem;font-weight:600;color:var(--text);">'+esc(game.away)+' <span style="color:var(--text-dim);font-size:.62rem;">@</span> '+esc(game.home)+'</div>';
   html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(game.time)+'</span>';
   html += '</div>';
-  if (game.lines && game.lines.length) {
-    game.lines.forEach(function(line) {
-      html += '<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 8px;margin-bottom:3px;">';
-      html += '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:3px;font-weight:600;">'+esc(line.book)+'</div>';
-      html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.68rem;">';
-      if (line.spread) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">SPREAD</span><br/><span style="font-weight:600;color:'+spOddsColor(line.spread)+';">'+esc(line.spread)+'</span></div>';
-      if (line.total) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">TOTAL</span><br/><span style="font-weight:600;color:var(--warning);">O/U '+esc(line.total)+'</span></div>';
-      if (line.awayML || line.homeML) {
-        html += '<div><span style="color:var(--text-dim);font-size:.55rem;">MONEYLINE</span><br/>';
-        if (line.awayML) html += '<span style="font-size:.62rem;">'+esc(game.away)+' <b style="color:'+spOddsColor(line.awayML)+';">'+esc(line.awayML)+'</b></span> ';
-        if (line.homeML) html += '<span style="font-size:.62rem;">'+esc(game.home)+' <b style="color:'+spOddsColor(line.homeML)+';">'+esc(line.homeML)+'</b></span>';
-        html += '</div>';
-      }
-      html += '</div></div>';
-    });
-  } else {
-    html += '<div style="font-size:.58rem;color:var(--text-dim);font-style:italic;">No lines available</div>';
+
+  if (!game.lines || !game.lines.length) {
+    html += '<div style="font-size:.58rem;color:var(--text-dim);font-style:italic;">No lines available</div></div>';
+    return html;
   }
-  html += '</div>';
+
+  // Collect raw numbers across all books
+  var spreads = [], spreadJuice = [], totals = [], awayMLs = [], homeMLs = [];
+  var books = [];
+  game.lines.forEach(function(line) {
+    books.push(line.book);
+    if (line.spreadNum != null) spreads.push(line.spreadNum);
+    if (line.spreadPrice != null) spreadJuice.push(line.spreadPrice);
+    if (line.totalNum != null) totals.push(line.totalNum);
+    if (line.awayMLnum != null) awayMLs.push(line.awayMLnum);
+    if (line.homeMLnum != null) homeMLs.push(line.homeMLnum);
+    // Fallback: parse from formatted strings if raw nums not set
+    if (line.spreadNum == null && line.spread) {
+      var m = String(line.spread).match(/^([+-]?\d+\.?\d*)/);
+      if (m) spreads.push(parseFloat(m[1]));
+      var j = String(line.spread).match(/\(([+-]?\d+)\)/);
+      if (j) spreadJuice.push(parseFloat(j[1]));
+    }
+    if (line.totalNum == null && line.total) {
+      var t = parseFloat(line.total);
+      if (!isNaN(t)) totals.push(t);
+    }
+    if (line.awayMLnum == null && line.awayML) {
+      var a = parseFloat(String(line.awayML).replace(/[^0-9.\-+]/g, ''));
+      if (!isNaN(a)) awayMLs.push(a);
+    }
+    if (line.homeMLnum == null && line.homeML) {
+      var h2 = parseFloat(String(line.homeML).replace(/[^0-9.\-+]/g, ''));
+      if (!isNaN(h2)) homeMLs.push(h2);
+    }
+  });
+
+  var sS = spOddsStats(spreads), sJ = spOddsStats(spreadJuice), sT = spOddsStats(totals);
+  var sAM = spOddsStats(awayMLs), sHM = spOddsStats(homeMLs);
+
+  html += '<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 9px;">';
+
+  // Books count
+  html += '<div style="font-size:.5rem;color:var(--text-dim);margin-bottom:5px;">Consensus from '+books.length+' book'+(books.length!==1?'s':'')+'</div>';
+
+  // Metrics row
+  html += '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.68rem;align-items:flex-start;">';
+
+  // SPREAD
+  if (sS) {
+    var spreadColor = spOddsColor(sS.med);
+    var spreadTxt = spOddsFmt(sS.med);
+    if (sJ) spreadTxt += ' (' + spOddsFmt(sJ.med, 0) + ')';
+    html += '<div style="min-width:70px;">';
+    html += '<div style="color:var(--text-dim);font-size:.5rem;font-weight:600;margin-bottom:2px;">SPREAD</div>';
+    html += '<span style="font-weight:700;color:'+spreadColor+';font-size:.76rem;">'+esc(spreadTxt)+'</span>';
+    html += spRangeBar(sS, spreadColor);
+    if (sS.n > 1 && sS.min !== sS.max) {
+      html += '<div style="font-size:.45rem;color:var(--text-dim);margin-top:1px;">'+spOddsFmt(sS.min)+' to '+spOddsFmt(sS.max)+'</div>';
+    }
+    html += '</div>';
+  }
+
+  // TOTAL
+  if (sT) {
+    html += '<div style="min-width:60px;">';
+    html += '<div style="color:var(--text-dim);font-size:.5rem;font-weight:600;margin-bottom:2px;">TOTAL</div>';
+    html += '<span style="font-weight:700;color:var(--warning);font-size:.76rem;">O/U '+sT.med.toFixed(1).replace(/\.0$/,'')+'</span>';
+    html += spRangeBar(sT, 'var(--warning)');
+    if (sT.n > 1 && sT.min !== sT.max) {
+      html += '<div style="font-size:.45rem;color:var(--text-dim);margin-top:1px;">'+sT.min+' to '+sT.max+'</div>';
+    }
+    html += '</div>';
+  }
+
+  // MONEYLINE
+  if (sAM || sHM) {
+    html += '<div>';
+    html += '<div style="color:var(--text-dim);font-size:.5rem;font-weight:600;margin-bottom:2px;">MONEYLINE</div>';
+    if (sAM) {
+      var amColor = spOddsColor(sAM.med);
+      html += '<div style="display:flex;align-items:center;gap:3px;margin-bottom:1px;">';
+      html += '<span style="font-size:.58rem;color:var(--text-dim);min-width:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(game.away)+'</span> ';
+      html += '<b style="color:'+amColor+';font-size:.72rem;">'+spOddsFmt(sAM.med, 0)+'</b>';
+      html += spRangeBar(sAM, amColor);
+      html += '</div>';
+    }
+    if (sHM) {
+      var hmColor = spOddsColor(sHM.med);
+      html += '<div style="display:flex;align-items:center;gap:3px;">';
+      html += '<span style="font-size:.58rem;color:var(--text-dim);min-width:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(game.home)+'</span> ';
+      html += '<b style="color:'+hmColor+';font-size:.72rem;">'+spOddsFmt(sHM.med, 0)+'</b>';
+      html += spRangeBar(sHM, hmColor);
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '</div></div></div>';
   return html;
 }
 
@@ -10175,19 +10285,21 @@ function spFetchOdds() {
             (bk.markets || []).forEach(function(mkt) {
               if (mkt.key === 'spreads') {
                 const away = (mkt.outcomes || []).find(function(o) { return o.name === g.away_team; });
-                const home = (mkt.outcomes || []).find(function(o) { return o.name === g.home_team; });
-                if (away) line.spread = (away.point > 0 ? '+' : '') + away.point + ' (' + away.price + ')';
-                if (home) line.homeSpread = (home.point > 0 ? '+' : '') + home.point + ' (' + home.price + ')';
+                if (away) {
+                  line.spreadNum = away.point;
+                  line.spreadPrice = away.price;
+                  line.spread = (away.point > 0 ? '+' : '') + away.point + ' (' + away.price + ')';
+                }
               }
               if (mkt.key === 'totals') {
                 const over = (mkt.outcomes || []).find(function(o) { return o.name === 'Over'; });
-                if (over) line.total = String(over.point);
+                if (over) { line.totalNum = over.point; line.total = String(over.point); }
               }
               if (mkt.key === 'h2h') {
                 const away = (mkt.outcomes || []).find(function(o) { return o.name === g.away_team; });
                 const home = (mkt.outcomes || []).find(function(o) { return o.name === g.home_team; });
-                if (away) line.awayML = (away.price > 0 ? '+' : '') + String(away.price);
-                if (home) line.homeML = (home.price > 0 ? '+' : '') + String(home.price);
+                if (away) { line.awayMLnum = away.price; line.awayML = (away.price > 0 ? '+' : '') + String(away.price); }
+                if (home) { line.homeMLnum = home.price; line.homeML = (home.price > 0 ? '+' : '') + String(home.price); }
               }
             });
             if (line.spread || line.total || line.awayML || line.homeML) game.lines.push(line);
