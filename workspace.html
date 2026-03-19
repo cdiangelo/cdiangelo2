@@ -5486,7 +5486,7 @@ function ssRenderSelection() {
 }
 
 // ── Sheet multi-page system ──
-let ssPages = LS('ssPages') || [{ id: 1, title: 'Sheet 1', data: null, colNames: [] }];
+let ssPages = LS('ssPages') || [{ id: 1, title: 'Sheet 1', data: null, colNames: [], fmt: {} }];
 let ssActivePageId = LS('ssActivePageId') || 1;
 let ssPageIdCounter = LS('ssPageIdCounter') || 1;
 
@@ -5494,6 +5494,7 @@ let ssPageIdCounter = LS('ssPageIdCounter') || 1;
 if (!LS('ssPages') && LS('sheet')) {
   ssPages[0].data = LS('sheet');
   ssPages[0].colNames = LS('sheetColNames') || [];
+  ssPages[0].fmt = LS('ssFmt') || {};
 }
 
 function saveSsPages() {
@@ -9396,6 +9397,10 @@ function serializeState() {
     stockRange: $('#stockRange').value,
     sheet: JSON.parse(JSON.stringify(ssD)),
     sheetColNames: ssColNames.slice(),
+    ssFmt: JSON.parse(JSON.stringify(ssFmt)),
+    ssColWidths: ssColWidths.slice(),
+    ssR: ssR,
+    ssC: ssC,
     ssPages: JSON.parse(JSON.stringify(ssPages)),
     ssActivePageId: ssActivePageId,
     ssPageIdCounter: ssPageIdCounter,
@@ -9446,12 +9451,22 @@ function deserializeState(s) {
     saveSsPages();
     const pg = ssPages.find(p => p.id === ssActivePageId) || ssPages[0];
     if (pg && pg.data) { ssD = JSON.parse(JSON.stringify(pg.data)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; }
+    else { ssR = s.ssR || 20; ssC = s.ssC || 10; ssD = []; for (let r = 0; r < ssR; r++) ssD.push(new Array(ssC).fill('')); }
     ssColNames = pg && pg.colNames ? pg.colNames.slice() : [];
-    LS('sheet', ssD); LS('sheetColNames', ssColNames); ssRender();
-    renderSsTabs();
+    // Restore formatting from page data, or top-level fallback
+    ssFmt = pg && pg.fmt ? JSON.parse(JSON.stringify(pg.fmt)) : (s.ssFmt ? JSON.parse(JSON.stringify(s.ssFmt)) : {});
+    // Restore column widths
+    ssColWidths = s.ssColWidths ? s.ssColWidths.slice() : [];
+    LS('sheet', ssD); LS('sheetColNames', ssColNames); LS('ssFmt', ssFmt); LS('ssColWidths', ssColWidths);
+    ssRender(); renderSsTabs();
   } else {
-    if (s.sheet) { ssD = JSON.parse(JSON.stringify(s.sheet)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; LS('sheet', ssD); ssRender(); }
+    if (s.sheet) { ssD = JSON.parse(JSON.stringify(s.sheet)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; LS('sheet', ssD); }
+    else if (s.ssR && s.ssC) { ssR = s.ssR; ssC = s.ssC; ssD = []; for (let r = 0; r < ssR; r++) ssD.push(new Array(ssC).fill('')); LS('sheet', ssD); }
     if (s.sheetColNames) { ssColNames = s.sheetColNames.slice(); LS('sheetColNames', ssColNames); }
+    if (s.ssFmt) { ssFmt = JSON.parse(JSON.stringify(s.ssFmt)); LS('ssFmt', ssFmt); }
+    else { ssFmt = {}; LS('ssFmt', ssFmt); }
+    if (s.ssColWidths) { ssColWidths = s.ssColWidths.slice(); LS('ssColWidths', ssColWidths); }
+    ssRender();
   }
   // Whiteboard pages
   if (s.wbPages) {
@@ -9531,11 +9546,12 @@ wsObserver.observe(np, { childList: true, subtree: true, characterData: true });
 // Override LS to trigger auto-save on any state write
 const _origLS = LS;
 // Intercept writes to trigger auto-save (lightweight - just sets the debounce timer)
-const lsWriteKeys = ['stockTickers','compareTickers','sheet','sheetColNames','cmap','gcExpressions','urls','notepad'];
+const lsWriteKeys = ['stockTickers','compareTickers','sheet','sheetColNames','ssFmt','ssColWidths','ssPages','cmap','gcExpressions','urls','notepad','notepadPages','wbPages'];
 const _origSetItem = localStorage.setItem.bind(localStorage);
 localStorage.setItem = function(k, v) {
   _origSetItem(k, v);
-  if (lsWriteKeys.some(key => k === 'ws_' + key)) wsAutoSave();
+  // Match prefixed keys: ws_, ws_admin_, ws_u_<name>_
+  if (lsWriteKeys.some(key => k.endsWith('_' + key))) wsAutoSave();
 };
 
 function switchWorkspace(id) {
@@ -9629,14 +9645,29 @@ $('#wsNew').onclick = () => {
   LS('workspaces', wsIndex);
   LS('activeWorkspace', id);
   // Clear all state for new workspace
-  np.innerHTML = ''; npUpdateWords();
+  // Notepad
+  npPages = [{ id: 1, title: 'Page 1', content: '' }]; npActivePageId = 1; npPageIdCounter = 1;
+  np.innerHTML = ''; npUpdateWords(); saveNpPages(); renderNpTabs();
+  // Stocks
   stockTickers = []; compareTickers = []; LS('stockTickers', []); LS('compareTickers', []);
   renderStockChips(); renderStockDash();
-  for (let r = 0; r < ssR; r++) for (let c = 0; c < ssC; c++) ssD[r][c] = '';
-  LS('sheet', ssD); ssRender();
-  wbX.clearRect(0, 0, wbC.width, wbC.height); wbHist = [];
+  // Sheet: fully reset data, formatting, pages, column widths
+  ssR = 20; ssC = 10; ssD = [];
+  for (let r = 0; r < ssR; r++) ssD.push(new Array(ssC).fill(''));
+  ssFmt = {}; ssColNames = []; ssColWidths = [];
+  ssPages = [{ id: 1, title: 'Sheet 1', data: null, colNames: [], fmt: {} }];
+  ssActivePageId = 1; ssPageIdCounter = 1;
+  LS('sheet', ssD); LS('ssFmt', ssFmt); LS('sheetColNames', ssColNames); LS('ssColWidths', ssColWidths);
+  saveSsPages(); ssRender(); renderSsTabs();
+  // Whiteboard
+  wbPages = [{ id: 1, title: 'Page 1', dataUrl: '', layers: [] }]; wbActivePageId = 1; wbPageIdCounter = 1;
+  wbLayers = []; wbX.clearRect(0, 0, wbC.width, wbC.height); wbHist = [];
+  saveWbPages(); if (typeof wbRenderLayers === 'function') wbRenderLayers(); if (typeof renderWbTabs === 'function') renderWbTabs();
+  // Concept map
   cmNodes = []; cmEdges = []; cmNID = 1; cmSave(); cmRender();
+  // Graph calc
   gcExpressions = [{ expr: 'sin(x)', color: GC_COLORS[0] }]; LS('gcExpressions', gcExpressions); renderGCExprList(); renderGC();
+  // URLs
   urls = []; LS('urls', []);
   saveActiveWorkspace();
   renderWSList();
@@ -9664,7 +9695,7 @@ $('#wsMergeBtn').onclick = () => {
     // Stock tickers: union
     if (src.stockTickers) src.stockTickers.forEach(t => { if (!merged.stockTickers.includes(t)) merged.stockTickers.push(t); });
     if (src.compareTickers) src.compareTickers.forEach(t => { if (!merged.compareTickers.includes(t)) merged.compareTickers.push(t); });
-    // Sheet: gap-fill
+    // Sheet: gap-fill data and formatting
     if (src.sheet) {
       const maxR = Math.max(merged.sheet.length, src.sheet.length);
       const maxC = Math.max(merged.sheet[0] ? merged.sheet[0].length : 0, src.sheet[0] ? src.sheet[0].length : 0);
@@ -9675,6 +9706,11 @@ $('#wsMergeBtn').onclick = () => {
           if (!merged.sheet[r][c] && src.sheet[r][c]) merged.sheet[r][c] = src.sheet[r][c];
         }
       }
+    }
+    // Sheet formatting: gap-fill
+    if (src.ssFmt) {
+      if (!merged.ssFmt) merged.ssFmt = {};
+      Object.keys(src.ssFmt).forEach(k => { if (!merged.ssFmt[k]) merged.ssFmt[k] = JSON.parse(JSON.stringify(src.ssFmt[k])); });
     }
     // Concept map: dedup by title
     if (src.cmNodes) {
