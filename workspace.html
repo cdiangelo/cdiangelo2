@@ -2229,7 +2229,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div class="page-tabs" id="ssPageTabs"></div>
       <div class="toolbar">
         <span class="cell-ref" id="ssCellRef">A1</span>
-        <input type="text" id="ssFormula" placeholder="=SUM  =SUMIF  =COUNTIF  =VLOOKUP  =LEN  =A1&amp;B1  =TEXT(A1,&quot;0.00&quot;)  =UPPER  =LEFT  =IF" />
+        <input type="text" id="ssFormula" placeholder="=SUM  =SUMIFS  =COUNTIFS  =AVERAGEIF  =MAXIFS  =MINIFS  =VLOOKUP  =IF  =STOCK" />
         <div class="sep"></div>
         <button id="ssBold" title="Toggle bold (Ctrl+B)" style="font-weight:900;min-width:22px;">B</button>
         <input type="color" id="ssTextColor" value="#ffffff" title="Text color" style="width:22px;height:20px;padding:0;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg);" />
@@ -5563,6 +5563,32 @@ function getRangeVals(startRef, endRef, visited) {
   return result;
 }
 
+// Helper: parse top-level comma-separated arguments from a formula body (respects nested parens and quotes)
+function parseFormulaArgs(body) {
+  const args = [];
+  let depth = 0, inQ = false, current = '';
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === '"') { inQ = !inQ; current += ch; }
+    else if (!inQ && ch === '(') { depth++; current += ch; }
+    else if (!inQ && ch === ')') { depth--; current += ch; }
+    else if (!inQ && ch === ',' && depth === 0) { args.push(current.trim()); current = ''; }
+    else { current += ch; }
+  }
+  if (current.trim()) args.push(current.trim());
+  return args;
+}
+
+// Helper: evaluate a single argument — resolve cell ref, quoted string, or number
+function resolveArg(arg, visited) {
+  if (!arg) return '';
+  if (arg.startsWith('"') && arg.endsWith('"')) return arg.slice(1, -1);
+  const ref = parseRef(arg);
+  if (ref) return cellVal(ref.row, ref.col, new Set(visited));
+  const n = parseFloat(arg);
+  return isNaN(n) ? arg : n;
+}
+
 // Helper: compare value against criteria string (for SUMIF/COUNTIF)
 function matchesCriteria(val, criteria) {
   // Operator criteria: ">5", "<=10", "<>0", "!=abc"
@@ -5610,6 +5636,60 @@ function ssFillAdjust(srcVal, rowOff, colOff) {
   });
 }
 
+// ── STOCK formula: async cache + sync evaluation ──
+// Cache: ssStockCache[TICKER] = { data: {...metrics}, ts, pending }
+const ssStockCache = {};
+const SS_STOCK_TTL = 5 * 60 * 1000; // 5 min
+
+// Valid metric names for STOCK formula
+const SS_STOCK_METRICS = ['PRICE','MKTCAP','MARKETCAP','PE','EPS','REVENUE','SHARES','FORWARDPE',
+  'PRICETOBOOKVALUE','PB','HIGH52','LOW52','DIVYIELD','DIVIDENDYIELD','BID','ASK','VOLUME','OPEN',
+  'CHANGE','CHANGEPCT','NAME','SOURCE'];
+
+function ssStockFetch(ticker) {
+  const key = ticker.toUpperCase();
+  const cached = ssStockCache[key];
+  if (cached && (Date.now() - cached.ts < SS_STOCK_TTL)) return cached.data;
+  if (cached && cached.pending) return cached.data; // still loading, show stale
+  // Mark as pending and fetch
+  if (!ssStockCache[key]) ssStockCache[key] = { data: null, ts: 0, pending: true };
+  else ssStockCache[key].pending = true;
+
+  // Async fetch — re-render sheet when done
+  (async () => {
+    try {
+      const metrics = await getCompanyMetricsReal(key);
+      ssStockCache[key] = { data: metrics, ts: Date.now(), pending: false };
+    } catch(e) {
+      ssStockCache[key] = { data: { source: 'error', message: e.message }, ts: Date.now(), pending: false };
+    }
+    // Re-render to show updated values
+    ssRender();
+  })();
+  return cached ? cached.data : null;
+}
+
+function ssGetStockMetric(data, metric) {
+  if (!data) return '...';
+  const m = metric.toUpperCase();
+  if (m === 'PRICE') return data.price ?? '#N/A';
+  if (m === 'MKTCAP' || m === 'MARKETCAP') return data.mktCap ?? '#N/A';
+  if (m === 'PE') return data.pe ?? '#N/A';
+  if (m === 'EPS') return data.eps ?? '#N/A';
+  if (m === 'REVENUE') return data.revenue ?? '#N/A';
+  if (m === 'SHARES') return data.sharesOutstanding ?? '#N/A';
+  if (m === 'FORWARDPE') return data.forwardPE ?? '#N/A';
+  if (m === 'PRICETOBOOKVALUE' || m === 'PB') return data.priceToBook ?? '#N/A';
+  if (m === 'HIGH52') return data.high_52 ?? '#N/A';
+  if (m === 'LOW52') return data.low_52 ?? '#N/A';
+  if (m === 'DIVYIELD' || m === 'DIVIDENDYIELD') return data.dividend_yield ?? '#N/A';
+  if (m === 'BID') return data.bid ?? '#N/A';
+  if (m === 'ASK') return data.ask ?? '#N/A';
+  if (m === 'SOURCE') return data.source ?? '#N/A';
+  if (m === 'NAME') { const c = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === data._ticker); return c ? c.name : '#N/A'; }
+  return '#METRIC?';
+}
+
 function evalF(formula, visited) {
   try {
     // ADDED: Strip $ from cell references for evaluation ($ only affects drag-fill behavior)
@@ -5617,6 +5697,28 @@ function evalF(formula, visited) {
 
     // SPARK — returns a marker for rendering
     if (f.match(/^SPARK\(/)) return '$$SPARK$$' + f;
+
+    // STOCK(ticker, metric) — pull live stock data
+    const stockM = f.match(/^STOCK\((.+)\)$/);
+    if (stockM) {
+      const args = parseFormulaArgs(stockM[1]);
+      if (args.length < 1) return '#VALUE!';
+      // Resolve ticker — cell ref or string
+      let ticker = args[0].trim();
+      if (ticker.startsWith('"') && ticker.endsWith('"')) ticker = ticker.slice(1, -1);
+      else { const ref = parseRef(ticker); if (ref) ticker = String(cellVal(ref.row, ref.col, new Set(visited))); }
+      ticker = ticker.toUpperCase();
+      // Metric defaults to PRICE
+      let metric = 'PRICE';
+      if (args[1]) {
+        metric = args[1].trim();
+        if (metric.startsWith('"') && metric.endsWith('"')) metric = metric.slice(1, -1);
+        else { const ref = parseRef(metric); if (ref) metric = String(cellVal(ref.row, ref.col, new Set(visited))); }
+      }
+      const data = ssStockFetch(ticker);
+      if (data) data._ticker = ticker;
+      return ssGetStockMetric(data, metric);
+    }
 
     // Range functions
     const rm = f.match(/^(SUM|AVG|AVERAGE|MIN|MAX|COUNT|MEDIAN|PRODUCT)\(([A-Z]+\d+):([A-Z]+\d+)\)$/);
@@ -5660,6 +5762,145 @@ function evalF(formula, visited) {
       const range = getRangeVals(countifM[1], countifM[2], visited);
       const criteria = countifM[3];
       return range.filter(cell => matchesCriteria(cell.val, criteria)).length;
+    }
+
+    // SUMIFS(sum_range, criteria_range1, criteria1, [criteria_range2, criteria2], ...)
+    if (f.match(/^SUMIFS\(/)) {
+      const inner = f.slice(6, -1);
+      const args = parseFormulaArgs(inner);
+      if (args.length < 3 || args.length % 2 === 0) return '#VALUE!';
+      const sumRangeM = args[0].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+      if (!sumRangeM) return '#VALUE!';
+      const sumRange = getRangeVals(sumRangeM[1], sumRangeM[2], visited);
+      // Collect criteria pairs
+      const criteriaPairs = [];
+      for (let a = 1; a < args.length; a += 2) {
+        const rm = args[a].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+        if (!rm) return '#VALUE!';
+        criteriaPairs.push({ range: getRangeVals(rm[1], rm[2], visited), criteria: args[a+1].replace(/^"|"$/g, '') });
+      }
+      let total = 0;
+      sumRange.forEach((cell, i) => {
+        const allMatch = criteriaPairs.every(cp => cp.range[i] && matchesCriteria(cp.range[i].val, cp.criteria));
+        if (allMatch) total += typeof cell.val === 'number' ? cell.val : (parseFloat(cell.val) || 0);
+      });
+      return total;
+    }
+
+    // COUNTIFS(criteria_range1, criteria1, [criteria_range2, criteria2], ...)
+    if (f.match(/^COUNTIFS\(/)) {
+      const inner = f.slice(8, -1);
+      const args = parseFormulaArgs(inner);
+      if (args.length < 2 || args.length % 2 !== 0) return '#VALUE!';
+      const criteriaPairs = [];
+      for (let a = 0; a < args.length; a += 2) {
+        const rm = args[a].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+        if (!rm) return '#VALUE!';
+        criteriaPairs.push({ range: getRangeVals(rm[1], rm[2], visited), criteria: args[a+1].replace(/^"|"$/g, '') });
+      }
+      const len = criteriaPairs[0].range.length;
+      let count = 0;
+      for (let i = 0; i < len; i++) {
+        if (criteriaPairs.every(cp => cp.range[i] && matchesCriteria(cp.range[i].val, cp.criteria))) count++;
+      }
+      return count;
+    }
+
+    // AVERAGEIF(range, criteria, [average_range])
+    if (f.match(/^AVERAGEIF\(/)) {
+      const inner = f.slice(10, -1);
+      const args = parseFormulaArgs(inner);
+      if (args.length < 2) return '#VALUE!';
+      const rm = args[0].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+      if (!rm) return '#VALUE!';
+      const criteriaRange = getRangeVals(rm[1], rm[2], visited);
+      const criteria = args[1].replace(/^"|"$/g, '');
+      let avgRange = criteriaRange;
+      if (args[2]) {
+        const arm = args[2].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+        if (arm) avgRange = getRangeVals(arm[1], arm[2], visited);
+      }
+      let total = 0, count = 0;
+      criteriaRange.forEach((cell, i) => {
+        if (matchesCriteria(cell.val, criteria)) {
+          const sv = avgRange[i] ? avgRange[i].val : 0;
+          const n = typeof sv === 'number' ? sv : (parseFloat(sv) || 0);
+          total += n; count++;
+        }
+      });
+      return count ? total / count : '#DIV/0!';
+    }
+
+    // AVERAGEIFS(average_range, criteria_range1, criteria1, ...)
+    if (f.match(/^AVERAGEIFS\(/)) {
+      const inner = f.slice(11, -1);
+      const args = parseFormulaArgs(inner);
+      if (args.length < 3 || args.length % 2 === 0) return '#VALUE!';
+      const avgRangeM = args[0].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+      if (!avgRangeM) return '#VALUE!';
+      const avgRange = getRangeVals(avgRangeM[1], avgRangeM[2], visited);
+      const criteriaPairs = [];
+      for (let a = 1; a < args.length; a += 2) {
+        const rm = args[a].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+        if (!rm) return '#VALUE!';
+        criteriaPairs.push({ range: getRangeVals(rm[1], rm[2], visited), criteria: args[a+1].replace(/^"|"$/g, '') });
+      }
+      let total = 0, count = 0;
+      avgRange.forEach((cell, i) => {
+        if (criteriaPairs.every(cp => cp.range[i] && matchesCriteria(cp.range[i].val, cp.criteria))) {
+          total += typeof cell.val === 'number' ? cell.val : (parseFloat(cell.val) || 0);
+          count++;
+        }
+      });
+      return count ? total / count : '#DIV/0!';
+    }
+
+    // MAXIFS(max_range, criteria_range1, criteria1, ...)
+    if (f.match(/^MAXIFS\(/)) {
+      const inner = f.slice(7, -1);
+      const args = parseFormulaArgs(inner);
+      if (args.length < 3 || args.length % 2 === 0) return '#VALUE!';
+      const maxRangeM = args[0].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+      if (!maxRangeM) return '#VALUE!';
+      const maxRange = getRangeVals(maxRangeM[1], maxRangeM[2], visited);
+      const criteriaPairs = [];
+      for (let a = 1; a < args.length; a += 2) {
+        const rm = args[a].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+        if (!rm) return '#VALUE!';
+        criteriaPairs.push({ range: getRangeVals(rm[1], rm[2], visited), criteria: args[a+1].replace(/^"|"$/g, '') });
+      }
+      let result = -Infinity, found = false;
+      maxRange.forEach((cell, i) => {
+        if (criteriaPairs.every(cp => cp.range[i] && matchesCriteria(cp.range[i].val, cp.criteria))) {
+          const v = typeof cell.val === 'number' ? cell.val : parseFloat(cell.val);
+          if (!isNaN(v)) { result = Math.max(result, v); found = true; }
+        }
+      });
+      return found ? result : 0;
+    }
+
+    // MINIFS(min_range, criteria_range1, criteria1, ...)
+    if (f.match(/^MINIFS\(/)) {
+      const inner = f.slice(7, -1);
+      const args = parseFormulaArgs(inner);
+      if (args.length < 3 || args.length % 2 === 0) return '#VALUE!';
+      const minRangeM = args[0].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+      if (!minRangeM) return '#VALUE!';
+      const minRange = getRangeVals(minRangeM[1], minRangeM[2], visited);
+      const criteriaPairs = [];
+      for (let a = 1; a < args.length; a += 2) {
+        const rm = args[a].match(/^([A-Z]+\d+):([A-Z]+\d+)$/);
+        if (!rm) return '#VALUE!';
+        criteriaPairs.push({ range: getRangeVals(rm[1], rm[2], visited), criteria: args[a+1].replace(/^"|"$/g, '') });
+      }
+      let result = Infinity, found = false;
+      minRange.forEach((cell, i) => {
+        if (criteriaPairs.every(cp => cp.range[i] && matchesCriteria(cp.range[i].val, cp.criteria))) {
+          const v = typeof cell.val === 'number' ? cell.val : parseFloat(cell.val);
+          if (!isNaN(v)) { result = Math.min(result, v); found = true; }
+        }
+      });
+      return found ? result : 0;
     }
 
     // VLOOKUP(lookup_value, table_range, col_index, [approx])
@@ -6494,6 +6735,12 @@ $('#ssHelp').onclick = () => {
       ['PRODUCT(A1:A10)', 'Product of range'],
       ['SUMIF(A1:A10,"&gt;5",B1:B10)', 'Conditional sum'],
       ['COUNTIF(A1:A10,"&gt;5")', 'Conditional count'],
+      ['SUMIFS(C1:C10,A1:A10,"&gt;5",B1:B10,"Yes")', 'Multi-criteria sum'],
+      ['COUNTIFS(A1:A10,"&gt;5",B1:B10,"Yes")', 'Multi-criteria count'],
+      ['AVERAGEIF(A1:A10,"&gt;5",B1:B10)', 'Conditional average'],
+      ['AVERAGEIFS(C1:C10,A1:A10,"&gt;5",B1:B10,"Yes")', 'Multi-criteria average'],
+      ['MAXIFS(C1:C10,A1:A10,"&gt;5")', 'Conditional max'],
+      ['MINIFS(C1:C10,A1:A10,"&gt;5")', 'Conditional min'],
       ['VLOOKUP(A1,B1:D10,2)', 'Vertical lookup'],
       ['IF(A1&gt;5,"Yes","No")', 'Conditional value'],
       ['LEN(A1)', 'String length'],
@@ -6512,6 +6759,8 @@ $('#ssHelp').onclick = () => {
       ['POW(A1,2)', 'Power/exponent'],
       ['NOW()', 'Current date/time'],
       ['TODAY()', 'Current date'],
+      ['STOCK("AAPL","PRICE")', 'Live stock price (Robinhood/Yahoo)'],
+      ['STOCK("AAPL","PE")', 'P/E ratio. Metrics: PRICE, MKTCAP, PE, EPS, REVENUE, SHARES, FORWARDPE, PB, HIGH52, LOW52, DIVYIELD, BID, ASK'],
       ['SPARK(A1:A10)', 'Inline sparkline chart'],
       ['Cell refs: A1, B2:D5', 'Single cell or range'],
       ['Arithmetic: +, -, *, /', 'Basic math operators']
@@ -6592,6 +6841,12 @@ const ssFormulaSigs = {
   PRODUCT:     [{ name: 'range', ex: 'A1:A10' }],
   SUMIF:       [{ name: 'criteria_range', ex: 'A1:A10' }, { name: 'criteria', ex: '">5"' }, { name: 'sum_range', ex: 'B1:B10', opt: true }],
   COUNTIF:     [{ name: 'range', ex: 'A1:A10' }, { name: 'criteria', ex: '">5"' }],
+  SUMIFS:      [{ name: 'sum_range', ex: 'C1:C10' }, { name: 'criteria_range1', ex: 'A1:A10' }, { name: 'criteria1', ex: '">5"' }, { name: 'criteria_range2', ex: 'B1:B10', opt: true }, { name: 'criteria2', ex: '"Yes"', opt: true }],
+  COUNTIFS:    [{ name: 'criteria_range1', ex: 'A1:A10' }, { name: 'criteria1', ex: '">5"' }, { name: 'criteria_range2', ex: 'B1:B10', opt: true }, { name: 'criteria2', ex: '"Yes"', opt: true }],
+  AVERAGEIF:   [{ name: 'range', ex: 'A1:A10' }, { name: 'criteria', ex: '">5"' }, { name: 'average_range', ex: 'B1:B10', opt: true }],
+  AVERAGEIFS:  [{ name: 'average_range', ex: 'C1:C10' }, { name: 'criteria_range1', ex: 'A1:A10' }, { name: 'criteria1', ex: '">5"' }, { name: 'criteria_range2', ex: 'B1:B10', opt: true }, { name: 'criteria2', ex: '"Yes"', opt: true }],
+  MAXIFS:      [{ name: 'max_range', ex: 'C1:C10' }, { name: 'criteria_range1', ex: 'A1:A10' }, { name: 'criteria1', ex: '">5"' }, { name: 'criteria_range2', ex: 'B1:B10', opt: true }, { name: 'criteria2', ex: '"Yes"', opt: true }],
+  MINIFS:      [{ name: 'min_range', ex: 'C1:C10' }, { name: 'criteria_range1', ex: 'A1:A10' }, { name: 'criteria1', ex: '">5"' }, { name: 'criteria_range2', ex: 'B1:B10', opt: true }, { name: 'criteria2', ex: '"Yes"', opt: true }],
   VLOOKUP:     [{ name: 'lookup_value', ex: 'A1' }, { name: 'table_range', ex: 'B1:D10' }, { name: 'col_index', ex: '2' }],
   IF:          [{ name: 'condition', ex: 'A1>5' }, { name: 'value_if_true', ex: '"Yes"' }, { name: 'value_if_false', ex: '"No"' }],
   LEN:         [{ name: 'text', ex: 'A1' }],
@@ -6615,6 +6870,7 @@ const ssFormulaSigs = {
   POW:         [{ name: 'base', ex: 'A1' }, { name: 'exponent', ex: '2' }],
   LOG:         [{ name: 'number', ex: 'A1' }, { name: 'base', ex: '10', opt: true }],
   MOD:         [{ name: 'number', ex: 'A1' }, { name: 'divisor', ex: '3' }],
+  STOCK:       [{ name: 'ticker', ex: '"AAPL"' }, { name: 'metric', ex: '"PRICE"', opt: true }],
   SPARK:       [{ name: 'range', ex: 'A1:A10' }],
   NOW:         [],
   TODAY:       [],
