@@ -2512,13 +2512,18 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
       <!-- SPORTS VIEW -->
       <div id="sportsView" style="display:none;flex-direction:column;flex:1;">
-        <div class="page-tabs" id="spTabs">
+        <div class="page-tabs" id="spTabs" style="display:flex;align-items:center;">
           <div class="page-tab active" data-sptab="games">Scores</div>
           <div class="page-tab" data-sptab="standings">Standings</div>
           <div class="page-tab" data-sptab="odds">Odds</div>
           <div class="page-tab" data-sptab="news">News</div>
           <div class="page-tab" data-sptab="players">Players</div>
           <div class="page-tab" data-sptab="youtube">YouTube</div>
+          <div style="flex:1;"></div>
+          <div id="spConnStatus" style="display:flex;align-items:center;gap:4px;padding:0 6px;font-size:.5rem;color:var(--text-dim);cursor:pointer;" title="Sports data connection status">
+            <span id="spConnDot" style="width:7px;height:7px;border-radius:50%;background:#888;flex-shrink:0;"></span>
+            <span id="spConnLabel">Checking...</span>
+          </div>
         </div>
         <!-- Scores sub-tab -->
         <div id="spGamesTab" class="sp-subtab" style="display:flex;flex-direction:column;flex:1;">
@@ -9774,6 +9779,14 @@ const SP_GLOBAL_SOURCES = [
   { sport: 'soccer', league: 'fifa.worldq.concacaf', name: 'CONCACAF World Cup Qualifying' }
 ];
 
+// Safe JSON parse — throws clear error if response is HTML or non-JSON
+function spSafeJson(r) {
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const ct = r.headers.get('content-type') || '';
+  if (!ct.includes('json')) throw new Error('Non-JSON response (got ' + ct.split(';')[0] + ')');
+  return r.json();
+}
+
 function spEspnUrl(league, endpoint) {
   if (league === 'global') return null; // handled separately
   const l = SP_LEAGUE_MAP[league] || SP_LEAGUE_MAP.nba;
@@ -9803,6 +9816,66 @@ function renderSportsTab() {
   // YouTube search tab is self-contained, no init needed
 }
 
+// ── Sports Connection Status ──
+let spConnState = { espn: null, odds: null, youtube: null };
+
+function spUpdateConnBadge() {
+  const dot = $('#spConnDot');
+  const label = $('#spConnLabel');
+  if (!dot || !label) return;
+  const states = Object.values(spConnState);
+  const checking = states.some(s => s === null);
+  const allGood = states.every(s => s === true);
+  const allBad = states.every(s => s === false);
+
+  if (checking) {
+    dot.style.background = '#f59e0b'; label.textContent = 'Checking...';
+  } else if (allGood) {
+    dot.style.background = '#22c55e'; label.textContent = 'All Connected';
+  } else if (allBad) {
+    dot.style.background = '#ef4444'; label.textContent = 'Disconnected';
+  } else {
+    dot.style.background = '#f59e0b';
+    const up = [], down = [];
+    if (spConnState.espn) up.push('ESPN'); else down.push('ESPN');
+    if (spConnState.odds) up.push('Odds'); else down.push('Odds');
+    if (spConnState.youtube) up.push('YT'); else down.push('YT');
+    label.textContent = down.join(', ') + ' down';
+  }
+  const el = $('#spConnStatus');
+  if (el) el.title = 'ESPN: '+(spConnState.espn == null ? '...' : spConnState.espn ? 'OK' : 'down')+
+    ' | Odds API: '+(spConnState.odds == null ? '...' : spConnState.odds ? 'OK' : 'down')+
+    ' | YouTube: '+(spConnState.youtube == null ? '...' : spConnState.youtube ? 'OK' : 'down');
+}
+
+function spCheckConnections() {
+  spConnState = { espn: null, odds: null, youtube: null };
+  spUpdateConnBadge();
+
+  // Check ESPN via proxy
+  fetch(PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard', { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+    .then(spSafeJson)
+    .then(() => { spConnState.espn = true; spUpdateConnBadge(); })
+    .catch(() => { spConnState.espn = false; spUpdateConnBadge(); });
+
+  // Check Odds API via proxy
+  fetch(PROXY_BASE + '/proxy/odds/status', { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined })
+    .then(r => r.json())
+    .then(d => { spConnState.odds = !!d.available; spUpdateConnBadge(); })
+    .catch(() => { spConnState.odds = false; spUpdateConnBadge(); });
+
+  // Check YouTube proxy
+  fetch(PROXY_BASE + '/proxy/youtube/search?q=test', { signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined })
+    .then(r => { spConnState.youtube = r.ok; spUpdateConnBadge(); })
+    .catch(() => { spConnState.youtube = false; spUpdateConnBadge(); });
+}
+
+// Click on status to re-check
+if ($('#spConnStatus')) $('#spConnStatus').onclick = spCheckConnections;
+
+// Run on load
+spCheckConnections();
+
 // ── Live Scores ──
 $('#spRefreshScores').onclick = () => spFetchScores();
 $('#spLeague').onchange = () => spFetchScores();
@@ -9813,7 +9886,7 @@ function spFetchScores() {
   el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading scores...</div>';
   if (league === 'global') { spFetchGlobalScores(); return; }
   fetch(spEspnUrl(league, 'scoreboard'))
-    .then(r => r.json())
+    .then(spSafeJson)
     .then(data => {
       const events = data.events || [];
       if (!events.length) { el.innerHTML = '<div class="sp-empty">No games found for today.</div>'; return; }
@@ -9870,7 +9943,7 @@ function spFetchGlobalScores() {
   const el = $('#spGamesList');
   const promises = SP_GLOBAL_SOURCES.map(src =>
     fetch(spEspnUrlDirect(src.sport, src.league, 'scoreboard'))
-      .then(r => r.json())
+      .then(spSafeJson)
       .then(data => ({ name: src.name, events: data.events || [] }))
       .catch(() => ({ name: src.name, events: [] }))
   );
@@ -10130,7 +10203,7 @@ function spFetchOdds() {
 function spFetchOddsEspn(league) {
   const el = $('#spOddsList');
   fetch(spEspnUrl(league, 'scoreboard'))
-    .then(r => r.json())
+    .then(spSafeJson)
     .then(data => {
       const events = data.events || [];
       console.log('[Sports] ESPN odds: ' + events.length + ' events found');
@@ -10184,7 +10257,7 @@ function spFetchNews() {
   if (league === 'global') {
     const promises = SP_GLOBAL_SOURCES.map(src =>
       fetch(spEspnUrlDirect(src.sport, src.league, 'news'))
-        .then(r => r.json()).then(d => ({ name: src.name, articles: d.articles || [] })).catch(() => null)
+        .then(spSafeJson).then(d => ({ name: src.name, articles: d.articles || [] })).catch(() => null)
     );
     Promise.all(promises).then(results => {
       let html = '';
@@ -10209,7 +10282,7 @@ function spFetchNews() {
     return;
   }
   fetch(spEspnUrl(league, 'news'))
-    .then(r => r.json())
+    .then(spSafeJson)
     .then(data => {
       const articles = data.articles || [];
       if (!articles.length) { el.innerHTML = '<div class="sp-empty">No news available.</div>'; return; }
