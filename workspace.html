@@ -452,6 +452,8 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.heat-red { background: rgba(204,68,68,.15); }
 .ss-table td.heat-yellow { background: rgba(204,153,51,.15); }
 .ss-table td.validation-error { border-color: var(--danger); }
+.ss-table.no-gridlines td { border-color: transparent; }
+.ss-table.no-gridlines th { border-color: transparent; }
 /* Row/column grouping */
 .ss-table th.row-h { position: relative; }
 .ss-table th.row-h .grp-toggle {
@@ -2307,6 +2309,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="ssUndo" title="Undo last change">Undo</button>
         <button id="ssHelp" title="Formula reference">? Help</button>
         <button id="ssExport">Excel</button>
+        <button id="ssGridLines" title="Toggle grid lines">Grid</button>
       </div>
       <div class="ss-wrap" id="ssWrap">
         <table class="ss-table" id="ssTable"></table>
@@ -5653,7 +5656,18 @@ function saveSsPages() {
   LS('ssPageIdCounter', ssPageIdCounter);
 }
 
+function ssFlushEdit() {
+  // Commit any in-progress cell edit to ssD before saving
+  if (ssEditing && ssSel) {
+    const inp = document.querySelector('#ssTable .ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+    if (inp && inp.value !== (ssD[ssSel.r1][ssSel.c1] || '')) {
+      ssD[ssSel.r1][ssSel.c1] = inp.value;
+    }
+  }
+}
+
 function ssSaveCurrentPage() {
+  ssFlushEdit();
   const page = ssPages.find(p => p.id === ssActivePageId);
   if (page) {
     page.data = JSON.parse(JSON.stringify(ssD));
@@ -6818,7 +6832,7 @@ function ssRender() {
     if (ssEditing) {
       const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
       if (e.key === 'Escape') { e.preventDefault(); ssEditing = false; ssFormulaRef = null; ssClearFormulaRefHighlight(); ssHideFormulaTooltip(); if (inp) { inp.value = ssD[ssSel.r1][ssSel.c1] || ''; inp.setAttribute('readonly', ''); } ssRenderSelection(); return; }
-      if (e.key === 'Enter') { e.preventDefault(); ssFormulaRef = null; ssClearFormulaRefHighlight(); ssExitEdit(); const nr = Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); ssEnterEdit(nr, ssSel.c1); return; }
+      if (e.key === 'Enter') { e.preventDefault(); ssFormulaRef = null; ssClearFormulaRefHighlight(); ssExitEdit(); const nr = e.shiftKey ? Math.max(ssSel.r1 - 1, 0) : Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); ssEnterEdit(nr, ssSel.c1); return; }
       if (e.key === 'Tab') { e.preventDefault(); ssFormulaRef = null; ssClearFormulaRefHighlight(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); ssEnterEdit(ssSel.r1, nc); return; }
       // Arrow keys in formula edit mode: select cell references
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -6930,7 +6944,7 @@ function ssRender() {
       if (!e.shiftKey) ssEnterEdit(ssSel.r1, ssSel.c1);
       return;
     }
-    if (e.key === 'Enter') { e.preventDefault(); ssEnterEdit(ssSel.r1, ssSel.c1); return; }
+    if (e.key === 'Enter') { e.preventDefault(); if (e.shiftKey) { const nr = Math.max(ssSel.r1 - 1, 0); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); } ssEnterEdit(ssSel.r1, ssSel.c1); return; }
     if (e.key === 'Tab') {
       e.preventDefault();
       const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1);
@@ -7514,6 +7528,15 @@ $('#ssExport').onclick = () => {
   a.href = URL.createObjectURL(new Blob([xlsx], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.click();
   toast('Excel exported (' + pages.length + ' sheet' + (pages.length > 1 ? 's' : '') + ')');
+};
+
+// Grid lines toggle
+let ssGridLinesOn = true;
+$('#ssGridLines').onclick = () => {
+  ssGridLinesOn = !ssGridLinesOn;
+  $('#ssTable').classList.toggle('no-gridlines', !ssGridLinesOn);
+  $('#ssGridLines').style.opacity = ssGridLinesOn ? '1' : '.5';
+  toast(ssGridLinesOn ? 'Grid lines on' : 'Grid lines off');
 };
 
 // Context menu
