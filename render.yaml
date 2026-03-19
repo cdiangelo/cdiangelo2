@@ -2,6 +2,7 @@ services:
   - type: web
     name: planning-tool
     runtime: node
+    plan: starter
     buildCommand: npm install
     startCommand: node proxy.js
     envVars:
