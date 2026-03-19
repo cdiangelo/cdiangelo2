@@ -2514,11 +2514,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <!-- SPORTS VIEW -->
       <div id="sportsView" style="display:flex;flex-direction:column;flex:1;">
         <div class="page-tabs" id="spTabs" style="display:flex;align-items:center;">
-          <div class="page-tab active" data-sptab="games">Scores</div>
-          <div class="page-tab" data-sptab="standings">Standings</div>
+          <div class="page-tab active" data-sptab="games">Scores/Schedule</div>
           <div class="page-tab" data-sptab="odds">Odds</div>
           <div class="page-tab" data-sptab="news">News</div>
           <div class="page-tab" data-sptab="players">Players</div>
+          <div class="page-tab" data-sptab="standings">Standings</div>
           <div class="page-tab" data-sptab="youtube">YouTube</div>
           <div style="flex:1;"></div>
           <div id="spConnStatus" style="display:flex;align-items:center;gap:4px;padding:0 6px;font-size:.5rem;color:var(--text-dim);cursor:pointer;" title="Sports data connection status">
@@ -9801,7 +9801,7 @@ function spEspnUrlDirect(sport, leagueCode, endpoint) {
 // Sub-tab switching
 $$('#spTabs .page-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    $$('#spTabs .page-tab').forEach(t => t.classList.remove('active'));
+    $$('#spTabs .page-tab').forEach(t => { t.classList.remove('active'); t.style.background = ''; t.style.color = ''; });
     tab.classList.add('active');
     const st = tab.dataset.sptab;
     $('#spGamesTab').style.display = st === 'games' ? 'flex' : 'none';
@@ -9810,6 +9810,8 @@ $$('#spTabs .page-tab').forEach(tab => {
     if ($('#spNewsTab')) $('#spNewsTab').style.display = st === 'news' ? 'flex' : 'none';
     if ($('#spPlayersTab')) $('#spPlayersTab').style.display = st === 'players' ? 'flex' : 'none';
     $('#spYoutubeTab').style.display = st === 'youtube' ? 'flex' : 'none';
+    // Re-apply pink tints for disconnected tabs
+    spUpdateConnBadge();
   });
 });
 
@@ -9852,6 +9854,24 @@ function spUpdateConnBadge() {
   if (el) el.title = 'ESPN: '+(e == null ? '...' : e ? 'OK' : 'down')+
     ' | Odds API: '+(o == null ? '...' : o ? 'OK' : 'down')+
     ' | YouTube: '+(y == null ? '...' : y ? 'OK' : 'down');
+
+  // Tint tabs pink when their data source is disconnected
+  var pinkBg = 'rgba(239,68,68,.12)';
+  var pinkColor = '#f87171';
+  $$('#spTabs .page-tab').forEach(function(tab) {
+    var key = tab.dataset.sptab;
+    var down = false;
+    if ((key === 'standings' || key === 'players') && e === false) down = true;
+    if (key === 'odds' && o === false) down = true;
+    if (key === 'youtube' && y === false) down = true;
+    if (down) {
+      tab.style.background = pinkBg;
+      tab.style.color = pinkColor;
+    } else if (!tab.classList.contains('active')) {
+      tab.style.background = '';
+      tab.style.color = '';
+    }
+  });
 }
 
 function spCheckConnections() {
@@ -9894,62 +9914,126 @@ spCheckConnections();
 $('#spRefreshScores').onclick = () => spFetchScores();
 $('#spLeague').onchange = () => spFetchScores();
 
+function _spDateStr(d) { return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0'); }
+
+function _spRenderScoreCard(ev) {
+  const comp = ev.competitions && ev.competitions[0];
+  if (!comp) return '';
+  const teams = comp.competitors || [];
+  const home = teams.find(t => t.homeAway === 'home') || teams[0] || {};
+  const away = teams.find(t => t.homeAway === 'away') || teams[1] || {};
+  const homeName = home.team ? home.team.displayName : 'TBD';
+  const awayName = away.team ? away.team.displayName : 'TBD';
+  const homeScore = home.score || '-';
+  const awayScore = away.score || '-';
+  const homeLogo = home.team && home.team.logo ? home.team.logo : '';
+  const awayLogo = away.team && away.team.logo ? away.team.logo : '';
+  const status = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
+  const state = ev.status && ev.status.type ? ev.status.type.state : '';
+  const stateColor = state === 'in' ? 'var(--accent2)' : state === 'post' ? 'var(--text-dim)' : 'var(--text)';
+  const homeRecord = home.records && home.records[0] ? home.records[0].summary : '';
+  const awayRecord = away.records && away.records[0] ? away.records[0].summary : '';
+  const homeWin = state === 'post' && parseInt(homeScore) > parseInt(awayScore);
+  const awayWin = state === 'post' && parseInt(awayScore) > parseInt(homeScore);
+  // For scheduled games, show start time prominently
+  const isScheduled = state === 'pre';
+  const cardBorder = isScheduled ? 'border-left:2px solid var(--accent);' : '';
+  return '<div class="sp-card" style="'+cardBorder+'">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+      '<div style="flex:1;display:flex;align-items:center;gap:6px;">' +
+        (awayLogo ? '<img src="'+esc(awayLogo)+'" style="width:20px;height:20px;" onerror="this.style.display=\'none\'" />' : '') +
+        '<span style="font-weight:'+(awayWin?'700':'400')+';font-size:.74rem;">'+esc(awayName)+'</span>' +
+        (awayRecord ? '<span style="font-size:.55rem;color:var(--text-dim);">('+esc(awayRecord)+')</span>' : '') +
+      '</div>' +
+      '<span class="sp-game-score" style="font-size:.82rem;min-width:28px;text-align:center;'+(awayWin?'':'opacity:.6')+'">'+esc(isScheduled ? '' : awayScore)+'</span>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;">' +
+      '<div style="flex:1;display:flex;align-items:center;gap:6px;">' +
+        (homeLogo ? '<img src="'+esc(homeLogo)+'" style="width:20px;height:20px;" onerror="this.style.display=\'none\'" />' : '') +
+        '<span style="font-weight:'+(homeWin?'700':'400')+';font-size:.74rem;">'+esc(homeName)+'</span>' +
+        (homeRecord ? '<span style="font-size:.55rem;color:var(--text-dim);">('+esc(homeRecord)+')</span>' : '') +
+      '</div>' +
+      '<span class="sp-game-score" style="font-size:.82rem;min-width:28px;text-align:center;'+(homeWin?'':'opacity:.6')+'">'+esc(isScheduled ? '' : homeScore)+'</span>' +
+    '</div>' +
+    '<div style="margin-top:4px;font-size:.58rem;color:'+stateColor+';">'+(isScheduled ? '\u{1F4C5} ' : '')+esc(status)+'</div>' +
+  '</div>';
+}
+
 function spFetchScores() {
   const league = $('#spLeague').value;
   const el = $('#spGamesList');
-  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading scores...</div>';
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading scores & schedule...</div>';
   if (league === 'global') { spFetchGlobalScores(); return; }
-  fetch(spEspnUrl(league, 'scoreboard'))
-    .then(spSafeJson)
-    .then(data => {
-      const events = data.events || [];
-      if (!events.length) { el.innerHTML = '<div class="sp-empty">No games found for today.</div>'; return; }
-      $('#spScoresTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
-      el.innerHTML = events.map(ev => {
-        const comp = ev.competitions && ev.competitions[0];
-        if (!comp) return '';
-        const teams = comp.competitors || [];
-        const home = teams.find(t => t.homeAway === 'home') || teams[0] || {};
-        const away = teams.find(t => t.homeAway === 'away') || teams[1] || {};
-        const homeName = home.team ? home.team.displayName : 'TBD';
-        const awayName = away.team ? away.team.displayName : 'TBD';
-        const homeScore = home.score || '-';
-        const awayScore = away.score || '-';
-        const homeLogo = home.team && home.team.logo ? home.team.logo : '';
-        const awayLogo = away.team && away.team.logo ? away.team.logo : '';
-        const status = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
-        const state = ev.status && ev.status.type ? ev.status.type.state : '';
-        const stateColor = state === 'in' ? 'var(--accent2)' : state === 'post' ? 'var(--text-dim)' : 'var(--text)';
-        const homeRecord = home.records && home.records[0] ? home.records[0].summary : '';
-        const awayRecord = away.records && away.records[0] ? away.records[0].summary : '';
-        // Highlight winner
-        const homeWin = state === 'post' && parseInt(homeScore) > parseInt(awayScore);
-        const awayWin = state === 'post' && parseInt(awayScore) > parseInt(homeScore);
-        return '<div class="sp-card">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;">' +
-            '<div style="flex:1;display:flex;align-items:center;gap:6px;">' +
-              (awayLogo ? '<img src="'+esc(awayLogo)+'" style="width:20px;height:20px;" onerror="this.style.display=\'none\'" />' : '') +
-              '<span style="font-weight:'+(awayWin?'700':'400')+';font-size:.74rem;">'+esc(awayName)+'</span>' +
-              (awayRecord ? '<span style="font-size:.55rem;color:var(--text-dim);">('+esc(awayRecord)+')</span>' : '') +
-            '</div>' +
-            '<span class="sp-game-score" style="font-size:.82rem;min-width:28px;text-align:center;'+(awayWin?'':'opacity:.6')+'">'+esc(awayScore)+'</span>' +
-          '</div>' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;">' +
-            '<div style="flex:1;display:flex;align-items:center;gap:6px;">' +
-              (homeLogo ? '<img src="'+esc(homeLogo)+'" style="width:20px;height:20px;" onerror="this.style.display=\'none\'" />' : '') +
-              '<span style="font-weight:'+(homeWin?'700':'400')+';font-size:.74rem;">'+esc(homeName)+'</span>' +
-              (homeRecord ? '<span style="font-size:.55rem;color:var(--text-dim);">('+esc(homeRecord)+')</span>' : '') +
-            '</div>' +
-            '<span class="sp-game-score" style="font-size:.82rem;min-width:28px;text-align:center;'+(homeWin?'':'opacity:.6')+'">'+esc(homeScore)+'</span>' +
-          '</div>' +
-          '<div style="margin-top:4px;font-size:.58rem;color:'+stateColor+';">'+esc(status)+'</div>' +
-        '</div>';
-      }).join('');
-    })
-    .catch(err => {
-      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load scores. Check connection.</div>';
-      console.error('[Sports] Score fetch error:', err);
+
+  // Fetch today + tomorrow to capture next 24h of scheduled games
+  const today = new Date();
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  const todayStr = _spDateStr(today);
+  const tomorrowStr = _spDateStr(tomorrow);
+
+  Promise.all([
+    fetch(spEspnUrl(league, 'scoreboard') + '?dates=' + todayStr).then(spSafeJson).catch(() => ({ events: [] })),
+    fetch(spEspnUrl(league, 'scoreboard') + '?dates=' + tomorrowStr).then(spSafeJson).catch(() => ({ events: [] }))
+  ]).then(([todayData, tomorrowData]) => {
+    const todayEvents = todayData.events || [];
+    const tomorrowEvents = tomorrowData.events || [];
+
+    // Filter tomorrow's events to only include those within 24h from now
+    const cutoff = Date.now() + 24 * 60 * 60 * 1000;
+    const upcomingTomorrow = tomorrowEvents.filter(ev => {
+      const state = ev.status && ev.status.type ? ev.status.type.state : '';
+      if (state !== 'pre') return false; // only scheduled games from tomorrow
+      const startTime = ev.date ? new Date(ev.date).getTime() : 0;
+      return startTime > 0 && startTime <= cutoff;
     });
+
+    // Deduplicate by event ID (ESPN may return same event on both days)
+    const seen = new Set();
+    const allEvents = [];
+    [...todayEvents, ...upcomingTomorrow].forEach(ev => {
+      const id = ev.id || ev.uid || JSON.stringify(ev.date);
+      if (!seen.has(id)) { seen.add(id); allEvents.push(ev); }
+    });
+
+    if (!allEvents.length) { el.innerHTML = '<div class="sp-empty">No games or upcoming schedule found.</div>'; return; }
+
+    // Sort: live first, then scheduled by time, then completed
+    allEvents.sort((a, b) => {
+      const stateA = a.status && a.status.type ? a.status.type.state : '';
+      const stateB = b.status && b.status.type ? b.status.type.state : '';
+      const order = { 'in': 0, 'pre': 1, 'post': 2 };
+      const oa = order[stateA] != null ? order[stateA] : 1;
+      const ob = order[stateB] != null ? order[stateB] : 1;
+      if (oa !== ob) return oa - ob;
+      // Within same state, sort by date
+      return new Date(a.date || 0) - new Date(b.date || 0);
+    });
+
+    // Group by section
+    const live = allEvents.filter(ev => (ev.status?.type?.state) === 'in');
+    const scheduled = allEvents.filter(ev => (ev.status?.type?.state) === 'pre');
+    const final = allEvents.filter(ev => (ev.status?.type?.state) === 'post');
+
+    let html = '';
+    if (live.length) {
+      html += '<div style="font-size:.55rem;font-weight:700;color:var(--accent2);padding:4px 0;text-transform:uppercase;">Live</div>';
+      html += live.map(_spRenderScoreCard).join('');
+    }
+    if (scheduled.length) {
+      html += '<div style="font-size:.55rem;font-weight:700;color:var(--accent);padding:4px 0;margin-top:'+(live.length?'8':'0')+'px;text-transform:uppercase;">Upcoming</div>';
+      html += scheduled.map(_spRenderScoreCard).join('');
+    }
+    if (final.length) {
+      html += '<div style="font-size:.55rem;font-weight:700;color:var(--text-dim);padding:4px 0;margin-top:'+(live.length||scheduled.length?'8':'0')+'px;text-transform:uppercase;">Final</div>';
+      html += final.map(_spRenderScoreCard).join('');
+    }
+
+    $('#spScoresTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    el.innerHTML = html;
+  }).catch(err => {
+    el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load scores. Check connection.</div>';
+    console.error('[Sports] Score fetch error:', err);
+  });
 }
 
 // Global events: fetch from multiple international sources and combine
