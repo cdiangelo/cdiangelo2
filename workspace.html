@@ -2575,6 +2575,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             </select>
             <button id="spRefreshOdds" style="font-size:.68rem;">&#8635; Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
+            <button id="spOddsKeyBtn" style="font-size:.55rem;color:var(--text-dim);background:none;border:1px solid var(--border);border-radius:3px;padding:1px 6px;cursor:pointer;" title="Set The Odds API key (free at the-odds-api.com)">API Key</button>
             <span id="spOddsTime" style="font-size:.55rem;color:var(--text-dim);"></span>
           </div>
           <div id="spOddsList" style="flex:1;overflow-y:auto;padding:8px;">
@@ -9732,8 +9733,6 @@ setTimeout(() => { if ($('#graphCalcView').style.display === 'flex') resizeGC();
    SPORTS PANE — Live Data Feeds
    ═══════════════════════════════════════════ */
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-let spYtLinks = LS('spYtLinks') || [];
-
 // ESPN API endpoints (public, no auth required)
 const SP_LEAGUE_MAP = {
   nba: { sport: 'basketball', league: 'nba', name: 'NBA' },
@@ -9782,7 +9781,7 @@ $$('#spTabs .page-tab').forEach(tab => {
 });
 
 function renderSportsTab() {
-  renderSpYtLinks();
+  // YouTube search tab is self-contained, no init needed
 }
 
 // ── Live Scores ──
@@ -9934,168 +9933,239 @@ function spFetchStandings() {
   const el = $('#spStandingsList');
   el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading standings...</div>';
   if (league === 'global') {
-    // Fetch standings from all global sources
-    const promises = SP_GLOBAL_SOURCES.map(src =>
-      fetch(spEspnUrlDirect(src.sport, src.league, 'standings'))
-        .then(r => r.json())
-        .then(data => ({ name: src.name, data }))
-        .catch(() => null)
-    );
-    Promise.all(promises).then(results => {
-      let html = '';
-      results.filter(Boolean).forEach(src => {
-        const children = src.data.children || [];
-        if (!children.length) return;
-        html += '<div style="font-weight:700;font-size:.78rem;color:var(--accent);margin:8px 0 4px;">'+esc(src.name)+'</div>';
-        children.forEach(group => {
-          const divChildren = group.children || [];
-          if (divChildren.length) { divChildren.forEach(div => { html += spParseStandingsGroup(div); }); }
-          else { html += spParseStandingsGroup(group); }
-        });
-      });
-      el.innerHTML = html || '<div class="sp-empty">No standings data for global events currently.</div>';
-    });
+    el.innerHTML = '<div class="sp-empty">Standings are not available for Global Events. Select a specific league.</div>';
     return;
   }
   fetch(spEspnUrl(league, 'standings'))
-    .then(r => r.json())
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(data => {
+      console.log('[Sports] Standings raw response keys:', Object.keys(data));
       let html = '';
-      // ESPN structures: data.children[] (conferences) which may have children[] (divisions)
-      const topChildren = data.children || [];
-      if (topChildren.length) {
-        topChildren.forEach(conf => {
-          // Conference level might have its own standings
-          const confStandings = conf.standings || {};
-          const confEntries = confStandings.entries || [];
-          // Check for division sub-groups
-          const divChildren = conf.children || [];
-          if (divChildren.length) {
-            // Conference header
-            html += '<div style="font-weight:700;font-size:.78rem;color:var(--accent);margin:8px 0 4px;text-transform:uppercase;">'+esc(conf.name || conf.abbreviation || '')+'</div>';
-            divChildren.forEach(div => { html += spParseStandingsGroup(div); });
-          } else if (confEntries.length) {
-            html += spParseStandingsGroup(conf);
+
+      // Helper: recursively find all groups with standings entries
+      function walkGroups(node, depth) {
+        depth = depth || 0;
+        const standings = node.standings || {};
+        const entries = standings.entries || [];
+        const children = node.children || [];
+        // If this node has entries, render them
+        if (entries.length) {
+          if (depth === 1) {
+            html += '<div style="font-weight:700;font-size:.78rem;color:var(--accent);margin:8px 0 4px;text-transform:uppercase;">'+esc(node.name || node.abbreviation || '')+'</div>';
           }
-        });
-      }
-      // Fallback: some leagues put standings at top-level
-      if (!html) {
-        const topStandings = data.standings || {};
-        const topEntries = topStandings.entries || [];
-        if (topEntries.length) {
-          html = spParseStandingsGroup({ name: SP_LEAGUE_MAP[league] ? SP_LEAGUE_MAP[league].name : league, standings: topStandings });
+          html += spParseStandingsGroup(node);
+        }
+        // Recurse into children
+        if (children.length) {
+          if (depth === 0 && !entries.length) {
+            // Top-level conferences
+          }
+          children.forEach(function(child) { walkGroups(child, depth + 1); });
         }
       }
-      el.innerHTML = html || '<div class="sp-empty">No standings data available for this league.</div>';
+
+      // Try children-based structure (most leagues)
+      const topChildren = data.children || [];
+      if (topChildren.length) {
+        topChildren.forEach(function(conf) { walkGroups(conf, 0); });
+      }
+
+      // Fallback: standings directly on data
+      if (!html && data.standings) {
+        html = spParseStandingsGroup({ name: SP_LEAGUE_MAP[league] ? SP_LEAGUE_MAP[league].name : league, standings: data.standings });
+      }
+
+      // Fallback: try data.groups
+      if (!html && data.groups) {
+        (data.groups || []).forEach(function(g) { walkGroups(g, 0); });
+      }
+
+      // Debug: if still empty, log data structure
+      if (!html) {
+        console.log('[Sports] Standings: no entries found. Full data:', JSON.stringify(data).substring(0, 2000));
+      }
+
+      el.innerHTML = html || '<div class="sp-empty">No standings data available for this league. Try refreshing or check back during the season.</div>';
     })
     .catch(err => {
-      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load standings.</div>';
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load standings: ' + esc(err.message) + '</div>';
       console.error('[Sports] Standings fetch error:', err);
     });
 }
 
-// ── Odds / Betting Lines (from ESPN scoreboard odds data) ──
+// ── Odds / Betting Lines ──
+// Primary: The Odds API (free, 500 req/mo), Fallback: ESPN scoreboard odds
+// User can set their own API key in localStorage for higher limits
 $('#spRefreshOdds').onclick = () => spFetchOdds();
+
+// Odds API key is read dynamically so it picks up changes after page load
+const SP_ODDS_LEAGUE_MAP = {
+  nba: 'basketball_nba',
+  nfl: 'americanfootball_nfl',
+  mlb: 'baseball_mlb',
+  nhl: 'icehockey_nhl',
+  ncaab: 'basketball_ncaab',
+  ncaaf: 'americanfootball_ncaaf',
+  soccer: 'soccer_usa_mls'
+};
+
+function spRenderOddsCard(game) {
+  let html = '<div class="sp-card">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+  html += '<div style="font-size:.72rem;font-weight:600;color:var(--text);">'+esc(game.away)+' <span style="color:var(--text-dim);font-size:.62rem;">@</span> '+esc(game.home)+'</div>';
+  html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(game.time)+'</span>';
+  html += '</div>';
+  if (game.lines && game.lines.length) {
+    game.lines.forEach(function(line) {
+      html += '<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 8px;margin-bottom:3px;">';
+      html += '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:3px;font-weight:600;">'+esc(line.book)+'</div>';
+      html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.68rem;">';
+      if (line.spread) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">SPREAD</span><br/><span style="font-weight:600;color:var(--accent);">'+esc(line.spread)+'</span></div>';
+      if (line.total) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">TOTAL</span><br/><span style="font-weight:600;color:var(--accent);">O/U '+esc(line.total)+'</span></div>';
+      if (line.awayML || line.homeML) {
+        html += '<div><span style="color:var(--text-dim);font-size:.55rem;">MONEYLINE</span><br/>';
+        if (line.awayML) html += '<span style="font-size:.62rem;">'+esc(game.away)+' <b style="color:var(--accent);">'+esc(line.awayML)+'</b></span> ';
+        if (line.homeML) html += '<span style="font-size:.62rem;">'+esc(game.home)+' <b style="color:var(--accent);">'+esc(line.homeML)+'</b></span>';
+        html += '</div>';
+      }
+      html += '</div></div>';
+    });
+  } else {
+    html += '<div style="font-size:.58rem;color:var(--text-dim);font-style:italic;">No lines available</div>';
+  }
+  html += '</div>';
+  return html;
+}
 
 function spFetchOdds() {
   const league = $('#spOddsLeague').value;
   const el = $('#spOddsList');
   el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading odds...</div>';
   if (league === 'global') {
-    const promises = SP_GLOBAL_SOURCES.map(src =>
-      fetch(spEspnUrlDirect(src.sport, src.league, 'scoreboard'))
-        .then(r => r.json()).then(d => ({ name: src.name, events: d.events || [] })).catch(() => null)
-    );
-    Promise.all(promises).then(results => {
-      let html = '';
-      results.filter(Boolean).forEach(src => {
-        src.events.forEach(ev => {
-          const comp = ev.competitions && ev.competitions[0];
-          if (!comp || !(comp.odds || []).length) return;
-          if (!html) html = '';
-          html += '<div style="font-size:.55rem;color:var(--accent);margin:4px 0 2px;">'+esc(src.name)+'</div>';
-          // Reuse same rendering logic as non-global (inline)
-        });
-      });
-      el.innerHTML = html || '<div class="sp-empty">No odds for global events currently.</div>';
-    });
+    el.innerHTML = '<div class="sp-empty">Odds are not available for Global Events. Select a specific league.</div>';
     return;
   }
+
+  // Try The Odds API first (free, reliable, accurate) — requires API key
+  const oddsApiSport = SP_ODDS_LEAGUE_MAP[league];
+  const apiKey = LS('oddsApiKey') || '';
+  if (oddsApiSport && apiKey) {
+    const oddsUrl = 'https://api.the-odds-api.com/v4/sports/' + oddsApiSport +
+      '/odds/?apiKey=' + apiKey + '&regions=us&markets=spreads,totals,h2h&oddsFormat=american';
+    fetch(oddsUrl)
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        // Log remaining requests from headers
+        const remaining = r.headers.get('x-requests-remaining');
+        if (remaining) console.log('[Odds API] Requests remaining this month: ' + remaining);
+        return r.json();
+      })
+      .then(games => {
+        if (!games || !games.length) {
+          // Fallback to ESPN
+          spFetchOddsEspn(league);
+          return;
+        }
+        let html = '';
+        games.forEach(function(g) {
+          const game = { away: g.away_team, home: g.home_team, time: '', lines: [] };
+          if (g.commence_time) {
+            const d = new Date(g.commence_time);
+            game.time = d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+          }
+          (g.bookmakers || []).forEach(function(bk) {
+            const line = { book: bk.title || bk.key || 'Unknown' };
+            (bk.markets || []).forEach(function(mkt) {
+              if (mkt.key === 'spreads') {
+                const away = (mkt.outcomes || []).find(function(o) { return o.name === g.away_team; });
+                const home = (mkt.outcomes || []).find(function(o) { return o.name === g.home_team; });
+                if (away) line.spread = (away.point > 0 ? '+' : '') + away.point + ' (' + away.price + ')';
+                if (home) line.homeSpread = (home.point > 0 ? '+' : '') + home.point + ' (' + home.price + ')';
+              }
+              if (mkt.key === 'totals') {
+                const over = (mkt.outcomes || []).find(function(o) { return o.name === 'Over'; });
+                if (over) line.total = String(over.point);
+              }
+              if (mkt.key === 'h2h') {
+                const away = (mkt.outcomes || []).find(function(o) { return o.name === g.away_team; });
+                const home = (mkt.outcomes || []).find(function(o) { return o.name === g.home_team; });
+                if (away) line.awayML = (away.price > 0 ? '+' : '') + String(away.price);
+                if (home) line.homeML = (home.price > 0 ? '+' : '') + String(home.price);
+              }
+            });
+            if (line.spread || line.total || line.awayML || line.homeML) game.lines.push(line);
+          });
+          html += spRenderOddsCard(game);
+        });
+        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
+        el.innerHTML = html || '<div class="sp-empty">No odds available for this league right now.</div>';
+      })
+      .catch(function(err) {
+        console.warn('[Odds API] Failed, falling back to ESPN:', err.message);
+        spFetchOddsEspn(league);
+      });
+  } else {
+    spFetchOddsEspn(league);
+  }
+}
+
+// Fallback: try ESPN scoreboard for odds
+function spFetchOddsEspn(league) {
+  const el = $('#spOddsList');
   fetch(spEspnUrl(league, 'scoreboard'))
     .then(r => r.json())
     .then(data => {
       const events = data.events || [];
-      let hasOdds = false;
+      console.log('[Sports] ESPN odds: ' + events.length + ' events found');
       let html = '';
-      events.forEach(ev => {
+      let hasOdds = false;
+      events.forEach(function(ev) {
         const comp = ev.competitions && ev.competitions[0];
         if (!comp) return;
         const odds = comp.odds || [];
-        if (!odds.length) return;
-        hasOdds = true;
         const teams = comp.competitors || [];
-        const home = teams.find(t => t.homeAway === 'home') || teams[0] || {};
-        const away = teams.find(t => t.homeAway === 'away') || teams[1] || {};
-        const homeName = home.team ? home.team.shortDisplayName || home.team.displayName : 'TBD';
-        const awayName = away.team ? away.team.shortDisplayName || away.team.displayName : 'TBD';
-        const homeLogo = home.team && home.team.logo ? home.team.logo : '';
-        const awayLogo = away.team && away.team.logo ? away.team.logo : '';
+        const home = teams.find(function(t) { return t.homeAway === 'home'; }) || teams[0] || {};
+        const away = teams.find(function(t) { return t.homeAway === 'away'; }) || teams[1] || {};
+        const homeName = home.team ? (home.team.shortDisplayName || home.team.displayName) : 'TBD';
+        const awayName = away.team ? (away.team.shortDisplayName || away.team.displayName) : 'TBD';
         const status = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
-
-        html += '<div class="sp-card">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
-        html += '<div style="display:flex;align-items:center;gap:4px;">' +
-          (awayLogo ? '<img src="'+esc(awayLogo)+'" style="width:16px;height:16px;" onerror="this.style.display=\'none\'" />' : '') +
-          '<span style="font-size:.72rem;font-weight:600;">'+esc(awayName)+'</span>' +
-          '<span style="font-size:.62rem;color:var(--text-dim);">@</span>' +
-          (homeLogo ? '<img src="'+esc(homeLogo)+'" style="width:16px;height:16px;" onerror="this.style.display=\'none\'" />' : '') +
-          '<span style="font-size:.72rem;font-weight:600;">'+esc(homeName)+'</span></div>';
-        html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(status)+'</span>';
-        html += '</div>';
-
-        odds.forEach(o => {
-          const provider = o.provider ? o.provider.name : 'Line';
-          const spread = o.spread || o.details || '';
-          const overUnder = o.overUnder ? 'O/U ' + o.overUnder : '';
-          const awayML = o.awayTeamOdds && o.awayTeamOdds.moneyLine ? o.awayTeamOdds.moneyLine : '';
-          const homeML = o.homeTeamOdds && o.homeTeamOdds.moneyLine ? o.homeTeamOdds.moneyLine : '';
-          const awaySpread = o.awayTeamOdds && o.awayTeamOdds.spreadOdds ? o.awayTeamOdds.spreadOdds : '';
-          const homeSpread = o.homeTeamOdds && o.homeTeamOdds.spreadOdds ? o.homeTeamOdds.spreadOdds : '';
-
-          html += '<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 8px;margin-bottom:3px;">';
-          html += '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:3px;font-weight:600;">'+esc(provider)+'</div>';
-          html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.68rem;">';
-          if (spread) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">SPREAD</span><br/><span style="font-weight:600;color:var(--accent);">'+esc(String(spread))+'</span></div>';
-          if (overUnder) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">TOTAL</span><br/><span style="font-weight:600;color:var(--accent);">'+esc(overUnder)+'</span></div>';
-          if (awayML || homeML) {
-            html += '<div><span style="color:var(--text-dim);font-size:.55rem;">MONEYLINE</span><br/>';
-            if (awayML) html += '<span style="font-size:.62rem;">'+esc(awayName)+' <b style="color:var(--accent);">'+esc(String(awayML))+'</b></span> ';
-            if (homeML) html += '<span style="font-size:.62rem;">'+esc(homeName)+' <b style="color:var(--accent);">'+esc(String(homeML))+'</b></span>';
-            html += '</div>';
-          }
-          if (awaySpread || homeSpread) {
-            html += '<div><span style="color:var(--text-dim);font-size:.55rem;">SPREAD ODDS</span><br/>';
-            if (awaySpread) html += '<span style="font-size:.62rem;">'+esc(awayName)+' <b>'+esc(String(awaySpread))+'</b></span> ';
-            if (homeSpread) html += '<span style="font-size:.62rem;">'+esc(homeName)+' <b>'+esc(String(homeSpread))+'</b></span>';
-            html += '</div>';
-          }
-          html += '</div></div>';
-        });
-        html += '</div>';
+        const game = { away: awayName, home: homeName, time: status, lines: [] };
+        if (odds.length) {
+          hasOdds = true;
+          odds.forEach(function(o) {
+            const line = { book: o.provider ? o.provider.name : 'Line' };
+            if (o.details) line.spread = String(o.details);
+            else if (o.spread != null) line.spread = String(o.spread);
+            if (o.overUnder) line.total = String(o.overUnder);
+            if (o.awayTeamOdds && o.awayTeamOdds.moneyLine != null) line.awayML = String(o.awayTeamOdds.moneyLine);
+            if (o.homeTeamOdds && o.homeTeamOdds.moneyLine != null) line.homeML = String(o.homeTeamOdds.moneyLine);
+            if (line.spread || line.total || line.awayML) game.lines.push(line);
+          });
+        }
+        html += spRenderOddsCard(game);
       });
-      if (!hasOdds) {
-        el.innerHTML = '<div class="sp-empty">No odds available for current games. Lines may not be posted yet.</div>';
+      if (!html) {
+        el.innerHTML = '<div class="sp-empty">No games scheduled. Lines will appear when games are upcoming.</div>';
       } else {
-        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
+        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + (hasOdds ? '' : ' (no lines yet)');
         el.innerHTML = html;
       }
     })
-    .catch(err => {
-      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load odds.</div>';
-      console.error('[Sports] Odds fetch error:', err);
+    .catch(function(err) {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load odds: '+esc(err.message)+'</div>';
+      console.error('[Sports] ESPN odds fetch error:', err);
     });
 }
+
+// Odds API key management
+$('#spOddsKeyBtn').onclick = function() {
+  const current = LS('oddsApiKey') || '';
+  const key = prompt('Enter your free API key from the-odds-api.com\n(500 free requests/month)\n\nCurrent: ' + (current ? current.substring(0,8) + '...' : 'not set'), current);
+  if (key !== null) {
+    LS('oddsApiKey', key.trim());
+    toast(key.trim() ? 'API key saved' : 'API key cleared');
+  }
+};
 
 // ── News ──
 $('#spRefreshNews').onclick = () => spFetchNews();
@@ -12002,7 +12072,7 @@ function getIdleTimeoutForRole() {
   localStorage.setItem(key, String(def));
   return def;
 }
-let idleTimeoutMin = getIdleTimeoutForRole();
+var idleTimeoutMin = getIdleTimeoutForRole();
 
 let _idleTimer = null;
 let _idleWarningTimer = null;
@@ -16028,9 +16098,9 @@ if (robotStyleSel) {
 }
 
 // ── Genie mode (user mode: 3 free prompts then sleep) ──
-let geniePromptsLeft = 3;
-let genieMode = false;
-let genieSleeping = false;
+var geniePromptsLeft = 3;
+var genieMode = false;
+var genieSleeping = false;
 
 function activateGenieMode() {
   genieMode = true;
