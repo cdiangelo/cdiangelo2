@@ -10096,6 +10096,35 @@ function spFetchScores() {
       return new Date(a.date || 0) - new Date(b.date || 0);
     });
 
+    // Background: capture pre-game odds from ESPN scoreboard data
+    // This runs every 60s via auto-refresh, so opening lines are stored
+    // automatically without needing the Odds tab open.
+    allEvents.forEach(function(ev) {
+      var evState = ev.status && ev.status.type ? ev.status.type.state : '';
+      if (evState !== 'pre') return; // only capture pre-game lines
+      var comp = ev.competitions && ev.competitions[0];
+      if (!comp) return;
+      var odds = comp.odds || [];
+      if (!odds.length) return;
+      var teams = comp.competitors || [];
+      var home = teams.find(function(t) { return t.homeAway === 'home'; }) || teams[0] || {};
+      var away = teams.find(function(t) { return t.homeAway === 'away'; }) || teams[1] || {};
+      var homeName = home.team ? (home.team.shortDisplayName || home.team.displayName || '') : '';
+      var awayName = away.team ? (away.team.shortDisplayName || away.team.displayName || '') : '';
+      if (!homeName || !awayName) return;
+      var key = _spOddsKey(awayName, homeName);
+      if (spOpeningOdds[key]) return; // already have opening line
+      var spreadVal = null, totalVal = null, awayMLVal = null, homeMLVal = null;
+      odds.forEach(function(o) {
+        if (o.details) { var m = String(o.details).match(/^([+-]?\d+\.?\d*)/); if (m && spreadVal == null) spreadVal = parseFloat(m[1]); }
+        else if (o.spread != null && spreadVal == null) spreadVal = parseFloat(o.spread);
+        if (o.overUnder && totalVal == null) totalVal = parseFloat(o.overUnder);
+        if (o.awayTeamOdds && o.awayTeamOdds.moneyLine != null && awayMLVal == null) awayMLVal = parseFloat(o.awayTeamOdds.moneyLine);
+        if (o.homeTeamOdds && o.homeTeamOdds.moneyLine != null && homeMLVal == null) homeMLVal = parseFloat(o.homeTeamOdds.moneyLine);
+      });
+      spStoreOpeningOdds(key, { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal }, 'pre');
+    });
+
     // Group by section
     const live = allEvents.filter(ev => (ev.status?.type?.state) === 'in');
     const scheduled = allEvents.filter(ev => (ev.status?.type?.state) === 'pre');
@@ -10276,29 +10305,47 @@ function spFetchStandings() {
 $('#spRefreshOdds').onclick = () => spFetchOdds();
 $('#spOddsLeague').onchange = () => spFetchOdds();
 
-// ── Opening Odds Tracking (in-memory per session) ──
-// Stores PRE-GAME odds per game to detect live line movement vs opening lines
+// ── Opening Odds Tracking (localStorage-persisted) ──
+// Stores PRE-GAME odds per game to detect live line movement vs opening lines.
+// Persisted to localStorage so opening lines survive page refreshes.
+// Pre-game odds are captured automatically during score refreshes (every 60s),
+// so the user does NOT need to have the odds tab open before game start.
 // Key: "away @ home" normalized, Value: { spread, total, awayML, homeML, timestamp }
-// Only stores odds captured while game state is 'pre' (before tipoff/kickoff)
-const spOpeningOdds = {};
+
+function _spLoadOpeningOdds() {
+  try { return JSON.parse(localStorage.getItem('spOpeningOdds') || '{}'); }
+  catch(e) { return {}; }
+}
+function _spSaveOpeningOdds(obj) {
+  try { localStorage.setItem('spOpeningOdds', JSON.stringify(obj)); } catch(e) {}
+}
+// Prune entries older than 24h to avoid unbounded growth
+function _spPruneOpeningOdds(obj) {
+  var cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  var keys = Object.keys(obj);
+  keys.forEach(function(k) { if (obj[k].timestamp && obj[k].timestamp < cutoff) delete obj[k]; });
+  return obj;
+}
+
+let spOpeningOdds = _spPruneOpeningOdds(_spLoadOpeningOdds());
 
 function _spOddsKey(away, home) {
   return (away + ' @ ' + home).toLowerCase().trim();
 }
 
-// Store opening odds for a game — ONLY when game hasn't started yet (state === 'pre')
-// Once a game goes live, we stop updating the opening line so swings reflect
-// the movement from the actual pre-game line to the current live line.
+// Store opening odds for a game — only when game is pre-game (state === 'pre')
+// and we don't already have an entry. Once stored, the opening line is locked.
 function spStoreOpeningOdds(key, odds, gameState) {
-  // Only capture opening odds from pre-game lines
   if (gameState && gameState !== 'pre') return;
-  if (!spOpeningOdds[key]) {
-    spOpeningOdds[key] = { ...odds, timestamp: Date.now() };
-  }
+  if (spOpeningOdds[key]) return;
+  // Only store if we have at least one valid value
+  if (odds.spread == null && odds.total == null && odds.awayML == null && odds.homeML == null) return;
+  spOpeningOdds[key] = { ...odds, timestamp: Date.now() };
+  _spSaveOpeningOdds(spOpeningOdds);
 }
 
 // Compute swing between opening and current odds
-// Returns { field, open, current, delta, pctChange, isMajor } or null
+// Returns array of { field, open, current, delta, isMajor, signFlip }
 function spComputeSwings(key, currentOdds) {
   const open = spOpeningOdds[key];
   if (!open) return [];
