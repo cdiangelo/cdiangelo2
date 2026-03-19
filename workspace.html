@@ -1696,6 +1696,99 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 </noscript>
 <script>
+// ── PDF Viewer Intercept ──
+// Supports two modes:
+//   1. ?pdf=<id>      — loads from localStorage (same device)
+//   2. ?report=<data> — self-contained compressed report in URL (cross-device sharing)
+//
+// Compression uses built-in DecompressionStream (deflate-raw) for modern browsers,
+// with a base64 fallback for simple uncompressed sharing.
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var pdfId = params.get('pdf');
+  var reportData = params.get('report');
+
+  // Also check hash fragment for very long URLs (some apps truncate query strings)
+  if (!reportData && window.location.hash.startsWith('#report=')) {
+    reportData = window.location.hash.slice(8); // '#report='.length
+  }
+
+  if (!pdfId && !reportData) return;
+
+  // Helper: render HTML content as full page
+  function renderReport(html) {
+    document.open();
+    document.write(html);
+    document.close();
+    window.stop();
+  }
+
+  function renderNotFound() {
+    renderReport('<!DOCTYPE html><html><head><title>Report Not Found</title>' +
+      '<style>body{font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f5;color:#333;}' +
+      '.card{text-align:center;padding:40px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.1);max-width:400px;}' +
+      'h1{font-size:1.3em;margin-bottom:8px;}p{color:#888;font-size:.9em;line-height:1.5;}' +
+      'a{color:#3b82f6;text-decoration:none;font-weight:600;}</style></head>' +
+      '<body><div class="card"><h1>Report Not Found</h1>' +
+      '<p>This report may have been cleared from storage or the link may be incomplete.</p>' +
+      '<p style="margin-top:16px;"><a href="' + window.location.pathname + '">Back to Workspace</a></p>' +
+      '</div></body></html>');
+  }
+
+  // Mode 1: localStorage lookup
+  if (pdfId) {
+    var stored = null;
+    try { stored = localStorage.getItem('spPdf_' + pdfId); } catch(e) {}
+    if (stored) { renderReport(stored); } else { renderNotFound(); }
+    return;
+  }
+
+  // Mode 2: self-contained report data in URL
+  if (reportData) {
+    try {
+      // Try deflate decompression first (modern browsers)
+      var raw = atob(reportData.replace(/-/g, '+').replace(/_/g, '/'));
+      var bytes = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+
+      if (typeof DecompressionStream !== 'undefined') {
+        var ds = new DecompressionStream('deflate-raw');
+        var writer = ds.writable.getWriter();
+        var reader = ds.readable.getReader();
+        var chunks = [];
+        writer.write(bytes);
+        writer.close();
+        (function readChunks() {
+          reader.read().then(function(result) {
+            if (result.value) chunks.push(result.value);
+            if (!result.done) { readChunks(); return; }
+            // Combine chunks and decode
+            var total = chunks.reduce(function(s, c) { return s + c.length; }, 0);
+            var combined = new Uint8Array(total);
+            var offset = 0;
+            chunks.forEach(function(c) { combined.set(c, offset); offset += c.length; });
+            var html = new TextDecoder().decode(combined);
+            renderReport(html);
+          }).catch(function() {
+            // Decompression failed — try as plain base64
+            try {
+              var html = decodeURIComponent(escape(raw));
+              renderReport(html);
+            } catch(e2) { renderNotFound(); }
+          });
+        })();
+      } else {
+        // No DecompressionStream — treat as plain base64 UTF-8
+        var html = decodeURIComponent(escape(raw));
+        renderReport(html);
+      }
+    } catch(e) {
+      renderNotFound();
+    }
+    return;
+  }
+})();
+
 // ── Global error boundary — catches uncaught errors and shows fallback ──
 (function() {
   var errorCount = 0;
@@ -10103,6 +10196,35 @@ function spFetchScores() {
       return new Date(a.date || 0) - new Date(b.date || 0);
     });
 
+    // Background: capture pre-game odds from ESPN scoreboard data
+    // This runs every 60s via auto-refresh, so opening lines are stored
+    // automatically without needing the Odds tab open.
+    allEvents.forEach(function(ev) {
+      var evState = ev.status && ev.status.type ? ev.status.type.state : '';
+      if (evState !== 'pre') return; // only capture pre-game lines
+      var comp = ev.competitions && ev.competitions[0];
+      if (!comp) return;
+      var odds = comp.odds || [];
+      if (!odds.length) return;
+      var teams = comp.competitors || [];
+      var home = teams.find(function(t) { return t.homeAway === 'home'; }) || teams[0] || {};
+      var away = teams.find(function(t) { return t.homeAway === 'away'; }) || teams[1] || {};
+      var homeName = home.team ? (home.team.shortDisplayName || home.team.displayName || '') : '';
+      var awayName = away.team ? (away.team.shortDisplayName || away.team.displayName || '') : '';
+      if (!homeName || !awayName) return;
+      var key = _spOddsKey(awayName, homeName);
+      if (spOpeningOdds[key]) return; // already have opening line
+      var spreadVal = null, totalVal = null, awayMLVal = null, homeMLVal = null;
+      odds.forEach(function(o) {
+        if (o.details) { var m = String(o.details).match(/^([+-]?\d+\.?\d*)/); if (m && spreadVal == null) spreadVal = parseFloat(m[1]); }
+        else if (o.spread != null && spreadVal == null) spreadVal = parseFloat(o.spread);
+        if (o.overUnder && totalVal == null) totalVal = parseFloat(o.overUnder);
+        if (o.awayTeamOdds && o.awayTeamOdds.moneyLine != null && awayMLVal == null) awayMLVal = parseFloat(o.awayTeamOdds.moneyLine);
+        if (o.homeTeamOdds && o.homeTeamOdds.moneyLine != null && homeMLVal == null) homeMLVal = parseFloat(o.homeTeamOdds.moneyLine);
+      });
+      spStoreOpeningOdds(key, { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal }, 'pre');
+    });
+
     // Group by section
     const live = allEvents.filter(ev => (ev.status?.type?.state) === 'in');
     const scheduled = allEvents.filter(ev => (ev.status?.type?.state) === 'pre');
@@ -10283,24 +10405,58 @@ function spFetchStandings() {
 $('#spRefreshOdds').onclick = () => spFetchOdds();
 $('#spOddsLeague').onchange = () => spFetchOdds();
 
-// ── Opening Odds Tracking (in-memory per session) ──
-// Stores first-seen odds per game to detect line movement / swings
+// ── Opening Odds Tracking (localStorage-persisted) ──
+// Stores PRE-GAME odds per game to detect live line movement vs opening lines.
+// Persisted to localStorage so opening lines survive page refreshes.
+// Pre-game odds are captured automatically during score refreshes (every 60s),
+// so the user does NOT need to have the odds tab open before game start.
 // Key: "away @ home" normalized, Value: { spread, total, awayML, homeML, timestamp }
-const spOpeningOdds = {};
+
+function _spLoadOpeningOdds() {
+  try { return JSON.parse(localStorage.getItem('spOpeningOdds') || '{}'); }
+  catch(e) { return {}; }
+}
+function _spSaveOpeningOdds(obj) {
+  try { localStorage.setItem('spOpeningOdds', JSON.stringify(obj)); } catch(e) {}
+}
+// Prune entries older than 24h to avoid unbounded growth
+function _spPruneOpeningOdds(obj) {
+  var cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  var keys = Object.keys(obj);
+  keys.forEach(function(k) { if (obj[k].timestamp && obj[k].timestamp < cutoff) delete obj[k]; });
+  return obj;
+}
+
+let spOpeningOdds = _spPruneOpeningOdds(_spLoadOpeningOdds());
 
 function _spOddsKey(away, home) {
   return (away + ' @ ' + home).toLowerCase().trim();
 }
 
-// Store opening odds for a game (only saves the FIRST time we see it)
-function spStoreOpeningOdds(key, odds) {
-  if (!spOpeningOdds[key]) {
-    spOpeningOdds[key] = { ...odds, timestamp: Date.now() };
+// Store opening odds for a game. Prefers pre-game lines but will also store
+// the first live odds seen as a baseline if no pre-game line was captured.
+// Once stored, the opening line is locked and never overwritten.
+function spStoreOpeningOdds(key, odds, gameState) {
+  if (spOpeningOdds[key]) {
+    // Already have an entry. If it was captured live and we now have pre-game
+    // data, upgrade it. Otherwise leave it locked.
+    if (spOpeningOdds[key].capturedLive && gameState === 'pre') {
+      // Replace live-captured baseline with actual pre-game line
+      spOpeningOdds[key] = { ...odds, timestamp: Date.now(), capturedLive: false };
+      _spSaveOpeningOdds(spOpeningOdds);
+    }
+    return;
   }
+  // Only store if we have at least one valid value
+  if (odds.spread == null && odds.total == null && odds.awayML == null && odds.homeML == null) return;
+  // Store with flag indicating whether this is a true pre-game line or live baseline
+  var isLive = gameState && gameState !== 'pre';
+  spOpeningOdds[key] = { ...odds, timestamp: Date.now(), capturedLive: isLive };
+  _spSaveOpeningOdds(spOpeningOdds);
 }
 
 // Compute swing between opening and current odds
-// Returns { field, open, current, delta, pctChange, isMajor } or null
+// Returns array of { field, open, current, delta, isMajor, signFlip }
 function spComputeSwings(key, currentOdds) {
   const open = spOpeningOdds[key];
   if (!open) return [];
@@ -10543,7 +10699,9 @@ function spRenderOddsCard(game) {
   // Swing alert banner (for major movements)
   if (hasMajorSwing) {
     html += '<div style="background:rgba(234,88,12,.1);border:1px solid rgba(234,88,12,.25);border-radius:4px;padding:4px 7px;margin-bottom:6px;font-size:.54rem;">';
-    html += '<span style="font-weight:700;color:#ea580c;">\u26A0 LINE MOVEMENT</span>';
+    var openEntry = spOpeningOdds[oddsKey];
+    var baseLabel = (openEntry && openEntry.capturedLive) ? 'LINE MOVEMENT (since first check)' : 'LINE MOVEMENT vs OPENING';
+    html += '<span style="font-weight:700;color:#ea580c;">\u26A0 ' + baseLabel + '</span>';
     swings.filter(function(s) { return s.isMajor; }).forEach(function(s) {
       var openFmt = spOddsFmt(s.open, s.key.includes('ML') ? 0 : 1);
       var curFmt = spOddsFmt(s.current, s.key.includes('ML') ? 0 : 1);
@@ -10757,17 +10915,20 @@ function spFetchOdds() {
             homeML: median(consensusHomeML)
           };
 
-          // Track opening odds (first time we see this game)
-          var oddsKey = _spOddsKey(game.away, game.home);
-          spStoreOpeningOdds(oddsKey, currentOdds);
+          // Determine game state from live scores
+          var liveMatch = spMatchLiveScore(game.away, game.home);
+          var gameState = liveMatch ? liveMatch.state : 'pre';
 
-          // Compute swings from opening
-          var swings = spComputeSwings(oddsKey, currentOdds);
+          // Track opening odds — stores pre-game line or first-seen live baseline
+          var oddsKey = _spOddsKey(game.away, game.home);
+          spStoreOpeningOdds(oddsKey, currentOdds, gameState);
+
+          // Compute swings from opening — only show for live games
+          var swings = (gameState === 'in') ? spComputeSwings(oddsKey, currentOdds) : [];
           game._swings = swings;
 
           // Track counts for summary header
-          var liveMatch = spMatchLiveScore(game.away, game.home);
-          if (liveMatch && liveMatch.state === 'in') liveCount++;
+          if (gameState === 'in') liveCount++;
           if (swings.some(function(s) { return s.isMajor; })) swingCount++;
 
           html += spRenderOddsCard(game);
@@ -10852,7 +11013,7 @@ function spFetchOddsEspn(league) {
           });
         }
 
-        // Track opening odds for ESPN fallback too
+        // Track opening odds for ESPN fallback
         var oddsKey = _spOddsKey(game.away, game.home);
         var spreadVal = null, totalVal = null, awayMLVal = null, homeMLVal = null;
         game.lines.forEach(function(ln) {
@@ -10861,8 +11022,10 @@ function spFetchOddsEspn(league) {
           if (ln.awayML) { var a = parseFloat(String(ln.awayML).replace(/[^0-9.\-+]/g, '')); if (!isNaN(a)) awayMLVal = a; }
           if (ln.homeML) { var h = parseFloat(String(ln.homeML).replace(/[^0-9.\-+]/g, '')); if (!isNaN(h)) homeMLVal = h; }
         });
-        spStoreOpeningOdds(oddsKey, { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal });
-        game._swings = spComputeSwings(oddsKey, { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal });
+        var currentOddsEspn = { spread: spreadVal, total: totalVal, awayML: awayMLVal, homeML: homeMLVal };
+        spStoreOpeningOdds(oddsKey, currentOddsEspn, state);
+        // Only show line movement for live games
+        game._swings = (state === 'in') ? spComputeSwings(oddsKey, currentOddsEspn) : [];
         if (game._swings.some(function(s) { return s.isMajor; })) swingCount++;
 
         html += spRenderOddsCard(game);
@@ -13171,8 +13334,9 @@ async function runDeepResearch() {
       const doc = parser.parseFromString(xmlText, 'text/xml');
       const items = doc.querySelectorAll('item');
       const articles = [];
+      // Cap at 8 articles — prioritize quality over quantity to keep Claude fast
       items.forEach((item, idx) => {
-        if (idx >= 15) return;
+        if (idx >= 8) return;
         const title = item.querySelector('title')?.textContent || '';
         const source = item.querySelector('source')?.textContent || '';
         const pubDate = item.querySelector('pubDate')?.textContent || '';
@@ -13184,26 +13348,25 @@ async function runDeepResearch() {
       articleContext = '(Failed to fetch articles: ' + e.message + ')';
     }
 
-    // Step 2: Send to Claude for deep analysis
-    progressEl.textContent = 'Step 2/3: Claude is analyzing and synthesizing findings...';
+    // Step 2: Send to Claude for targeted analysis
+    progressEl.textContent = 'Step 2/3: Claude is analyzing sources...';
     const model = $('#aiModel').value;
-    const researchPrompt = `You are conducting deep research on the topic: "${query}"
+    const researchPrompt = `Research topic: "${query}"
 
-Here are real, verified articles from Google News on this topic:
+Sources (${articles.length} articles from Google News):
 ${articleContext}
 
-Based on these real sources, produce a comprehensive research report with:
+Write a focused research brief. Be direct and selective — only include findings that are high-signal, skip filler.
 
-1. **Executive Summary** (2-3 sentences)
-2. **Key Findings** (5-8 bullet points with specific data/claims from the articles)
-3. **Source Analysis** — for each source, note what unique angle or data it provides
-4. **Sentiment & Market Impact** — overall market sentiment and potential implications
-5. **Key Risks & Contrarian Views** — any warnings, downsides, or opposing perspectives
-6. **Conclusion & Outlook** — synthesize into a forward-looking perspective
+## Format:
+1. **Summary** — 2-3 sentences, the key takeaway
+2. **Key Findings** — 4-6 bullet points with specific data/claims. Cite source names inline.
+3. **Risks & Contrarian Views** — anything counter to consensus
+4. **Outlook** — 2-3 sentences, forward-looking
 
-Format this as a polished research report. Cite specific sources by name. Use real data from the articles. Keep it professional and analytical.`;
+Keep it tight. No padding. Cite sources by name but don't analyze each one individually.`;
 
-    const resp = await aiApiFetch({ model, max_tokens: 4096, messages: [{ role: 'user', content: researchPrompt }] });
+    const resp = await aiApiFetch({ model, max_tokens: 3000, messages: [{ role: 'user', content: researchPrompt }] });
 
     if (!resp.ok) throw new Error('API error: ' + resp.status);
     const result = await safeParseJson(resp, 'AI research');
@@ -13223,6 +13386,7 @@ Format this as a polished research report. Cite specific sources by name. Use re
     header.innerHTML = '<span style="font-size:.72rem;font-weight:700;color:var(--accent2);">&#128269; Deep Research Report: ' + query + '</span>' +
       '<div style="display:flex;gap:4px;">' +
       '<button id="researchPdf" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.6rem;font-weight:600;">&#128196; Download PDF</button>' +
+      '<button id="researchCopyLink" style="padding:3px 8px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);cursor:pointer;font-size:.6rem;font-weight:600;">\uD83D\uDD17 Copy Link</button>' +
       '<button id="researchToNote" style="padding:3px 8px;border:1px solid var(--accent2);border-radius:4px;background:none;color:var(--accent2);cursor:pointer;font-size:.6rem;">&#128221; To Notepad</button>' +
       '<button id="researchBack" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">Back</button>' +
       '</div>';
@@ -13247,17 +13411,34 @@ Format this as a polished research report. Cite specific sources by name. Use re
     sourcesDiv.innerHTML = '<b>Sources fetched via Google News RSS:</b><br>' + articleContext.replace(/\n/g, '<br>');
     feed.appendChild(sourcesDiv);
 
-    // PDF download
+    // Store research report as persistent PDF
+    var _researchPdfId = spGeneratePdfId();
+    var _researchHtml = '<html><head><title>Research Report: ' + query + '</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:20px;line-height:1.7;color:#222;}h1{font-size:1.4em;border-bottom:2px solid #333;padding-bottom:8px;}h2{font-size:1.1em;color:#444;margin-top:20px;}h3{font-size:1em;color:#555;}b{font-weight:700;}.sources{margin-top:30px;padding-top:12px;border-top:1px solid #ccc;font-size:.85em;color:#666;}</style></head><body>' +
+      '<h1>Deep Research Report: ' + query + '</h1>' +
+      '<p style="color:#888;font-size:.85em;">Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' via Workspace Agent</p>' +
+      html.replace(/color:var\(--[^)]+\)/g, 'color:#333') +
+      '<div class="sources"><b>Sources (Google News RSS):</b><br>' + articleContext.replace(/\n/g, '<br>') + '</div>' +
+      '</body></html>';
+    spStorePdf(_researchPdfId, _researchHtml);
+    // Also save to export history
+    pdfExports.push({ id: _researchPdfId, type: 'pdf_export', title: 'Deep Research: ' + query, pdfId: _researchPdfId, generatedAt: Date.now() });
+    if (pdfExports.length > 20) { var old = pdfExports.shift(); if (old && old.pdfId) try { localStorage.removeItem(_spPdfStorageKey(old.pdfId)); } catch(e) {} }
+    LS('compplan_pdf_exports', pdfExports);
+
+    // PDF download — open persistent link
     document.getElementById('researchPdf').onclick = () => {
-      const printWin = window.open('', '_blank');
-      printWin.document.write('<html><head><title>Research Report: ' + query + '</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:20px;line-height:1.7;color:#222;}h1{font-size:1.4em;border-bottom:2px solid #333;padding-bottom:8px;}h2{font-size:1.1em;color:#444;margin-top:20px;}h3{font-size:1em;color:#555;}b{font-weight:700;}.sources{margin-top:30px;padding-top:12px;border-top:1px solid #ccc;font-size:.85em;color:#666;}</style></head><body>');
-      printWin.document.write('<h1>Deep Research Report: ' + query + '</h1>');
-      printWin.document.write('<p style="color:#888;font-size:.85em;">Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' via Workspace Agent</p>');
-      printWin.document.write(html.replace(/color:var\(--[^)]+\)/g, 'color:#333'));
-      printWin.document.write('<div class="sources"><b>Sources (Google News RSS):</b><br>' + articleContext.replace(/\n/g, '<br>') + '</div>');
-      printWin.document.write('</body></html>');
-      printWin.document.close();
-      setTimeout(() => printWin.print(), 500);
+      window.open(spGetPdfUrl(_researchPdfId), '_blank');
+    };
+
+    // Copy shareable link (self-contained, works cross-device)
+    document.getElementById('researchCopyLink').onclick = () => {
+      spGetShareableUrl(_researchHtml).then(function(url) {
+        navigator.clipboard.writeText(url).then(() => toast('Shareable link copied! Works on any device.')).catch(() => {
+          var ta = document.createElement('textarea'); ta.value = url;
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+          document.body.removeChild(ta); toast('Link copied!');
+        });
+      });
     };
 
     // Copy to notepad
@@ -13884,8 +14065,8 @@ const TASK_TIERS = {
     systemPrompt: 'You are a precise assistant. Complete the task directly and concisely.' },
   TIER_2: { model: 'claude-sonnet-4-6', maxTokens: 4000, label: 'Standard',
     systemPrompt: 'Think step by step. First produce a brief plan (3-5 bullets), then execute each step. For financial models, decompose into: assumptions → revenue drivers → cost structure → output metrics.' },
-  TIER_3: { model: 'claude-sonnet-4-6', maxTokens: 8000, label: 'Deep Research',
-    systemPrompt: 'You are a senior analyst. Use extended reasoning. For financial models: define assumptions explicitly, build a structured model, include sensitivity analysis. For stock analysis: cover fundamentals, technicals, recent catalysts, risks, and a clear thesis. If a verified company profile is provided, use the segment breakdown to ensure your analysis correctly attributes metrics, comparisons, and commentary to the right segment. Never conflate segments. If a metric applies to the whole company, state "consolidated". If it applies to a specific segment, name the segment explicitly.' }
+  TIER_3: { model: 'claude-sonnet-4-6', maxTokens: 4000, label: 'Deep Research',
+    systemPrompt: 'You are a senior analyst. Be targeted and selective — prioritize high-signal findings over exhaustive coverage. For financial models: define key assumptions, build a focused model, note top sensitivities. For stock analysis: lead with thesis, cover 2-3 key catalysts, top risks, and a clear price framework. If a verified company profile is provided, use the segment breakdown to correctly attribute metrics to the right segment. Never conflate segments. Keep analysis tight — no filler, no restating the obvious.' }
 };
 
 function classifyTask(prompt) {
@@ -16251,10 +16432,88 @@ function renderSavedActionsPanel() {
   document.querySelector('#q-claude .p-body')?.appendChild(panel);
 }
 
-// ── PDF Export for deep research ──
+// ── PDF Export for deep research (persistent, shareable links) ──
 let pdfExports = LS('compplan_pdf_exports') || [];
 
+// Persistent PDF storage — stores full HTML in localStorage keyed by unique ID
+// PDFs are viewable via: workspace.html?pdf=<id>
+function _spPdfStorageKey(id) { return 'spPdf_' + id; }
+
+function spGeneratePdfId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function spStorePdf(id, htmlContent) {
+  try { localStorage.setItem(_spPdfStorageKey(id), htmlContent); } catch(e) {
+    // If localStorage is full, prune oldest PDFs
+    var keys = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.startsWith('spPdf_')) keys.push(k);
+    }
+    keys.sort();
+    if (keys.length > 2) {
+      localStorage.removeItem(keys[0]);
+      localStorage.removeItem(keys[1]);
+      try { localStorage.setItem(_spPdfStorageKey(id), htmlContent); } catch(e2) {}
+    }
+  }
+}
+
+function spLoadPdf(id) {
+  try { return localStorage.getItem(_spPdfStorageKey(id)); } catch(e) { return null; }
+}
+
+// Local link (same device, localStorage)
+function spGetPdfUrl(id) {
+  return window.location.origin + window.location.pathname + '?pdf=' + id;
+}
+
+// Generate a self-contained shareable URL with compressed report data
+// Uses CompressionStream (deflate-raw) → base64url, with plain base64 fallback
+function spGetShareableUrl(htmlContent) {
+  return new Promise(function(resolve) {
+    var encoded = new TextEncoder().encode(htmlContent);
+
+    if (typeof CompressionStream !== 'undefined') {
+      // Compress with deflate-raw
+      var cs = new CompressionStream('deflate-raw');
+      var writer = cs.writable.getWriter();
+      var reader = cs.readable.getReader();
+      var chunks = [];
+      writer.write(encoded);
+      writer.close();
+      (function readChunks() {
+        reader.read().then(function(result) {
+          if (result.value) chunks.push(result.value);
+          if (!result.done) { readChunks(); return; }
+          var total = chunks.reduce(function(s, c) { return s + c.length; }, 0);
+          var combined = new Uint8Array(total);
+          var offset = 0;
+          chunks.forEach(function(c) { combined.set(c, offset); offset += c.length; });
+          // Convert to base64url
+          var binary = '';
+          for (var i = 0; i < combined.length; i++) binary += String.fromCharCode(combined[i]);
+          var b64 = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+          resolve(window.location.origin + window.location.pathname + '?report=' + b64);
+        }).catch(function() {
+          // Fallback to uncompressed base64
+          resolve(_spPlainBase64Url(htmlContent));
+        });
+      })();
+    } else {
+      resolve(_spPlainBase64Url(htmlContent));
+    }
+  });
+}
+
+function _spPlainBase64Url(html) {
+  var b64 = btoa(unescape(encodeURIComponent(html))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return window.location.origin + window.location.pathname + '?report=' + b64;
+}
+
 function generateResearchPDF(title, content, meta) {
+  const pdfId = spGeneratePdfId();
   const htmlContent = '<!DOCTYPE html><html><head><title>' + title.replace(/</g, '&lt;') + '</title>' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">' +
     '<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">' +
@@ -16273,9 +16532,14 @@ function generateResearchPDF(title, content, meta) {
     '<div class="meta">Generated ' + new Date().toLocaleString() + (meta?.model ? ' \u00B7 Model: ' + meta.model : '') + (meta?.dataAge ? ' \u00B7 Data as of ' + meta.dataAge : '') + '</div>' +
     content + '</body></html>';
 
+  // Persist to localStorage
+  spStorePdf(pdfId, htmlContent);
+
+  // Also create blob URL for immediate use
   const blob = new Blob([htmlContent], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  return { url, title, htmlContent, generatedAt: Date.now() };
+  const blobUrl = URL.createObjectURL(blob);
+
+  return { url: blobUrl, pdfId, title, htmlContent, generatedAt: Date.now() };
 }
 
 function renderPdfAttachment(pdfResult, taskDescription, persona) {
@@ -16283,24 +16547,56 @@ function renderPdfAttachment(pdfResult, taskDescription, persona) {
   div.className = 'ai-msg system';
   div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--panel-inset);font-size:.6rem;margin-top:4px;';
   const dateStr = new Date(pdfResult.generatedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  div.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">\uD83D\uDCC4 ' + pdfResult.title + ' \u2014 ' + dateStr + '</div>' +
-    '<div style="display:flex;gap:6px;margin-top:4px;">' +
-    '<a href="' + pdfResult.url + '" target="_blank" style="padding:3px 10px;border:1px solid var(--accent);border-radius:4px;color:var(--accent);text-decoration:none;font-size:.56rem;cursor:pointer;">Open</a>' +
-    '<a href="' + pdfResult.url + '" download="research_' + pdfResult.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) + '_' + new Date().toISOString().slice(0, 10) + '.html" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);text-decoration:none;font-size:.56rem;cursor:pointer;">Download</a>' +
-    '</div>';
+  const localUrl = spGetPdfUrl(pdfResult.pdfId);
+  const downloadName = 'research_' + pdfResult.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) + '_' + new Date().toISOString().slice(0, 10) + '.html';
+
+  div.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">\uD83D\uDCC4 ' + esc(pdfResult.title) + ' \u2014 ' + dateStr + '</div>' +
+    '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">' +
+    '<a href="' + esc(localUrl) + '" target="_blank" style="padding:3px 10px;border:1px solid var(--accent);border-radius:4px;color:var(--accent);text-decoration:none;font-size:.56rem;cursor:pointer;">Open</a>' +
+    '<a href="' + esc(pdfResult.url) + '" download="' + esc(downloadName) + '" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);text-decoration:none;font-size:.56rem;cursor:pointer;">Download</a>' +
+    '<button class="sp-share-link-btn" style="padding:3px 10px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);font-size:.56rem;cursor:pointer;font-weight:600;">\uD83D\uDD17 Copy Shareable Link</button>' +
+    '</div>' +
+    '<div class="sp-share-url-display" style="margin-top:4px;font-size:.48rem;color:var(--text-dim);">Generating shareable link...</div>';
+
+  // Generate compressed shareable URL (async) then wire up copy
+  spGetShareableUrl(pdfResult.htmlContent).then(function(shareUrl) {
+    var urlDisplay = div.querySelector('.sp-share-url-display');
+    if (shareUrl.length > 50000) {
+      urlDisplay.textContent = 'Shareable link ready (' + Math.round(shareUrl.length / 1024) + 'KB — may be long for some apps, use Download for large reports)';
+    } else {
+      urlDisplay.textContent = 'Shareable link ready (' + Math.round(shareUrl.length / 1024) + 'KB)';
+    }
+    var copyBtn = div.querySelector('.sp-share-link-btn');
+    copyBtn.addEventListener('click', function() {
+      navigator.clipboard.writeText(shareUrl).then(function() {
+        toast('Shareable link copied! Works on any device.');
+      }).catch(function() {
+        var ta = document.createElement('textarea'); ta.value = shareUrl;
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta); toast('Link copied!');
+      });
+    });
+  });
+
   $('#aiMsgs').appendChild(div);
   $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
 
-  // Save to saved actions
+  // Save to export history
   const entry = {
-    id: Date.now(), type: 'pdf_export', title: pdfResult.title,
+    id: pdfResult.pdfId, type: 'pdf_export', title: pdfResult.title,
     taskDescription: (taskDescription || '').substring(0, 100),
     persona: persona || 'General',
     generatedAt: pdfResult.generatedAt,
-    contentUrl: pdfResult.url, taskId: null
+    pdfId: pdfResult.pdfId, taskId: null
   };
   pdfExports.push(entry);
-  if (pdfExports.length > 20) pdfExports = pdfExports.slice(-20);
+  if (pdfExports.length > 20) {
+    // Remove oldest export's stored HTML too
+    var removed = pdfExports.shift();
+    if (removed && removed.pdfId) {
+      try { localStorage.removeItem(_spPdfStorageKey(removed.pdfId)); } catch(e) {}
+    }
+  }
   LS('compplan_pdf_exports', pdfExports);
 }
 
@@ -17332,8 +17628,9 @@ async function executeAgentTool(name, input) {
           const doc = parser.parseFromString(xmlText, 'text/xml');
           const items = doc.querySelectorAll('item');
           const articles = [];
+          // Cap at 8 articles for speed — quality over quantity
           items.forEach((item, idx) => {
-            if (idx >= 15) return;
+            if (idx >= 8) return;
             articles.push({
               title: item.querySelector('title')?.textContent || '',
               source: item.querySelector('source')?.textContent || '',
@@ -17342,7 +17639,7 @@ async function executeAgentTool(name, input) {
             });
           });
           toast('Deep research: fetched ' + articles.length + ' articles');
-          return JSON.stringify({ topic: input.topic, articles_found: articles.length, articles, instruction: 'Analyze these real articles and synthesize findings. Write a structured report to the notepad using write_note.' });
+          return JSON.stringify({ topic: input.topic, articles_found: articles.length, articles, instruction: 'Be selective — focus on the 3-5 highest-signal articles. Write a tight, focused analysis to the notepad using write_note. Skip filler sources.' });
         } catch (err) {
           return JSON.stringify({ error: 'Research fetch failed: ' + err.message });
         }
@@ -18179,7 +18476,7 @@ async function sendAgentMessage() {
   // Add workspace context to the latest user message
   const ctx = getWorkspaceContext();
   const deepOn = $('#aiDeepToggle') && $('#aiDeepToggle').checked;
-  const deepPrefix = deepOn ? '[DEEP RESEARCH MODE ON] Before answering, use the deep_research tool to fetch real articles about the topic, then synthesize findings into your response. Also write a structured analysis to the notepad.\n\n' : '';
+  const deepPrefix = deepOn ? '[DEEP RESEARCH MODE ON] Use the deep_research tool to fetch articles, then give a focused synthesis — lead with the key takeaway, cover only high-signal findings, skip filler. Write a concise analysis to the notepad.\n\n' : '';
   const contextMsg = { role: 'user', content: '[Current Workspace State]\n' + ctx + '\n\n' + deepPrefix + '[User Request]\n' + input };
 
   // Manage history
