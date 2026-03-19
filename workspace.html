@@ -2101,6 +2101,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
       <button id="aiAccessReqBtn" class="p-btn" title="User access requests (admin)" style="font-size:.55rem;">Requests</button>
       <button id="aiSettingsBtn" class="p-btn" title="Rate limits & session settings (admin)" style="font-size:.55rem;">Settings</button>
+      <button id="aiDataSourcesBtn" class="p-btn" title="Data source health check — all APIs (admin)" style="font-size:.55rem;">Sources</button>
       <button id="aiSavedActionsBtn" class="p-btn" title="Saved tool actions" style="font-size:.55rem;">Actions</button>
       <button id="aiCleanupBtn" class="p-btn" title="Cleanup available in Whiteboard, Concept Map, Notepad, Scratch Sheet" style="font-size:.55rem;">&#x1F9F9; Cleanup</button>
       <button id="aiInfoBtn" class="p-btn" title="Capabilities &amp; settings" style="font-size:.6rem;">Info</button>
@@ -2740,6 +2741,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <button id="spBracketFetch" style="font-size:.58rem;background:rgba(59,130,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;" title="Fetch live tournament data from ESPN">Load Bracket</button>
             <button id="spBracketRefresh" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Refresh scores">&#8635; Refresh</button>
             <button id="spBracketReset" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Reset user picks">Reset Picks</button>
+            <button id="spBracketSave" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Save a copy of this bracket">Save</button>
+            <button id="spBracketLoad" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Load a saved bracket version">Load</button>
             <div class="p-spacer" style="flex:1;"></div>
             <button id="spBracketAskClaude" style="font-size:.58rem;background:rgba(139,92,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;display:none;" title="Ask Claude to annotate your bracket">Claude Analyze</button>
             <span id="spBracketStatus" style="font-size:.48rem;color:var(--text-dim);"></span>
@@ -10035,7 +10038,13 @@ $$('#spTabs .page-tab').forEach(tab => {
     if ($('#spOddsTab')) $('#spOddsTab').style.display = st === 'odds' ? 'flex' : 'none';
     if ($('#spNewsTab')) $('#spNewsTab').style.display = st === 'news' ? 'flex' : 'none';
     if ($('#spPlayersTab')) $('#spPlayersTab').style.display = st === 'players' ? 'flex' : 'none';
-    if ($('#spBracketTab')) $('#spBracketTab').style.display = st === 'bracket' ? 'flex' : 'none';
+    if ($('#spBracketTab')) {
+      $('#spBracketTab').style.display = st === 'bracket' ? 'flex' : 'none';
+      // Auto-fetch bracket if switching to tab and not loaded yet but has saved picks
+      if (st === 'bracket' && !spBracketData && (LS('sp_bracket_picks') && Object.keys(LS('sp_bracket_picks')).length > 0)) {
+        spFetchBracket();
+      }
+    }
     $('#spYoutubeTab').style.display = st === 'youtube' ? 'flex' : 'none';
     // Re-apply pink tints for disconnected tabs
     spUpdateConnBadge();
@@ -10798,8 +10807,19 @@ function spRenderOddsCard(game) {
 
   html += '<div style="background:rgba(255,255,255,.04);border-radius:4px;padding:7px 9px;">';
 
-  // Books count
-  html += '<div style="font-size:.5rem;color:var(--text-dim);margin-bottom:5px;">Consensus from '+books.length+' book'+(books.length!==1?'s':'')+'</div>';
+  // Books count with sportsbook tooltip
+  var _oddsKnownBooks = ['DraftKings', 'FanDuel', 'BetMGM', 'Caesars', 'PointsBet', 'BetRivers', 'Bovada', 'ESPN BET', 'Hard Rock Bet', 'bet365'];
+  var _bkStatusColor = books.length >= 5 ? '#16a34a' : books.length >= 2 ? '#f59e0b' : '#ef4444';
+  var _bkTooltipRows = _oddsKnownBooks.map(function(kb) {
+    var found = books.some(function(b) { return b.toLowerCase().includes(kb.toLowerCase().split(' ')[0]); });
+    return '<div style="display:flex;gap:3px;align-items:center;padding:1px 0;"><span style="width:5px;height:5px;border-radius:50%;background:'+(found?'#16a34a':'#ef4444')+';flex-shrink:0;"></span><span style="color:'+(found?'var(--text)':'var(--text-dim)')+';font-size:.46rem;">'+esc(kb)+'</span></div>';
+  }).join('');
+  html += '<div class="sp-odds-books-wrap" style="font-size:.5rem;color:var(--text-dim);margin-bottom:5px;position:relative;display:inline-flex;align-items:center;gap:4px;cursor:default;">';
+  html += '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+_bkStatusColor+';flex-shrink:0;"></span>';
+  html += 'Consensus from '+books.length+' book'+(books.length!==1?'s':'');
+  html += '<div class="sp-odds-books-tip" style="display:none;position:absolute;left:0;top:100%;z-index:50;background:var(--panel-inset);border:1px solid var(--border);border-radius:5px;padding:5px 7px;box-shadow:0 4px 12px rgba(0,0,0,.3);white-space:nowrap;min-width:100px;">';
+  html += '<div style="font-weight:700;font-size:.48rem;color:var(--accent2);margin-bottom:2px;">Sportsbooks</div>' + _bkTooltipRows;
+  html += '</div></div>';
 
   // Metrics row
   html += '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.68rem;align-items:flex-start;">';
@@ -10864,6 +10884,17 @@ function spRenderOddsCard(game) {
 
   html += '</div></div></div>';
   return html;
+}
+
+// Attach hover tooltips for sportsbook Y/N indicators on odds cards
+function _spAttachBookTooltips(container) {
+  (container || document).querySelectorAll('.sp-odds-books-wrap').forEach(function(wrap) {
+    var tip = wrap.querySelector('.sp-odds-books-tip');
+    if (tip) {
+      wrap.onmouseenter = function() { tip.style.display = 'block'; };
+      wrap.onmouseleave = function() { tip.style.display = 'none'; };
+    }
+  });
 }
 
 function spFetchOdds() {
@@ -10985,6 +11016,7 @@ function spFetchOdds() {
 
         $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + ' (auto-refreshes every 60s)';
         el.innerHTML = summary + html || '<div class="sp-empty">No odds available for this league right now.</div>';
+        _spAttachBookTooltips(el);
       })
       .catch(function(err) {
         console.warn('[Odds API] Failed, falling back to ESPN:', err.message);
@@ -11085,6 +11117,7 @@ function spFetchOddsEspn(league) {
       } else {
         $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + (hasOdds ? ' (auto-refreshes every 60s)' : ' (no lines yet)');
         el.innerHTML = summary + html;
+        _spAttachBookTooltips(el);
       }
     })
     .catch(function(err) {
@@ -11549,6 +11582,8 @@ async function spFetchBracket() {
     // Show toolbar buttons + round tabs
     if ($('#spBracketRefresh')) $('#spBracketRefresh').style.display = '';
     if ($('#spBracketReset')) $('#spBracketReset').style.display = '';
+    if ($('#spBracketSave')) $('#spBracketSave').style.display = '';
+    if ($('#spBracketLoad')) $('#spBracketLoad').style.display = '';
     if ($('#spBracketAskClaude')) $('#spBracketAskClaude').style.display = '';
     if ($('#spBracketRoundTabs')) $('#spBracketRoundTabs').style.display = 'flex';
 
@@ -11627,6 +11662,95 @@ function _pairByPosition(games) {
 }
 
 // Main bracket renderer — matchup box layout with feeder pairing
+// Build a map of winner teams flowing from picks into later rounds
+// For games with < 2 teams, if the feeder game has a user pick, populate the picked team
+function _bracketBuildPickFlow(games, picks) {
+  // Index games by id for quick lookup
+  var byId = {};
+  games.forEach(function(g) { byId[g.id] = g; });
+
+  // Group by round and region
+  var byRoundRegion = {};
+  games.forEach(function(g) {
+    var key = g.round + '|' + (g.region || 'Other');
+    if (!byRoundRegion[key]) byRoundRegion[key] = [];
+    byRoundRegion[key].push(g);
+  });
+
+  // For each round starting from round 2, look for games needing teams
+  // Build a map of gameId -> enriched teams array
+  var enriched = {};
+
+  // Get winner of a game: actual winner or user pick
+  function getWinner(game) {
+    if (game.completed) {
+      var w = game.teams.find(function(t) { return t.winner; });
+      if (w) return w;
+    }
+    if (picks[game.id] !== undefined && game.teams.length >= 2) {
+      return game.teams[picks[game.id]];
+    }
+    return null;
+  }
+
+  // For each round > 1, try to fill empty slots from feeder round winners
+  for (var round = 2; round <= 6; round++) {
+    var feederRound = round - 1;
+    // For each region, get feeder games and current round games
+    var regions = new Set();
+    games.forEach(function(g) { if (g.round === round || g.round === feederRound) regions.add(g.region || 'Other'); });
+
+    regions.forEach(function(region) {
+      var fKey = feederRound + '|' + region;
+      var cKey = round + '|' + region;
+      var feeders = byRoundRegion[fKey] || [];
+      var current = byRoundRegion[cKey] || [];
+
+      // Sort feeders consistently
+      feeders.sort(function(a, b) { return (a.startTime || '').localeCompare(b.startTime || '') || a.id.localeCompare(b.id); });
+
+      // For each current round game, if it has < 2 teams, try to fill from feeder pairs
+      current.forEach(function(game, gi) {
+        if (game.teams.length >= 2) {
+          enriched[game.id] = game.teams;
+          return;
+        }
+        // The i-th current game is fed by feeders[2*i] and feeders[2*i+1]
+        var f1 = feeders[gi * 2];
+        var f2 = feeders[gi * 2 + 1];
+        var teams = game.teams.slice(); // copy existing
+
+        var w1 = f1 ? getWinner(f1) : null;
+        var w2 = f2 ? getWinner(f2) : null;
+
+        // Check if enriched feeders have picks (recursive flow)
+        if (!w1 && f1 && enriched[f1.id] && enriched[f1.id].length >= 2) {
+          var ep = picks[f1.id];
+          if (ep !== undefined) w1 = enriched[f1.id][ep];
+        }
+        if (!w2 && f2 && enriched[f2.id] && enriched[f2.id].length >= 2) {
+          var ep2 = picks[f2.id];
+          if (ep2 !== undefined) w2 = enriched[f2.id][ep2];
+        }
+
+        if (w1 && teams.length === 0) teams.push(Object.assign({}, w1, { score: 0, winner: false, _projected: true }));
+        else if (w1 && teams.length === 1) {
+          // Check if w1 is different from existing team
+          if (!teams.some(function(t) { return t.name === w1.name; }))
+            teams.unshift(Object.assign({}, w1, { score: 0, winner: false, _projected: true }));
+        }
+        if (w2 && !teams.some(function(t) { return t.name === w2.name; })) {
+          teams.push(Object.assign({}, w2, { score: 0, winner: false, _projected: true }));
+        }
+
+        enriched[game.id] = teams;
+      });
+    });
+  }
+
+  return enriched;
+}
+
 function spRenderBracket() {
   var view = $('#spBracketView');
   if (!view || !spBracketData) return;
@@ -11639,6 +11763,9 @@ function spRenderBracket() {
     return;
   }
 
+  // Build pick flow map for later rounds
+  var pickFlow = _bracketBuildPickFlow(games, picks);
+
   // Filter by round
   var filtered = filter === 'all' ? games : games.filter(function(g) { return g.round === parseInt(filter); });
 
@@ -11647,9 +11774,10 @@ function spRenderBracket() {
   var yr = new Date().getFullYear();
   var total = filtered.length, completed = filtered.filter(g => g.completed).length;
   var live = filtered.filter(g => g.state === 'STATUS_IN_PROGRESS').length;
+  var pickCount = Object.keys(picks).length;
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding:0 2px;">';
   html += '<span style="font-size:.7rem;font-weight:700;color:var(--text);">' + yr + ' NCAA Tournament</span>';
-  html += '<span style="font-size:.48rem;color:var(--text-dim);">' + completed + '/' + total + ' final' + (live ? ' &middot; <span style="color:#ef4444;font-weight:700;">' + live + ' live</span>' : '') + '</span>';
+  html += '<span style="font-size:.48rem;color:var(--text-dim);">' + completed + '/' + total + ' final' + (pickCount ? ' &middot; ' + pickCount + ' picks' : '') + (live ? ' &middot; <span style="color:#ef4444;font-weight:700;">' + live + ' live</span>' : '') + '</span>';
   html += '</div>';
 
   // Group by round then region
@@ -11664,7 +11792,7 @@ function spRenderBracket() {
 
     // Round header
     if (filter === 'all') {
-      html += '<div style="padding:3px 6px;margin-top:4px;font-weight:700;font-size:.58rem;color:var(--accent);border-bottom:2px solid var(--accent);display:flex;justify-content:space-between;">';
+      html += '<div style="padding:3px 6px;margin-top:6px;font-weight:700;font-size:.58rem;color:var(--accent);border-bottom:2px solid var(--accent);display:flex;justify-content:space-between;">';
       html += '<span>' + esc(roundName) + '</span>';
       html += '<span style="font-size:.44rem;font-weight:400;color:var(--text-dim);">' + roundDone + '/' + roundGames.length + '</span>';
       html += '</div>';
@@ -11685,13 +11813,16 @@ function spRenderBracket() {
       // Pair feeder games: R64 uses seed logic, later rounds use positional pairing
       var pairs = roundNum === 1 ? _pairFeederGames(regionGames) : _pairByPosition(regionGames);
 
-      // Render paired matchup groups
-      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:2px 4px;">';
+      // Vertical single-column layout: each pair is a block, games stacked with connector
       pairs.forEach(function(pair) {
-        // Each pair is a vertical stack with a connector hint
-        html += '<div style="display:flex;flex-direction:column;gap:1px;min-width:145px;max-width:205px;flex:1;">';
+        html += '<div style="display:flex;flex-direction:column;gap:1px;padding:2px 4px;max-width:320px;">';
         pair.forEach(function(game, gi) {
-          html += _renderMatchupBox(game, picks);
+          // Use enriched teams from pick flow if available
+          var displayGame = game;
+          if (pickFlow[game.id] && pickFlow[game.id].length > game.teams.length) {
+            displayGame = Object.assign({}, game, { teams: pickFlow[game.id] });
+          }
+          html += _renderMatchupBox(displayGame, picks);
           // Draw a small connector between paired games
           if (gi === 0 && pair.length > 1) {
             html += '<div style="display:flex;justify-content:center;"><div style="width:1px;height:4px;background:var(--accent);opacity:.4;"></div></div>';
@@ -11699,7 +11830,6 @@ function spRenderBracket() {
         });
         html += '</div>';
       });
-      html += '</div>';
     });
   });
 
@@ -11749,9 +11879,11 @@ function _renderMatchupBox(game, picks) {
       if (team.seed) html += '<span style="font-size:.44rem;color:var(--text-dim);min-width:12px;text-align:right;font-weight:600;">' + team.seed + '</span>';
 
       // Team name
-      var nameColor = isWinner ? '#16a34a' : 'var(--text)';
+      var isProjected = team._projected;
+      var nameColor = isWinner ? '#16a34a' : isProjected ? 'var(--accent)' : 'var(--text)';
       var nameWeight = isWinner || isPicked ? '700' : '500';
-      html += '<span style="font-size:.56rem;font-weight:' + nameWeight + ';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + nameColor + ';">' + esc(team.name) + '</span>';
+      var nameStyle = isProjected ? 'font-style:italic;' : '';
+      html += '<span style="font-size:.56rem;font-weight:' + nameWeight + ';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + nameColor + ';' + nameStyle + '">' + (isProjected ? '&#8594; ' : '') + esc(team.name) + '</span>';
 
       // Score
       if (isFinal || isLive) {
@@ -11832,6 +11964,86 @@ if ($('#spBracketRefresh')) $('#spBracketRefresh').onclick = spFetchBracket;
 if ($('#spBracketReset')) $('#spBracketReset').onclick = function() {
   if (confirm('Reset all picks and annotations?')) _bracketResetPicks();
 };
+
+// Bracket save/load functionality
+if ($('#spBracketSave')) {
+  $('#spBracketSave').onclick = function() {
+    var name = prompt('Name this bracket version:', 'Bracket ' + new Date().toLocaleDateString());
+    if (!name) return;
+    var versions = LS('sp_bracket_versions') || [];
+    versions.push({
+      name: name,
+      savedAt: new Date().toISOString(),
+      picks: JSON.parse(JSON.stringify(spBracketData ? spBracketData.userPicks : {})),
+      annotations: JSON.parse(JSON.stringify(spBracketAnnotations || {}))
+    });
+    LS('sp_bracket_versions', versions);
+    alert('Bracket saved as "' + name + '" (' + versions.length + ' version' + (versions.length !== 1 ? 's' : '') + ' saved)');
+  };
+}
+
+if ($('#spBracketLoad')) {
+  $('#spBracketLoad').onclick = function() {
+    var versions = LS('sp_bracket_versions') || [];
+    if (!versions.length) { alert('No saved bracket versions found.'); return; }
+
+    // Show a load panel
+    var existing = document.getElementById('spBracketLoadPanel');
+    if (existing) { existing.remove(); return; }
+
+    var panel = document.createElement('div');
+    panel.id = 'spBracketLoadPanel';
+    panel.style.cssText = 'position:absolute;top:36px;left:4px;right:4px;z-index:50;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.3);padding:10px 12px;font-size:.6rem;max-height:60%;overflow-y:auto;';
+
+    var phtml = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+    phtml += '<span style="font-weight:700;color:var(--accent2);">Saved Brackets</span>';
+    phtml += '<button onclick="document.getElementById(\'spBracketLoadPanel\').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;">&times;</button>';
+    phtml += '</div>';
+
+    versions.forEach(function(v, i) {
+      var d = new Date(v.savedAt);
+      var pickCount = Object.keys(v.picks || {}).length;
+      var annCount = Object.keys(v.annotations || {}).length;
+      phtml += '<div style="display:flex;align-items:center;gap:6px;padding:5px 4px;border-bottom:1px solid var(--border);">';
+      phtml += '<div style="flex:1;"><div style="font-weight:600;color:var(--text);">' + esc(v.name) + '</div>';
+      phtml += '<div style="font-size:.46rem;color:var(--text-dim);">' + d.toLocaleString() + ' &middot; ' + pickCount + ' picks, ' + annCount + ' annotations</div></div>';
+      phtml += '<button class="brk-load-btn" data-brk-idx="' + i + '" style="font-size:.5rem;background:var(--accent);color:#fff;border:none;border-radius:3px;padding:2px 8px;cursor:pointer;">Load</button>';
+      phtml += '<button class="brk-delete-btn" data-brk-idx="' + i + '" style="font-size:.5rem;background:none;border:1px solid #ef4444;color:#ef4444;border-radius:3px;padding:2px 6px;cursor:pointer;">Del</button>';
+      phtml += '</div>';
+    });
+
+    panel.innerHTML = phtml;
+    var bracketView = $('#spBracketView');
+    if (bracketView) bracketView.style.position = 'relative';
+    var container = $('#spBracketTab');
+    if (container) container.appendChild(panel);
+
+    // Attach load/delete handlers
+    panel.querySelectorAll('.brk-load-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        var idx = parseInt(this.getAttribute('data-brk-idx'));
+        var v = versions[idx];
+        if (!v || !spBracketData) return;
+        spBracketData.userPicks = JSON.parse(JSON.stringify(v.picks || {}));
+        spBracketAnnotations = JSON.parse(JSON.stringify(v.annotations || {}));
+        LS('sp_bracket_picks', spBracketData.userPicks);
+        LS('sp_bracket_annotations', spBracketAnnotations);
+        spRenderBracket();
+        panel.remove();
+      };
+    });
+    panel.querySelectorAll('.brk-delete-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        var idx = parseInt(this.getAttribute('data-brk-idx'));
+        if (!confirm('Delete "' + versions[idx].name + '"?')) return;
+        versions.splice(idx, 1);
+        LS('sp_bracket_versions', versions);
+        panel.remove();
+        $('#spBracketLoad').click(); // re-open refreshed
+      };
+    });
+  };
+}
 
 // Round filter tabs
 $$('.brk-rtab').forEach(function(btn) {
@@ -14563,6 +14775,8 @@ function closeAllAdminPanels(except) {
   if (auditPanel && except !== 'aiAuditPanel') auditPanel.remove();
   const settingsPanel = document.getElementById('aiSettingsPanel');
   if (settingsPanel && except !== 'aiSettingsPanel') settingsPanel.remove();
+  const dsPanel = document.getElementById('aiDataSourcesPanel');
+  if (dsPanel && except !== 'aiDataSourcesPanel') dsPanel.remove();
 }
 
 $('#aiCostBtn').onclick = () => {
@@ -15080,6 +15294,117 @@ $('#aiSettingsBtn').onclick = () => {
       }]);
     }
   };
+};
+
+// ── Data Sources Health Check Panel (admin) ──
+$('#aiDataSourcesBtn').onclick = () => {
+  closeAllAdminPanels('aiDataSourcesPanel');
+  let panel = document.getElementById('aiDataSourcesPanel');
+  if (panel) { panel.remove(); return; }
+  if (!wsIsAdmin) return;
+
+  panel = document.createElement('div');
+  panel.id = 'aiDataSourcesPanel';
+  panel.style.cssText = 'position:absolute;top:0;left:4px;right:4px;bottom:4px;z-index:80;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:12px 14px;font-size:.65rem;overflow-y:auto;';
+
+  // Define all data sources
+  var DS_LIST = [
+    { id: 'proxy', name: 'Proxy Server', desc: 'Core proxy (Render)', check: function() { return fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: d.status === 'ok', detail: 'Services: ' + Object.entries(d.services||{}).map(function(e){return e[0]+':'+(e[1]?'Y':'N');}).join(', ') }; }); } },
+    { id: 'anthropic', name: 'Claude AI (Anthropic)', desc: 'LLM API for chat', check: function() { return fetch(PROXY_BASE + '/proxy/ai/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!d.configured, detail: d.configured ? 'API key configured' : 'No API key set' }; }); } },
+    { id: 'espn', name: 'ESPN Sports API', desc: 'Scores, standings, news, players', check: function() { return fetch(PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard', { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.events), detail: (d.events||[]).length + ' events found' }; }); } },
+    { id: 'odds', name: 'The Odds API', desc: 'Betting odds (spread, ML, total)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!d.available, detail: d.available ? 'Key active, remaining: ' + (d.remaining || '?') : 'Key missing or exhausted' }; }); } },
+    { id: 'odds_live', name: 'Odds API — Live Data', desc: 'Actual odds fetch (NBA test)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/basketball_nba?markets=h2h,spreads,totals&regions=us&oddsFormat=american', { signal: AbortSignal.timeout(10000) }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); var remaining = r.headers.get('x-requests-remaining'); return r.json().then(function(games) { var books = new Set(); (games||[]).forEach(function(g) { (g.bookmakers||[]).forEach(function(bk) { books.add(bk.title || bk.key); }); }); return { ok: Array.isArray(games), detail: (games||[]).length + ' games, ' + books.size + ' books: ' + Array.from(books).join(', '), partial: books.size < 3, books: Array.from(books), remaining: remaining }; }); }); } },
+    { id: 'youtube', name: 'YouTube (Invidious)', desc: 'Video search proxy', check: function() { return fetch(PROXY_BASE + '/proxy/youtube/search?q=sports+highlights', { signal: AbortSignal.timeout(12000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: Array.isArray(d) && d.length > 0, detail: (d||[]).length + ' results' }; }); } },
+    { id: 'yahoo', name: 'Yahoo Finance', desc: 'Stock price charts', check: function() { var yUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d&interval=5m&includePrePost=false'; return fetch(PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(yUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.chart && d.chart.result), detail: d.chart && d.chart.result ? 'AAPL data OK' : 'Parse error' }; }); } },
+    { id: 'news', name: 'Google News RSS', desc: 'News feed proxy', check: function() { var nUrl = 'https://news.google.com/rss/search?q=stocks&hl=en-US&gl=US&ceid=US:en'; return fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(nUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.text(); }).then(function(t) { var items = (t.match(/<item>/g) || []).length; return { ok: items > 0, detail: items + ' articles found' }; }); } },
+    { id: 'robinhood', name: 'Robinhood API', desc: 'Trading & portfolio', check: function() { return fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!d.loggedIn, detail: d.loggedIn ? 'Authenticated' : 'Not logged in', partial: !d.loggedIn }; }); } },
+    { id: 'gnews', name: 'GNews API', desc: 'Supplemental news (DEMO key)', check: function() { return fetch('https://gnews.io/api/v4/search?q=test&lang=en&max=1&apikey=DEMO', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.articles && d.articles.length), detail: d.totalArticles ? d.totalArticles + ' articles available' : d.errors ? 'Rate limited or key expired' : 'Unknown', partial: !!d.errors }; }); } },
+    { id: 'archive', name: 'Archive.is', desc: 'Article/paywall bypass', check: function() { return fetch(PROXY_BASE + '/proxy/article?url=' + encodeURIComponent('https://example.com'), { signal: AbortSignal.timeout(10000) }).then(function(r) { return { ok: r.ok, detail: r.ok ? 'Proxy responding' : 'HTTP ' + r.status }; }); } }
+  ];
+
+  function _dsStatusDot(result) {
+    if (!result) return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#888;" title="Checking..."></span>';
+    if (result.error) return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;" title="' + esc(result.error) + '"></span>';
+    if (result.partial) return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f59e0b;" title="Partial: ' + esc(result.detail || '') + '"></span>';
+    if (result.ok) return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#16a34a;" title="' + esc(result.detail || 'Connected') + '"></span>';
+    return '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;" title="' + esc(result.detail || 'Failed') + '"></span>';
+  }
+
+  function _dsRenderRow(ds, result) {
+    var tooltipContent = '';
+    if (result && result.books && result.books.length) {
+      var KNOWN_BOOKS = ['DraftKings', 'FanDuel', 'BetMGM', 'Caesars', 'PointsBet', 'BetRivers', 'Bovada', 'WynnBET', 'Barstool', 'bet365', 'Unibet', 'Hard Rock Bet', 'ESPN BET', 'Fanatics'];
+      tooltipContent = KNOWN_BOOKS.map(function(bk) {
+        var found = result.books.some(function(b) { return b.toLowerCase().includes(bk.toLowerCase().split(' ')[0]); });
+        return '<div style="display:flex;gap:4px;align-items:center;">' +
+          '<span style="width:6px;height:6px;border-radius:50%;background:' + (found ? '#16a34a' : '#ef4444') + ';flex-shrink:0;"></span>' +
+          '<span style="color:' + (found ? 'var(--text)' : 'var(--text-dim)') + ';">' + esc(bk) + '</span></div>';
+      }).join('');
+    }
+    var row = '<div style="display:flex;align-items:center;gap:8px;padding:5px 4px;border-bottom:1px solid var(--border);">';
+    row += '<div style="position:relative;" class="ds-dot-wrap">' + _dsStatusDot(result);
+    if (tooltipContent) {
+      row += '<div class="ds-book-tooltip" style="display:none;position:absolute;left:18px;top:-4px;z-index:99;background:var(--panel-inset);border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:.52rem;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.3);min-width:120px;">' +
+        '<div style="font-weight:700;margin-bottom:3px;color:var(--accent2);">Sportsbooks</div>' + tooltipContent + '</div>';
+    }
+    row += '</div>';
+    row += '<div style="flex:1;"><div style="font-weight:600;color:var(--text);font-size:.6rem;">' + esc(ds.name) + '</div><div style="font-size:.48rem;color:var(--text-dim);">' + esc(ds.desc) + '</div></div>';
+    row += '<div style="font-size:.48rem;color:var(--text-dim);max-width:200px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(result ? (result.detail || '') : 'Checking...') + '">' + esc(result ? (result.error || result.detail || '') : '...') + '</div>';
+    row += '</div>';
+    return row;
+  }
+
+  // Initial render
+  panel.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+      '<span style="font-weight:700;color:var(--accent2);">Data Source Health Check</span>' +
+      '<div style="display:flex;gap:6px;align-items:center;">' +
+        '<button id="dsRefreshAll" style="font-size:.55rem;background:var(--accent);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;">Refresh All</button>' +
+        '<button onclick="document.getElementById(\'aiDataSourcesPanel\').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;">&times;</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:12px;margin-bottom:8px;font-size:.48rem;color:var(--text-dim);">' +
+      '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;"></span> Connected</span>' +
+      '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span> Partial</span>' +
+      '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ef4444;"></span> Down</span>' +
+      '<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#888;"></span> Checking</span>' +
+    '</div>' +
+    '<div id="dsSourcesList">' + DS_LIST.map(function(ds) { return _dsRenderRow(ds, null); }).join('') + '</div>' +
+    '<div id="dsLastChecked" style="font-size:.44rem;color:var(--text-dim);margin-top:6px;text-align:right;"></div>';
+
+  var pbody = document.querySelector('.p-body');
+  if (pbody) pbody.appendChild(panel);
+
+  // Run checks
+  function _dsRunChecks() {
+    var results = {};
+    var listEl = document.getElementById('dsSourcesList');
+    if (!listEl) return;
+    listEl.innerHTML = DS_LIST.map(function(ds) { return _dsRenderRow(ds, null); }).join('');
+    DS_LIST.forEach(function(ds) {
+      ds.check().then(function(r) {
+        results[ds.id] = r;
+      }).catch(function(e) {
+        results[ds.id] = { ok: false, error: e.message || 'Connection failed' };
+      }).finally(function() {
+        if (!document.getElementById('dsSourcesList')) return;
+        document.getElementById('dsSourcesList').innerHTML = DS_LIST.map(function(d) { return _dsRenderRow(d, results[d.id] || null); }).join('');
+        // Add hover handlers for tooltips
+        document.querySelectorAll('.ds-dot-wrap').forEach(function(wrap) {
+          var tip = wrap.querySelector('.ds-book-tooltip');
+          if (tip) {
+            wrap.onmouseenter = function() { tip.style.display = 'block'; };
+            wrap.onmouseleave = function() { tip.style.display = 'none'; };
+          }
+        });
+        var checkedEl = document.getElementById('dsLastChecked');
+        if (checkedEl) checkedEl.textContent = 'Last checked: ' + new Date().toLocaleTimeString();
+      });
+    });
+  }
+
+  _dsRunChecks();
+  document.getElementById('dsRefreshAll').onclick = _dsRunChecks;
 };
 
 // ── Workspace Settings Panel (session timeout — available to all logged-in users) ──
