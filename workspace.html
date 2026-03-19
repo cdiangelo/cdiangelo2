@@ -2513,12 +2513,12 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <!-- SPORTS VIEW -->
       <div id="sportsView" style="display:none;flex-direction:column;flex:1;">
         <div class="page-tabs" id="spTabs">
-          <div class="page-tab active" data-sptab="games">Games</div>
-          <div class="page-tab" data-sptab="betting">Betting Lines</div>
-          <div class="page-tab" data-sptab="stats">Player Stats</div>
+          <div class="page-tab active" data-sptab="games">Scores</div>
+          <div class="page-tab" data-sptab="standings">Standings</div>
+          <div class="page-tab" data-sptab="news">News</div>
           <div class="page-tab" data-sptab="youtube">YouTube</div>
         </div>
-        <!-- Games sub-tab -->
+        <!-- Scores sub-tab -->
         <div id="spGamesTab" class="sp-subtab" style="display:flex;flex-direction:column;flex:1;">
           <div class="toolbar">
             <select id="spLeague" style="font-size:.68rem;">
@@ -2528,35 +2528,46 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="nhl">NHL</option>
               <option value="soccer">Soccer</option>
             </select>
-            <button id="spAddGame" style="font-size:.68rem;">+ Add Game</button>
+            <button id="spRefreshScores" style="font-size:.68rem;">&#8635; Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
-            <button id="spClearGames" style="font-size:.68rem;color:var(--text-dim);">Clear</button>
+            <span id="spScoresTime" style="font-size:.55rem;color:var(--text-dim);"></span>
           </div>
           <div id="spGamesList" style="flex:1;overflow-y:auto;padding:8px;">
-            <div class="sp-empty">Add games to track scores and schedules.</div>
+            <div class="sp-empty">Select a league and click Refresh to load live scores.</div>
           </div>
         </div>
-        <!-- Betting Lines sub-tab -->
-        <div id="spBettingTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+        <!-- Standings sub-tab -->
+        <div id="spStandingsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
           <div class="toolbar">
-            <button id="spAddLine" style="font-size:.68rem;">+ Add Line</button>
+            <select id="spStandingsLeague" style="font-size:.68rem;">
+              <option value="nba">NBA</option>
+              <option value="nfl">NFL</option>
+              <option value="mlb">MLB</option>
+              <option value="nhl">NHL</option>
+              <option value="soccer">Soccer</option>
+            </select>
+            <button id="spRefreshStandings" style="font-size:.68rem;">&#8635; Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
-            <button id="spClearLines" style="font-size:.68rem;color:var(--text-dim);">Clear</button>
           </div>
-          <div id="spBettingList" style="flex:1;overflow-y:auto;padding:8px;">
-            <div class="sp-empty">Add betting lines to track odds and spreads.</div>
+          <div id="spStandingsList" style="flex:1;overflow-y:auto;padding:8px;">
+            <div class="sp-empty">Select a league and click Refresh to load standings.</div>
           </div>
         </div>
-        <!-- Player Stats sub-tab -->
-        <div id="spStatsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+        <!-- News sub-tab -->
+        <div id="spNewsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
           <div class="toolbar">
-            <input type="text" id="spPlayerSearch" placeholder="Search player..." style="max-width:160px;font-size:.68rem;" />
-            <button id="spAddPlayer" style="font-size:.68rem;">+ Add</button>
+            <select id="spNewsLeague" style="font-size:.68rem;">
+              <option value="nba">NBA</option>
+              <option value="nfl">NFL</option>
+              <option value="mlb">MLB</option>
+              <option value="nhl">NHL</option>
+              <option value="soccer">Soccer</option>
+            </select>
+            <button id="spRefreshNews" style="font-size:.68rem;">&#8635; Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
-            <button id="spClearPlayers" style="font-size:.68rem;color:var(--text-dim);">Clear</button>
           </div>
-          <div id="spStatsList" style="flex:1;overflow-y:auto;padding:8px;">
-            <div class="sp-empty">Search and add players to view stats.</div>
+          <div id="spNewsList" style="flex:1;overflow-y:auto;padding:8px;">
+            <div class="sp-empty">Select a league and click Refresh to load news.</div>
           </div>
         </div>
         <!-- YouTube sub-tab -->
@@ -8240,7 +8251,7 @@ $$('#q4Tabs button').forEach(btn => {
     if (tab === 'cmap') setTimeout(resizeCM, 50);
     if (tab === 'graphcalc') setTimeout(resizeGC, 50);
     if (tab === 'stocks') detectRobinhoodSession();
-    if (tab === 'sports') renderSportsTab();
+    if (tab === 'sports') { renderSportsTab(); spFetchScores(); }
   });
 });
 
@@ -9676,13 +9687,24 @@ renderGCExprList();
 setTimeout(() => { if ($('#graphCalcView').style.display === 'flex') resizeGC(); }, 100);
 
 /* ═══════════════════════════════════════════
-   SPORTS PANE
+   SPORTS PANE — Live Data Feeds
    ═══════════════════════════════════════════ */
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-let spGames = LS('spGames') || [];
-let spLines = LS('spLines') || [];
-let spPlayers = LS('spPlayers') || [];
 let spYtLinks = LS('spYtLinks') || [];
+
+// ESPN API endpoints (public, no auth required)
+const SP_LEAGUE_MAP = {
+  nba: { sport: 'basketball', league: 'nba', name: 'NBA' },
+  nfl: { sport: 'football', league: 'nfl', name: 'NFL' },
+  mlb: { sport: 'baseball', league: 'mlb', name: 'MLB' },
+  nhl: { sport: 'hockey', league: 'nhl', name: 'NHL' },
+  soccer: { sport: 'soccer', league: 'usa.1', name: 'MLS' }
+};
+
+function spEspnUrl(league, endpoint) {
+  const l = SP_LEAGUE_MAP[league] || SP_LEAGUE_MAP.nba;
+  return 'https://site.api.espn.com/apis/site/v2/sports/' + l.sport + '/' + l.league + '/' + endpoint;
+}
 
 // Sub-tab switching
 $$('#spTabs .page-tab').forEach(tab => {
@@ -9691,140 +9713,163 @@ $$('#spTabs .page-tab').forEach(tab => {
     tab.classList.add('active');
     const st = tab.dataset.sptab;
     $('#spGamesTab').style.display = st === 'games' ? 'flex' : 'none';
-    $('#spBettingTab').style.display = st === 'betting' ? 'flex' : 'none';
-    $('#spStatsTab').style.display = st === 'stats' ? 'flex' : 'none';
+    if ($('#spStandingsTab')) $('#spStandingsTab').style.display = st === 'standings' ? 'flex' : 'none';
+    if ($('#spNewsTab')) $('#spNewsTab').style.display = st === 'news' ? 'flex' : 'none';
     $('#spYoutubeTab').style.display = st === 'youtube' ? 'flex' : 'none';
   });
 });
 
 function renderSportsTab() {
-  renderSpGames();
-  renderSpLines();
-  renderSpPlayers();
   renderSpYtLinks();
 }
 
-// ── Games ──
-function renderSpGames() {
-  const el = $('#spGamesList');
-  if (!spGames.length) { el.innerHTML = '<div class="sp-empty">Add games to track scores and schedules.</div>'; return; }
-  el.innerHTML = spGames.map((g, i) => `
-    <div class="sp-card">
-      <div class="sp-card-head">
-        <div class="sp-game-teams">${esc(g.away)} <span class="sp-game-vs">@</span> ${esc(g.home)}</div>
-        <span><span class="sp-card-meta">${esc(g.league.toUpperCase())}</span><span class="sp-del" onclick="spDelGame(${i})">&times;</span></span>
-      </div>
-      <div class="sp-card-body">
-        ${g.score ? `<span class="sp-game-score">${esc(g.score)}</span> &nbsp;` : ''}
-        ${g.date ? `<span class="sp-card-meta">${esc(g.date)}</span>` : ''}
-        ${g.note ? `<div style="margin-top:4px;color:var(--text-dim);font-size:.65rem;">${esc(g.note)}</div>` : ''}
-      </div>
-    </div>
-  `).join('');
-}
+// ── Live Scores ──
+$('#spRefreshScores').onclick = () => spFetchScores();
+$('#spLeague').onchange = () => spFetchScores();
 
-$('#spAddGame').onclick = () => {
+function spFetchScores() {
   const league = $('#spLeague').value;
-  const away = prompt('Away team:');
-  if (!away) return;
-  const home = prompt('Home team:');
-  if (!home) return;
-  const date = prompt('Date/time (optional):') || '';
-  const score = prompt('Score (optional, e.g. "110-105"):') || '';
-  const note = prompt('Note (optional):') || '';
-  spGames.push({ league, away, home, date, score, note });
-  LS('spGames', spGames);
-  renderSpGames();
-};
-
-$('#spClearGames').onclick = () => { if (confirm('Clear all games?')) { spGames = []; LS('spGames', spGames); renderSpGames(); } };
-
-window.spDelGame = (i) => { spGames.splice(i, 1); LS('spGames', spGames); renderSpGames(); };
-
-// ── Betting Lines ──
-function renderSpLines() {
-  const el = $('#spBettingList');
-  if (!spLines.length) { el.innerHTML = '<div class="sp-empty">Add betting lines to track odds and spreads.</div>'; return; }
-  el.innerHTML = spLines.map((l, i) => `
-    <div class="sp-card">
-      <div class="sp-card-head">
-        <strong>${esc(l.matchup)}</strong>
-        <span><span class="sp-line-odds">${esc(l.odds)}</span><span class="sp-del" onclick="spDelLine(${i})">&times;</span></span>
-      </div>
-      <div class="sp-card-body">
-        ${l.type ? `<span class="sp-card-meta">${esc(l.type)}</span> &nbsp;` : ''}
-        ${l.spread ? `Spread: <b>${esc(l.spread)}</b> &nbsp;` : ''}
-        ${l.overUnder ? `O/U: <b>${esc(l.overUnder)}</b> &nbsp;` : ''}
-        ${l.note ? `<div style="margin-top:4px;color:var(--text-dim);font-size:.65rem;">${esc(l.note)}</div>` : ''}
-      </div>
-    </div>
-  `).join('');
+  const el = $('#spGamesList');
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading scores...</div>';
+  fetch(spEspnUrl(league, 'scoreboard'))
+    .then(r => r.json())
+    .then(data => {
+      const events = data.events || [];
+      if (!events.length) { el.innerHTML = '<div class="sp-empty">No games found for today.</div>'; return; }
+      $('#spScoresTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      el.innerHTML = events.map(ev => {
+        const comp = ev.competitions && ev.competitions[0];
+        if (!comp) return '';
+        const teams = comp.competitors || [];
+        const home = teams.find(t => t.homeAway === 'home') || teams[0] || {};
+        const away = teams.find(t => t.homeAway === 'away') || teams[1] || {};
+        const homeName = home.team ? home.team.displayName : 'TBD';
+        const awayName = away.team ? away.team.displayName : 'TBD';
+        const homeScore = home.score || '-';
+        const awayScore = away.score || '-';
+        const homeLogo = home.team && home.team.logo ? home.team.logo : '';
+        const awayLogo = away.team && away.team.logo ? away.team.logo : '';
+        const status = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
+        const state = ev.status && ev.status.type ? ev.status.type.state : '';
+        const stateColor = state === 'in' ? 'var(--accent2)' : state === 'post' ? 'var(--text-dim)' : 'var(--text)';
+        const homeRecord = home.records && home.records[0] ? home.records[0].summary : '';
+        const awayRecord = away.records && away.records[0] ? away.records[0].summary : '';
+        // Highlight winner
+        const homeWin = state === 'post' && parseInt(homeScore) > parseInt(awayScore);
+        const awayWin = state === 'post' && parseInt(awayScore) > parseInt(homeScore);
+        return '<div class="sp-card">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+            '<div style="flex:1;display:flex;align-items:center;gap:6px;">' +
+              (awayLogo ? '<img src="'+esc(awayLogo)+'" style="width:20px;height:20px;" onerror="this.style.display=\'none\'" />' : '') +
+              '<span style="font-weight:'+(awayWin?'700':'400')+';font-size:.74rem;">'+esc(awayName)+'</span>' +
+              (awayRecord ? '<span style="font-size:.55rem;color:var(--text-dim);">('+esc(awayRecord)+')</span>' : '') +
+            '</div>' +
+            '<span class="sp-game-score" style="font-size:.82rem;min-width:28px;text-align:center;'+(awayWin?'':'opacity:.6')+'">'+esc(awayScore)+'</span>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;">' +
+            '<div style="flex:1;display:flex;align-items:center;gap:6px;">' +
+              (homeLogo ? '<img src="'+esc(homeLogo)+'" style="width:20px;height:20px;" onerror="this.style.display=\'none\'" />' : '') +
+              '<span style="font-weight:'+(homeWin?'700':'400')+';font-size:.74rem;">'+esc(homeName)+'</span>' +
+              (homeRecord ? '<span style="font-size:.55rem;color:var(--text-dim);">('+esc(homeRecord)+')</span>' : '') +
+            '</div>' +
+            '<span class="sp-game-score" style="font-size:.82rem;min-width:28px;text-align:center;'+(homeWin?'':'opacity:.6')+'">'+esc(homeScore)+'</span>' +
+          '</div>' +
+          '<div style="margin-top:4px;font-size:.58rem;color:'+stateColor+';">'+esc(status)+'</div>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(err => {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load scores. Check connection.</div>';
+      console.error('[Sports] Score fetch error:', err);
+    });
 }
 
-$('#spAddLine').onclick = () => {
-  const matchup = prompt('Matchup (e.g. "Lakers vs Celtics"):');
-  if (!matchup) return;
-  const type = prompt('Bet type (e.g. Moneyline, Spread, Over/Under):') || '';
-  const odds = prompt('Odds (e.g. "-110", "+150"):') || '';
-  const spread = prompt('Spread (optional, e.g. "-3.5"):') || '';
-  const overUnder = prompt('Over/Under (optional, e.g. "215.5"):') || '';
-  const note = prompt('Note (optional):') || '';
-  spLines.push({ matchup, type, odds, spread, overUnder, note });
-  LS('spLines', spLines);
-  renderSpLines();
-};
+// ── Standings ──
+$('#spRefreshStandings').onclick = () => spFetchStandings();
 
-$('#spClearLines').onclick = () => { if (confirm('Clear all betting lines?')) { spLines = []; LS('spLines', spLines); renderSpLines(); } };
-
-window.spDelLine = (i) => { spLines.splice(i, 1); LS('spLines', spLines); renderSpLines(); };
-
-// ── Player Stats ──
-function renderSpPlayers() {
-  const el = $('#spStatsList');
-  if (!spPlayers.length) { el.innerHTML = '<div class="sp-empty">Search and add players to view stats.</div>'; return; }
-  el.innerHTML = spPlayers.map((p, i) => `
-    <div class="sp-card">
-      <div class="sp-card-head">
-        <strong>${esc(p.name)}</strong>
-        <span><span class="sp-card-meta">${esc(p.team || '')} &middot; ${esc(p.position || '')}</span><span class="sp-del" onclick="spDelPlayer(${i})">&times;</span></span>
-      </div>
-      <div class="sp-card-body">
-        <div class="sp-stat-row">
-          ${(p.stats || []).map(s => `
-            <div class="sp-stat-item">
-              <span class="sp-stat-val">${esc(String(s.val))}</span>
-              <span class="sp-stat-lbl">${esc(s.label)}</span>
-            </div>
-          `).join('')}
-        </div>
-        ${p.note ? `<div style="margin-top:4px;color:var(--text-dim);font-size:.65rem;">${esc(p.note)}</div>` : ''}
-      </div>
-    </div>
-  `).join('');
+function spFetchStandings() {
+  const league = $('#spStandingsLeague').value;
+  const el = $('#spStandingsList');
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading standings...</div>';
+  fetch(spEspnUrl(league, 'standings'))
+    .then(r => r.json())
+    .then(data => {
+      const children = data.children || [];
+      if (!children.length) { el.innerHTML = '<div class="sp-empty">No standings data available.</div>'; return; }
+      let html = '';
+      children.forEach(group => {
+        const groupName = group.name || group.abbreviation || '';
+        const standings = group.standings || {};
+        const entries = standings.entries || [];
+        if (!entries.length) return;
+        html += '<div style="margin-bottom:12px;">';
+        html += '<div style="font-weight:700;font-size:.72rem;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:2px;">'+esc(groupName)+'</div>';
+        html += '<table style="width:100%;font-size:.62rem;border-collapse:collapse;">';
+        html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:2px 4px;">Team</th><th style="padding:2px 4px;">W</th><th style="padding:2px 4px;">L</th><th style="padding:2px 4px;">PCT</th><th style="padding:2px 4px;">GB</th></tr>';
+        entries.sort((a, b) => {
+          const aS = (a.stats || []).find(s => s.name === 'wins');
+          const bS = (b.stats || []).find(s => s.name === 'wins');
+          return (bS ? bS.value : 0) - (aS ? aS.value : 0);
+        });
+        entries.forEach(entry => {
+          const team = entry.team || {};
+          const logo = team.logos && team.logos[0] ? team.logos[0].href : '';
+          const stats = entry.stats || [];
+          const getStat = (name) => { const s = stats.find(x => x.name === name); return s ? s.displayValue || String(s.value) : '-'; };
+          html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);">' +
+            '<td style="padding:3px 4px;display:flex;align-items:center;gap:4px;">' +
+              (logo ? '<img src="'+esc(logo)+'" style="width:14px;height:14px;" onerror="this.style.display=\'none\'" />' : '') +
+              '<span>'+esc(team.displayName || team.name || '')+'</span></td>' +
+            '<td style="text-align:center;padding:3px 4px;">'+getStat('wins')+'</td>' +
+            '<td style="text-align:center;padding:3px 4px;">'+getStat('losses')+'</td>' +
+            '<td style="text-align:center;padding:3px 4px;">'+getStat('winPercent')+'</td>' +
+            '<td style="text-align:center;padding:3px 4px;">'+getStat('gamesBehind')+'</td>' +
+          '</tr>';
+        });
+        html += '</table></div>';
+      });
+      el.innerHTML = html || '<div class="sp-empty">No standings data available.</div>';
+    })
+    .catch(err => {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load standings.</div>';
+      console.error('[Sports] Standings fetch error:', err);
+    });
 }
 
-$('#spAddPlayer').onclick = () => {
-  const name = $('#spPlayerSearch').value.trim() || prompt('Player name:');
-  if (!name) return;
-  const team = prompt('Team (optional):') || '';
-  const position = prompt('Position (optional):') || '';
-  const statsRaw = prompt('Stats (comma-separated label:value, e.g. "PPG:24.5, RPG:8.2, APG:5.1"):') || '';
-  const stats = statsRaw.split(',').map(s => s.trim()).filter(Boolean).map(s => {
-    const [label, val] = s.split(':').map(x => x.trim());
-    return { label: label || '', val: val || '' };
-  });
-  const note = prompt('Note (optional):') || '';
-  spPlayers.push({ name, team, position, stats, note });
-  LS('spPlayers', spPlayers);
-  $('#spPlayerSearch').value = '';
-  renderSpPlayers();
-};
+// ── News ──
+$('#spRefreshNews').onclick = () => spFetchNews();
 
-$('#spClearPlayers').onclick = () => { if (confirm('Clear all players?')) { spPlayers = []; LS('spPlayers', spPlayers); renderSpPlayers(); } };
+function spFetchNews() {
+  const league = $('#spNewsLeague').value;
+  const el = $('#spNewsList');
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading news...</div>';
+  fetch(spEspnUrl(league, 'news'))
+    .then(r => r.json())
+    .then(data => {
+      const articles = data.articles || [];
+      if (!articles.length) { el.innerHTML = '<div class="sp-empty">No news available.</div>'; return; }
+      el.innerHTML = articles.slice(0, 20).map(a => {
+        const img = a.images && a.images[0] ? a.images[0].url : '';
+        const published = a.published ? new Date(a.published).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        return '<div class="sp-card" style="cursor:pointer;" onclick="window.open(\''+esc(a.links && a.links.web ? a.links.web.href : '#')+'\',\'_blank\')">' +
+          '<div style="display:flex;gap:8px;">' +
+            (img ? '<img src="'+esc(img)+'" style="width:60px;height:40px;border-radius:4px;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'" />' : '') +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="font-size:.72rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.headline || '')+'</div>' +
+              '<div style="font-size:.58rem;color:var(--text-dim);margin-top:2px;">'+esc(a.description || '').substring(0, 120)+'</div>' +
+              '<div style="font-size:.52rem;color:var(--text-dim);margin-top:2px;">'+esc(published)+'</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(err => {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load news.</div>';
+      console.error('[Sports] News fetch error:', err);
+    });
+}
 
-window.spDelPlayer = (i) => { spPlayers.splice(i, 1); LS('spPlayers', spPlayers); renderSpPlayers(); };
-
-// ── YouTube Links ──
+// ── YouTube Links (kept as manual) ──
 function extractYtId(url) {
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
@@ -9866,8 +9911,18 @@ $('#spClearYt').onclick = () => { if (confirm('Clear all YouTube links?')) { spY
 
 window.spDelYt = (i) => { spYtLinks.splice(i, 1); LS('spYtLinks', spYtLinks); renderSpYtLinks(); };
 
+// Auto-refresh scores every 60 seconds when sports tab is visible
+let spAutoRefreshTimer = null;
+function spStartAutoRefresh() {
+  clearInterval(spAutoRefreshTimer);
+  spAutoRefreshTimer = setInterval(() => {
+    if ($('#sportsView').style.display !== 'none') spFetchScores();
+  }, 60000);
+}
+
 // Initial render
 renderSportsTab();
+spStartAutoRefresh();
 
 /* ═══════════════════════════════════════════
    WORKSPACE MANAGER (Local Persistence)
@@ -11768,8 +11823,10 @@ const PERSONA_MODES = {
     systemPrompt: 'You are an expert financial modeler. When building any model: always start by stating explicit assumptions (growth rates, margins, discount rates, terminal value assumptions). Structure outputs as: Assumptions \u2192 Revenue Model \u2192 Cost Structure \u2192 EBITDA/FCF \u2192 Valuation. Present numbers in clean tables. Flag circular references or model limitations. Default to 5-year projection periods unless specified.' },
   'presentation_builder': { label: 'Presentation Builder', icon: '\uD83C\uDFA8', description: 'Slide-ready content, executive framing',
     systemPrompt: 'You are an expert at creating executive-ready presentation content. Structure all output as slide-ready material: use short punchy headers, supporting bullets (max 3-4 per point), and always include a "So What" / key takeaway per section. Prefer visual descriptions (suggest charts/diagrams where appropriate). Write at C-suite level: clear, confident, no jargon. Always offer to refine tone or format.' },
-  'planning_analyst': { label: 'FP&A Planning Analyst', icon: '\uD83D\uDDC2\uFE0F', description: 'Budget variance, forecasting, ops finance',
-    systemPrompt: 'You are an FP&A analyst embedded in a planning tool. Your specialty is budget vs. actuals analysis, variance commentary, headcount planning, and rolling forecast methodology. When analyzing financial data: always call out the largest variance drivers first, distinguish between volume and rate effects, and frame everything in terms of business impact, not just numbers. Use concise CFO-ready language.' }
+  'spec_investor': { label: 'Speculative Investor', icon: '\uD83D\uDE80', description: 'High-conviction plays, position sizing, catalysts',
+    systemPrompt: 'You are an aggressive speculative stock strategist. Your focus is identifying asymmetric risk/reward setups, momentum plays, catalyst-driven trades, and high-conviction positions. For every opportunity: (1) Setup & Thesis — why this trade exists, what the market is missing, (2) Entry Strategy — optimal entry points, limit vs market, scaling in, (3) Position Sizing — risk-adjusted sizing based on conviction level (1-5 scale), Kelly criterion considerations, max portfolio allocation, (4) Catalysts & Timeline — specific near-term events that could move the stock, earnings dates, FDA dates, macro triggers, (5) Exit Strategy — profit targets (scale out levels), stop-loss placement, trailing stop approach, (6) Risk Assessment — what kills the trade, max drawdown tolerance, correlation to existing positions. When given investment preferences (risk tolerance, capital, time horizon, sectors), tailor all recommendations accordingly. Be direct about probability estimates. Flag speculative vs. fundamental plays clearly. Always note: "This is strategic analysis, not financial advice."' },
+  'gambling_edge': { label: 'Gambling Edge Analyst', icon: '\uD83C\uDFB0', description: 'Betting edges, line analysis, player props',
+    systemPrompt: 'You are a sharp sports betting analyst focused on identifying edges and +EV opportunities. Your methodology: (1) Line Analysis — compare lines across books, identify stale lines, steam moves, and reverse line movement, (2) Team & Matchup Analysis — pace, efficiency ratings, home/away splits, rest advantage, travel, back-to-back situations, injury impact quantification, (3) Player Prop Analysis — usage rates, matchup-specific stats, recent trends vs season averages, minutes projections, pace-adjusted projections, (4) Situational Factors — referee tendencies, weather (outdoor sports), revenge games, letdown spots, schedule spots, divisional rivalry dynamics, (5) Edge Identification — where the market is mispricing, why the edge exists, expected value calculation, confidence level (1-5), (6) Bet Sizing — Kelly criterion or fractional Kelly recommendation, unit sizing. When reviewing active lines, cross-reference player data and team data to identify where books may be slow to adjust. Factor in any user-requested considerations (weather, player news, system plays). Present opportunities ranked by confidence and expected value. Always note: "This is analytical entertainment, not gambling advice. Gamble responsibly."' }
 };
 
 // Load custom personas from localStorage (admin edits)
@@ -11842,7 +11899,8 @@ function getContextSlotTemplateForPersona(personaKey) {
     'stock_analyst': { label: 'Investment Thesis', placeholder: 'Company: \nTicker: \nThesis: \nKey Metrics to Watch: \nCatalysts: \nRisks: ' },
     'financial_modeler': { label: 'Model Assumptions', placeholder: 'Revenue Growth Rate: \nGross Margin Target: \nDiscount Rate (WACC): \nTerminal Growth Rate: \nProjection Period: ' },
     'presentation_builder': { label: 'Audience & Objectives', placeholder: 'Audience: \nDecision Being Made: \nKey Message: \nTone: \nLength/Format Constraints: ' },
-    'planning_analyst': { label: 'Budget Context', placeholder: 'Entity/Department: \nFiscal Year: \nBudget Period: \nKey Variance Drivers: \nCFO Priorities: ' },
+    'spec_investor': { label: 'Trade Setup', placeholder: 'Capital Available: \nRisk Tolerance (1-5): \nTime Horizon: \nSectors of Interest: \nCurrent Positions: \nMax Position Size: ' },
+    'gambling_edge': { label: 'Betting Context', placeholder: 'Sport/League: \nBankroll: \nUnit Size: \nSpecific Games/Props: \nFactors to Consider: \nBooks Available: ' },
     'general': { label: 'Background Context', placeholder: 'Paste any reference material, background info, or instructions here...' }
   };
   return templates[personaKey] || templates['general'];
