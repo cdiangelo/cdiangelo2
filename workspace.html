@@ -10101,6 +10101,13 @@ const SP_ODDS_LEAGUE_MAP = {
   soccer: 'soccer_usa_mls'
 };
 
+function spOddsColor(val) {
+  // Color code odds values: negative (favorite) = red, positive (underdog) = green, even/zero = accent
+  const n = parseFloat(String(val).replace(/[^0-9.\-+]/g, ''));
+  if (isNaN(n) || n === 0) return 'var(--accent)';
+  return n < 0 ? 'var(--danger)' : 'var(--success)';
+}
+
 function spRenderOddsCard(game) {
   let html = '<div class="sp-card">';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
@@ -10112,12 +10119,12 @@ function spRenderOddsCard(game) {
       html += '<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 8px;margin-bottom:3px;">';
       html += '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:3px;font-weight:600;">'+esc(line.book)+'</div>';
       html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.68rem;">';
-      if (line.spread) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">SPREAD</span><br/><span style="font-weight:600;color:var(--accent);">'+esc(line.spread)+'</span></div>';
-      if (line.total) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">TOTAL</span><br/><span style="font-weight:600;color:var(--accent);">O/U '+esc(line.total)+'</span></div>';
+      if (line.spread) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">SPREAD</span><br/><span style="font-weight:600;color:'+spOddsColor(line.spread)+';">'+esc(line.spread)+'</span></div>';
+      if (line.total) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">TOTAL</span><br/><span style="font-weight:600;color:var(--warning);">O/U '+esc(line.total)+'</span></div>';
       if (line.awayML || line.homeML) {
         html += '<div><span style="color:var(--text-dim);font-size:.55rem;">MONEYLINE</span><br/>';
-        if (line.awayML) html += '<span style="font-size:.62rem;">'+esc(game.away)+' <b style="color:var(--accent);">'+esc(line.awayML)+'</b></span> ';
-        if (line.homeML) html += '<span style="font-size:.62rem;">'+esc(game.home)+' <b style="color:var(--accent);">'+esc(line.homeML)+'</b></span>';
+        if (line.awayML) html += '<span style="font-size:.62rem;">'+esc(game.away)+' <b style="color:'+spOddsColor(line.awayML)+';">'+esc(line.awayML)+'</b></span> ';
+        if (line.homeML) html += '<span style="font-size:.62rem;">'+esc(game.home)+' <b style="color:'+spOddsColor(line.homeML)+';">'+esc(line.homeML)+'</b></span>';
         html += '</div>';
       }
       html += '</div></div>';
