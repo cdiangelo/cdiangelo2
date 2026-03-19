@@ -97,9 +97,44 @@ app.get('/proxy/espn/*espnPath', async (req, res) => {
   }
 });
 
+// ── ESPN Core API Proxy (v3-style, for standings/leaders fallback) ──
+app.get('/proxy/espn-core/*corePath', async (req, res) => {
+  const corePath = Array.isArray(req.params.corePath) ? req.params.corePath.join('/') : req.params.corePath;
+  if (!corePath || corePath.includes('..')) {
+    return res.status(400).json({ error: true, message: 'Invalid path' });
+  }
+  const qs = new URLSearchParams(req.query).toString();
+  const url = 'https://sports.core.api.espn.com/v2/sports/' + corePath + (qs ? '?' + qs : '');
+  const cached = getCached('espn-core:' + corePath + '?' + qs);
+  if (cached) return res.json(JSON.parse(cached.data));
+  try {
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(10000),
+      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }
+    });
+    if (!r.ok) return res.status(r.status).json({ error: true, message: 'ESPN core returned HTTP ' + r.status });
+    const text = await r.text();
+    setCache('espn-core:' + corePath + '?' + qs, text, 'application/json');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(text);
+  } catch (e) {
+    console.error('[ESPN-Core] Error:', e.message);
+    res.status(502).json({ error: true, message: 'ESPN core request failed: ' + e.message });
+  }
+});
+
 // ── Odds API Proxy (the-odds-api.com) ──
-app.get('/proxy/odds/status', (_req, res) => {
-  res.json({ available: !!oddsApiKey });
+app.get('/proxy/odds/status', async (_req, res) => {
+  if (!oddsApiKey) return res.json({ available: false });
+  // Ping the API to get actual quota remaining
+  try {
+    const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${oddsApiKey}`, { signal: AbortSignal.timeout(5000) });
+    const remaining = r.headers.get('x-requests-remaining');
+    const used = r.headers.get('x-requests-used');
+    res.json({ available: r.ok, remaining: remaining || '?', used: used || '?', status: r.status });
+  } catch(e) {
+    res.json({ available: true, remaining: '?', error: e.message });
+  }
 });
 
 app.get('/proxy/odds/:sport', async (req, res) => {
@@ -108,7 +143,7 @@ app.get('/proxy/odds/:sport', async (req, res) => {
   }
   const sport = req.params.sport;
   const markets = req.query.markets || 'spreads,totals,h2h';
-  const regions = req.query.regions || 'us';
+  const regions = req.query.regions || 'us,us2';
   const oddsFormat = req.query.oddsFormat || 'american';
   const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${oddsApiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}`;
 

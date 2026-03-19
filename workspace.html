@@ -10391,61 +10391,76 @@ function spFetchStandings() {
     el.innerHTML = '<div class="sp-empty">Standings are not available for Global Events. Select a specific league.</div>';
     return;
   }
-  fetch(spEspnUrl(league, 'standings'))
+  // Try v2 first, then v3-style endpoint as fallback
+  var standingsUrl = spEspnUrl(league, 'standings');
+  var leagueInfo = SP_LEAGUE_MAP[league] || SP_LEAGUE_MAP.nba;
+  fetch(standingsUrl)
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(data => {
-      console.log('[Sports] Standings raw response keys:', Object.keys(data));
-      let html = '';
-
-      // Helper: recursively find all groups with standings entries
-      function walkGroups(node, depth) {
-        depth = depth || 0;
-        const standings = node.standings || {};
-        const entries = standings.entries || [];
-        const children = node.children || [];
-        // If this node has entries, render them
-        if (entries.length) {
-          if (depth === 1) {
-            html += '<div style="font-weight:700;font-size:.78rem;color:var(--accent);margin:8px 0 4px;text-transform:uppercase;">'+esc(node.name || node.abbreviation || '')+'</div>';
-          }
-          html += spParseStandingsGroup(node);
-        }
-        // Recurse into children
-        if (children.length) {
-          if (depth === 0 && !entries.length) {
-            // Top-level conferences
-          }
-          children.forEach(function(child) { walkGroups(child, depth + 1); });
-        }
-      }
-
-      // Try children-based structure (most leagues)
-      const topChildren = data.children || [];
-      if (topChildren.length) {
-        topChildren.forEach(function(conf) { walkGroups(conf, 0); });
-      }
-
-      // Fallback: standings directly on data
-      if (!html && data.standings) {
-        html = spParseStandingsGroup({ name: SP_LEAGUE_MAP[league] ? SP_LEAGUE_MAP[league].name : league, standings: data.standings });
-      }
-
-      // Fallback: try data.groups
-      if (!html && data.groups) {
-        (data.groups || []).forEach(function(g) { walkGroups(g, 0); });
-      }
-
-      // Debug: if still empty, log data structure
-      if (!html) {
-        console.log('[Sports] Standings: no entries found. Full data:', JSON.stringify(data).substring(0, 2000));
-      }
-
-      el.innerHTML = html || '<div class="sp-empty">No standings data available for this league. Try refreshing or check back during the season.</div>';
-    })
-    .catch(err => {
-      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load standings: ' + esc(err.message) + '</div>';
-      console.error('[Sports] Standings fetch error:', err);
+    .then(function(data) { return _spRenderStandingsData(data, league, el); })
+    .catch(function(err1) {
+      console.warn('[Sports] Standings v2 failed (' + err1.message + '), trying v3 core endpoint...');
+      // Fallback: ESPN core API standings (v3-style)
+      var coreUrl = PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/standings';
+      fetch(coreUrl, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(data) { return _spRenderStandingsData(data, league, el); })
+        .catch(function(err2) {
+          el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load standings: ' + esc(err1.message) + '</div>';
+          console.error('[Sports] Standings fetch error (both endpoints):', err1, err2);
+        });
     });
+}
+
+function _spRenderStandingsData(data, league, el) {
+  console.log('[Sports] Standings raw response keys:', Object.keys(data));
+  let html = '';
+
+  // Helper: recursively find all groups with standings entries
+  function walkGroups(node, depth) {
+    depth = depth || 0;
+    const standings = node.standings || {};
+    const entries = standings.entries || [];
+    const children = node.children || [];
+    // If this node has entries, render them
+    if (entries.length) {
+      if (depth >= 1) {
+        html += '<div style="font-weight:700;font-size:.78rem;color:var(--accent);margin:8px 0 4px;text-transform:uppercase;">'+esc(node.name || node.abbreviation || '')+'</div>';
+      }
+      html += spParseStandingsGroup(node);
+    }
+    // Recurse into children
+    if (children.length) {
+      children.forEach(function(child) { walkGroups(child, depth + 1); });
+    }
+  }
+
+  // Try children-based structure (most leagues)
+  const topChildren = data.children || [];
+  if (topChildren.length) {
+    topChildren.forEach(function(conf) { walkGroups(conf, 0); });
+  }
+
+  // Fallback: standings directly on data
+  if (!html && data.standings) {
+    html = spParseStandingsGroup({ name: SP_LEAGUE_MAP[league] ? SP_LEAGUE_MAP[league].name : league, standings: data.standings });
+  }
+
+  // Fallback: try data.groups
+  if (!html && data.groups) {
+    (data.groups || []).forEach(function(g) { walkGroups(g, 0); });
+  }
+
+  // Fallback: try flat entries at top level
+  if (!html && data.entries) {
+    html = spParseStandingsGroup({ name: SP_LEAGUE_MAP[league] ? SP_LEAGUE_MAP[league].name : league, standings: { entries: data.entries } });
+  }
+
+  // Debug: if still empty, log data structure
+  if (!html) {
+    console.log('[Sports] Standings: no entries found. Full data:', JSON.stringify(data).substring(0, 2000));
+  }
+
+  el.innerHTML = html || '<div class="sp-empty">No standings data available for this league. Try refreshing or check back during the season.</div>';
 }
 
 // ── Odds / Betting Lines ──
@@ -10912,7 +10927,7 @@ function spFetchOdds() {
   // Try The Odds API via server proxy (ODDS_API_KEY env var on server)
   const oddsApiSport = SP_ODDS_LEAGUE_MAP[league];
   if (oddsApiSport) {
-    const oddsUrl = PROXY_BASE + '/proxy/odds/' + oddsApiSport + '?markets=spreads,totals,h2h&regions=us&oddsFormat=american';
+    const oddsUrl = PROXY_BASE + '/proxy/odds/' + oddsApiSport + '?markets=spreads,totals,h2h&regions=us,us2&oddsFormat=american';
     Promise.all([
       fetch(oddsUrl).then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -11831,7 +11846,7 @@ function spRenderBracket() {
     } else if (dg.teams.length === 1) {
       return (dg.teams[0].seed ? '(' + dg.teams[0].seed + ') ' : '') + dg.teams[0].name + ' vs \u2026';
     }
-    return '\u2026 vs \u2026';
+    return '\u2026';
   }
 
   if (filter === 'all') {
@@ -11918,7 +11933,7 @@ function spRenderBracket() {
             html += '<span style="flex:1;color:' + (t0._projected ? 'var(--accent)' : 'var(--text)') + ';' + (t0._projected ? 'font-style:italic;' : '') + '">' + esc(t0.name) + '</span></div>';
             html += '<div style="padding:2px 4px;color:var(--text-dim);font-style:italic;">\u2026</div>';
           } else {
-            html += '<div style="padding:3px 4px;color:var(--text-dim);text-align:center;font-style:italic;">\u2026 vs \u2026</div>';
+            html += '<div style="padding:3px 4px;color:var(--text-dim);text-align:center;font-style:italic;">\u2026</div>';
           }
 
           // Compact status line
@@ -12000,13 +12015,11 @@ function spRenderBracket() {
           html += '<div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:2px 4px;min-width:0;">';
           if (ann.edge) {
             // Show Claude annotation if available
-            html += '<div style="font-size:.46rem;color:var(--accent);font-style:italic;line-height:1.3;">' + esc(ann.edge) + '</div>';
+            html += '<div style="font-size:.58rem;color:var(--text);font-style:italic;line-height:1.4;font-weight:600;">' + esc(ann.edge) + '</div>';
           } else if (analysisText) {
-            html += '<div style="font-size:.46rem;color:var(--text-dim);font-style:italic;line-height:1.3;">' + esc(analysisText) + '</div>';
-          } else if (hasTeams) {
-            html += '<div style="font-size:.44rem;color:var(--text-dim);font-style:italic;opacity:.5;">' + (isProj ? 'Analyzing potential matchup\u2026' : 'Analyzing\u2026') + '</div>';
+            html += '<div style="font-size:.58rem;color:var(--text);font-style:italic;line-height:1.4;font-weight:500;">' + esc(analysisText) + '</div>';
           } else {
-            html += '<div style="font-size:.44rem;color:var(--text-dim);font-style:italic;opacity:.5;">Awaiting matchup</div>';
+            html += '<div style="font-size:.44rem;color:var(--text-dim);font-style:italic;opacity:.5;">\u2026</div>';
           }
           html += '</div>';
 
@@ -12095,7 +12108,7 @@ function _renderMatchupBox(game, picks) {
     html += '<span style="font-size:.56rem;font-weight:500;flex:1;color:' + (t0._projected ? 'var(--accent)' : 'var(--text)') + ';' + (t0._projected ? 'font-style:italic;' : '') + '">' + esc(t0.name) + '</span></div>';
     html += '<div style="padding:3px 5px;font-size:.52rem;color:var(--text-dim);font-style:italic;">\u2026</div>';
   } else {
-    html += '<div style="padding:6px;font-size:.52rem;color:var(--text-dim);text-align:center;font-style:italic;">\u2026 vs \u2026</div>';
+    html += '<div style="padding:6px;font-size:.52rem;color:var(--text-dim);text-align:center;font-style:italic;">\u2026</div>';
   }
 
   // Bottom bar: status + annotations
@@ -12123,7 +12136,7 @@ function _renderMatchupBox(game, picks) {
 
   // Edge annotation (if any)
   if (ann.edge) {
-    html += '<div style="padding:1px 5px 2px;font-size:.38rem;color:var(--accent);font-style:italic;background:rgba(59,130,246,.04);border-top:1px solid rgba(59,130,246,.1);">' + esc(ann.edge) + '</div>';
+    html += '<div style="padding:2px 5px 3px;font-size:.5rem;color:var(--text);font-style:italic;font-weight:600;background:rgba(59,130,246,.08);border-top:1px solid rgba(59,130,246,.15);">' + esc(ann.edge) + '</div>';
   }
 
   html += '</div>';
@@ -15518,7 +15531,7 @@ $('#aiDataSourcesBtn').onclick = () => {
     { id: 'anthropic', name: 'Claude AI (Anthropic)', desc: 'LLM API for chat', check: function() { return fetch(PROXY_BASE + '/proxy/ai/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!d.configured, detail: d.configured ? 'API key configured' : 'No API key set' }; }); } },
     { id: 'espn', name: 'ESPN Sports API', desc: 'Scores, standings, news, players', check: function() { return fetch(PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard', { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.events), detail: (d.events||[]).length + ' events found' }; }); } },
     { id: 'odds', name: 'The Odds API', desc: 'Betting odds (spread, ML, total)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!d.available, detail: d.available ? 'Key active, remaining: ' + (d.remaining || '?') : 'Key missing or exhausted' }; }); } },
-    { id: 'odds_live', name: 'Odds API — Live Data', desc: 'Actual odds fetch (NBA test)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/basketball_nba?markets=h2h,spreads,totals&regions=us&oddsFormat=american', { signal: AbortSignal.timeout(10000) }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); var remaining = r.headers.get('x-requests-remaining'); return r.json().then(function(games) { var books = new Set(); (games||[]).forEach(function(g) { (g.bookmakers||[]).forEach(function(bk) { books.add(bk.title || bk.key); }); }); return { ok: Array.isArray(games), detail: (games||[]).length + ' games, ' + books.size + ' books: ' + Array.from(books).join(', '), partial: books.size < 3, books: Array.from(books), remaining: remaining }; }); }); } },
+    { id: 'odds_live', name: 'Odds API — Live Data', desc: 'Actual odds fetch (NBA test)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/basketball_nba?markets=h2h,spreads,totals&regions=us,us2&oddsFormat=american', { signal: AbortSignal.timeout(10000) }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); var remaining = r.headers.get('x-requests-remaining'); return r.json().then(function(games) { var books = new Set(); (games||[]).forEach(function(g) { (g.bookmakers||[]).forEach(function(bk) { books.add(bk.title || bk.key); }); }); return { ok: Array.isArray(games), detail: (games||[]).length + ' games, ' + books.size + ' books: ' + Array.from(books).join(', '), partial: books.size < 3, books: Array.from(books), remaining: remaining }; }); }); } },
     { id: 'youtube', name: 'YouTube (Invidious)', desc: 'Video search proxy', check: function() { return fetch(PROXY_BASE + '/proxy/youtube/search?q=sports+highlights', { signal: AbortSignal.timeout(12000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: Array.isArray(d) && d.length > 0, detail: (d||[]).length + ' results' }; }); } },
     { id: 'yahoo', name: 'Yahoo Finance', desc: 'Stock price charts', check: function() { var yUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d&interval=5m&includePrePost=false'; return fetch(PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(yUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.chart && d.chart.result), detail: d.chart && d.chart.result ? 'AAPL data OK' : 'Parse error' }; }); } },
     { id: 'news', name: 'Google News RSS', desc: 'News feed proxy', check: function() { var nUrl = 'https://news.google.com/rss/search?q=stocks&hl=en-US&gl=US&ceid=US:en'; return fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(nUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.text(); }).then(function(t) { var items = (t.match(/<item>/g) || []).length; return { ok: items > 0, detail: items + ' articles found' }; }); } },
@@ -18401,7 +18414,7 @@ async function executeAgentTool(name, input) {
         var _goSport = _goOddsMap[_goKey];
         if (!_goSport) return JSON.stringify({ error: 'Odds not available for: ' + _goKey });
         try {
-          var _goUrl = PROXY_BASE + '/proxy/odds?sport=' + _goSport + '&markets=h2h,spreads,totals';
+          var _goUrl = PROXY_BASE + '/proxy/odds/' + _goSport + '?markets=h2h,spreads,totals&regions=us,us2&oddsFormat=american';
           var _goResp = await fetch(_goUrl).then(r => r.json());
           if (!Array.isArray(_goResp)) {
             // Try ESPN fallback
