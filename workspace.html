@@ -2444,7 +2444,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
     <div class="p-body">
       <!-- STOCKS VIEW -->
-      <div id="stocksView" style="display:none;flex-direction:column;flex:1;">
+      <div id="stocksView" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
         <div class="toolbar">
           <div style="position:relative;">
             <input type="text" id="stockInput" placeholder="Search ticker or company..." style="max-width:160px;" />
@@ -2519,7 +2519,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
       </div>
       <!-- CONCEPT MAP VIEW -->
-      <div id="cmapView" style="display:none;flex-direction:column;flex:1;">
+      <div id="cmapView" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
         <div class="toolbar">
           <button class="cm-tool active" data-tool="select">Select</button>
           <button class="cm-tool" data-tool="addNode">+Node</button>
@@ -2567,7 +2567,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
       </div>
       <!-- GRAPHING CALCULATOR VIEW -->
-      <div id="graphCalcView" style="display:none;flex-direction:column;flex:1;">
+      <div id="graphCalcView" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
         <div class="toolbar" style="flex-wrap:wrap;">
           <div id="gcExprList" style="display:flex;gap:4px;flex-wrap:wrap;flex:1;min-width:0;"></div>
           <div class="sep"></div>
@@ -2617,8 +2617,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
       </div>
       <!-- SPORTS VIEW -->
-      <div id="sportsView" style="display:flex;flex-direction:column;flex:1;">
-        <div class="page-tabs" id="spTabs" style="display:flex;align-items:center;">
+      <div id="sportsView" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+        <div class="page-tabs" id="spTabs" style="display:flex;align-items:center;flex-shrink:0;">
           <div class="page-tab active" data-sptab="games">Scores/Schedule</div>
           <div class="page-tab" data-sptab="odds">Odds</div>
           <div class="page-tab" data-sptab="news">News</div>
@@ -2633,7 +2633,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
         </div>
         <!-- Scores sub-tab -->
-        <div id="spGamesTab" class="sp-subtab" style="display:flex;flex-direction:column;flex:1;">
+        <div id="spGamesTab" class="sp-subtab" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
           <div class="toolbar">
             <select id="spLeague" style="font-size:.68rem;">
               <option value="nba">NBA</option>
@@ -2654,7 +2654,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
         </div>
         <!-- Standings sub-tab -->
-        <div id="spStandingsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+        <div id="spStandingsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
           <div class="toolbar">
             <select id="spStandingsLeague" style="font-size:.68rem;">
               <option value="nba">NBA</option>
@@ -2674,7 +2674,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
         </div>
         <!-- Odds sub-tab -->
-        <div id="spOddsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+        <div id="spOddsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
           <div class="toolbar">
             <select id="spOddsLeague" style="font-size:.68rem;">
               <option value="nba">NBA</option>
@@ -2695,7 +2695,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
         </div>
         <!-- News sub-tab -->
-        <div id="spNewsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+        <div id="spNewsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
           <div class="toolbar">
             <select id="spNewsLeague" style="font-size:.68rem;">
               <option value="nba">NBA</option>
@@ -2715,7 +2715,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
         </div>
         <!-- YouTube sub-tab -->
-        <div id="spPlayersTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+        <div id="spPlayersTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
           <div class="toolbar">
             <input type="text" id="spPlayerSearch" placeholder="Search player name..." style="flex:1;max-width:200px;font-size:.68rem;" />
             <button id="spPlayerSearchBtn" style="font-size:.68rem;">Search</button>
@@ -2734,7 +2734,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
 
         <!-- Bracket sub-tab (seasonal: Feb-Apr) -->
-        <div id="spBracketTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+        <div id="spBracketTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
           <div class="toolbar" style="flex-wrap:wrap;gap:4px;">
             <span style="font-size:.62rem;font-weight:700;color:var(--text);">NCAA Bracket</span>
             <button id="spBracketFetch" style="font-size:.58rem;background:rgba(59,130,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;" title="Fetch live tournament data from ESPN">Load Bracket</button>
@@ -2744,7 +2744,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <button id="spBracketAskClaude" style="font-size:.58rem;background:rgba(139,92,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;display:none;" title="Ask Claude to annotate your bracket">Claude Analyze</button>
             <span id="spBracketStatus" style="font-size:.48rem;color:var(--text-dim);"></span>
           </div>
-          <div id="spBracketRoundTabs" style="display:none;padding:2px 6px;border-bottom:1px solid var(--border);gap:2px;flex-wrap:wrap;align-items:center;">
+          <div id="spBracketRoundTabs" style="display:none;padding:2px 6px;border-bottom:1px solid var(--border);gap:2px;flex-wrap:wrap;align-items:center;flex-shrink:0;">
             <button class="brk-rtab brk-rtab-active" data-brkround="all" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--accent);border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600;">All</button>
             <button class="brk-rtab" data-brkround="0" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-dim);cursor:pointer;">First Four</button>
             <button class="brk-rtab" data-brkround="1" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-dim);cursor:pointer;">Rd of 64</button>
@@ -2761,7 +2761,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             </div>
           </div>
         </div>
-        <div id="spYoutubeTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+        <div id="spYoutubeTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
           <div class="toolbar">
             <input type="text" id="spYtSearch" placeholder="Search sports videos..." style="flex:1;max-width:260px;font-size:.68rem;" />
             <button id="spYtSearchBtn" style="font-size:.68rem;">Search</button>
