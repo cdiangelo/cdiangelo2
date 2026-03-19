@@ -2742,6 +2742,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <button id="spBracketReset" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Reset user picks">Reset Picks</button>
             <button id="spBracketSave" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Save a copy of this bracket">Save</button>
             <button id="spBracketLoad" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Load a saved bracket version">Load</button>
+            <button id="spBracketExport" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Export bracket as shareable page">Export</button>
             <div class="p-spacer" style="flex:1;"></div>
             <button id="spBracketAskClaude" style="font-size:.58rem;background:rgba(139,92,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;display:none;" title="Ask Claude to annotate your bracket">Claude Analyze</button>
             <span id="spBracketStatus" style="font-size:.48rem;color:var(--text-dim);"></span>
@@ -10883,9 +10884,23 @@ function _spAttachBookTooltips(container) {
   });
 }
 
+// Client-side odds cache to reduce API calls (free tier = 500/month)
+var _spOddsCache = {};
+var _spOddsCacheTTL = 5 * 60 * 1000; // 5 minutes
+var _spOddsApiDown = false; // Track if Odds API is returning errors
+
 function spFetchOdds() {
   const league = $('#spOddsLeague').value;
   const el = $('#spOddsList');
+
+  // Check cache first (saves API calls)
+  var cached = _spOddsCache[league];
+  if (cached && (Date.now() - cached.ts) < _spOddsCacheTTL) {
+    el.innerHTML = cached.html;
+    _spAttachBookTooltips(el);
+    return;
+  }
+
   el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading odds & live scores...</div>';
   if (league === 'global') {
     el.innerHTML = '<div class="sp-empty">Odds are not available for Global Events. Select a specific league.</div>';
@@ -11001,8 +11016,9 @@ function spFetchOdds() {
           summary += '</div>';
         }
 
-        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + ' (auto-refreshes every 60s)';
+        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + ' (refreshes every 5min)';
         el.innerHTML = summary + html || '<div class="sp-empty">No odds available for this league right now.</div>';
+        _spOddsCache[league] = { html: el.innerHTML, ts: Date.now() };
         _spAttachBookTooltips(el);
       })
       .catch(function(err) {
@@ -11102,8 +11118,9 @@ function spFetchOddsEspn(league) {
       if (!html) {
         el.innerHTML = '<div class="sp-empty">No games scheduled. Lines will appear when games are upcoming.</div>';
       } else {
-        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + (hasOdds ? ' (auto-refreshes every 60s)' : ' (no lines yet)');
+        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + (hasOdds ? ' (refreshes every 5min)' : ' (no lines yet)');
         el.innerHTML = summary + html;
+        _spOddsCache[league] = { html: el.innerHTML, ts: Date.now() };
         _spAttachBookTooltips(el);
       }
     })
@@ -11598,6 +11615,7 @@ async function spFetchBracket() {
     if ($('#spBracketReset')) $('#spBracketReset').style.display = '';
     if ($('#spBracketSave')) $('#spBracketSave').style.display = '';
     if ($('#spBracketLoad')) $('#spBracketLoad').style.display = '';
+    if ($('#spBracketExport')) $('#spBracketExport').style.display = '';
     if ($('#spBracketAskClaude')) $('#spBracketAskClaude').style.display = '';
     if ($('#spBracketRoundTabs')) $('#spBracketRoundTabs').style.display = 'flex';
 
@@ -12260,6 +12278,170 @@ if ($('#spBracketLoad')) {
         $('#spBracketLoad').click(); // re-open refreshed
       };
     });
+  };
+}
+
+// Bracket export — generates standalone HTML page with horizontal bracket layout
+if ($('#spBracketExport')) {
+  $('#spBracketExport').onclick = function() {
+    if (!spBracketData || !spBracketData.games.length) return;
+    var games = spBracketData.games;
+    var picks = spBracketData.userPicks || {};
+    var pickFlow = _bracketBuildPickFlow(games, picks);
+    var yr = new Date().getFullYear();
+
+    function _getDisplayGame(game) {
+      if (pickFlow[game.id] && pickFlow[game.id].length > game.teams.length) {
+        return Object.assign({}, game, { teams: pickFlow[game.id] });
+      }
+      return game;
+    }
+
+    // Build annotation summary text
+    var annSummary = [];
+    games.forEach(function(g) {
+      var ann = spBracketAnnotations[g.id];
+      var dg = _getDisplayGame(g);
+      if (!ann || (!ann.edge && (!ann.tags || !ann.tags.length))) return;
+      var t1 = dg.teams.length >= 1 ? dg.teams[0].name : '\u2026';
+      var t2 = dg.teams.length >= 2 ? dg.teams[1].name : '\u2026';
+      var roundName = BRACKET_ROUND_NAMES[g.round] || 'Round ' + g.round;
+      var line = roundName + ' | ' + t1 + ' vs ' + t2;
+      if (ann.tags && ann.tags.length) {
+        line += ' [' + ann.tags.map(function(t) { var tc = BRACKET_TAG_COLORS[t]; return tc ? tc.label : t; }).join(', ') + ']';
+      }
+      if (ann.pct) line += ' (' + ann.pct + '%)';
+      if (ann.edge) line += ' — ' + ann.edge;
+      annSummary.push(line);
+    });
+
+    // Build horizontal bracket HTML (same layout as all-rounds view, self-contained)
+    var byRound = {};
+    games.forEach(function(g) { if (!byRound[g.round]) byRound[g.round] = []; byRound[g.round].push(g); });
+    var roundOrder = Object.keys(byRound).map(Number).sort(function(a,b) { return a-b; });
+    var regionColors = { South: '#ef4444', East: '#3b82f6', West: '#f59e0b', Midwest: '#16a34a' };
+
+    var bracketHtml = '<div style="display:flex;gap:3px;overflow-x:auto;align-items:flex-start;padding:10px;">';
+    roundOrder.forEach(function(roundNum, ri) {
+      var roundGames = byRound[roundNum];
+      var roundName = BRACKET_ROUND_NAMES[roundNum] || 'Round ' + roundNum;
+      var roundDone = roundGames.filter(function(g) { return g.completed; }).length;
+      var spacing = roundNum >= 2 ? Math.max(1, Math.pow(2, roundNum - 1)) : 1;
+
+      bracketHtml += '<div style="flex:0 0 auto;min-width:160px;max-width:180px;">';
+      bracketHtml += '<div style="padding:3px 6px;font-weight:700;font-size:11px;color:#3b82f6;border-bottom:2px solid #3b82f6;text-align:center;margin-bottom:4px;">' + roundName + ' <span style="font-weight:400;color:#999;font-size:9px;">' + roundDone + '/' + roundGames.length + '</span></div>';
+
+      var byRegion = {};
+      roundGames.forEach(function(g) { var r = g.region || 'Other'; if (!byRegion[r]) byRegion[r] = []; byRegion[r].push(g); });
+
+      Object.keys(byRegion).sort().forEach(function(regionName) {
+        var rg = byRegion[regionName];
+        var rColor = regionColors[regionName] || '#888';
+        if (roundNum <= 4 && regionName !== 'Other') {
+          bracketHtml += '<div style="padding:1px 4px;font-size:9px;font-weight:600;color:' + rColor + ';border-left:2px solid ' + rColor + ';margin:3px 0 1px 0;">' + regionName + '</div>';
+        }
+        rg.forEach(function(game) {
+          var dg = _getDisplayGame(game);
+          var isFinal = game.completed;
+          var isLive = game.state === 'STATUS_IN_PROGRESS';
+          var borderColor = isLive ? '#ef4444' : isFinal ? '#16a34a' : '#ddd';
+          var ann = spBracketAnnotations[game.id] || {};
+
+          bracketHtml += '<div style="border:1px solid ' + borderColor + ';border-radius:4px;margin-bottom:' + ((spacing - 1) * 6) + 'px;overflow:hidden;font-size:10px;font-family:-apple-system,sans-serif;">';
+          if (dg.teams.length >= 2) {
+            dg.teams.forEach(function(team, ti) {
+              var isWinner = isFinal && team.winner;
+              var isLoser = isFinal && !team.winner;
+              var isPicked = picks[game.id] === ti;
+              var isProj = team._projected;
+              var bg = isWinner ? '#e8f5e9' : isPicked ? '#e3f2fd' : '#fff';
+              var opacity = isLoser ? 'opacity:.5;' : '';
+              var borderB = ti === 0 ? 'border-bottom:1px solid ' + (isFinal ? '#c8e6c9' : '#eee') + ';' : '';
+              bracketHtml += '<div style="display:flex;align-items:center;gap:2px;padding:2px 4px;background:' + bg + ';' + opacity + borderB + '">';
+              if (team.seed) bracketHtml += '<span style="font-size:8px;color:#999;min-width:10px;text-align:right;font-weight:700;">' + team.seed + '</span>';
+              var nc = isWinner ? '#16a34a' : isProj ? '#3b82f6' : '#333';
+              bracketHtml += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:' + (isWinner || isPicked ? '700' : '400') + ';color:' + nc + ';' + (isProj ? 'font-style:italic;' : '') + '">' + (isProj ? '\u2192 ' : '') + (team.name || '\u2026') + '</span>';
+              if (isFinal || isLive) bracketHtml += '<span style="font-weight:700;color:' + (isWinner ? '#16a34a' : isLive ? '#ef4444' : '#333') + ';min-width:14px;text-align:right;">' + team.score + '</span>';
+              if (isPicked && !isFinal) bracketHtml += '<span style="font-size:8px;color:#3b82f6;">\u2713</span>';
+              if (isWinner) bracketHtml += '<span style="font-size:8px;color:#16a34a;">\u2605</span>';
+              bracketHtml += '</div>';
+            });
+          } else if (dg.teams.length === 1) {
+            var t0 = dg.teams[0];
+            bracketHtml += '<div style="padding:2px 4px;border-bottom:1px solid #eee;">';
+            if (t0.seed) bracketHtml += '<span style="font-size:8px;color:#999;font-weight:700;">' + t0.seed + ' </span>';
+            bracketHtml += '<span style="color:' + (t0._projected ? '#3b82f6' : '#333') + ';">' + (t0.name || '\u2026') + '</span></div>';
+            bracketHtml += '<div style="padding:2px 4px;color:#999;font-style:italic;">\u2026</div>';
+          } else {
+            bracketHtml += '<div style="padding:3px 4px;color:#999;text-align:center;font-style:italic;">\u2026</div>';
+          }
+
+          // Annotation tags
+          if (ann.tags && ann.tags.length) {
+            var tagHtml = ann.tags.map(function(t) {
+              var tc = BRACKET_TAG_COLORS[t];
+              return tc ? '<span style="padding:0 3px;border-radius:2px;background:' + tc.bg + ';color:#fff;font-size:7px;font-weight:600;">' + tc.label + '</span>' : '';
+            }).join(' ');
+            bracketHtml += '<div style="padding:1px 4px;font-size:8px;display:flex;gap:2px;background:#f5f5f5;">' + tagHtml + '</div>';
+          }
+          if (ann.edge) {
+            bracketHtml += '<div style="padding:1px 4px 2px;font-size:8px;color:#3b82f6;font-style:italic;background:#f0f7ff;">' + ann.edge + '</div>';
+          }
+          bracketHtml += '</div>';
+        });
+      });
+      bracketHtml += '</div>';
+      if (ri < roundOrder.length - 1) {
+        bracketHtml += '<div style="display:flex;align-items:center;padding:0 2px;color:#3b82f6;opacity:.4;font-size:14px;">\u25B6</div>';
+      }
+    });
+    bracketHtml += '</div>';
+
+    // Annotation summary section
+    var annHtml = '';
+    if (annSummary.length) {
+      annHtml = '<div style="max-width:900px;margin:20px auto;padding:0 20px;font-family:-apple-system,sans-serif;">';
+      annHtml += '<h3 style="font-size:14px;color:#3b82f6;border-bottom:2px solid #3b82f6;padding-bottom:4px;margin-bottom:8px;">Claude Analysis Summary</h3>';
+      annSummary.forEach(function(line) {
+        annHtml += '<div style="font-size:11px;color:#444;padding:3px 0;border-bottom:1px solid #f0f0f0;">' + line.replace(/</g, '&lt;') + '</div>';
+      });
+      annHtml += '</div>';
+    }
+
+    // Build full standalone HTML page
+    var total = games.length, completed = games.filter(function(g) { return g.completed; }).length;
+    var pickCount = Object.keys(picks).length;
+    var fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>' + yr + ' NCAA Tournament Bracket</title>' +
+      '<style>body{margin:0;padding:20px;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;}' +
+      '.header{max-width:900px;margin:0 auto 10px;display:flex;justify-content:space-between;align-items:center;padding:0 20px;}' +
+      '.header h1{font-size:18px;margin:0;color:#222;}.header .meta{font-size:11px;color:#888;}' +
+      '</style></head><body>' +
+      '<div class="header"><h1>' + yr + ' NCAA Tournament Bracket</h1>' +
+      '<div class="meta">' + completed + '/' + total + ' games final' + (pickCount ? ' &middot; ' + pickCount + ' picks' : '') + ' &middot; Exported ' + new Date().toLocaleString() + '</div></div>' +
+      bracketHtml + annHtml +
+      '<div style="text-align:center;padding:20px;font-size:10px;color:#bbb;">Generated by Workspace Analytics</div>' +
+      '</body></html>';
+
+    // Generate shareable URL
+    spGetShareableUrl(fullHtml).then(function(shareUrl) {
+      navigator.clipboard.writeText(shareUrl).then(function() {
+        toast('Bracket link copied to clipboard!');
+      }).catch(function() {
+        // Fallback: show URL in prompt
+        prompt('Copy this shareable bracket link:', shareUrl);
+      });
+    });
+
+    // Post annotation summary to chat
+    if (annSummary.length) {
+      var chatMsg = yr + ' NCAA Tournament Bracket \u2014 Analysis Summary\n\n';
+      annSummary.forEach(function(line) { chatMsg += '\u2022 ' + line + '\n'; });
+      chatMsg += '\nShareable link copied to clipboard.';
+      addAiMsg('assistant', chatMsg);
+    } else {
+      addAiMsg('assistant', 'Bracket exported \u2014 shareable link copied to clipboard. Use Claude Analyze to add annotations before exporting.');
+    }
   };
 }
 
