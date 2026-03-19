@@ -2182,7 +2182,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <label style="font-size:.48rem;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:2px;"><input type="checkbox" id="aiOutSheet" style="width:10px;height:10px;margin:0;accent-color:var(--accent);">Sheet</label>
         <label style="font-size:.48rem;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:2px;"><input type="checkbox" id="aiOutNote" style="width:10px;height:10px;margin:0;accent-color:var(--accent);">Notepad</label>
         <label style="font-size:.48rem;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:2px;"><input type="checkbox" id="aiOutWb" style="width:10px;height:10px;margin:0;accent-color:var(--accent);">Whiteboard</label>
-        <label style="font-size:.48rem;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:2px;"><input type="checkbox" id="aiOutBracket" style="width:10px;height:10px;margin:0;accent-color:var(--accent);display:none;">Bracket</label>
+        <label id="aiOutBracketLabel" style="font-size:.48rem;color:var(--text-dim);cursor:pointer;display:none;align-items:center;gap:2px;"><input type="checkbox" id="aiOutBracket" style="width:10px;height:10px;margin:0;accent-color:var(--accent);">Bracket</label>
       </div>
       <div style="display:flex;align-items:center;gap:6px;padding:0 8px;">
         <span id="personaIndicator" style="font-size:.52rem;color:var(--text-dim);white-space:nowrap;"></span>
@@ -11411,8 +11411,8 @@ $('#spYtSearch').addEventListener('keydown', e => {
     var btn = $('#spBracketTabBtn');
     if (btn) btn.style.display = '';
     // Show bracket output checkbox in chat
-    var bcb = $('#aiOutBracket');
-    if (bcb) bcb.parentElement.style.display = '';
+    var bcbLabel = $('#aiOutBracketLabel');
+    if (bcbLabel) bcbLabel.style.display = 'flex';
   }
 })();
 
@@ -11548,7 +11548,55 @@ function _bracketDateRange() {
   return fmt(start) + '-' + fmt(end);
 }
 
-// Main bracket renderer — matchup box layout
+// Standard bracket seed pairings: games whose winners meet in next round
+// Order: [topSeed, bottomSeed] pairs — index 0&1 feed R32 game 1, index 2&3 feed R32 game 2, etc.
+const BRACKET_SEED_PAIRS = [
+  [1,16], [8,9],   // pair A → R32 slot 1
+  [5,12], [4,13],  // pair B → R32 slot 2
+  [6,11], [3,14],  // pair C → R32 slot 3
+  [7,10], [2,15]   // pair D → R32 slot 4
+];
+
+// Pair feeder games within a region: return array of [game1, game2] pairs
+function _pairFeederGames(regionGames) {
+  if (regionGames.length <= 1) return regionGames.map(function(g) { return [g]; });
+  // Try to pair by seed matchups
+  var paired = [], used = new Set();
+  for (var i = 0; i < BRACKET_SEED_PAIRS.length; i += 2) {
+    var topSeeds = BRACKET_SEED_PAIRS[i];   // e.g. [1,16]
+    var botSeeds = BRACKET_SEED_PAIRS[i+1]; // e.g. [8,9]
+    var topGame = null, botGame = null;
+    regionGames.forEach(function(g) {
+      if (used.has(g.id)) return;
+      var seeds = g.teams.map(function(t) { return t.seed; }).sort(function(a,b) { return a - b; });
+      if (!topGame && seeds[0] === topSeeds[0] && seeds[1] === topSeeds[1]) topGame = g;
+      if (!topGame && seeds[0] === topSeeds[0]) topGame = g; // partial match (play-in teams)
+      if (!botGame && seeds[0] === botSeeds[0] && seeds[1] === botSeeds[1]) botGame = g;
+      if (!botGame && seeds[0] === botSeeds[0]) botGame = g;
+    });
+    if (topGame && botGame && topGame.id !== botGame.id) {
+      used.add(topGame.id); used.add(botGame.id);
+      paired.push([topGame, botGame]);
+    }
+  }
+  // Add any unpaired games
+  regionGames.forEach(function(g) {
+    if (!used.has(g.id)) paired.push([g]);
+  });
+  return paired;
+}
+
+// For later rounds, pair by position (first 2 feed next, second 2 feed next, etc.)
+function _pairByPosition(games) {
+  var pairs = [];
+  for (var i = 0; i < games.length; i += 2) {
+    if (i + 1 < games.length) pairs.push([games[i], games[i+1]]);
+    else pairs.push([games[i]]);
+  }
+  return pairs;
+}
+
+// Main bracket renderer — matchup box layout with feeder pairing
 function spRenderBracket() {
   var view = $('#spBracketView');
   if (!view || !spBracketData) return;
@@ -11584,7 +11632,7 @@ function spRenderBracket() {
     var roundName = BRACKET_ROUND_NAMES[roundNum] || 'Round ' + roundNum;
     var roundDone = roundGames.filter(g=>g.completed).length;
 
-    // Round header (collapsible feel)
+    // Round header
     if (filter === 'all') {
       html += '<div style="padding:3px 6px;margin-top:4px;font-weight:700;font-size:.58rem;color:var(--accent);border-bottom:2px solid var(--accent);display:flex;justify-content:space-between;">';
       html += '<span>' + esc(roundName) + '</span>';
@@ -11604,10 +11652,22 @@ function spRenderBracket() {
         html += '<div style="padding:2px 6px;font-size:.48rem;font-weight:600;color:' + rColor + ';border-left:3px solid ' + rColor + ';margin:4px 0 2px 0;">' + esc(regionName) + ' Region</div>';
       }
 
-      // Games grid — matchup boxes
-      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;padding:2px 4px;">';
-      regionGames.forEach(function(game) {
-        html += _renderMatchupBox(game, picks);
+      // Pair feeder games: R64 uses seed logic, later rounds use positional pairing
+      var pairs = roundNum === 1 ? _pairFeederGames(regionGames) : _pairByPosition(regionGames);
+
+      // Render paired matchup groups
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:2px 4px;">';
+      pairs.forEach(function(pair) {
+        // Each pair is a vertical stack with a connector hint
+        html += '<div style="display:flex;flex-direction:column;gap:1px;min-width:145px;max-width:205px;flex:1;">';
+        pair.forEach(function(game, gi) {
+          html += _renderMatchupBox(game, picks);
+          // Draw a small connector between paired games
+          if (gi === 0 && pair.length > 1) {
+            html += '<div style="display:flex;justify-content:center;"><div style="width:1px;height:4px;background:var(--accent);opacity:.4;"></div></div>';
+          }
+        });
+        html += '</div>';
       });
       html += '</div>';
     });
@@ -14090,6 +14150,15 @@ function setActivePersona(key) {
   const p = PERSONA_MODES[key];
   addAiMsg('system', p.icon + ' Now using: ' + p.label);
   updatePersonaUI();
+  // Auto-show & check bracket output when March Madness persona is active
+  var _brkLabel = document.getElementById('aiOutBracketLabel');
+  var _brkCb = document.getElementById('aiOutBracket');
+  if (key === 'march_madness') {
+    if (_brkLabel) _brkLabel.style.display = 'flex';
+    if (_brkCb) _brkCb.checked = true;
+  } else {
+    if (_brkCb) _brkCb.checked = false;
+  }
 }
 
 function updatePersonaUI() {
@@ -18574,24 +18643,23 @@ async function sendAgentMessage() {
     if (_outNote) targets.push('Notepad (use write_note)');
     if (_outWb) targets.push('Whiteboard (use draw_summary_card, draw_shape, add_text_overlay)');
     if (_outBracket) targets.push('Bracket tab (use generate_bracket)');
-    outputPrefPrompt = '\n[OUTPUT TARGETS — user-selected] Populate these panes with your output: ' + targets.join(', ') + '.';
+    outputPrefPrompt = '\n[OUTPUT TARGETS — user-selected] Populate ONLY these panes: ' + targets.join(', ') + '.';
+    // Negative constraints for unchecked panes
+    const noTargets = [];
+    if (!_outSheet) noTargets.push('spreadsheet');
+    if (!_outNote) noTargets.push('notepad');
+    if (!_outWb) noTargets.push('whiteboard');
+    if (!_outBracket) noTargets.push('bracket');
+    if (noTargets.length) outputPrefPrompt += ' Do NOT write to: ' + noTargets.join(', ') + '.';
     if (_outChat) outputPrefPrompt += ' Also provide a brief summary in chat.';
     else outputPrefPrompt += ' Keep chat response minimal — the panes ARE the deliverable.';
     outputPrefPrompt += '\n';
-  } else if (!_outChat) {
-    // Nothing checked — default to chat only
-    outputPrefPrompt = '';
+  } else {
+    // Only Chat checked (or nothing) — explicitly restrict to chat only
+    outputPrefPrompt = '\n[OUTPUT TARGETS — user-selected] Respond in CHAT ONLY. Do NOT write to the spreadsheet, notepad, whiteboard, or any other pane unless the user explicitly asks you to in their message. Keep your response in the chat window.\n';
   }
 
-  // Legacy: analysis task output clarification (supplements checkbox if present)
-  if (classifyAsAnalysisTask(input) && !_anyOutputPane) {
-    const outputMode = await showOutputClarification(taskId);
-    if (outputMode === 'spreadsheet') {
-      outputPrefPrompt = '\nOutput preference: structured data. Format all metrics, comparisons, and time-series as tables. Push numerical output to the spreadsheet using write_cells. Keep chat summary to 3-5 sentences only.\n';
-    } else if (outputMode === 'whiteboard') {
-      outputPrefPrompt = '\nOutput preference: visual exhibits. Build whiteboard cards for key findings using draw_summary_card. Use concept map layout for relationships. Prefer labeled diagrams over tables. Add a summary card with the main thesis.\n';
-    }
-  }
+  // Legacy analysis output modal removed — checkboxes are the source of truth now
   if (outputPrefPrompt) {
     contextMsg.content += outputPrefPrompt;
   }
