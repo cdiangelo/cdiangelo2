@@ -10438,7 +10438,7 @@ function _spRenderStandingsData(data, league, el) {
 // ── Odds / Betting Lines ──
 // Primary: The Odds API (free, 500 req/mo), Fallback: ESPN scoreboard odds
 // User can set their own API key in localStorage for higher limits
-$('#spRefreshOdds').onclick = () => spFetchOdds();
+$('#spRefreshOdds').onclick = () => spFetchOdds(true);
 $('#spOddsLeague').onchange = () => spFetchOdds();
 
 // ── Opening Odds Tracking (localStorage-persisted) ──
@@ -10884,18 +10884,17 @@ function _spAttachBookTooltips(container) {
   });
 }
 
-// Client-side odds cache to reduce API calls (free tier = 500/month)
+// Client-side odds cache — persists until manual refresh to conserve API quota
 var _spOddsCache = {};
-var _spOddsCacheTTL = 5 * 60 * 1000; // 5 minutes
 var _spOddsApiDown = false; // Track if Odds API is returning errors
 
-function spFetchOdds() {
+function spFetchOdds(forceRefresh) {
   const league = $('#spOddsLeague').value;
   const el = $('#spOddsList');
 
-  // Check cache first (saves API calls)
+  // Serve cached data unless explicitly refreshing (manual button press)
   var cached = _spOddsCache[league];
-  if (cached && (Date.now() - cached.ts) < _spOddsCacheTTL) {
+  if (cached && !forceRefresh) {
     el.innerHTML = cached.html;
     _spAttachBookTooltips(el);
     return;
@@ -11016,7 +11015,7 @@ function spFetchOdds() {
           summary += '</div>';
         }
 
-        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString() + ' (refreshes every 5min)';
+        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
         el.innerHTML = summary + html || '<div class="sp-empty">No odds available for this league right now.</div>';
         _spOddsCache[league] = { html: el.innerHTML, ts: Date.now() };
         _spAttachBookTooltips(el);
@@ -12575,18 +12574,14 @@ window._bracketToolHandler = function(input) {
   return JSON.stringify({ error: 'Provide annotations array or regions array. Load bracket first with the Load Bracket button.' });
 };
 
-// Auto-refresh scores AND odds every 60 seconds when sports tab is visible
+// Auto-refresh scores every 60 seconds when sports tab is visible
+// (Odds are manual-refresh only to conserve API quota)
 let spAutoRefreshTimer = null;
 function spStartAutoRefresh() {
   clearInterval(spAutoRefreshTimer);
   spAutoRefreshTimer = setInterval(() => {
     if ($('#sportsView').style.display === 'none') return;
-    // Always refresh scores
     spFetchScores();
-    // Also refresh odds if odds tab is currently active
-    if ($('#spOddsTab') && $('#spOddsTab').style.display !== 'none') {
-      spFetchOdds();
-    }
   }, 60000);
 }
 
