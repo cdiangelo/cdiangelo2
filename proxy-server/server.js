@@ -439,6 +439,59 @@ app.post('/proxy/robinhood', async (req, res) => {
   }
 });
 
+// ── ESPN API Proxy (avoids CORS issues) ──
+app.get('/proxy/espn/*', async (req, res) => {
+  // Forward the path after /proxy/espn/ to ESPN's API
+  const espnPath = req.params[0];
+  if (!espnPath || espnPath.includes('..')) {
+    return res.status(400).json({ error: true, message: 'Invalid ESPN path' });
+  }
+  const qs = new URLSearchParams(req.query).toString();
+  const url = 'https://site.api.espn.com/apis/site/v2/sports/' + espnPath + (qs ? '?' + qs : '');
+  try {
+    const r = await fetch(url, { timeout: 10000, headers: { 'Accept': 'application/json' } });
+    if (!r.ok) {
+      return res.status(r.status).json({ error: true, message: 'ESPN API returned HTTP ' + r.status });
+    }
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    console.error('[ESPN Proxy] Error:', e.message);
+    res.status(502).json({ error: true, message: 'ESPN API request failed' });
+  }
+});
+
+// ── YouTube Search Proxy (via Invidious, with fallback) ──
+const YT_INSTANCES = [
+  'https://vid.puffyan.us',
+  'https://invidious.fdn.fr',
+  'https://yewtu.be',
+  'https://inv.nadeko.net',
+  'https://invidious.snopyta.org'
+];
+
+app.get('/proxy/youtube/search', async (req, res) => {
+  const q = req.query.q;
+  if (!q) return res.status(400).json({ error: true, message: 'Missing query parameter q' });
+
+  for (let i = 0; i < YT_INSTANCES.length; i++) {
+    const base = YT_INSTANCES[i];
+    const url = base + '/api/v1/search?q=' + encodeURIComponent(q) + '&type=video&sort_by=relevance';
+    try {
+      const r = await fetch(url, { timeout: 8000, headers: { 'Accept': 'application/json' } });
+      if (!r.ok) { console.warn('[YT Proxy] ' + base + ' returned HTTP ' + r.status); continue; }
+      const data = await r.json();
+      if (data && data.length) {
+        console.log('[YT Proxy] Success via ' + base);
+        return res.json(data);
+      }
+    } catch (e) {
+      console.warn('[YT Proxy] ' + base + ' failed:', e.message);
+    }
+  }
+  res.status(502).json({ error: true, message: 'All Invidious instances unavailable' });
+});
+
 // ── Odds API Proxy (the-odds-api.com) ──
 app.get('/proxy/odds/status', (_req, res) => {
   res.json({ available: hasOddsApiKey });
@@ -457,7 +510,7 @@ app.get('/proxy/odds/:sport', async (req, res) => {
   const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${oddsApiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}`;
 
   try {
-    const oddsResp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const oddsResp = await fetch(url, { timeout: 10000 });
 
     // Forward rate limit headers
     const remaining = oddsResp.headers.get('x-requests-remaining');
