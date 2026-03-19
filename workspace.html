@@ -2328,10 +2328,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <span class="p-title"><span class="p-icon ic-analytics"></span> Analytics</span>
       <div class="p-spacer"></div>
       <div class="toggle-group" id="q4Tabs">
-        <button class="active" data-q4="stocks">Stocks</button>
-        <button data-q4="cmap">Concept Map</button>
+        <button class="active" data-q4="sports">Sports</button>
+        <button data-q4="stocks">Stocks</button>
         <button data-q4="graphcalc">Graph Calc</button>
-        <button data-q4="sports">Sports</button>
+        <button data-q4="cmap">Concept Map</button>
       </div>
       <div class="p-spacer"></div>
       <div class="zoom-controls"><button onclick="paneZoom(this,-10)">&minus;</button><span class="zoom-level">100%</span><button onclick="paneZoom(this,10)">+</button></div>
@@ -2339,7 +2339,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
     <div class="p-body">
       <!-- STOCKS VIEW -->
-      <div id="stocksView" style="display:flex;flex-direction:column;flex:1;">
+      <div id="stocksView" style="display:none;flex-direction:column;flex:1;">
         <div class="toolbar">
           <div style="position:relative;">
             <input type="text" id="stockInput" placeholder="Search ticker or company..." style="max-width:160px;" />
@@ -2512,7 +2512,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
       </div>
       <!-- SPORTS VIEW -->
-      <div id="sportsView" style="display:none;flex-direction:column;flex:1;">
+      <div id="sportsView" style="display:flex;flex-direction:column;flex:1;">
         <div class="page-tabs" id="spTabs" style="display:flex;align-items:center;">
           <div class="page-tab active" data-sptab="games">Scores</div>
           <div class="page-tab" data-sptab="standings">Standings</div>
@@ -2564,7 +2564,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <div class="p-spacer" style="flex:1;"></div>
           </div>
           <div id="spStandingsList" style="flex:1;overflow-y:auto;padding:8px;">
-            <div class="sp-empty">Select a league and click Refresh to load standings.</div>
+            <div class="sp-empty">Loading standings when ESPN connects...</div>
           </div>
         </div>
         <!-- Odds sub-tab -->
@@ -2623,7 +2623,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <button id="spRefreshPlayers" style="font-size:.68rem;" title="Show league leaders">Leaders</button>
           </div>
           <div id="spPlayersList" style="flex:1;overflow-y:auto;padding:8px;">
-            <div class="sp-empty">Search for a player or click "Leaders" for league stat leaders.</div>
+            <div class="sp-empty">Loading league leaders when ESPN connects...</div>
           </div>
         </div>
 
@@ -9826,37 +9826,52 @@ function spUpdateConnBadge() {
   if (!dot || !label) return;
   const states = Object.values(spConnState);
   const checking = states.some(s => s === null);
-  const allGood = states.every(s => s === true);
-  const allBad = states.every(s => s === false);
+  const e = spConnState.espn, o = spConnState.odds, y = spConnState.youtube;
 
   if (checking) {
     dot.style.background = '#f59e0b'; label.textContent = 'Checking...';
-  } else if (allGood) {
-    dot.style.background = '#22c55e'; label.textContent = 'All Connected';
-  } else if (allBad) {
-    dot.style.background = '#ef4444'; label.textContent = 'Disconnected';
-  } else {
+  } else if (e && o && y) {
+    // All three connected including YouTube → dark green
+    dot.style.background = '#16a34a'; label.textContent = 'All Connected';
+  } else if (y && (e || o)) {
+    // YouTube up + at least one data source → light green
+    dot.style.background = '#86efac'; label.textContent = 'YouTube + ' + (e && o ? 'Data' : e ? 'ESPN' : 'Odds');
+  } else if (y && !e && !o) {
+    // YouTube only, no data sources → light green (YT only)
+    dot.style.background = '#86efac'; label.textContent = 'YouTube only';
+  } else if (!y && (e || o) && !(e && o)) {
+    // Missing YouTube + missing either odds or ESPN → yellow
     dot.style.background = '#f59e0b';
-    const up = [], down = [];
-    if (spConnState.espn) up.push('ESPN'); else down.push('ESPN');
-    if (spConnState.odds) up.push('Odds'); else down.push('Odds');
-    if (spConnState.youtube) up.push('YT'); else down.push('YT');
-    label.textContent = down.join(', ') + ' down';
+    label.textContent = (!e ? 'ESPN' : 'Odds') + ' + YT down';
+  } else if (!y && e && o) {
+    // ESPN + Odds up but YouTube down → yellow
+    dot.style.background = '#f59e0b'; label.textContent = 'YT down';
+  } else {
+    // All down → red
+    dot.style.background = '#ef4444'; label.textContent = 'Disconnected';
   }
   const el = $('#spConnStatus');
-  if (el) el.title = 'ESPN: '+(spConnState.espn == null ? '...' : spConnState.espn ? 'OK' : 'down')+
-    ' | Odds API: '+(spConnState.odds == null ? '...' : spConnState.odds ? 'OK' : 'down')+
-    ' | YouTube: '+(spConnState.youtube == null ? '...' : spConnState.youtube ? 'OK' : 'down');
+  if (el) el.title = 'ESPN: '+(e == null ? '...' : e ? 'OK' : 'down')+
+    ' | Odds API: '+(o == null ? '...' : o ? 'OK' : 'down')+
+    ' | YouTube: '+(y == null ? '...' : y ? 'OK' : 'down');
 }
 
 function spCheckConnections() {
   spConnState = { espn: null, odds: null, youtube: null };
   spUpdateConnBadge();
 
-  // Check ESPN via proxy
+  // Check ESPN via proxy — auto-populate standings & leaders when live
   fetch(PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard', { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
     .then(spSafeJson)
-    .then(() => { spConnState.espn = true; spUpdateConnBadge(); })
+    .then(() => {
+      spConnState.espn = true; spUpdateConnBadge();
+      // Auto-populate standings and player leaders on first successful connection
+      if (!spConnState._espnPopulated) {
+        spConnState._espnPopulated = true;
+        spFetchStandings();
+        spFetchLeaders();
+      }
+    })
     .catch(() => { spConnState.espn = false; spUpdateConnBadge(); });
 
   // Check Odds API via proxy
