@@ -9956,6 +9956,33 @@ setTimeout(() => { if ($('#graphCalcView').style.display === 'flex') resizeGC();
    SPORTS PANE — Live Data Feeds
    ═══════════════════════════════════════════ */
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+// Parse ESPN event into structured game object (for agent tools)
+function _parseEspnGame(ev, leagueName) {
+  var comp = (ev.competitions || [])[0] || {};
+  var teams = (comp.competitors || []).map(function(c) {
+    return { name: (c.team || {}).displayName || (c.team || {}).shortDisplayName || '?', abbrev: (c.team || {}).abbreviation || '', score: parseInt(c.score) || 0, winner: c.winner || false, homeAway: c.homeAway || '', record: (c.records || [{}])[0] ? (c.records[0].summary || '') : '' };
+  });
+  var status = (comp.status || {});
+  var state = (status.type || {}).name || '';
+  var home = teams.find(t => t.homeAway === 'home') || teams[0] || {};
+  var away = teams.find(t => t.homeAway === 'away') || teams[1] || {};
+  var odds = (comp.odds || [])[0] || {};
+  var broadcast = ((comp.broadcasts || [])[0] || {}).names ? (comp.broadcasts[0].names || []).join(', ') : '';
+  return {
+    id: ev.id, name: ev.shortName || ev.name || '',
+    league: leagueName || '',
+    home: { name: home.name, abbrev: home.abbrev, score: home.score, record: home.record, winner: home.winner },
+    away: { name: away.name, abbrev: away.abbrev, score: away.score, record: away.record, winner: away.winner },
+    status: (status.type || {}).shortDetail || state,
+    state: state, // STATUS_SCHEDULED, STATUS_IN_PROGRESS, STATUS_FINAL
+    completed: state === 'STATUS_FINAL' || (status.type || {}).completed === true,
+    live: state === 'STATUS_IN_PROGRESS',
+    startTime: ev.date || '',
+    spread: odds.details || '', overUnder: odds.overUnder || '',
+    broadcast: broadcast
+  };
+}
+
 // ESPN API endpoints (public, no auth required)
 const SP_LEAGUE_MAP = {
   nba: { sport: 'basketball', league: 'nba', name: 'NBA' },
@@ -17055,6 +17082,10 @@ function addToolStatus(toolName, input) {
     clear_concept_map: 'Clearing concept map',
     set_concept_map_layout: 'Repositioning concept map',
     get_bracket_state: 'Reading bracket state',
+    set_sports_league: 'Switching sports league',
+    get_sports_scores: 'Fetching live scores',
+    get_sports_odds: 'Fetching betting odds',
+    get_sports_standings: 'Fetching standings',
     generate_bracket: 'Annotating NCAA Tournament bracket'
   };
   const ts = '[' + new Date().toTimeString().slice(0, 8) + ']';
@@ -17105,10 +17136,14 @@ function getWorkspaceContext() {
     }
   });
   if (cachedStockSummary.length) parts.push('Cached stock data (use instead of re-fetching if under 15min): ' + cachedStockSummary.join(', '));
-  // Sports data context — expose cached scores and odds to AI
+  // Sports data context — expose current league and cached scores/odds to AI
+  const _spLeagueSel = document.getElementById('spLeague');
+  const _spLeagueVal = _spLeagueSel ? _spLeagueSel.value : '';
+  const _spLeagueName = _spLeagueVal && SP_LEAGUE_MAP[_spLeagueVal] ? SP_LEAGUE_MAP[_spLeagueVal].name : _spLeagueVal;
+  if (_spLeagueName) parts.push('Sports pane: currently viewing ' + _spLeagueName + ' (league filter: ' + _spLeagueVal + '). Available leagues: nba, nfl, mlb, nhl, ncaab, ncaaf, soccer, global. Use set_sports_league tool to switch, or get_sports_scores/get_sports_odds/get_sports_standings to fetch data for any league.');
   const spScoresEl = document.getElementById('spGamesList');
   if (spScoresEl && spScoresEl.innerText.trim() && !spScoresEl.innerText.includes('Select a league')) {
-    parts.push('Sports scores (from ESPN): ' + spScoresEl.innerText.trim().substring(0, 600));
+    parts.push('Sports scores (' + _spLeagueName + ', from ESPN): ' + spScoresEl.innerText.trim().substring(0, 600));
   }
   const spOddsEl = document.getElementById('spOddsList');
   if (spOddsEl && spOddsEl.innerText.trim() && !spOddsEl.innerText.includes('Select a league')) {
@@ -17209,6 +17244,10 @@ const AGENT_TOOLS_INLINE = [
   { name: 'get_stock_fundamentals', description: 'Get fundamental metrics for a stock: price, market cap, PE, growth, sector.', input_schema: { type: 'object', properties: { ticker: { type: 'string' } }, required: ['ticker'] } },
   { name: 'get_news', description: 'Get news articles for a keyword/ticker. Returns titles, snippets, sources, sentiment.', input_schema: { type: 'object', properties: { keyword: { type: 'string' }, limit: { type: 'number', description: 'Max articles to return (default 5)' } }, required: ['keyword'] } },
   { name: 'get_bracket_state', description: 'Get the current NCAA Tournament bracket state: all games, scores, completed results, user picks, and Claude annotations. Use this BEFORE generate_bracket to see what games are available.', input_schema: { type: 'object', properties: {} } },
+  { name: 'set_sports_league', description: 'Switch the sports league filter and fetch fresh data. Use this to change which league is displayed in the Sports pane.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer', 'global'], description: 'League code to switch to' } }, required: ['league'] } },
+  { name: 'get_sports_scores', description: 'Fetch live scores/schedule for a given league from ESPN. Returns game matchups, scores, status (pre/in/post), and broadcast info. Does NOT require switching the league filter first — fetches directly.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer', 'global'], description: 'League to fetch scores for' } }, required: ['league'] } },
+  { name: 'get_sports_odds', description: 'Fetch betting odds (spread, moneyline, total) for a given league. Returns odds from major sportsbooks.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League to fetch odds for' } }, required: ['league'] } },
+  { name: 'get_sports_standings', description: 'Fetch current league standings from ESPN. Returns team records, win%, division standings.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League to fetch standings for' } }, required: ['league'] } },
   { name: 'get_concept_map', description: 'Get concept map nodes and edges.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_portfolio', description: 'Get Robinhood portfolio positions, account balance, and buying power. Requires Robinhood login.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_orders', description: 'Get recent Robinhood order history. Requires Robinhood login.', input_schema: { type: 'object', properties: { limit: { type: 'number', description: 'Max orders to return (default 20)' } } } },
@@ -17778,6 +17817,109 @@ async function executeAgentTool(name, input) {
       case 'generate_bracket': {
         if (window._bracketToolHandler) return window._bracketToolHandler(input);
         return JSON.stringify({ error: 'Bracket system not loaded' });
+      }
+
+      // ── Sports data tools ──
+      case 'set_sports_league': {
+        var _slKey = (input.league || '').toLowerCase();
+        if (!SP_LEAGUE_MAP[_slKey]) return JSON.stringify({ error: 'Unknown league: ' + _slKey + '. Valid: nba, nfl, mlb, nhl, ncaab, ncaaf, soccer, global' });
+        var _slSel = document.getElementById('spLeague');
+        if (_slSel) { _slSel.value = _slKey; }
+        // Also switch standings and odds league selects
+        var _slStSel = document.getElementById('spStandingsLeague');
+        if (_slStSel) _slStSel.value = _slKey;
+        var _slOdSel = document.getElementById('spOddsLeague');
+        if (_slOdSel) _slOdSel.value = _slKey;
+        // Fetch fresh scores
+        if (typeof spFetchScores === 'function') await spFetchScores();
+        return JSON.stringify({ success: true, league: _slKey, name: SP_LEAGUE_MAP[_slKey].name, message: 'Switched to ' + SP_LEAGUE_MAP[_slKey].name + '. Scores refreshed.' });
+      }
+
+      case 'get_sports_scores': {
+        var _gsKey = (input.league || '').toLowerCase();
+        if (!SP_LEAGUE_MAP[_gsKey]) return JSON.stringify({ error: 'Unknown league: ' + _gsKey });
+        var _gsInfo = SP_LEAGUE_MAP[_gsKey];
+        try {
+          if (_gsKey === 'global') {
+            // Fetch all global sources
+            var _gsAll = [];
+            for (var _gsSrc of SP_GLOBAL_SOURCES) {
+              try {
+                var _gsUrl = PROXY_BASE + '/proxy/espn/' + _gsSrc.sport + '/' + _gsSrc.league + '/scoreboard';
+                var _gsResp = await fetch(_gsUrl).then(r => r.json()).catch(() => null);
+                if (_gsResp && _gsResp.events && _gsResp.events.length) {
+                  _gsResp.events.forEach(function(ev) {
+                    _gsAll.push(_parseEspnGame(ev, _gsSrc.name));
+                  });
+                }
+              } catch(_) {}
+            }
+            return JSON.stringify({ league: 'global', games: _gsAll, count: _gsAll.length });
+          }
+          var _gsUrl2 = PROXY_BASE + '/proxy/espn/' + _gsInfo.sport + '/' + _gsInfo.league + '/scoreboard';
+          var _gsResp2 = await fetch(_gsUrl2).then(r => r.json());
+          var _gsGames = (_gsResp2.events || []).map(function(ev) { return _parseEspnGame(ev, _gsInfo.name); });
+          return JSON.stringify({ league: _gsKey, name: _gsInfo.name, games: _gsGames, count: _gsGames.length });
+        } catch(e) {
+          return JSON.stringify({ error: 'Failed to fetch scores: ' + e.message, league: _gsKey });
+        }
+      }
+
+      case 'get_sports_odds': {
+        var _goKey = (input.league || '').toLowerCase();
+        var _goOddsMap = { nba: 'basketball_nba', nfl: 'americanfootball_nfl', mlb: 'baseball_mlb', nhl: 'icehockey_nhl', ncaab: 'basketball_ncaab', ncaaf: 'americanfootball_ncaaf', soccer: 'soccer_usa_mls' };
+        var _goSport = _goOddsMap[_goKey];
+        if (!_goSport) return JSON.stringify({ error: 'Odds not available for: ' + _goKey });
+        try {
+          var _goUrl = PROXY_BASE + '/proxy/odds?sport=' + _goSport + '&markets=h2h,spreads,totals';
+          var _goResp = await fetch(_goUrl).then(r => r.json());
+          if (!Array.isArray(_goResp)) {
+            // Try ESPN fallback
+            var _goInfo = SP_LEAGUE_MAP[_goKey];
+            var _goUrl2 = PROXY_BASE + '/proxy/espn/' + _goInfo.sport + '/' + _goInfo.league + '/scoreboard';
+            var _goResp2 = await fetch(_goUrl2).then(r => r.json());
+            var _goOdds = (_goResp2.events || []).map(function(ev) {
+              var comp = (ev.competitions || [])[0] || {};
+              var odds = (comp.odds || [])[0] || {};
+              return { game: ev.shortName || ev.name, spread: odds.details || '', overUnder: odds.overUnder || '', provider: (odds.provider || {}).name || '' };
+            }).filter(o => o.spread || o.overUnder);
+            return JSON.stringify({ league: _goKey, source: 'espn', odds: _goOdds, count: _goOdds.length });
+          }
+          var _goGames = _goResp.map(function(g) {
+            var best = {};
+            (g.bookmakers || []).forEach(function(bk) {
+              (bk.markets || []).forEach(function(mkt) {
+                if (!best[mkt.key]) best[mkt.key] = { bookmaker: bk.title, outcomes: mkt.outcomes };
+              });
+            });
+            return { game: g.home_team + ' vs ' + g.away_team, start: g.commence_time, spreads: best.spreads ? best.spreads.outcomes : null, moneyline: best.h2h ? best.h2h.outcomes : null, totals: best.totals ? best.totals.outcomes : null };
+          });
+          return JSON.stringify({ league: _goKey, source: 'odds_api', odds: _goGames, count: _goGames.length });
+        } catch(e) {
+          return JSON.stringify({ error: 'Failed to fetch odds: ' + e.message, league: _goKey });
+        }
+      }
+
+      case 'get_sports_standings': {
+        var _gstKey = (input.league || '').toLowerCase();
+        var _gstInfo = SP_LEAGUE_MAP[_gstKey];
+        if (!_gstInfo) return JSON.stringify({ error: 'Unknown league: ' + _gstKey });
+        try {
+          var _gstUrl = PROXY_BASE + '/proxy/espn/' + _gstInfo.sport + '/' + _gstInfo.league + '/standings';
+          var _gstResp = await fetch(_gstUrl).then(r => r.json());
+          var _gstGroups = (_gstResp.children || []).map(function(grp) {
+            var groupName = grp.name || grp.abbreviation || '';
+            var teams = ((grp.standings || {}).entries || []).map(function(entry) {
+              var stats = {};
+              (entry.stats || []).forEach(function(s) { stats[s.name || s.abbreviation] = s.displayValue || s.value; });
+              return { name: (entry.team || {}).displayName || '', wins: stats.wins || stats.W || '', losses: stats.losses || stats.L || '', winPct: stats.winPercent || stats.PCT || '', divRecord: stats.divisionRecord || '', confRecord: stats.conferenceRecord || '' };
+            });
+            return { group: groupName, teams: teams };
+          });
+          return JSON.stringify({ league: _gstKey, name: _gstInfo.name, groups: _gstGroups, count: _gstGroups.reduce(function(a, g) { return a + g.teams.length; }, 0) });
+        } catch(e) {
+          return JSON.stringify({ error: 'Failed to fetch standings: ' + e.message, league: _gstKey });
+        }
       }
 
       default: return JSON.stringify({ error: 'Unknown tool: ' + name });
@@ -19032,6 +19174,10 @@ async function sendAgentMessage() {
       draw_table: function() { return 'Whiteboard: table drawn'; },
       create_meme: function() { return 'Meme generated'; },
       generate_bracket: function(inp) { return 'Bracket: ' + (inp.annotations ? inp.annotations.length + ' annotations applied' : (inp.title || 'NCAA Tournament') + ' rendered'); },
+      set_sports_league: function(inp) { return 'Switched to ' + (inp.league || '?').toUpperCase(); },
+      get_sports_scores: function(inp) { return 'Scores for ' + (inp.league || '?').toUpperCase() + ': 8 games'; },
+      get_sports_odds: function(inp) { return 'Odds for ' + (inp.league || '?').toUpperCase() + ': 6 games'; },
+      get_sports_standings: function(inp) { return 'Standings for ' + (inp.league || '?').toUpperCase() + ': loaded'; },
       show_toast: null // skip — not a real deliverable
     };
     const deliverables = [];

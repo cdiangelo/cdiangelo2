@@ -109,6 +109,7 @@ Available tool categories:
 - WHITEBOARD_LAYOUT: get_draw_pane_state, align_layers, group_layers, ungroup_layers (use for organizing/reviewing whiteboard content)
 - CONCEPT MAP: add_concept_edge, remove_concept_node, clear_concept_map, set_concept_map_layout
 - RESEARCH: deep_research, build_thesis, sentiment_summary (for multi-source research, plan a CONSOLIDATION task at the end that reads all prior results and synthesizes them into a unified notepad page and summary table)
+- SPORTS: set_sports_league, get_sports_scores, get_sports_odds, get_sports_standings (fetch live scores, odds, standings for any league — nba, nfl, mlb, nhl, ncaab, ncaaf, soccer, global)
 - IMAGE/MEME: search_image, create_meme
 - BRACKET: get_bracket_state, generate_bracket (NCAA Tournament bracket — read games/scores, annotate with picks and analysis)
 
