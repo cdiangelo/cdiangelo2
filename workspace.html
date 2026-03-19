@@ -5315,7 +5315,7 @@ $('#wbPasteTable').onclick = () => {
    SPREADSHEET
    ═══════════════════════════════════════════ */
 let ssR = 20, ssC = 10, ssD = [], ssSel = null, ssShowFormulas = false, ssHeatMap = false;
-let ssClipboard = null, ssColNames = [];
+let ssClipboard = null, ssClipboardSrc = null, ssColNames = [];
 let ssSelecting = false, ssEditing = false;
 let ssClipboardRange = null; // { data: 2D array, rows, cols }
 let ssUndoHist = []; // array of { data, rows, cols } snapshots
@@ -6632,11 +6632,11 @@ function ssRender() {
         data.push(row);
       }
       navigator.clipboard.writeText(text).catch(() => {});
-      ssClipboardRange = { data, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1 };
+      ssClipboardRange = { data, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1, srcRow: sr.minR, srcCol: sr.minC };
       toast('Copied ' + (sr.maxR-sr.minR+1) + '×' + (sr.maxC-sr.minC+1));
       return;
     }
-    // Ctrl+X: cut range
+    // Ctrl+X: cut range (no reference adjustment on paste — exact move)
     if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
       e.preventDefault();
       const sr = ssSelRange();
@@ -6649,14 +6649,14 @@ function ssRender() {
         data.push(row);
       }
       navigator.clipboard.writeText(text).catch(() => {});
-      ssClipboardRange = { data, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1 };
+      ssClipboardRange = { data, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1, isCut: true };
       LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); toast('Cut');
       return;
     }
     // Ctrl+V: paste from clipboard — fills selected range
     if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
       e.preventDefault();
-      function ssPasteData(clipData) {
+      function ssPasteData(clipData, srcPos) {
         ssPushUndo();
         const sel = ssSelRange();
         const selRows = sel.maxR - sel.minR + 1;
@@ -6682,8 +6682,15 @@ function ssRender() {
           for (let ci = 0; ci < pasteCols; ci++) {
             const tr = sel.minR + ri, tc = sel.minC + ci;
             if (tr >= ssR || tc >= ssC) continue;
-            const val = clipData[ri % clipRows][ci % clipCols];
-            ssD[tr][tc] = val || '';
+            let val = clipData[ri % clipRows][ci % clipCols] || '';
+            // Adjust formula cell references on paste (like Excel/Sheets)
+            // Relative refs shift by offset from source to destination; $-locked refs stay fixed
+            if (typeof val === 'string' && val.startsWith('=') && srcPos && !srcPos.isCut) {
+              const rowOff = (sel.minR + ri) - (srcPos.srcRow + (ri % clipRows));
+              const colOff = (sel.minC + ci) - (srcPos.srcCol + (ci % clipCols));
+              if (rowOff !== 0 || colOff !== 0) val = ssFillAdjust(val, rowOff, colOff);
+            }
+            ssD[tr][tc] = val;
           }
         }
         // Update selection to cover pasted region
@@ -6695,9 +6702,9 @@ function ssRender() {
       navigator.clipboard.readText().then(text => {
         const rows = text.split('\n').filter(r => r.length);
         const clipData = rows.map(r => r.split('\t'));
-        ssPasteData(clipData);
+        ssPasteData(clipData, ssClipboardRange);
       }).catch(() => {
-        if (ssClipboardRange) ssPasteData(ssClipboardRange.data);
+        if (ssClipboardRange) ssPasteData(ssClipboardRange.data, ssClipboardRange);
       });
       return;
     }
@@ -6918,9 +6925,17 @@ $$('.ctx-item').forEach(item => {
     const action = item.dataset.action;
     const r = ctx._r, c = ctx._c;
     if (action !== 'copy' && action !== 'validate') ssPushUndo();
-    if (action === 'cut') { ssClipboard = ssD[r][c]; ssD[r][c] = ''; }
-    else if (action === 'copy') { ssClipboard = ssD[r][c]; }
-    else if (action === 'paste' && ssClipboard !== null) { ssD[r][c] = ssClipboard; }
+    if (action === 'cut') { ssClipboard = ssD[r][c]; ssClipboardSrc = { row: r, col: c, isCut: true }; ssD[r][c] = ''; }
+    else if (action === 'copy') { ssClipboard = ssD[r][c]; ssClipboardSrc = { row: r, col: c }; }
+    else if (action === 'paste' && ssClipboard !== null) {
+      let val = ssClipboard;
+      if (typeof val === 'string' && val.startsWith('=') && ssClipboardSrc && !ssClipboardSrc.isCut) {
+        const rowOff = r - ssClipboardSrc.row;
+        const colOff = c - ssClipboardSrc.col;
+        if (rowOff !== 0 || colOff !== 0) val = ssFillAdjust(val, rowOff, colOff);
+      }
+      ssD[r][c] = val;
+    }
     else if (action === 'insertRow') {
       const idx = ssSel ? Math.max(ssSel.r1, ssSel.r2) + 1 : r + 1;
       ssD.splice(idx, 0, new Array(ssC).fill('')); ssR++;
