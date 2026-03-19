@@ -3104,60 +3104,201 @@ const wsHardwareId = getHardwareFingerprint();
       return;
     }
     registerUser(name);
-    // Populate default artifacts for new users (admin-selected examples)
-    populateDefaultArtifactsForNewUser(name);
     completeUserLogin(name);
+    // Populate default artifacts for new users (admin-selected examples)
+    // Must run after completeUserLogin so wsUserName is set for LS prefix
+    populateDefaultArtifactsForNewUser(name);
   }
 
-  // Populate admin-selected default artifacts into new user's workspace
+  // Populate admin-selected default artifacts into a user's workspace
+  // Works for both new users (during registration) and existing users (admin apply-all)
   function populateDefaultArtifactsForNewUser(userName) {
     const defaults = JSON.parse(localStorage.getItem('ws_defaultArtifacts') || '[]');
     if (!defaults.length) return; // No defaults — blank workspace
+
     defaults.forEach(entry => {
-      if (!entry || !entry.artifacts) return;
-      entry.artifacts.forEach(artifact => {
-        try {
-          if (artifact.type === 'note' && artifact.contentSnapshot) {
-            // Populate into notepad
-            const npEl = document.getElementById('npArea');
-            if (npEl) {
-              npEl.innerHTML += (npEl.innerHTML ? '<hr>' : '') + artifact.contentSnapshot;
-              if (typeof npSaveCurrentPage === 'function') setTimeout(npSaveCurrentPage, 100);
+      if (!entry) return;
+      const hasArtifacts = entry.artifacts && entry.artifacts.length > 0;
+
+      if (hasArtifacts) {
+        entry.artifacts.forEach(artifact => {
+          try {
+            if (artifact.type === 'note' && artifact.contentSnapshot) {
+              // Create a new notepad tab with the sample content
+              npAddPage();
+              const page = npPages.find(p => p.id === npActivePageId);
+              if (page) {
+                page.title = 'Sample: ' + (entry.query || 'Note').substring(0, 30);
+                page.content = artifact.contentSnapshot;
+              }
+              const npEl = document.getElementById('npArea');
+              if (npEl) npEl.innerHTML = artifact.contentSnapshot;
+              saveNpPages(); renderNpTabs();
+            } else if (artifact.type === 'sheet' && artifact.input) {
+              // Create a new sheet tab with the sample data
+              if (typeof ssD !== 'undefined' && artifact.input.data) {
+                ssAddPage();
+                const page = ssPages.find(p => p.id === ssActivePageId);
+                if (page) page.title = 'Sample: ' + (entry.query || 'Sheet').substring(0, 30);
+                const data = artifact.input.data;
+                if (Array.isArray(data)) {
+                  const startRow = artifact.input.startRow || 0;
+                  const startCol = artifact.input.startCol || 0;
+                  data.forEach((row, ri) => {
+                    if (!Array.isArray(row)) return;
+                    row.forEach((val, ci) => {
+                      const r = startRow + ri, c = startCol + ci;
+                      while (r >= ssR) { ssD.push(new Array(ssC).fill('')); ssR++; }
+                      while (c >= ssC) { ssD.forEach(row => row.push('')); ssC++; }
+                      ssD[r][c] = val || '';
+                    });
+                  });
+                }
+                ssSaveCurrentPage(); saveSsPages(); renderSsTabs(); ssRender(); ssShowHint();
+              }
             }
-          } else if (artifact.type === 'sheet' && artifact.input) {
-            // Populate sheet cells via the data model
-            if (typeof ssD !== 'undefined' && artifact.input.data) {
+            // Whiteboard/graph artifacts are complex objects — skip for default population
+          } catch(_) {}
+        });
+      }
+
+      // Also populate the response text into a notepad tab if no content snapshots
+      if ((!hasArtifacts || !entry.artifacts.some(a => a.contentSnapshot)) && entry.response && entry.response.length > 50) {
+        npAddPage();
+        const page = npPages.find(p => p.id === npActivePageId);
+        if (page) {
+          page.title = 'Sample: ' + (entry.query || 'Output').substring(0, 30);
+          const cleanResponse = entry.response.replace(/</g, '&lt;').replace(/\n/g, '<br>');
+          page.content = '<h4>' + (entry.query || '').substring(0, 60).replace(/</g, '&lt;') + '</h4><div>' + cleanResponse + '</div>';
+        }
+        const npEl = document.getElementById('npArea');
+        if (npEl) npEl.innerHTML = page ? page.content : '';
+        saveNpPages(); renderNpTabs();
+      }
+
+      // Populate the related Claude chat output (query + response) into the chat pane
+      if (entry.query && entry.response) {
+        addAiMsg('user', entry.query);
+        addAiMsg('assistant', entry.response);
+        aiMessages.push({ role: 'user', content: entry.query });
+        aiMessages.push({ role: 'assistant', content: entry.response });
+      }
+    });
+
+    console.log('[POPULATE] Populated ' + defaults.length + ' sample exhibit(s) for ' + userName);
+  }
+
+  // Apply sample exhibits to a specific existing user by writing directly to their LS prefix
+  function populateDefaultArtifactsForUser(targetUserName) {
+    const defaults = JSON.parse(localStorage.getItem('ws_defaultArtifacts') || '[]');
+    if (!defaults.length) return false;
+    const pfx = 'ws_u_' + targetUserName.toLowerCase().replace(/[^a-z0-9]/g, '') + '_';
+
+    // Load user's existing notepad pages
+    let userNpPages = JSON.parse(localStorage.getItem(pfx + 'notepadPages') || 'null') || [{ id: 1, title: 'Page 1', content: '' }];
+    let userNpIdCounter = JSON.parse(localStorage.getItem(pfx + 'npPageIdCounter') || 'null') || 1;
+    // Load user's existing sheet pages
+    let userSsPages = JSON.parse(localStorage.getItem(pfx + 'ssPages') || 'null');
+    let userSsIdCounter = JSON.parse(localStorage.getItem(pfx + 'ssPageIdCounter') || 'null') || 1;
+    // Load user's existing inquiry log for chat outputs
+    let userInquiryLog = JSON.parse(localStorage.getItem('ws_aiInquiryLog') || '[]');
+
+    // Check if sample exhibits were already applied (avoid duplicates)
+    const appliedKey = pfx + 'sampleExhibitsApplied';
+    const appliedIds = JSON.parse(localStorage.getItem(appliedKey) || '[]');
+    let newCount = 0;
+
+    defaults.forEach(entry => {
+      if (!entry) return;
+      // Skip if this exact exhibit was already applied to this user
+      if (appliedIds.includes(entry.id)) return;
+      appliedIds.push(entry.id);
+      newCount++;
+
+      const hasArtifacts = entry.artifacts && entry.artifacts.length > 0;
+      if (hasArtifacts) {
+        entry.artifacts.forEach(artifact => {
+          try {
+            if (artifact.type === 'note' && artifact.contentSnapshot) {
+              userNpIdCounter++;
+              userNpPages.push({
+                id: userNpIdCounter,
+                title: 'Sample: ' + (entry.query || 'Note').substring(0, 30),
+                content: artifact.contentSnapshot
+              });
+            } else if (artifact.type === 'sheet' && artifact.input && artifact.input.data) {
+              userSsIdCounter++;
+              const emptyData = [];
+              for (let r = 0; r < 20; r++) emptyData.push(new Array(10).fill(''));
               const data = artifact.input.data;
+              const startRow = artifact.input.startRow || 0;
+              const startCol = artifact.input.startCol || 0;
               if (Array.isArray(data)) {
-                const startRow = artifact.input.startRow || 0;
-                const startCol = artifact.input.startCol || 0;
                 data.forEach((row, ri) => {
                   if (!Array.isArray(row)) return;
                   row.forEach((val, ci) => {
                     const r = startRow + ri, c = startCol + ci;
-                    if (r < ssR && c < ssC) ssD[r][c] = val || '';
+                    while (r >= emptyData.length) emptyData.push(new Array(emptyData[0] ? emptyData[0].length : 10).fill(''));
+                    while (c >= emptyData[0].length) emptyData.forEach(row => row.push(''));
+                    emptyData[r][c] = val || '';
                   });
                 });
-                if (typeof ssSaveCurrentPage === 'function') setTimeout(ssSaveCurrentPage, 100);
-                if (typeof ssRender === 'function') setTimeout(() => { ssRender(); ssShowHint(); }, 150);
               }
+              if (!userSsPages) {
+                userSsPages = [{ id: 1, title: 'Sheet 1', data: (function(){ const d=[]; for(let r=0;r<20;r++) d.push(new Array(10).fill('')); return d; })(), colNames: [], fmt: {} }];
+              }
+              userSsPages.push({
+                id: userSsIdCounter,
+                title: 'Sample: ' + (entry.query || 'Sheet').substring(0, 30),
+                data: emptyData, colNames: [], fmt: {}, rowGroups: [], colGroups: [], rowIndent: {}
+              });
             }
-          }
-          // Whiteboard/graph artifacts are complex objects — skip for default population
-        } catch(_) {}
-      });
-      // Also populate the response text into notepad if no specific artifacts
-      if (!entry.artifacts.some(a => a.contentSnapshot) && entry.response && entry.response.length > 50) {
-        const npEl = document.getElementById('npArea');
-        if (npEl) {
-          const cleanResponse = entry.response.replace(/</g, '&lt;').replace(/\n/g, '<br>');
-          npEl.innerHTML += (npEl.innerHTML ? '<hr><h4>Example: ' + (entry.query || '').substring(0, 40).replace(/</g, '&lt;') + '</h4>' : '') + '<div>' + cleanResponse + '</div>';
-          if (typeof npSaveCurrentPage === 'function') setTimeout(npSaveCurrentPage, 100);
-        }
+          } catch(_) {}
+        });
+      }
+
+      // Populate response text as notepad tab if no content snapshots
+      if ((!hasArtifacts || !entry.artifacts.some(a => a.contentSnapshot)) && entry.response && entry.response.length > 50) {
+        userNpIdCounter++;
+        const cleanResponse = entry.response.replace(/</g, '&lt;').replace(/\n/g, '<br>');
+        userNpPages.push({
+          id: userNpIdCounter,
+          title: 'Sample: ' + (entry.query || 'Output').substring(0, 30),
+          content: '<h4>' + (entry.query || '').substring(0, 60).replace(/</g, '&lt;') + '</h4><div>' + cleanResponse + '</div>'
+        });
+      }
+
+      // Populate the related Claude chat output into the user's inquiry log
+      if (entry.query && entry.response) {
+        userInquiryLog.push({
+          id: entry.id,
+          timestamp: entry.timestamp || new Date().toISOString(),
+          query: entry.query,
+          model: entry.model || '',
+          response: entry.response,
+          artifacts: entry.artifacts || [],
+          artifactTypes: entry.artifactTypes || [],
+          _sample: true
+        });
       }
     });
-    console.log('[NEW USER] Populated ' + defaults.length + ' default artifact(s) for ' + userName);
+
+    if (newCount === 0) return false; // All exhibits already applied
+
+    // Save back to user's storage
+    localStorage.setItem(pfx + 'notepadPages', JSON.stringify(userNpPages));
+    localStorage.setItem(pfx + 'npPageIdCounter', JSON.stringify(userNpIdCounter));
+    if (userSsPages) {
+      localStorage.setItem(pfx + 'ssPages', JSON.stringify(userSsPages));
+      localStorage.setItem(pfx + 'ssPageIdCounter', JSON.stringify(userSsIdCounter));
+    }
+    // Save inquiry log (global key)
+    // Note: inquiry log is per-user via LS prefix, but we write directly here
+    localStorage.setItem(pfx + 'aiInquiryLog', JSON.stringify(userInquiryLog));
+    localStorage.setItem(appliedKey, JSON.stringify(appliedIds));
+    return true;
   }
+  window.populateDefaultArtifactsForUser = populateDefaultArtifactsForUser;
 
   // ---- Build initial user list ----
   buildUserList();
@@ -15484,11 +15625,14 @@ $('#aiSettingsBtn').onclick = () => {
     '</div>' +
 
     // New User Default Materials section
-    '<div style="font-weight:600;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px;">New User Default Materials</div>' +
+    '<div style="font-weight:600;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px;">Sample Exhibits &amp; Default Materials</div>' +
     '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">' +
-      '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:4px;">Select up to 2 Claude-generated artifacts to pre-populate for new users. If none selected, new users start with blank workspace.</div>' +
+      '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:4px;">Select up to 2 Claude-generated artifacts to pre-populate as sample exhibits. Includes Claude chat outputs (query &amp; response).</div>' +
       '<div id="defaultArtifactsList" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;padding:4px;background:var(--bg);"></div>' +
-      '<div style="font-size:.5rem;color:var(--text-dim);margin-top:2px;">Only applies to newly created users. Does not affect existing users.</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;">' +
+        '<button id="applyExhibitsAllUsersBtn" style="font-size:.55rem;padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:rgba(99,102,241,.1);color:var(--accent);cursor:pointer;">Apply to All Existing Users</button>' +
+        '<span style="font-size:.5rem;color:var(--text-dim);">Adds sample exhibits + chat outputs to all registered user tabs (skips already-applied).</span>' +
+      '</div>' +
     '</div>' +
 
     // Buttons
@@ -15619,6 +15763,37 @@ $('#aiSettingsBtn').onclick = () => {
       logAdminAction('Admin Settings Update', 'Retry: ' + retryDelays.join('/') + 's, artifacts: ' + selectedArtifacts.length, [{
         action: 'settings_update', retryDelays
       }]);
+    }
+  };
+
+  // Apply sample exhibits to all existing users
+  document.getElementById('applyExhibitsAllUsersBtn').onclick = () => {
+    const defaults = JSON.parse(localStorage.getItem('ws_defaultArtifacts') || '[]');
+    if (!defaults.length) { toast('No default artifacts selected — save settings first'); return; }
+
+    // Gather all registered users
+    const registered = JSON.parse(window.__safeLS.getItem('ws_registeredUsers') || '{}');
+    const legacyContacts = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
+    const allUsers = new Set();
+    for (const [, data] of Object.entries(registered)) { if (data.name) allUsers.add(data.name); }
+    for (const [, name] of Object.entries(legacyContacts)) { if (name) allUsers.add(name); }
+
+    if (!allUsers.size) { toast('No registered users found'); return; }
+    if (!confirm('Apply ' + defaults.length + ' sample exhibit(s) + Claude chat outputs to ' + allUsers.size + ' existing user(s)? (Skips already-applied exhibits)')) return;
+
+    let applied = 0, skipped = 0;
+    allUsers.forEach(userName => {
+      if (populateDefaultArtifactsForUser(userName)) applied++;
+      else skipped++;
+    });
+
+    const status = document.getElementById('settingsStatus');
+    status.style.color = '#10b981';
+    status.textContent = 'Applied to ' + applied + ' user(s), ' + skipped + ' already had exhibits.';
+    toast('Sample exhibits applied to ' + applied + ' user(s)');
+
+    if (typeof logAdminAction === 'function') {
+      logAdminAction('Apply Sample Exhibits', 'Applied to ' + applied + '/' + allUsers.size + ' users', []);
     }
   };
 };
