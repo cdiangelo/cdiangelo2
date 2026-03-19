@@ -195,7 +195,7 @@ body.light .fun-btn { background: var(--accent); }
 #q-claude .ai-input-row textarea {
   flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
   background: var(--bg); color: var(--text); font-size: .72rem; resize: none;
-  font-family: inherit; min-height: 24px; max-height: 60px;
+  font-family: inherit; min-height: 24px; max-height: 300px; overflow-y: auto;
 }
 #q-claude .ai-input-row button {
   padding: 5px 12px; border: none; border-radius: 6px; background: rgba(59,130,246,.7);
@@ -2169,6 +2169,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <button onclick="$('#aiUsageDash').style.display='none'" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.8rem;">&times;</button>
         </div>
         <div id="aiUsageDashContent"></div>
+      </div>
+      <div id="aiInputResizeHandle" style="height:6px;cursor:ns-resize;background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;" title="Drag to resize input">
+        <div style="width:30px;height:2px;border-radius:1px;background:var(--border);"></div>
       </div>
       <div class="ai-input-row" style="border-bottom:1px solid var(--border);border-top:none;">
         <textarea id="aiInput" placeholder="Ask Claude to build tables, analyze stocks, graph functions, write notes..." rows="1"></textarea>
@@ -19093,6 +19096,63 @@ $('#aiStop').onclick = aiStopStreaming;
 $('#aiInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgentMessage(); }
 });
+
+// ── Drag-to-resize input area ──
+(function() {
+  var handle = document.getElementById('aiInputResizeHandle');
+  var textarea = document.getElementById('aiInput');
+  if (!handle || !textarea) return;
+  var startY = 0, startH = 0, dragging = false;
+
+  handle.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    dragging = true;
+    startY = e.clientY;
+    startH = textarea.offsetHeight;
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    // Dragging handle UP = larger textarea (startY - e.clientY is positive when moving up)
+    var delta = startY - e.clientY;
+    var newH = Math.max(24, Math.min(300, startH + delta));
+    textarea.style.height = newH + 'px';
+    textarea.style.minHeight = newH + 'px';
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+
+  // Touch support
+  handle.addEventListener('touchstart', function(e) {
+    if (!e.touches.length) return;
+    dragging = true;
+    startY = e.touches[0].clientY;
+    startH = textarea.offsetHeight;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function(e) {
+    if (!dragging || !e.touches.length) return;
+    var delta = startY - e.touches[0].clientY;
+    var newH = Math.max(24, Math.min(300, startH + delta));
+    textarea.style.height = newH + 'px';
+    textarea.style.minHeight = newH + 'px';
+  }, { passive: true });
+
+  document.addEventListener('touchend', function() { dragging = false; });
+
+  // Double-click to reset
+  handle.addEventListener('dblclick', function() {
+    textarea.style.height = '';
+    textarea.style.minHeight = '24px';
+  });
+})();
 
 // ── Persona selector init ──
 (function initPersonaSelector() {
