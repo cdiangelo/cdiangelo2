@@ -17010,14 +17010,35 @@ function useGeniePrompt() {
   localStorage.setItem('ws_geniePrompts_' + (wsUserName || 'anon'), geniePromptsLeft);
   updateGeniePromptsBadge();
   if (geniePromptsLeft <= 0) {
-    // ADDED: Wait for AI to finish its full response before sleeping
-    // Poll aiStreaming flag instead of a fixed timeout
+    // Wait for AI to finish its full response before sleeping
     (function waitForCompletion() {
       if (aiStreaming) { setTimeout(waitForCompletion, 500); return; }
       activateSleepMode();
     })();
   }
   return true;
+}
+
+// Refund a wish when a prompt fails due to errors, stalls, or user stop
+function refundGeniePrompt(reason) {
+  if (!genieMode || wsIsAdmin) return;
+  geniePromptsLeft++;
+  localStorage.setItem('ws_geniePrompts_' + (wsUserName || 'anon'), geniePromptsLeft);
+  updateGeniePromptsBadge();
+  // If user was put to sleep from hitting 0, wake them back up
+  if (genieSleeping && geniePromptsLeft > 0) {
+    genieSleeping = false;
+    var scene = document.getElementById('robotScene');
+    if (scene) { scene.classList.remove('sleeping-mode'); scene.classList.add('genie-mode'); }
+    var badge = document.getElementById('geniePromptsBadge');
+    if (badge) badge.style.display = '';
+    var inp = document.getElementById('aiInput');
+    if (inp) inp.disabled = false;
+    var sendBtn = document.getElementById('aiSend');
+    if (sendBtn) sendBtn.disabled = false;
+  }
+  addAiMsg('system', '\u2728 Wish refunded' + (reason ? ' (' + reason + ')' : '') + ' \u2014 ' + geniePromptsLeft + ' wish' + (geniePromptsLeft === 1 ? '' : 'es') + ' remaining');
+  console.log('[Genie] Wish refunded:', reason, '| Remaining:', geniePromptsLeft);
 }
 
 function activateSleepMode() {
@@ -17578,6 +17599,8 @@ async function sendAgentMessage() {
       _showStallAlert('timeout', 'Claude appears to have stalled (' + Math.round(idle / 1000) + 's idle). The request has been stopped. Try rephrasing your request or breaking it into smaller steps.');
       aiStreaming = false;
       setRobotWorking(false);
+      // Refund wish on stall — not the user's fault
+      if (genieMode && !wsIsAdmin) refundGeniePrompt('Claude stalled');
       return;
     }
     if (idle >= STALL_WARN_MS && !_stall.warned) {
@@ -17677,6 +17700,8 @@ async function sendAgentMessage() {
           const err = await resp.text();
           thinkingDiv.textContent = 'Error: ' + resp.status + ' — ' + (err.substring(0, 300));
           aiStreaming = false;
+          // Refund wish on API errors (rate limit, server error, etc.)
+          if (genieMode && !wsIsAdmin) refundGeniePrompt('API error ' + resp.status);
           return;
         }
 
@@ -17875,6 +17900,8 @@ async function sendAgentMessage() {
     chatTimestamp('error', e.message.length > 80 ? e.message.substring(0, 77) + '...' : e.message);
     updateTaskAttemptStatus(taskId, 'error');
     appendTaskAttemptOutput(taskId, 'Error: ' + e.message);
+    // Refund wish on clear failure — user shouldn't lose a prompt for errors
+    if (genieMode && !wsIsAdmin) refundGeniePrompt(e.name === 'AbortError' ? 'stopped by user' : 'request failed');
   }
   clearInterval(_stall.timer);
   aiStreaming = false;
