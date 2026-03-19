@@ -6998,17 +6998,9 @@ $('#ssTable').addEventListener('focusout', function(e) {
 });
 
 function ssShowHint() {
-  const empty = ssD.every(row => row.every(c => !c));
-  let hint = document.getElementById('ssHint');
-  if (empty && !hint) {
-    hint = document.createElement('div');
-    hint.id = 'ssHint';
-    hint.style.cssText = 'position:absolute;top:50px;left:50%;transform:translateX(-50%);color:var(--text-dim);font-size:.8rem;pointer-events:none;text-align:center;';
-    hint.textContent = 'Click any cell to start. Arrow keys navigate. Try =SUM =SUMIF =VLOOKUP =COUNTIF =LEN =A1&B1 =TEXT(A1,"0.00")';
-    document.getElementById('ssWrap').appendChild(hint);
-  } else if (!empty && hint) {
-    hint.remove();
-  }
+  // no-op — floating hint removed
+  const hint = document.getElementById('ssHint');
+  if (hint) hint.remove();
 }
 try { ssInit(); } catch(e) { console.error('[INIT] Spreadsheet init failed:', e.message); window.__initErrors.push('spreadsheet: ' + e.message); }
 try { ssShowHint(); } catch(e) {}
