@@ -11751,6 +11751,41 @@ function _bracketBuildPickFlow(games, picks) {
   return enriched;
 }
 
+// Cache for Claude one-line game analyses (persists across renders)
+var _bracketAnalysisCache = {};
+var _bracketAnalysisPending = {};
+
+// Request Claude one-line analysis for a game matchup
+function _bracketRequestAnalysis(gameId, team1Name, team2Name, isProjected) {
+  if (_bracketAnalysisCache[gameId] || _bracketAnalysisPending[gameId]) return;
+  _bracketAnalysisPending[gameId] = true;
+  var prompt = isProjected
+    ? 'In exactly 1 short sentence (max 12 words), analyze this potential NCAA Tournament matchup: ' + team1Name + ' vs ' + team2Name + '. Compare their strengths as if they were to play each other. No preamble.'
+    : 'In exactly 1 short sentence (max 12 words), give your key insight for this NCAA Tournament game: ' + team1Name + ' vs ' + team2Name + '. No preamble.';
+
+  // Use a lightweight Claude call via the existing proxy
+  fetch(PROXY_BASE + '/proxy/anthropic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 60,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    var text = d.content && d.content[0] ? d.content[0].text : '';
+    if (text) {
+      _bracketAnalysisCache[gameId] = text.trim();
+      // Re-render to show the analysis (only if still on individual round view)
+      if (spBracketRoundFilter !== 'all') spRenderBracket();
+    }
+  })
+  .catch(function() {})
+  .finally(function() { delete _bracketAnalysisPending[gameId]; });
+}
+
 function spRenderBracket() {
   var view = $('#spBracketView');
   if (!view || !spBracketData) return;
@@ -11766,64 +11801,218 @@ function spRenderBracket() {
   // Build pick flow map for later rounds
   var pickFlow = _bracketBuildPickFlow(games, picks);
 
-  // Filter by round
-  var filtered = filter === 'all' ? games : games.filter(function(g) { return g.round === parseInt(filter); });
-
   var html = '';
   // Compact header
   var yr = new Date().getFullYear();
-  var total = filtered.length, completed = filtered.filter(g => g.completed).length;
-  var live = filtered.filter(g => g.state === 'STATUS_IN_PROGRESS').length;
+  var allGames = games;
+  var total = allGames.length, completed = allGames.filter(g => g.completed).length;
+  var live = allGames.filter(g => g.state === 'STATUS_IN_PROGRESS').length;
   var pickCount = Object.keys(picks).length;
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding:0 2px;">';
   html += '<span style="font-size:.7rem;font-weight:700;color:var(--text);">' + yr + ' NCAA Tournament</span>';
   html += '<span style="font-size:.48rem;color:var(--text-dim);">' + completed + '/' + total + ' final' + (pickCount ? ' &middot; ' + pickCount + ' picks' : '') + (live ? ' &middot; <span style="color:#ef4444;font-weight:700;">' + live + ' live</span>' : '') + '</span>';
   html += '</div>';
 
-  // Group by round then region
-  var byRound = {};
-  filtered.forEach(function(g) { if (!byRound[g.round]) byRound[g.round] = []; byRound[g.round].push(g); });
-  var roundOrder = Object.keys(byRound).map(Number).sort((a,b) => a - b);
-
-  roundOrder.forEach(function(roundNum) {
-    var roundGames = byRound[roundNum];
-    var roundName = BRACKET_ROUND_NAMES[roundNum] || 'Round ' + roundNum;
-    var roundDone = roundGames.filter(g=>g.completed).length;
-
-    // Round header
-    if (filter === 'all') {
-      html += '<div style="padding:3px 6px;margin-top:6px;font-weight:700;font-size:.58rem;color:var(--accent);border-bottom:2px solid var(--accent);display:flex;justify-content:space-between;">';
-      html += '<span>' + esc(roundName) + '</span>';
-      html += '<span style="font-size:.44rem;font-weight:400;color:var(--text-dim);">' + roundDone + '/' + roundGames.length + '</span>';
-      html += '</div>';
+  // Helper: get display game with enriched teams
+  function _getDisplayGame(game) {
+    if (pickFlow[game.id] && pickFlow[game.id].length > game.teams.length) {
+      return Object.assign({}, game, { teams: pickFlow[game.id] });
     }
+    return game;
+  }
+
+  // Helper: short matchup description
+  function _matchupDesc(game) {
+    var dg = _getDisplayGame(game);
+    if (dg.teams.length >= 2) {
+      var t1 = (dg.teams[0].seed ? '(' + dg.teams[0].seed + ') ' : '') + dg.teams[0].name;
+      var t2 = (dg.teams[1].seed ? '(' + dg.teams[1].seed + ') ' : '') + dg.teams[1].name;
+      return t1 + ' vs ' + t2;
+    } else if (dg.teams.length === 1) {
+      return (dg.teams[0].seed ? '(' + dg.teams[0].seed + ') ' : '') + dg.teams[0].name + ' vs \u2026';
+    }
+    return '\u2026 vs \u2026';
+  }
+
+  if (filter === 'all') {
+    // ═══ HORIZONTAL BRACKET FLOW: rounds as columns left-to-right ═══
+    var byRound = {};
+    games.forEach(function(g) { if (!byRound[g.round]) byRound[g.round] = []; byRound[g.round].push(g); });
+    var roundOrder = Object.keys(byRound).map(Number).sort((a,b) => a - b);
+
+    html += '<div style="display:flex;gap:2px;overflow-x:auto;align-items:flex-start;padding-bottom:8px;min-height:0;">';
+
+    roundOrder.forEach(function(roundNum) {
+      var roundGames = byRound[roundNum];
+      var roundName = BRACKET_ROUND_NAMES[roundNum] || 'Round ' + roundNum;
+      var roundDone = roundGames.filter(g=>g.completed).length;
+
+      // Each round is a vertical column
+      html += '<div style="flex:0 0 auto;min-width:155px;max-width:175px;display:flex;flex-direction:column;gap:2px;">';
+
+      // Round column header
+      html += '<div style="padding:2px 4px;font-weight:700;font-size:.5rem;color:var(--accent);border-bottom:2px solid var(--accent);text-align:center;white-space:nowrap;">';
+      html += esc(roundName) + ' <span style="font-size:.4rem;font-weight:400;color:var(--text-dim);">' + roundDone + '/' + roundGames.length + '</span>';
+      html += '</div>';
+
+      // Group by region within column
+      var byRegion = {};
+      roundGames.forEach(function(g) { var r = g.region || 'Other'; if (!byRegion[r]) byRegion[r] = []; byRegion[r].push(g); });
+
+      // Calculate vertical spacing: later rounds have fewer games, so space them out
+      // to visually align with the feeder games from previous round
+      var spacingMultiplier = 1;
+      if (roundNum >= 2) {
+        var prevRound = byRound[roundNum - 1];
+        if (prevRound && roundGames.length > 0) {
+          spacingMultiplier = Math.max(1, Math.floor(prevRound.length / roundGames.length));
+        }
+      }
+      var gameIndex = 0;
+
+      Object.keys(byRegion).sort().forEach(function(regionName) {
+        var regionGames = byRegion[regionName];
+        var rColor = BRACKET_REGION_COLORS[regionName] || '#6b7280';
+
+        if (roundNum <= 4 && regionName !== 'Other') {
+          html += '<div style="padding:1px 4px;font-size:.4rem;font-weight:600;color:' + rColor + ';border-left:2px solid ' + rColor + ';margin:2px 0 1px 0;">' + esc(regionName) + '</div>';
+        }
+
+        regionGames.forEach(function(game) {
+          var displayGame = _getDisplayGame(game);
+
+          // Compact matchup box for horizontal view
+          var isFinal = game.completed;
+          var isLive = game.state === 'STATUS_IN_PROGRESS';
+          var borderColor = isLive ? '#ef4444' : isFinal ? '#16a34a' : 'var(--border)';
+          var boxShadow = isLive ? 'box-shadow:0 0 4px rgba(239,68,68,.25);' : '';
+
+          html += '<div style="border:1px solid ' + borderColor + ';border-radius:4px;overflow:hidden;' + boxShadow + 'font-size:.48rem;margin-bottom:' + (spacingMultiplier > 1 ? ((spacingMultiplier - 1) * 8) + 'px' : '0') + ';">';
+
+          if (displayGame.teams.length >= 2) {
+            displayGame.teams.forEach(function(team, ti) {
+              var isWinner = isFinal && team.winner;
+              var isLoser = isFinal && !team.winner;
+              var isPicked = picks[game.id] === ti;
+              var isProj = team._projected;
+              var bg = isWinner ? 'rgba(22,163,74,.1)' : isPicked ? 'rgba(59,130,246,.1)' : 'transparent';
+              var opacity = isLoser ? 'opacity:.45;' : '';
+              var canPick = !isFinal && displayGame.teams.length === 2;
+              var borderB = ti === 0 ? 'border-bottom:1px solid ' + (isFinal ? '#16a34a22' : 'var(--border)') + ';' : '';
+
+              html += '<div style="display:flex;align-items:center;gap:2px;padding:2px 4px;background:' + bg + ';' + opacity + borderB + (canPick ? 'cursor:pointer;' : '') + '"';
+              if (canPick) html += ' data-pick-game="' + game.id + '" data-pick-team="' + ti + '"';
+              html += '>';
+              if (team.seed) html += '<span style="font-size:.38rem;color:var(--text-dim);min-width:10px;text-align:right;font-weight:600;">' + team.seed + '</span>';
+              var nc = isWinner ? '#16a34a' : isProj ? 'var(--accent)' : 'var(--text)';
+              html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:' + (isWinner || isPicked ? '700' : '400') + ';color:' + nc + ';' + (isProj ? 'font-style:italic;' : '') + '">' + (isProj ? '&#8594;' : '') + esc(team.name) + '</span>';
+              if (isFinal || isLive) html += '<span style="font-weight:700;color:' + (isWinner ? '#16a34a' : isLive ? '#ef4444' : 'var(--text)') + ';min-width:14px;text-align:right;">' + team.score + '</span>';
+              if (isPicked && !isFinal) html += '<span style="font-size:.36rem;color:var(--accent);">&#10003;</span>';
+              if (isWinner) html += '<span style="font-size:.36rem;color:#16a34a;">&#9733;</span>';
+              html += '</div>';
+            });
+          } else if (displayGame.teams.length === 1) {
+            var t0 = displayGame.teams[0];
+            html += '<div style="padding:2px 4px;display:flex;align-items:center;gap:2px;border-bottom:1px solid var(--border);">';
+            if (t0.seed) html += '<span style="font-size:.38rem;color:var(--text-dim);min-width:10px;text-align:right;font-weight:600;">' + t0.seed + '</span>';
+            html += '<span style="flex:1;color:' + (t0._projected ? 'var(--accent)' : 'var(--text)') + ';' + (t0._projected ? 'font-style:italic;' : '') + '">' + esc(t0.name) + '</span></div>';
+            html += '<div style="padding:2px 4px;color:var(--text-dim);font-style:italic;">\u2026</div>';
+          } else {
+            html += '<div style="padding:3px 4px;color:var(--text-dim);text-align:center;font-style:italic;">\u2026 vs \u2026</div>';
+          }
+
+          // Compact status line
+          var ann = spBracketAnnotations[game.id] || {};
+          var statParts = [];
+          if (isLive) statParts.push('<span style="color:#ef4444;font-weight:700;">LIVE</span>');
+          else if (isFinal) statParts.push('<span style="color:#16a34a;">Final</span>');
+          if (ann.tags && ann.tags.length) {
+            ann.tags.forEach(function(t) {
+              var tc = BRACKET_TAG_COLORS[t];
+              if (tc) statParts.push('<span style="padding:0 2px;border-radius:2px;background:' + tc.bg + ';color:#fff;font-size:.32rem;font-weight:600;">' + tc.icon + '</span>');
+            });
+          }
+          if (statParts.length) {
+            html += '<div style="padding:0 4px 1px;font-size:.36rem;display:flex;gap:2px;align-items:center;background:rgba(0,0,0,.04);">' + statParts.join('') + '</div>';
+          }
+
+          html += '</div>';
+          gameIndex++;
+        });
+      });
+
+      html += '</div>';
+
+      // Arrow connector between round columns
+      if (roundNum < roundOrder[roundOrder.length - 1]) {
+        html += '<div style="display:flex;align-items:center;flex:0 0 auto;padding:0 1px;color:var(--accent);opacity:.4;font-size:.6rem;">&#9654;</div>';
+      }
+    });
+
+    html += '</div>';
+
+  } else {
+    // ═══ INDIVIDUAL ROUND VIEW: vertical stack with Claude analysis ═══
+    var filtered = games.filter(function(g) { return g.round === parseInt(filter); });
 
     // Group by region
     var byRegion = {};
-    roundGames.forEach(function(g) { var r = g.region || 'Other'; if (!byRegion[r]) byRegion[r] = []; byRegion[r].push(g); });
+    filtered.forEach(function(g) { var r = g.region || 'Other'; if (!byRegion[r]) byRegion[r] = []; byRegion[r].push(g); });
+    var roundNum = parseInt(filter);
 
     Object.keys(byRegion).sort().forEach(function(regionName) {
       var regionGames = byRegion[regionName];
       var rColor = BRACKET_REGION_COLORS[regionName] || '#6b7280';
 
       if (roundNum <= 4 && regionName !== 'Other') {
-        html += '<div style="padding:2px 6px;font-size:.48rem;font-weight:600;color:' + rColor + ';border-left:3px solid ' + rColor + ';margin:4px 0 2px 0;">' + esc(regionName) + ' Region</div>';
+        html += '<div style="padding:2px 6px;font-size:.5rem;font-weight:600;color:' + rColor + ';border-left:3px solid ' + rColor + ';margin:6px 0 3px 0;">' + esc(regionName) + ' Region</div>';
       }
 
-      // Pair feeder games: R64 uses seed logic, later rounds use positional pairing
+      // Pair games
       var pairs = roundNum === 1 ? _pairFeederGames(regionGames) : _pairByPosition(regionGames);
 
-      // Vertical single-column layout: each pair is a block, games stacked with connector
       pairs.forEach(function(pair) {
-        html += '<div style="display:flex;flex-direction:column;gap:1px;padding:2px 4px;max-width:320px;">';
+        html += '<div style="display:flex;flex-direction:column;gap:1px;padding:2px 4px;max-width:480px;">';
         pair.forEach(function(game, gi) {
-          // Use enriched teams from pick flow if available
-          var displayGame = game;
-          if (pickFlow[game.id] && pickFlow[game.id].length > game.teams.length) {
-            displayGame = Object.assign({}, game, { teams: pickFlow[game.id] });
-          }
+          var displayGame = _getDisplayGame(game);
+
+          // Render matchup box + Claude analysis side by side
+          html += '<div style="display:flex;gap:6px;align-items:stretch;">';
+
+          // Left: matchup box (wider)
+          html += '<div style="flex:0 0 200px;max-width:220px;">';
           html += _renderMatchupBox(displayGame, picks);
-          // Draw a small connector between paired games
+          html += '</div>';
+
+          // Right: Claude one-line analysis
+          var analysisText = _bracketAnalysisCache[game.id] || '';
+          var ann = spBracketAnnotations[game.id] || {};
+          var hasTeams = displayGame.teams.length >= 2;
+          var t1Name = hasTeams ? displayGame.teams[0].name : '';
+          var t2Name = hasTeams && displayGame.teams[1] ? displayGame.teams[1].name : '';
+          var isProj = hasTeams && (displayGame.teams[0]._projected || displayGame.teams[1]._projected);
+
+          // Trigger analysis request if we have 2 teams and no cached result
+          if (hasTeams && t1Name && t2Name && !analysisText && !_bracketAnalysisPending[game.id]) {
+            _bracketRequestAnalysis(game.id, t1Name, t2Name, isProj);
+          }
+
+          html += '<div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:2px 4px;min-width:0;">';
+          if (ann.edge) {
+            // Show Claude annotation if available
+            html += '<div style="font-size:.46rem;color:var(--accent);font-style:italic;line-height:1.3;">' + esc(ann.edge) + '</div>';
+          } else if (analysisText) {
+            html += '<div style="font-size:.46rem;color:var(--text-dim);font-style:italic;line-height:1.3;">' + esc(analysisText) + '</div>';
+          } else if (hasTeams) {
+            html += '<div style="font-size:.44rem;color:var(--text-dim);font-style:italic;opacity:.5;">' + (isProj ? 'Analyzing potential matchup\u2026' : 'Analyzing\u2026') + '</div>';
+          } else {
+            html += '<div style="font-size:.44rem;color:var(--text-dim);font-style:italic;opacity:.5;">Awaiting matchup</div>';
+          }
+          html += '</div>';
+
+          html += '</div>';
+
+          // Connector between paired games
           if (gi === 0 && pair.length > 1) {
             html += '<div style="display:flex;justify-content:center;"><div style="width:1px;height:4px;background:var(--accent);opacity:.4;"></div></div>';
           }
@@ -11831,7 +12020,7 @@ function spRenderBracket() {
         html += '</div>';
       });
     });
-  });
+  }
 
   view.innerHTML = html;
 
@@ -11897,8 +12086,16 @@ function _renderMatchupBox(game, picks) {
 
       html += '</div>';
     });
+  } else if (game.teams.length === 1) {
+    // One team known, other pending
+    var t0 = game.teams[0];
+    var bg0 = 'transparent';
+    html += '<div style="display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid var(--border);">';
+    if (t0.seed) html += '<span style="font-size:.44rem;color:var(--text-dim);min-width:12px;text-align:right;font-weight:600;">' + t0.seed + '</span>';
+    html += '<span style="font-size:.56rem;font-weight:500;flex:1;color:' + (t0._projected ? 'var(--accent)' : 'var(--text)') + ';' + (t0._projected ? 'font-style:italic;' : '') + '">' + esc(t0.name) + '</span></div>';
+    html += '<div style="padding:3px 5px;font-size:.52rem;color:var(--text-dim);font-style:italic;">\u2026</div>';
   } else {
-    html += '<div style="padding:6px;font-size:.5rem;color:var(--text-dim);text-align:center;">TBD</div>';
+    html += '<div style="padding:6px;font-size:.52rem;color:var(--text-dim);text-align:center;font-style:italic;">\u2026 vs \u2026</div>';
   }
 
   // Bottom bar: status + annotations
@@ -11945,6 +12142,14 @@ function _bracketPickWinner(gameId, teamIdx) {
   }
   spBracketData.userPicks = picks;
   LS('sp_bracket_picks', picks);
+  // Invalidate analysis cache for downstream games (pick changes projected matchups)
+  // Clear analyses for all games in later rounds to force re-analysis
+  var game = (spBracketData.games || []).find(function(g) { return g.id === gameId; });
+  if (game) {
+    (spBracketData.games || []).forEach(function(g) {
+      if (g.round > game.round) delete _bracketAnalysisCache[g.id];
+    });
+  }
   spRenderBracket();
 }
 
