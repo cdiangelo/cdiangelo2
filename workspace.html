@@ -2285,6 +2285,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
         <div class="sep"></div>
         <button id="ssBold" title="Toggle bold (Ctrl+B)" style="font-weight:900;min-width:22px;">B</button>
+        <button id="ssItalic" title="Toggle italic (Ctrl+I)" style="font-style:italic;min-width:22px;">I</button>
         <input type="color" id="ssTextColor" value="#ffffff" title="Text color" style="width:22px;height:20px;padding:0;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg);" />
         <input type="color" id="ssBgColor" value="#1a1a2e" title="Cell background color" style="width:22px;height:20px;padding:0;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg);" />
         <button id="ssClearFmt" title="Clear formatting" style="font-size:.55rem;">&#10060;Fmt</button>
@@ -5390,6 +5391,81 @@ function ssSaveGroups() {
   ssSaveCurrentPage();
 }
 
+// ── Shift formatting/groups/indentation on insert/delete ──
+function ssShiftFmtRows(idx, count) {
+  // Shift ssFmt keys where row >= idx by +count (positive=insert, negative=delete)
+  const newFmt = {};
+  for (const key in ssFmt) {
+    const [rs, cs] = key.split(',');
+    const r = +rs, c = +cs;
+    if (count > 0) {
+      // Insert: shift rows >= idx down
+      newFmt[(r >= idx ? r + count : r) + ',' + c] = ssFmt[key];
+    } else {
+      // Delete: skip rows in deleted range, shift rows above it up
+      const delStart = idx, delEnd = idx - count - 1; // count is negative
+      if (r >= delStart && r <= delEnd) continue; // deleted
+      newFmt[(r > delEnd ? r + count : r) + ',' + c] = ssFmt[key];
+    }
+  }
+  ssFmt = newFmt;
+  // Shift row indent
+  const newIndent = {};
+  for (const rs in ssRowIndent) {
+    const r = +rs;
+    if (count > 0) {
+      newIndent[r >= idx ? r + count : r] = ssRowIndent[rs];
+    } else {
+      const delStart = idx, delEnd = idx - count - 1;
+      if (r >= delStart && r <= delEnd) continue;
+      newIndent[r > delEnd ? r + count : r] = ssRowIndent[rs];
+    }
+  }
+  ssRowIndent = newIndent;
+  // Shift row groups
+  ssRowGroups = ssRowGroups.map(g => {
+    let s = g.start, e = g.end;
+    if (count > 0) {
+      if (s >= idx) s += count;
+      if (e >= idx) e += count;
+    } else {
+      const delStart = idx, delEnd = idx - count - 1;
+      if (s > delEnd) s += count;
+      if (e > delEnd) e += count;
+    }
+    return { ...g, start: s, end: e };
+  }).filter(g => g.start <= g.end && g.start >= 0);
+}
+
+function ssShiftFmtCols(idx, count) {
+  const newFmt = {};
+  for (const key in ssFmt) {
+    const [rs, cs] = key.split(',');
+    const r = +rs, c = +cs;
+    if (count > 0) {
+      newFmt[r + ',' + (c >= idx ? c + count : c)] = ssFmt[key];
+    } else {
+      const delStart = idx, delEnd = idx - count - 1;
+      if (c >= delStart && c <= delEnd) continue;
+      newFmt[r + ',' + (c > delEnd ? c + count : c)] = ssFmt[key];
+    }
+  }
+  ssFmt = newFmt;
+  // Shift col groups
+  ssColGroups = ssColGroups.map(g => {
+    let s = g.start, e = g.end;
+    if (count > 0) {
+      if (s >= idx) s += count;
+      if (e >= idx) e += count;
+    } else {
+      const delStart = idx, delEnd = idx - count - 1;
+      if (s > delEnd) s += count;
+      if (e > delEnd) e += count;
+    }
+    return { ...g, start: s, end: e };
+  }).filter(g => g.start <= g.end && g.start >= 0);
+}
+
 function ssSelRange() {
   if (!ssSel) return null;
   return {
@@ -6455,13 +6531,14 @@ function ssRender() {
       const isSpark = typeof display === 'string' && display.startsWith('$$SPARK$$');
       let cls = isF && !ssShowFormulas ? 'formula-cell' : '';
       let style = '';
-      // Cell formatting (bg, color, bold)
+      // Cell formatting (bg, color, bold, italic)
       const fmtKey = r + ',' + c;
       const fmt = ssFmt[fmtKey];
       if (fmt) {
         if (fmt.bg) style += 'background:' + fmt.bg + ';';
         if (fmt.color) style += 'color:' + fmt.color + ';';
         if (fmt.bold) style += 'font-weight:700;';
+        if (fmt.italic) style += 'font-style:italic;';
       }
       // Number formatting (numFmt: { type: 'decimal'|'percent'|'currency', decimals: N, symbol: '$' })
       if (fmt && fmt.numFmt && !ssShowFormulas && !isSpark) {
@@ -6487,11 +6564,12 @@ function ssRender() {
       if (isSpark) {
         h += '<td class="'+cls+'" data-r="'+r+'" data-c="'+c+'"' + (style ? ' style="'+style+'"' : '') + '><canvas class="spark-cell" data-formula="'+raw+'" width="76" height="20"></canvas></td>';
       } else {
-        // Apply formatting to input as well so text color/bold render inside the cell
+        // Apply formatting to input as well so text color/bold/italic render inside the cell
         let inpStyle = '';
         if (fmt) {
           if (fmt.color) inpStyle += 'color:' + fmt.color + ';';
           if (fmt.bold) inpStyle += 'font-weight:700;';
+          if (fmt.italic) inpStyle += 'font-style:italic;';
         }
         // Text spill: if cell has content and cells to the right are empty, widen input
         const displayStr = String(display == null ? '' : display);
@@ -6795,6 +6873,8 @@ function ssRender() {
       // Escape/Enter/Tab already handled above — clear ref state on exit
       // Ctrl+B: toggle bold while editing
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); document.getElementById('ssBold').click(); return; }
+      // Ctrl+I: toggle italic while editing
+      if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); document.getElementById('ssItalic').click(); return; }
       return; // let typing go to the input
     }
 
@@ -6830,6 +6910,8 @@ function ssRender() {
     }
     // Ctrl+B: toggle bold from navigation mode
     if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); document.getElementById('ssBold').click(); return; }
+    // Ctrl+I: toggle italic from navigation mode
+    if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); document.getElementById('ssItalic').click(); return; }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       const sr = ssSelRange();
@@ -7024,10 +7106,15 @@ function ssApplyFmtToSelection(prop, value) {
 
 $('#ssBold').onclick = () => {
   if (!ssSel) return;
-  // Toggle: if first cell in selection is bold, un-bold all; otherwise bold all
   const firstKey = ssSel.r1 + ',' + ssSel.c1;
   const isBold = ssFmt[firstKey] && ssFmt[firstKey].bold;
   ssApplyFmtToSelection('bold', isBold ? null : true);
+};
+$('#ssItalic').onclick = () => {
+  if (!ssSel) return;
+  const firstKey = ssSel.r1 + ',' + ssSel.c1;
+  const isItalic = ssFmt[firstKey] && ssFmt[firstKey].italic;
+  ssApplyFmtToSelection('italic', isItalic ? null : true);
 };
 
 $('#ssTextColor').oninput = function() { ssApplyFmtToSelection('color', this.value); };
@@ -7094,14 +7181,16 @@ $('#ssCurrFmt').onclick = () => {
 $('#ssAddRow').onclick = () => {
   ssPushUndo();
   const idx = ssSel ? ssSel.r1 + 1 : ssR;
+  ssShiftFmtRows(idx, 1);
   ssD.splice(idx, 0, new Array(ssC).fill(''));
-  ssR++; LS('sheet', ssD); ssRender();
+  ssR++; LS('sheet', ssD); LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
 };
 $('#ssAddCol').onclick = () => {
   ssPushUndo();
   const idx = ssSel ? ssSel.c1 + 1 : ssC;
+  ssShiftFmtCols(idx, 1);
   ssD.forEach(r => r.splice(idx, 0, ''));
-  ssC++; LS('sheet', ssD); ssRender();
+  ssC++; LS('sheet', ssD); LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
 };
 $('#ssSortA').onclick = () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(a[c]).localeCompare(String(b[c])) : va-vb; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2191'); };
 $('#ssSortD').onclick = () => { if (!ssSel) return; ssPushUndo(); const c = ssSel.c1; ssD.sort((a,b) => { const va=parseFloat(a[c])||0, vb=parseFloat(b[c])||0; return isNaN(va)&&isNaN(vb) ? String(b[c]).localeCompare(String(a[c])) : vb-va; }); LS('sheet', ssD); ssRender(); toast('Sorted \u2193'); };
@@ -7127,14 +7216,24 @@ $('#ssCalcAll').onclick = () => {
 };
 // ── Undo system ──
 function ssPushUndo() {
-  ssUndoHist.push({ data: JSON.parse(JSON.stringify(ssD)), rows: ssR, cols: ssC });
+  ssUndoHist.push({
+    data: JSON.parse(JSON.stringify(ssD)), rows: ssR, cols: ssC,
+    fmt: JSON.parse(JSON.stringify(ssFmt)),
+    rowGroups: JSON.parse(JSON.stringify(ssRowGroups)),
+    colGroups: JSON.parse(JSON.stringify(ssColGroups)),
+    rowIndent: JSON.parse(JSON.stringify(ssRowIndent))
+  });
   if (ssUndoHist.length > 50) ssUndoHist.shift();
 }
 $('#ssUndo').onclick = () => {
   if (!ssUndoHist.length) { toast('Nothing to undo'); return; }
   const snap = ssUndoHist.pop();
   ssD = snap.data; ssR = snap.rows; ssC = snap.cols;
-  LS('sheet', ssD); ssRender(); toast('Undone');
+  ssFmt = snap.fmt || {};
+  ssRowGroups = snap.rowGroups || [];
+  ssColGroups = snap.colGroups || [];
+  ssRowIndent = snap.rowIndent || {};
+  LS('sheet', ssD); LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender(); toast('Undone');
 };
 
 // ── Formula help panel ──
@@ -7288,25 +7387,29 @@ $$('.ctx-item').forEach(item => {
     }
     else if (action === 'insertRow') {
       const idx = ssSel ? Math.max(ssSel.r1, ssSel.r2) + 1 : r + 1;
+      ssShiftFmtRows(idx, 1);
       ssD.splice(idx, 0, new Array(ssC).fill('')); ssR++;
     }
     else if (action === 'insertCol') {
       const idx = ssSel ? Math.max(ssSel.c1, ssSel.c2) + 1 : c + 1;
+      ssShiftFmtCols(idx, 1);
       ssD.forEach(row => row.splice(idx, 0, '')); ssC++;
     }
     else if (action === 'deleteRow' && ssR > 1) {
       if (ssSel) {
         const minR = Math.min(ssSel.r1, ssSel.r2), maxR = Math.max(ssSel.r1, ssSel.r2);
         const count = Math.min(maxR - minR + 1, ssR - 1);
+        ssShiftFmtRows(minR, -count);
         ssD.splice(minR, count); ssR -= count; ssSel = null;
-      } else { ssD.splice(r, 1); ssR--; }
+      } else { ssShiftFmtRows(r, -1); ssD.splice(r, 1); ssR--; }
     }
     else if (action === 'deleteCol' && ssC > 1) {
       if (ssSel) {
         const minC = Math.min(ssSel.c1, ssSel.c2), maxC = Math.max(ssSel.c1, ssSel.c2);
         const count = Math.min(maxC - minC + 1, ssC - 1);
+        ssShiftFmtCols(minC, -count);
         ssD.forEach(row => row.splice(minC, count)); ssC -= count; ssSel = null;
-      } else { ssD.forEach(row => row.splice(c, 1)); ssC--; }
+      } else { ssShiftFmtCols(c, -1); ssD.forEach(row => row.splice(c, 1)); ssC--; }
     }
     else if (action === 'groupRows') {
       const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
@@ -7359,7 +7462,7 @@ $$('.ctx-item').forEach(item => {
       if (rule) toast('Validation set: ' + rule);
       return;
     }
-    LS('sheet', ssD); ssRender();
+    LS('sheet', ssD); LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
     toast(action.charAt(0).toUpperCase() + action.slice(1));
   };
 });
