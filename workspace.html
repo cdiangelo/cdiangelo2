@@ -5692,19 +5692,50 @@ function ssStockFetch(ticker) {
   if (!ssStockCache[key]) ssStockCache[key] = { data: null, ts: 0, pending: true };
   else ssStockCache[key].pending = true;
 
-  // Async fetch — re-render sheet when done
+  // Async fetch with retry — mirrors fetchRealStockData resilience
   (async () => {
-    try {
-      const metrics = await getCompanyMetricsReal(key);
-      if (!metrics || metrics.source === 'unavailable') {
-        ssStockCache[key] = { data: { _error: '#CONN!', source: 'unavailable' }, ts: Date.now(), pending: false };
-      } else {
-        ssStockCache[key] = { data: metrics, ts: Date.now(), pending: false };
+    let metrics = null;
+    let lastErr = null;
+    // Attempt up to 2 tries (initial + 1 retry) with proxy health pre-check
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+        // Pre-check proxy health before wasting time on a dead connection
+        const alive = await checkProxyHealth(attempt > 0);
+        if (!alive) { lastErr = 'proxy down'; continue; }
+        metrics = await getCompanyMetricsReal(key);
+        if (metrics && metrics.source !== 'unavailable') break; // success
+        lastErr = 'unavailable';
+        metrics = null;
+      } catch(e) {
+        lastErr = e.message;
+        metrics = null;
       }
-    } catch(e) {
-      ssStockCache[key] = { data: { _error: '#CONN!', source: 'error', message: e.message }, ts: Date.now(), pending: false };
     }
-    // Re-render to show updated values
+
+    if (metrics && metrics.source !== 'unavailable') {
+      ssStockCache[key] = { data: metrics, ts: Date.now(), pending: false };
+    } else {
+      // Before giving up, check if chart pipeline already has price data
+      const chartEntry = stockDataCache[key + '_1M'] || stockDataCache[key + '_1D'] ||
+        stockDataCache[key + '_5D'] || stockDataCache[key + '_6M'] || stockDataCache[key + '_1Y'];
+      if (chartEntry && chartEntry.data && chartEntry.data.length >= 1) {
+        const closes = chartEntry.data;
+        ssStockCache[key] = { data: {
+          price: closes[closes.length - 1],
+          mktCap: null, pe: null, eps: null, revenue: null, sharesOutstanding: null,
+          forwardPE: null, priceToBook: null,
+          high_52: chartEntry.high ? Math.max(...chartEntry.high.filter(v => v != null)) : null,
+          low_52: chartEntry.low ? Math.min(...chartEntry.low.filter(v => v != null && v > 0)) : null,
+          bid: null, ask: null, dividend_yield: null,
+          source: 'chart-cache'
+        }, ts: Date.now(), pending: false };
+      } else {
+        // Also try kicking off a chart fetch to warm the cache for next time
+        fetchRealStockData(key, '1M').catch(() => {});
+        ssStockCache[key] = { data: { _error: '#CONN!', source: 'error', message: lastErr }, ts: Date.now(), pending: false };
+      }
+    }
     ssRender();
   })();
   return cached ? cached.data : null;
@@ -9983,17 +10014,29 @@ async function getCompanyMetricsReal(ticker) {
     }
   } catch(e) {}
 
-  // Fallback: Yahoo Finance
+  // Fallback: Yahoo Finance (with retry logic matching fetchRealStockData)
   try {
     const url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' +
       encodeURIComponent(ticker) + '?modules=summaryDetail,defaultKeyStatistics,financialData';
-    let proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(url);
-    let resp;
-    try { resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(5000) }); } catch (_) {
-      proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-      resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(5000) });
+
+    async function attemptYahooFetch(retries) {
+      let proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(url);
+      let resp;
+      try { resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) }); } catch (_) {
+        proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+        resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+      }
+      if (!resp.ok) {
+        if (retries > 0 && resp.status >= 500) {
+          await new Promise(r => setTimeout(r, 1500));
+          return attemptYahooFetch(retries - 1);
+        }
+        throw new Error('HTTP ' + resp.status);
+      }
+      return resp;
     }
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    const resp = await attemptYahooFetch(2);
     const json = await resp.json();
     if (json.error) throw new Error('Proxy error');
     const summary = json.quoteSummary?.result?.[0];
@@ -10011,15 +10054,40 @@ async function getCompanyMetricsReal(ticker) {
       sharesOutstanding: ks.sharesOutstanding?.raw || null,
       forwardPE: ks.forwardPE?.raw || null,
       priceToBook: ks.priceToBook?.raw || null,
+      high_52: sd.fiftyTwoWeekHigh?.raw || null,
+      low_52: sd.fiftyTwoWeekLow?.raw || null,
+      dividend_yield: sd.dividendYield?.raw || null,
+      bid: sd.bid?.raw || null,
+      ask: sd.ask?.raw || null,
       source: 'yahoo'
     };
   } catch (e) {
-    // No live data — return metadata only, never fabricated numbers
+    // Tier 3: Pull from stockDataCache if charts already fetched price data
+    const chartEntry = stockDataCache[ticker + '_1M'] || stockDataCache[ticker + '_1D'] ||
+      stockDataCache[ticker + '_5D'] || stockDataCache[ticker + '_6M'] || stockDataCache[ticker + '_1Y'];
+    if (chartEntry && chartEntry.data && chartEntry.data.length >= 1) {
+      const closes = chartEntry.data;
+      const companyEntry = COMPANY_DB.find(c => c.ticker === ticker);
+      return {
+        price: closes[closes.length - 1],
+        mktCap: null, sizeGroup: companyEntry?.isETF ? 'ETF' : null,
+        pe: null, eps: null, revenue: null, sharesOutstanding: null,
+        forwardPE: null, priceToBook: null,
+        high_52: chartEntry.high ? Math.max(...chartEntry.high.filter(v => v != null)) : null,
+        low_52: chartEntry.low ? Math.min(...chartEntry.low.filter(v => v != null && v > 0)) : null,
+        bid: null, ask: null, dividend_yield: null,
+        source: 'chart-cache',
+        message: 'Partial data from chart cache. Full metrics unavailable.'
+      };
+    }
+
+    // No data at all
     const companyEntry = COMPANY_DB.find(c => c.ticker === ticker);
     return {
       price: null, mktCap: null, sizeGroup: companyEntry?.isETF ? 'ETF' : null,
       pe: null, eps: null, revenue: null, sharesOutstanding: null,
       forwardPE: null, priceToBook: null,
+      high_52: null, low_52: null, bid: null, ask: null, dividend_yield: null,
       source: 'unavailable',
       message: 'Live financial data unavailable. Refresh to retry.'
     };
