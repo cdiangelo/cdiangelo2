@@ -14799,6 +14799,17 @@ Object.entries(_customPersonas).forEach(([key, data]) => {
   if (PERSONA_MODES[key]) PERSONA_MODES[key].systemPrompt = data.systemPrompt;
 });
 
+// Item 3: Log persona system prompt sizes at startup
+try {
+  const _personaSizes = Object.entries(PERSONA_MODES).map(([k, v]) => {
+    const prompt = typeof v.systemPrompt === 'string' ? v.systemPrompt : (v.systemPrompt || '');
+    const chars = prompt.length;
+    return { persona: k, chars: chars, estTokens: Math.round(chars / 3.5) };
+  });
+  console.table(_personaSizes);
+  console.log('[PERSONA SIZES] Total chars: ' + _personaSizes.reduce((s, p) => s + p.chars, 0) + ' | Total est tokens: ' + _personaSizes.reduce((s, p) => s + p.estTokens, 0));
+} catch(_) {}
+
 // ── Persona context injection (slot system) ──
 const CONTEXT_SLOTS_CONFIG = { maxSlots: 5, maxCharsPerSlot: 3000, maxTotalChars: 8000 };
 let contextSlots = LS('compplan_context_slots') || []; // [{ id, label, content, scope, createdAt, pinned }]
@@ -18114,6 +18125,9 @@ function getWorkspaceContext() {
   // ADDED — Phase 4: Include agent memory in context
   const agentMem = window.getAgentMemory ? window.getAgentMemory().slice(0, 800) : '';
   if (agentMem) parts.push('Agent Memory: ' + agentMem);
+  // Item 4: Log context part sizes
+  const _ctxTotal = parts.join('\n').length;
+  console.log('[CONTEXT PARTS] total:' + _ctxTotal + 'c estTokens:~' + Math.round(_ctxTotal / 3.5) + ' | parts:' + parts.length + ' | largest:' + Math.max(...parts.map(p => p.length)) + 'c');
   return parts.join('\n');
 }
 
@@ -19876,6 +19890,13 @@ async function sendAgentMessage() {
     const contextInjection = buildContextInjection();
     const assembledSystemPrompt = (personaPrompt ? personaPrompt + '\n\n' : '') + (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + getAiSystemPrompt() + contextInjection;
     console.log('[API] System prompt: ~' + Math.round(assembledSystemPrompt.length / 1000) + 'k chars | Persona: ' + getActivePersona().label + ' | Tier: ' + TASK_TIERS[currentTierKey].label + ' | Context slots: ' + getActiveContextSlots().length);
+    // Item 2: Input token source breakdown
+    if (!window._toolCharsCache) window._toolCharsCache = JSON.stringify(AGENT_TOOLS).length;
+    const _msgChars = JSON.stringify(apiMsgs).length;
+    const _ctxChars = contextInjection ? contextInjection.length : 0;
+    console.log('[INPUT BREAKDOWN] system:' + assembledSystemPrompt.length + 'c tools:' + window._toolCharsCache + 'c messages:' + apiMsgs.length + 'msgs/' + _msgChars + 'c context:' + _ctxChars + 'c | estTokens:~' + Math.round((assembledSystemPrompt.length + window._toolCharsCache + _msgChars) / 3.5));
+    // Item 5: History size
+    console.log('[HISTORY] messages:' + apiMsgs.length + ' totalChars:' + _msgChars + ' estTokens:~' + Math.round(_msgChars / 3.5));
 
     let iterations = 0;
     const MAX_ITERATIONS = 10;
