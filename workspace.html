@@ -18067,68 +18067,98 @@ function addToolStatus(toolName, input) {
 }
 
 // ── Workspace context builder ──
+// Item 10: Persona-aware data scope map — controls what live data each persona sees
+const DATA_SCOPE = {
+  general:              { stocks: false, sports: false, portfolio: false },
+  stock_analyst:        { stocks: true,  sports: false, portfolio: true  },
+  financial_modeler:    { stocks: true,  sports: false, portfolio: true  },
+  presentation_builder: { stocks: false, sports: false, portfolio: false },
+  spec_investor:        { stocks: true,  sports: false, portfolio: true  },
+  gambling_edge:        { stocks: false, sports: true,  portfolio: false },
+  march_madness:        { stocks: false, sports: true,  portfolio: false }
+};
+
 function getWorkspaceContext() {
   const ws = wsIndex.find(w => w.id === wsActiveId);
   const parts = ['Workspace: ' + (ws ? ws.name : 'Default')];
+  const scope = DATA_SCOPE[activePersonaKey] || DATA_SCOPE.general;
+  // Sheet cells — Item 12: minified pipe-delimited, capped at 50
   const nonEmpty = [];
   for (let r = 0; r < ssR; r++)
     for (let c = 0; c < ssC; c++)
-      if (ssD[r][c]) nonEmpty.push(colN(c) + (r + 1) + '=' + ssD[r][c]);
-  if (nonEmpty.length) parts.push('Sheet cells: ' + nonEmpty.slice(0, 80).join(', ') + (nonEmpty.length > 80 ? ' ... (' + nonEmpty.length + ' total)' : ''));
-  if (stockTickers.length) parts.push('Tracked stocks: ' + stockTickers.join(', '));
-  if (compareTickers.length) parts.push('Comparison chart: ' + compareTickers.join(', '));
+      if (ssD[r][c]) nonEmpty.push(colN(c) + (r + 1) + ':' + ssD[r][c]);
+  if (nonEmpty.length) parts.push('Sheet: ' + nonEmpty.slice(0, 50).join('|') + (nonEmpty.length > 50 ? '..(' + nonEmpty.length + ')' : ''));
+  if (stockTickers.length) parts.push('Tracked: ' + stockTickers.join(','));
+  if (compareTickers.length) parts.push('Compare: ' + compareTickers.join(','));
   const noteText = np.innerText.trim();
-  if (npPages.length > 1) parts.push('Notepad pages: ' + npPages.map(p => p.title + (p.id === npActivePageId ? ' (active)' : '')).join(', '));
-  if (noteText) parts.push('Notepad excerpt: ' + noteText.substring(0, 500) + (noteText.length > 500 ? '...' : ''));
-  if (gcExpressions.length) parts.push('Graph expressions: ' + gcExpressions.map(e => e.expr).join(', '));
-  if (cmNodes.length) parts.push('Concept map nodes: ' + cmNodes.map(n => n.title).join(', '));
-  if (newsTickerWatchlist.length) parts.push('News watchlist: ' + newsTickerWatchlist.join(', '));
-  // Whiteboard state for spatial awareness
+  if (npPages.length > 1) parts.push('NP pages: ' + npPages.map(p => p.title + (p.id === npActivePageId ? '*' : '')).join(', '));
+  if (noteText) parts.push('Notepad: ' + noteText.substring(0, 500) + (noteText.length > 500 ? '...' : ''));
+  if (gcExpressions.length) parts.push('Graph: ' + gcExpressions.map(e => e.expr).join(', '));
+  if (cmNodes.length) parts.push('Concept map: ' + cmNodes.map(n => n.title).join(', '));
+  if (newsTickerWatchlist.length) parts.push('News: ' + newsTickerWatchlist.join(','));
+  // Whiteboard — Item 12: compact format
   if (wbLayers.length) {
-    const wbInfo = wbLayers.map(l => l.label + ' (' + (l.category || l.type) + ' at ' + l.x + ',' + l.y + ')').join(', ');
-    parts.push('Whiteboard (' + wbC.width + 'x' + wbC.height + '): ' + wbLayers.length + ' layers — ' + wbInfo);
-  } else {
-    parts.push('Whiteboard (' + wbC.width + 'x' + wbC.height + '): empty');
+    const wbInfo = wbLayers.map(l => l.label + ':' + (l.category || l.type) + '@' + l.x + ',' + l.y).join('|');
+    parts.push('WB(' + wbC.width + 'x' + wbC.height + '): ' + wbLayers.length + 'L ' + wbInfo);
   }
-  // Market status + Robinhood
-  parts.push(getMarketStatusContext());
-  parts.push('Robinhood: ' + (rhLoggedIn ? 'Connected (portfolio/orders/historicals available)' : 'Not connected (public quotes/fundamentals only)'));
-  // Cached stock data summary for agent reuse
-  const cachedStockSummary = [];
-  stockTickers.forEach(t => {
-    const range = document.getElementById('stockRange')?.value || '1M';
-    const entry = stockDataCache[t + '_' + range];
-    if (entry && entry.data && entry.data.length >= 2) {
-      const age = Math.round((Date.now() - entry.ts) / 1000);
-      const price = entry.data[entry.data.length - 1];
-      cachedStockSummary.push(t + ': $' + price.toFixed(2) + ' (source=' + entry.source + ', age=' + age + 's)');
+  // Stock data — only for stock-relevant personas (Item 10)
+  if (scope.stocks) {
+    parts.push(getMarketStatusContext());
+  }
+  if (scope.portfolio) {
+    parts.push('RH: ' + (rhLoggedIn ? 'connected' : 'disconnected'));
+  }
+  // Cached stock prices — only for stock personas
+  if (scope.stocks) {
+    const cachedStockSummary = [];
+    stockTickers.forEach(t => {
+      const range = document.getElementById('stockRange')?.value || '1M';
+      const entry = stockDataCache[t + '_' + range];
+      if (entry && entry.data && entry.data.length >= 2) {
+        const age = Math.round((Date.now() - entry.ts) / 1000);
+        const price = entry.data[entry.data.length - 1];
+        cachedStockSummary.push(t + ':$' + price.toFixed(2) + '(' + age + 's)');
+      }
+    });
+    if (cachedStockSummary.length) parts.push('Prices(reuse<15m): ' + cachedStockSummary.join(','));
+  }
+  // Sports data — only for sports personas (Item 10), capped at 400 chars (Item 12)
+  if (scope.sports) {
+    const _spLeagueSel = document.getElementById('spLeague');
+    const _spLeagueVal = _spLeagueSel ? _spLeagueSel.value : '';
+    const _spLeagueName = _spLeagueVal && SP_LEAGUE_MAP[_spLeagueVal] ? SP_LEAGUE_MAP[_spLeagueVal].name : _spLeagueVal;
+    if (_spLeagueName) parts.push('Sports: ' + _spLeagueName + ' (' + _spLeagueVal + '). Leagues: nba,nfl,mlb,nhl,ncaab,ncaaf,soccer,global.');
+    const spScoresEl = document.getElementById('spGamesList');
+    if (spScoresEl && spScoresEl.innerText.trim() && !spScoresEl.innerText.includes('Select a league')) {
+      parts.push('Scores(' + _spLeagueName + '): ' + spScoresEl.innerText.trim().substring(0, 400));
     }
-  });
-  if (cachedStockSummary.length) parts.push('Cached stock data (use instead of re-fetching if under 15min): ' + cachedStockSummary.join(', '));
-  // Sports data context — expose current league and cached scores/odds to AI
-  const _spLeagueSel = document.getElementById('spLeague');
-  const _spLeagueVal = _spLeagueSel ? _spLeagueSel.value : '';
-  const _spLeagueName = _spLeagueVal && SP_LEAGUE_MAP[_spLeagueVal] ? SP_LEAGUE_MAP[_spLeagueVal].name : _spLeagueVal;
-  if (_spLeagueName) parts.push('Sports pane: currently viewing ' + _spLeagueName + ' (league filter: ' + _spLeagueVal + '). Available leagues: nba, nfl, mlb, nhl, ncaab, ncaaf, soccer, global. Use set_sports_league tool to switch, or get_sports_scores/get_sports_odds/get_sports_standings to fetch data for any league.');
-  const spScoresEl = document.getElementById('spGamesList');
-  if (spScoresEl && spScoresEl.innerText.trim() && !spScoresEl.innerText.includes('Select a league')) {
-    parts.push('Sports scores (' + _spLeagueName + ', from ESPN): ' + spScoresEl.innerText.trim().substring(0, 600));
+    const spOddsEl = document.getElementById('spOddsList');
+    if (spOddsEl && spOddsEl.innerText.trim() && !spOddsEl.innerText.includes('Select a league')) {
+      parts.push('Odds: ' + spOddsEl.innerText.trim().substring(0, 400));
+    }
+    const spStandingsEl = document.getElementById('spStandingsList');
+    if (spStandingsEl && spStandingsEl.innerText.trim() && !spStandingsEl.innerText.includes('Select a league')) {
+      parts.push('Standings: ' + spStandingsEl.innerText.trim().substring(0, 400));
+    }
   }
-  const spOddsEl = document.getElementById('spOddsList');
-  if (spOddsEl && spOddsEl.innerText.trim() && !spOddsEl.innerText.includes('Select a league')) {
-    parts.push('Betting odds (from ESPN): ' + spOddsEl.innerText.trim().substring(0, 600));
-  }
-  const spStandingsEl = document.getElementById('spStandingsList');
-  if (spStandingsEl && spStandingsEl.innerText.trim() && !spStandingsEl.innerText.includes('Select a league')) {
-    parts.push('Standings: ' + spStandingsEl.innerText.trim().substring(0, 600));
-  }
-  // ADDED — Phase 4: Include agent memory in context
+  // Agent memory
   const agentMem = window.getAgentMemory ? window.getAgentMemory().slice(0, 800) : '';
-  if (agentMem) parts.push('Agent Memory: ' + agentMem);
+  if (agentMem) parts.push('Memory: ' + agentMem);
   // Item 4: Log context part sizes
   const _ctxTotal = parts.join('\n').length;
-  console.log('[CONTEXT PARTS] total:' + _ctxTotal + 'c estTokens:~' + Math.round(_ctxTotal / 3.5) + ' | parts:' + parts.length + ' | largest:' + Math.max(...parts.map(p => p.length)) + 'c');
+  console.log('[CONTEXT PARTS] total:' + _ctxTotal + 'c estTokens:~' + Math.round(_ctxTotal / 3.5) + ' | parts:' + parts.length + ' | persona:' + activePersonaKey + ' scope:' + JSON.stringify(scope));
   return parts.join('\n');
+}
+
+// Item 20: Lightweight context for non-data calls
+function getWorkspaceContextLite() {
+  const ws = wsIndex.find(w => w.id === wsActiveId);
+  const nonEmpty = [];
+  for (let r = 0; r < ssR; r++) for (let c = 0; c < ssC; c++) if (ssD[r][c]) nonEmpty.push(1);
+  return 'Workspace: ' + (ws ? ws.name : 'Default') + ' | Sheet: ' + nonEmpty.length + ' cells | NP pages: ' + npPages.map(p => p.title).join(', ') +
+    (wbLayers.length ? ' | WB: ' + wbLayers.length + ' layers' : '') +
+    (stockTickers.length ? ' | Tracked: ' + stockTickers.join(',') : '') +
+    ' | Persona: ' + (getActivePersona().label || activePersonaKey);
 }
 
 // ── System prompt (dynamic — reads wsUserName at call time, not definition time) ──
@@ -19702,15 +19732,27 @@ async function sendAgentMessage() {
   const triggerReason = arguments[0] === '_retry' ? 'manual_retry' : arguments[0] === '_escalate' ? 'bot_escalation' : 'initial';
   startTaskAttempt(taskId, triggerReason);
 
-  // Add workspace context to the latest user message
-  const ctx = getWorkspaceContext();
+  // Add workspace context — use full context for data calls, lite for simple follow-ups (Item 20)
   const deepOn = $('#aiDeepToggle') && $('#aiDeepToggle').checked;
+  const _isDataCall = deepOn || classifyAsAnalysisTask(input) || /refresh|update|latest|current|price|score|odds|fetch|get|look up|check/i.test(input);
+  const ctx = _isDataCall ? getWorkspaceContext() : getWorkspaceContextLite();
   const deepPrefix = deepOn ? '[DEEP RESEARCH MODE ON] Use the deep_research tool to fetch articles, then give a focused synthesis — lead with the key takeaway, cover only high-signal findings, skip filler. Write a concise analysis to the notepad.\n\n' : '';
   const contextMsg = { role: 'user', content: '[Current Workspace State]\n' + ctx + '\n\n' + deepPrefix + '[User Request]\n' + input };
 
-  // Manage history
+  // Manage history with smart windowing (Item 9)
   aiMessages.push({ role: 'user', content: input });
-  if (aiMessages.length > 30) aiMessages = aiMessages.slice(-20);
+  const MAX_HISTORY_MSGS = 10;
+  if (aiMessages.length > MAX_HISTORY_MSGS) {
+    // Compress older messages into a brief summary block
+    const oldMsgs = aiMessages.slice(0, -MAX_HISTORY_MSGS);
+    const summary = oldMsgs.map(function(m) {
+      const role = m.role === 'user' ? 'U' : (m.role === 'assistant' ? 'A' : 'S');
+      const text = (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).substring(0, 80);
+      return role + ': ' + text.replace(/\n/g, ' ');
+    }).join('\n');
+    const summaryMsg = { role: 'user', content: '[Prior conversation summary — ' + oldMsgs.length + ' messages compressed]\n' + summary.substring(0, 2000) };
+    aiMessages = [summaryMsg].concat(aiMessages.slice(-MAX_HISTORY_MSGS));
+  }
 
   // Tiered execution: determine starting tier
   let currentTierKey = getTierForTask(input);
