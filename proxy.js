@@ -2,7 +2,9 @@
 // Replaces dependency on api.allorigins.win
 // Start: node proxy.js — listens on port 3001
 
+console.log('[startup] proxy.js loading... Node ' + process.version);
 const express = require('express');
+console.log('[startup] express loaded, version ' + require('express/package.json').version);
 const path = require('path');
 const fs = require('fs');
 const app = express();
