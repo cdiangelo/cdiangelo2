@@ -443,6 +443,11 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td:hover { background: var(--panel-inset); }
 .ss-table td .ci:focus { background: rgba(255,255,255,.05); }
 .ss-table td.formula-cell .ci { color: var(--accent2); }
+.ss-table td.formula-ref-highlight { background: rgba(168,85,247,.15); }
+.ss-table td.fref-top { border-top: 2px dashed rgba(168,85,247,.7); }
+.ss-table td.fref-bottom { border-bottom: 2px dashed rgba(168,85,247,.7); }
+.ss-table td.fref-left { border-left: 2px dashed rgba(168,85,247,.7); }
+.ss-table td.fref-right { border-right: 2px dashed rgba(168,85,247,.7); }
 .ss-table td.heat-green { background: rgba(74,153,99,.15); }
 .ss-table td.heat-red { background: rgba(204,68,68,.15); }
 .ss-table td.heat-yellow { background: rgba(204,153,51,.15); }
@@ -2259,6 +2264,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <input type="color" id="ssBgColor" value="#1a1a2e" title="Cell background color" style="width:22px;height:20px;padding:0;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg);" />
         <button id="ssClearFmt" title="Clear formatting" style="font-size:.55rem;">&#10060;Fmt</button>
         <div class="sep"></div>
+        <button id="ssDecDec" title="Decrease decimals" style="font-size:.6rem;">.0</button>
+        <button id="ssIncDec" title="Increase decimals" style="font-size:.6rem;">.00</button>
+        <button id="ssPctFmt" title="Percent format" style="font-size:.65rem;">%</button>
+        <button id="ssCurrFmt" title="Currency format" style="font-size:.65rem;">$</button>
+        <div class="sep"></div>
         <button id="ssAddRow" title="Add row">+Row</button>
         <button id="ssAddCol" title="Add column">+Col</button>
         <button id="ssAdd5Row" title="Add 5 rows">+5R</button>
@@ -2616,7 +2626,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <div class="ctx-menu" id="ctxMenu">
   <div class="ctx-item" data-action="cut">&#9986; Cut</div>
   <div class="ctx-item" data-action="copy">&#128203; Copy</div>
-  <div class="ctx-item" data-action="paste">&#128196; Paste</div>
+  <div class="ctx-item" data-action="paste">&#128196; Paste All</div>
+  <div class="ctx-item" data-action="pasteValues">&#128196; Paste Values Only</div>
+  <div class="ctx-item" data-action="pasteFormulas">&#128196; Paste Formulas Only</div>
+  <div class="ctx-item" data-action="pasteFormat">&#128196; Paste Format Only</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="insertRow">Insert Row Below</div>
   <div class="ctx-item" data-action="insertCol">Insert Column Right</div>
@@ -5318,6 +5331,7 @@ let ssR = 20, ssC = 10, ssD = [], ssSel = null, ssShowFormulas = false, ssHeatMa
 let ssClipboard = null, ssClipboardSrc = null, ssColNames = [];
 let ssSelecting = false, ssEditing = false;
 let ssClipboardRange = null; // { data: 2D array, rows, cols }
+let ssFormulaRef = null; // { anchorR, anchorC, endR, endC, inputPos, inputLen } — active formula cell-reference selection
 let ssUndoHist = []; // array of { data, rows, cols } snapshots
 let ssColWidths = LS('ssColWidths') || []; // per-column widths
 // Cell formatting: ssFmt[r][c] = { bg, color, bold } — sparse, only set cells have entries
@@ -5334,6 +5348,32 @@ function ssInSelection(r, c) {
   const s = ssSelRange(); return s && r >= s.minR && r <= s.maxR && c >= s.minC && c <= s.maxC;
 }
 function ssIsActiveCell(r, c) { return ssSel && r === ssSel.r1 && c === ssSel.c1; }
+
+function ssClearFormulaRefHighlight() {
+  const t = $('#ssTable');
+  if (!t) return;
+  t.querySelectorAll('.formula-ref-highlight').forEach(el => {
+    el.classList.remove('formula-ref-highlight','fref-top','fref-bottom','fref-left','fref-right');
+  });
+}
+function ssRenderFormulaRefHighlight(ref) {
+  ssClearFormulaRefHighlight();
+  const t = $('#ssTable');
+  if (!t) return;
+  const minR = Math.min(ref.anchorR, ref.endR), maxR = Math.max(ref.anchorR, ref.endR);
+  const minC = Math.min(ref.anchorC, ref.endC), maxC = Math.max(ref.anchorC, ref.endC);
+  for (let r = minR; r <= maxR; r++) {
+    for (let c = minC; c <= maxC; c++) {
+      const td = t.querySelector('td[data-r="'+r+'"][data-c="'+c+'"]');
+      if (!td) continue;
+      td.classList.add('formula-ref-highlight');
+      if (r === minR) td.classList.add('fref-top');
+      if (r === maxR) td.classList.add('fref-bottom');
+      if (c === minC) td.classList.add('fref-left');
+      if (c === maxC) td.classList.add('fref-right');
+    }
+  }
+}
 
 function ssRenderSelection() {
   const t = $('#ssTable');
@@ -6328,6 +6368,17 @@ function ssRender() {
         if (fmt.color) style += 'color:' + fmt.color + ';';
         if (fmt.bold) style += 'font-weight:700;';
       }
+      // Number formatting (numFmt: { type: 'decimal'|'percent'|'currency', decimals: N, symbol: '$' })
+      if (fmt && fmt.numFmt && !ssShowFormulas && !isSpark) {
+        const nv = typeof display === 'number' ? display : parseFloat(display);
+        if (!isNaN(nv)) {
+          const nf = fmt.numFmt;
+          const dec = nf.decimals != null ? nf.decimals : 2;
+          if (nf.type === 'percent') display = (nv * 100).toFixed(dec) + '%';
+          else if (nf.type === 'currency') display = (nf.symbol || '$') + nv.toFixed(dec);
+          else display = nv.toFixed(dec);
+        }
+      }
       // Heat map
       if (ssHeatMap && !isSpark) {
         const nv = typeof display === 'number' ? display : parseFloat(display);
@@ -6552,11 +6603,65 @@ function ssRender() {
     // In edit mode, only handle Enter/Tab/Escape
     if (ssEditing) {
       const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
-      if (e.key === 'Escape') { e.preventDefault(); ssEditing = false; ssHideFormulaTooltip(); if (inp) { inp.value = ssD[ssSel.r1][ssSel.c1] || ''; inp.setAttribute('readonly', ''); } ssRenderSelection(); return; }
-      if (e.key === 'Enter') { e.preventDefault(); ssExitEdit(); const nr = Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); ssEnterEdit(nr, ssSel.c1); return; }
-      if (e.key === 'Tab') { e.preventDefault(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); ssEnterEdit(ssSel.r1, nc); return; }
-      // Arrow keys: exit edit mode and navigate to adjacent cell
+      if (e.key === 'Escape') { e.preventDefault(); ssEditing = false; ssFormulaRef = null; ssClearFormulaRefHighlight(); ssHideFormulaTooltip(); if (inp) { inp.value = ssD[ssSel.r1][ssSel.c1] || ''; inp.setAttribute('readonly', ''); } ssRenderSelection(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); ssFormulaRef = null; ssClearFormulaRefHighlight(); ssExitEdit(); const nr = Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); ssEnterEdit(nr, ssSel.c1); return; }
+      if (e.key === 'Tab') { e.preventDefault(); ssFormulaRef = null; ssClearFormulaRefHighlight(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); ssEnterEdit(ssSel.r1, nc); return; }
+      // Arrow keys in formula edit mode: select cell references
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const val = inp ? inp.value : '';
+        const cursorPos = inp ? inp.selectionStart : 0;
+        const charBefore = cursorPos > 0 ? val[cursorPos - 1] : '';
+        const isFormula = val.startsWith('=');
+        const afterOp = /[=+\-*\/(<>,;:& ^]/.test(charBefore);
+        // Enter reference selection mode if editing a formula and cursor is after an operator (or already in ref mode)
+        if (isFormula && (ssFormulaRef || afterOp)) {
+          e.preventDefault();
+          if (!ssFormulaRef) {
+            // Start new reference from the editing cell, move one step in arrow direction
+            let sr = ssSel.r1, sc = ssSel.c1;
+            if (e.key === 'ArrowDown') sr = Math.min(sr + 1, ssR - 1);
+            if (e.key === 'ArrowUp') sr = Math.max(sr - 1, 0);
+            if (e.key === 'ArrowRight') sc = Math.min(sc + 1, ssC - 1);
+            if (e.key === 'ArrowLeft') sc = Math.max(sc - 1, 0);
+            ssFormulaRef = { anchorR: sr, anchorC: sc, endR: sr, endC: sc, inputPos: cursorPos, inputLen: 0 };
+          } else if (e.shiftKey) {
+            // Shift+arrow: extend range from anchor
+            if (e.key === 'ArrowDown') ssFormulaRef.endR = Math.min(ssFormulaRef.endR + 1, ssR - 1);
+            if (e.key === 'ArrowUp') ssFormulaRef.endR = Math.max(ssFormulaRef.endR - 1, 0);
+            if (e.key === 'ArrowRight') ssFormulaRef.endC = Math.min(ssFormulaRef.endC + 1, ssC - 1);
+            if (e.key === 'ArrowLeft') ssFormulaRef.endC = Math.max(ssFormulaRef.endC - 1, 0);
+          } else {
+            // Arrow without shift: move single-cell reference
+            let nr = ssFormulaRef.anchorR, nc = ssFormulaRef.anchorC;
+            if (e.key === 'ArrowDown') nr = Math.min(nr + 1, ssR - 1);
+            if (e.key === 'ArrowUp') nr = Math.max(nr - 1, 0);
+            if (e.key === 'ArrowRight') nc = Math.min(nc + 1, ssC - 1);
+            if (e.key === 'ArrowLeft') nc = Math.max(nc - 1, 0);
+            ssFormulaRef.anchorR = ssFormulaRef.endR = nr;
+            ssFormulaRef.anchorC = ssFormulaRef.endC = nc;
+          }
+          // Build reference string
+          const ref = ssFormulaRef;
+          let refStr;
+          if (ref.anchorR === ref.endR && ref.anchorC === ref.endC) {
+            refStr = colN(ref.anchorC) + (ref.anchorR + 1);
+          } else {
+            const minR = Math.min(ref.anchorR, ref.endR), maxR = Math.max(ref.anchorR, ref.endR);
+            const minC = Math.min(ref.anchorC, ref.endC), maxC = Math.max(ref.anchorC, ref.endC);
+            refStr = colN(minC) + (minR + 1) + ':' + colN(maxC) + (maxR + 1);
+          }
+          // Replace the reference text in the input
+          const before = val.substring(0, ref.inputPos);
+          const after = val.substring(ref.inputPos + ref.inputLen);
+          inp.value = before + refStr + after;
+          ref.inputLen = refStr.length;
+          const newCursor = ref.inputPos + refStr.length;
+          inp.setSelectionRange(newCursor, newCursor);
+          // Highlight referenced cells visually
+          ssRenderFormulaRefHighlight(ref);
+          return;
+        }
+        // Non-formula edit: exit edit mode and navigate to adjacent cell
         e.preventDefault(); ssExitEdit();
         let nr = ssSel.r1, nc = ssSel.c1;
         if (e.key === 'ArrowDown') nr = Math.min(nr+1, ssR-1);
@@ -6575,6 +6680,12 @@ function ssRender() {
         if (!e.shiftKey) ssEnterEdit(ssSel.r1, ssSel.c1);
         return;
       }
+      // Any typing while in formula ref mode: commit the reference and let the keystroke through
+      if (ssFormulaRef && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        ssFormulaRef = null;
+        ssClearFormulaRefHighlight();
+      }
+      // Escape/Enter/Tab already handled above — clear ref state on exit
       // Ctrl+B: toggle bold while editing
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); document.getElementById('ssBold').click(); return; }
       return; // let typing go to the input
@@ -6619,20 +6730,24 @@ function ssRender() {
         for (let c = sr.minC; c <= sr.maxC; c++) ssD[r][c] = '';
       LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); return;
     }
-    // Ctrl+C: copy range
+    // Ctrl+C: copy range (data + formatting)
     if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
       e.preventDefault();
       const sr = ssSelRange();
       let text = '';
-      const data = [];
+      const data = [], fmt = [];
       for (let r = sr.minR; r <= sr.maxR; r++) {
-        const row = [];
-        for (let c = sr.minC; c <= sr.maxC; c++) row.push(ssD[r][c] || '');
+        const row = [], fmtRow = [];
+        for (let c = sr.minC; c <= sr.maxC; c++) {
+          row.push(ssD[r][c] || '');
+          const f = ssFmt[r + ',' + c];
+          fmtRow.push(f ? Object.assign({}, f) : null);
+        }
         text += row.join('\t') + '\n';
-        data.push(row);
+        data.push(row); fmt.push(fmtRow);
       }
       navigator.clipboard.writeText(text).catch(() => {});
-      ssClipboardRange = { data, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1, srcRow: sr.minR, srcCol: sr.minC };
+      ssClipboardRange = { data, fmt, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1, srcRow: sr.minR, srcCol: sr.minC };
       toast('Copied ' + (sr.maxR-sr.minR+1) + '×' + (sr.maxC-sr.minC+1));
       return;
     }
@@ -6641,22 +6756,30 @@ function ssRender() {
       e.preventDefault();
       const sr = ssSelRange();
       let text = '';
-      const data = [];
+      const data = [], fmt = [];
       for (let r = sr.minR; r <= sr.maxR; r++) {
-        const row = [];
-        for (let c = sr.minC; c <= sr.maxC; c++) { row.push(ssD[r][c] || ''); ssD[r][c] = ''; }
+        const row = [], fmtRow = [];
+        for (let c = sr.minC; c <= sr.maxC; c++) {
+          row.push(ssD[r][c] || ''); ssD[r][c] = '';
+          const fk = r + ',' + c;
+          const f = ssFmt[fk];
+          fmtRow.push(f ? Object.assign({}, f) : null);
+          delete ssFmt[fk];
+        }
         text += row.join('\t') + '\n';
-        data.push(row);
+        data.push(row); fmt.push(fmtRow);
       }
       navigator.clipboard.writeText(text).catch(() => {});
-      ssClipboardRange = { data, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1, isCut: true };
-      LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); toast('Cut');
+      ssClipboardRange = { data, fmt, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1, isCut: true };
+      LS('sheet', ssD); LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender(); toast('Cut');
       return;
     }
     // Ctrl+V: paste from clipboard — fills selected range
     if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
       e.preventDefault();
-      function ssPasteData(clipData, srcPos) {
+      // mode: 'all' (default), 'values', 'formulas', 'format'
+      function ssPasteData(clipData, srcPos, mode) {
+        mode = mode || 'all';
         ssPushUndo();
         const sel = ssSelRange();
         const selRows = sel.maxR - sel.minR + 1;
@@ -6664,41 +6787,56 @@ function ssRender() {
         const clipRows = clipData.length;
         const clipCols = clipData[0] ? clipData[0].length : 1;
         const isSingleVal = clipRows === 1 && clipCols === 1;
-        // Determine paste region
+        // Determine paste region — if user selected a single column, expand rows to fit clipboard
         let pasteRows, pasteCols;
         if (selRows === 1 && selCols === 1) {
-          // Single cell selected — expand to fit clipboard
           pasteRows = clipRows; pasteCols = clipCols;
         } else if (isSingleVal) {
-          // Single value — fill entire selection
           pasteRows = selRows; pasteCols = selCols;
         } else {
-          // Multi-cell clipboard + multi-cell selection — tile/expand
           pasteRows = Math.max(selRows, clipRows);
           pasteCols = Math.max(selCols, clipCols);
           if (pasteRows > selRows || pasteCols > selCols) toast('Paste expanded selection to fit content');
         }
+        const clipFmt = srcPos && srcPos.fmt ? srcPos.fmt : null;
         for (let ri = 0; ri < pasteRows; ri++) {
           for (let ci = 0; ci < pasteCols; ci++) {
             const tr = sel.minR + ri, tc = sel.minC + ci;
             if (tr >= ssR || tc >= ssC) continue;
-            let val = clipData[ri % clipRows][ci % clipCols] || '';
-            // Adjust formula cell references on paste (like Excel/Sheets)
-            // Relative refs shift by offset from source to destination; $-locked refs stay fixed
-            if (typeof val === 'string' && val.startsWith('=') && srcPos && !srcPos.isCut) {
-              const rowOff = (sel.minR + ri) - (srcPos.srcRow + (ri % clipRows));
-              const colOff = (sel.minC + ci) - (srcPos.srcCol + (ci % clipCols));
-              if (rowOff !== 0 || colOff !== 0) val = ssFillAdjust(val, rowOff, colOff);
+            // Paste cell value (all, values, or formulas mode)
+            if (mode !== 'format') {
+              let val = clipData[ri % clipRows][ci % clipCols] || '';
+              if (mode === 'values' && typeof val === 'string' && val.startsWith('=')) {
+                // Evaluate the formula to get the plain value
+                val = String(evalF(val));
+              }
+              // Adjust formula cell references on paste (like Excel/Sheets)
+              if (mode !== 'values' && typeof val === 'string' && val.startsWith('=') && srcPos && !srcPos.isCut) {
+                const rowOff = (sel.minR + ri) - (srcPos.srcRow + (ri % clipRows));
+                const colOff = (sel.minC + ci) - (srcPos.srcCol + (ci % clipCols));
+                if (rowOff !== 0 || colOff !== 0) val = ssFillAdjust(val, rowOff, colOff);
+              }
+              ssD[tr][tc] = val;
             }
-            ssD[tr][tc] = val;
+            // Paste formatting (all or format mode)
+            if (mode === 'all' || mode === 'format') {
+              const fk = tr + ',' + tc;
+              if (clipFmt) {
+                const srcFmt = clipFmt[ri % clipRows] ? clipFmt[ri % clipRows][ci % clipCols] : null;
+                if (srcFmt) ssFmt[fk] = Object.assign({}, srcFmt);
+                else delete ssFmt[fk];
+              }
+            }
           }
         }
-        // Update selection to cover pasted region
         ssSel.r2 = Math.min(sel.minR + pasteRows - 1, ssR - 1);
         ssSel.c2 = Math.min(sel.minC + pasteCols - 1, ssC - 1);
-        LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
-        toast('Pasted to ' + colN(sel.minC) + (sel.minR+1) + ':' + colN(ssSel.c2) + (ssSel.r2+1));
+        LS('sheet', ssD); LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
+        const label = mode === 'all' ? 'Pasted' : 'Pasted ' + mode;
+        toast(label + ' to ' + colN(sel.minC) + (sel.minR+1) + ':' + colN(ssSel.c2) + (ssSel.r2+1));
       }
+      // Expose ssPasteData globally for context menu paste special
+      window._ssPasteData = ssPasteData;
       navigator.clipboard.readText().then(text => {
         const rows = text.split('\n').filter(r => r.length);
         const clipData = rows.map(r => r.split('\t'));
@@ -6794,6 +6932,54 @@ $('#ssClearFmt').onclick = () => {
   ssPushUndo();
   for (let r = sr.minR; r <= sr.maxR; r++)
     for (let c = sr.minC; c <= sr.maxC; c++) delete ssFmt[r + ',' + c];
+  LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
+};
+
+// Number format helpers
+function ssApplyNumFmt(updater) {
+  if (!ssSel) return;
+  const sr = ssSelRange();
+  ssPushUndo();
+  for (let r = sr.minR; r <= sr.maxR; r++) {
+    for (let c = sr.minC; c <= sr.maxC; c++) {
+      const k = r + ',' + c;
+      if (!ssFmt[k]) ssFmt[k] = {};
+      if (!ssFmt[k].numFmt) ssFmt[k].numFmt = { type: 'decimal', decimals: 2 };
+      updater(ssFmt[k].numFmt);
+    }
+  }
+  LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
+}
+$('#ssIncDec').onclick = () => ssApplyNumFmt(nf => { nf.decimals = (nf.decimals != null ? nf.decimals : 0) + 1; });
+$('#ssDecDec').onclick = () => ssApplyNumFmt(nf => { nf.decimals = Math.max(0, (nf.decimals != null ? nf.decimals : 2) - 1); });
+$('#ssPctFmt').onclick = () => {
+  if (!ssSel) return;
+  const sr = ssSelRange();
+  const firstKey = ssSel.r1 + ',' + ssSel.c1;
+  const isAlreadyPct = ssFmt[firstKey] && ssFmt[firstKey].numFmt && ssFmt[firstKey].numFmt.type === 'percent';
+  ssPushUndo();
+  for (let r = sr.minR; r <= sr.maxR; r++) {
+    for (let c = sr.minC; c <= sr.maxC; c++) {
+      const k = r + ',' + c;
+      if (isAlreadyPct) { if (ssFmt[k] && ssFmt[k].numFmt) delete ssFmt[k].numFmt; }
+      else { if (!ssFmt[k]) ssFmt[k] = {}; ssFmt[k].numFmt = { type: 'percent', decimals: 1 }; }
+    }
+  }
+  LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
+};
+$('#ssCurrFmt').onclick = () => {
+  if (!ssSel) return;
+  const sr = ssSelRange();
+  const firstKey = ssSel.r1 + ',' + ssSel.c1;
+  const isAlreadyCurr = ssFmt[firstKey] && ssFmt[firstKey].numFmt && ssFmt[firstKey].numFmt.type === 'currency';
+  ssPushUndo();
+  for (let r = sr.minR; r <= sr.maxR; r++) {
+    for (let c = sr.minC; c <= sr.maxC; c++) {
+      const k = r + ',' + c;
+      if (isAlreadyCurr) { if (ssFmt[k] && ssFmt[k].numFmt) delete ssFmt[k].numFmt; }
+      else { if (!ssFmt[k]) ssFmt[k] = {}; ssFmt[k].numFmt = { type: 'currency', decimals: 2, symbol: '$' }; }
+    }
+  }
   LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
 };
 
@@ -6925,16 +7111,73 @@ $$('.ctx-item').forEach(item => {
     const action = item.dataset.action;
     const r = ctx._r, c = ctx._c;
     if (action !== 'copy' && action !== 'validate') ssPushUndo();
-    if (action === 'cut') { ssClipboard = ssD[r][c]; ssClipboardSrc = { row: r, col: c, isCut: true }; ssD[r][c] = ''; }
-    else if (action === 'copy') { ssClipboard = ssD[r][c]; ssClipboardSrc = { row: r, col: c }; }
-    else if (action === 'paste' && ssClipboard !== null) {
-      let val = ssClipboard;
-      if (typeof val === 'string' && val.startsWith('=') && ssClipboardSrc && !ssClipboardSrc.isCut) {
-        const rowOff = r - ssClipboardSrc.row;
-        const colOff = c - ssClipboardSrc.col;
-        if (rowOff !== 0 || colOff !== 0) val = ssFillAdjust(val, rowOff, colOff);
+    if (action === 'cut') {
+      // Use range-aware copy for context menu too
+      const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
+      const data = [], fmt = [];
+      for (let ri = sr.minR; ri <= sr.maxR; ri++) {
+        const row = [], fmtRow = [];
+        for (let ci = sr.minC; ci <= sr.maxC; ci++) {
+          row.push(ssD[ri][ci] || ''); ssD[ri][ci] = '';
+          const fk = ri + ',' + ci; const f = ssFmt[fk]; fmtRow.push(f ? Object.assign({}, f) : null); delete ssFmt[fk];
+        }
+        data.push(row); fmt.push(fmtRow);
       }
-      ssD[r][c] = val;
+      ssClipboardRange = { data, fmt, rows: data.length, cols: data[0].length, isCut: true };
+    }
+    else if (action === 'copy') {
+      const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
+      const data = [], fmt = [];
+      for (let ri = sr.minR; ri <= sr.maxR; ri++) {
+        const row = [], fmtRow = [];
+        for (let ci = sr.minC; ci <= sr.maxC; ci++) {
+          row.push(ssD[ri][ci] || '');
+          const f = ssFmt[ri + ',' + ci]; fmtRow.push(f ? Object.assign({}, f) : null);
+        }
+        data.push(row); fmt.push(fmtRow);
+      }
+      ssClipboardRange = { data, fmt, rows: data.length, cols: data[0].length, srcRow: sr.minR, srcCol: sr.minC };
+    }
+    else if ((action === 'paste' || action === 'pasteValues' || action === 'pasteFormulas' || action === 'pasteFormat') && ssClipboardRange) {
+      const modeMap = { paste: 'all', pasteValues: 'values', pasteFormulas: 'formulas', pasteFormat: 'format' };
+      const mode = modeMap[action];
+      // Set selection anchor to right-click target if no range selected
+      if (!ssSel) ssSel = { r1: r, c1: c, r2: r, c2: c };
+      const sel = ssSelRange();
+      const clip = ssClipboardRange;
+      const clipRows = clip.rows, clipCols = clip.cols;
+      const selRows = sel.maxR - sel.minR + 1, selCols = sel.maxC - sel.minC + 1;
+      let pasteRows, pasteCols;
+      if (selRows === 1 && selCols === 1) { pasteRows = clipRows; pasteCols = clipCols; }
+      else if (clipRows === 1 && clipCols === 1) { pasteRows = selRows; pasteCols = selCols; }
+      else { pasteRows = Math.max(selRows, clipRows); pasteCols = Math.max(selCols, clipCols); }
+      for (let ri = 0; ri < pasteRows; ri++) {
+        for (let ci = 0; ci < pasteCols; ci++) {
+          const tr = sel.minR + ri, tc = sel.minC + ci;
+          if (tr >= ssR || tc >= ssC) continue;
+          if (mode !== 'format') {
+            let val = clip.data[ri % clipRows][ci % clipCols] || '';
+            if (mode === 'values' && typeof val === 'string' && val.startsWith('=')) val = String(evalF(val));
+            if (mode !== 'values' && typeof val === 'string' && val.startsWith('=') && !clip.isCut) {
+              const rowOff = (sel.minR + ri) - ((clip.srcRow || 0) + (ri % clipRows));
+              const colOff = (sel.minC + ci) - ((clip.srcCol || 0) + (ci % clipCols));
+              if (rowOff !== 0 || colOff !== 0) val = ssFillAdjust(val, rowOff, colOff);
+            }
+            ssD[tr][tc] = val;
+          }
+          if (mode === 'all' || mode === 'format') {
+            const fk = tr + ',' + tc;
+            if (clip.fmt) {
+              const srcFmt = clip.fmt[ri % clipRows] ? clip.fmt[ri % clipRows][ci % clipCols] : null;
+              if (srcFmt) ssFmt[fk] = Object.assign({}, srcFmt);
+              else delete ssFmt[fk];
+            }
+          }
+        }
+      }
+      ssSel.r2 = Math.min(sel.minR + pasteRows - 1, ssR - 1);
+      ssSel.c2 = Math.min(sel.minC + pasteCols - 1, ssC - 1);
+      LS('ssFmt', ssFmt);
     }
     else if (action === 'insertRow') {
       const idx = ssSel ? Math.max(ssSel.r1, ssSel.r2) + 1 : r + 1;
