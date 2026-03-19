@@ -11,6 +11,9 @@
 // ── Complexity Detection ──
 
 export function isComplexRequest(input) {
+  // Never orchestrate bracket/tournament requests — they are single-focus tasks
+  if (/bracket|tournament|march madness|ncaa|final four|sweet sixteen|elite eight/i.test(input)) return false;
+
   const signals = [
     input.split(/\band\b|\bthen\b|,/).length > 2,
     /compare.*and.*and/i.test(input),
@@ -107,6 +110,7 @@ Available tool categories:
 - CONCEPT MAP: add_concept_edge, remove_concept_node, clear_concept_map, set_concept_map_layout
 - RESEARCH: deep_research, build_thesis, sentiment_summary (for multi-source research, plan a CONSOLIDATION task at the end that reads all prior results and synthesizes them into a unified notepad page and summary table)
 - IMAGE/MEME: search_image, create_meme
+- BRACKET: get_bracket_state, generate_bracket (NCAA Tournament bracket — read games/scores, annotate with picks and analysis)
 
 Return ONLY valid JSON (no markdown, no code fences):
 {

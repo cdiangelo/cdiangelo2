@@ -2733,7 +2733,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <!-- Bracket sub-tab (seasonal: Feb-Apr) -->
         <div id="spBracketTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
           <div class="toolbar" style="flex-wrap:wrap;gap:4px;">
-            <span style="font-size:.62rem;font-weight:700;color:var(--text);">NCAA Tournament Bracket</span>
+            <span style="font-size:.62rem;font-weight:700;color:var(--text);">NCAA Bracket</span>
             <button id="spBracketFetch" style="font-size:.58rem;background:rgba(59,130,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;" title="Fetch live tournament data from ESPN">Load Bracket</button>
             <button id="spBracketRefresh" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Refresh scores">&#8635; Refresh</button>
             <button id="spBracketReset" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Reset user picks">Reset Picks</button>
@@ -2741,10 +2741,20 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <button id="spBracketAskClaude" style="font-size:.58rem;background:rgba(139,92,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;display:none;" title="Ask Claude to annotate your bracket">Claude Analyze</button>
             <span id="spBracketStatus" style="font-size:.48rem;color:var(--text-dim);"></span>
           </div>
+          <div id="spBracketRoundTabs" style="display:none;padding:2px 6px;border-bottom:1px solid var(--border);gap:2px;flex-wrap:wrap;align-items:center;">
+            <button class="brk-rtab brk-rtab-active" data-brkround="all" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--accent);border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600;">All</button>
+            <button class="brk-rtab" data-brkround="0" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-dim);cursor:pointer;">First Four</button>
+            <button class="brk-rtab" data-brkround="1" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-dim);cursor:pointer;">Rd of 64</button>
+            <button class="brk-rtab" data-brkround="2" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-dim);cursor:pointer;">Rd of 32</button>
+            <button class="brk-rtab" data-brkround="3" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-dim);cursor:pointer;">Sweet 16</button>
+            <button class="brk-rtab" data-brkround="4" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-dim);cursor:pointer;">Elite 8</button>
+            <button class="brk-rtab" data-brkround="5" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-dim);cursor:pointer;">Final Four</button>
+            <button class="brk-rtab" data-brkround="6" style="font-size:.5rem;padding:2px 8px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-dim);cursor:pointer;">Championship</button>
+          </div>
           <div id="spBracketView" style="flex:1;overflow:auto;padding:6px;position:relative;">
             <div class="sp-empty" style="text-align:center;padding:30px 10px;">
               <div style="font-size:.72rem;margin-bottom:6px;">NCAA Tournament Bracket</div>
-              <div style="font-size:.58rem;color:var(--text-dim);">Click <b>Load Bracket</b> to fetch the 2026 tournament field from ESPN.<br/>Completed games auto-populate. Click teams to pick winners for open games.</div>
+              <div style="font-size:.58rem;color:var(--text-dim);">Click <b>Load Bracket</b> to fetch the tournament field from ESPN.<br/>Completed games show scores. Click teams to pick winners.</div>
             </div>
           </div>
         </div>
@@ -11407,17 +11417,19 @@ $('#spYtSearch').addEventListener('keydown', e => {
 })();
 
 // ── Bracket data store ──
-let spBracketData = null;        // { regions, games, userPicks, annotations }
-let spBracketAnnotations = {};   // gameId → { edge, tags, pct }
+let spBracketData = null;
+let spBracketAnnotations = {};
+let spBracketRoundFilter = 'all';
 const BRACKET_TAG_COLORS = {
-  lock: { bg: '#16a34a', label: 'Lock' },
-  upset: { bg: '#f59e0b', label: 'Upset' },
-  run_candidate: { bg: '#3b82f6', label: 'Run' },
-  vegas_fade: { bg: '#ef4444', label: 'Fade' },
-  value: { bg: '#8b5cf6', label: 'Value' },
-  contrarian: { bg: '#ec4899', label: 'Contrarian' }
+  lock:           { bg: '#16a34a', label: 'Lock',       icon: '\uD83D\uDD12' },
+  upset:          { bg: '#f59e0b', label: 'Upset',      icon: '\u26A0\uFE0F' },
+  run_candidate:  { bg: '#0ea5e9', label: 'Deep Run',   icon: '\uD83C\uDFC3' },
+  vegas_fade:     { bg: '#ef4444', label: 'Fade',       icon: '\uD83C\uDFB2' },
+  value:          { bg: '#a855f7', label: 'Value',      icon: '\uD83D\uDCA1' },
+  contrarian:     { bg: '#ec4899', label: 'Contrarian', icon: '\uD83D\uDD04' }
 };
-const BRACKET_ROUND_NAMES = { 1: 'Round of 64', 2: 'Round of 32', 3: 'Sweet 16', 4: 'Elite 8', 5: 'Final Four', 6: 'Championship' };
+const BRACKET_ROUND_NAMES = { 0: 'First Four', 1: 'Round of 64', 2: 'Round of 32', 3: 'Sweet 16', 4: 'Elite 8', 5: 'Final Four', 6: 'Championship' };
+const BRACKET_REGION_COLORS = { South: '#ef4444', East: '#3b82f6', West: '#f59e0b', Midwest: '#16a34a', Other: '#6b7280' };
 
 // Fetch NCAA tournament bracket data from ESPN
 async function spFetchBracket() {
@@ -11504,10 +11516,19 @@ async function spFetchBracket() {
     spBracketData = { games: games, userPicks: savedPicks, fetchedAt: new Date().toISOString() };
     spBracketAnnotations = savedAnnotations;
 
-    // Show toolbar buttons
+    // Show toolbar buttons + round tabs
     if ($('#spBracketRefresh')) $('#spBracketRefresh').style.display = '';
     if ($('#spBracketReset')) $('#spBracketReset').style.display = '';
     if ($('#spBracketAskClaude')) $('#spBracketAskClaude').style.display = '';
+    if ($('#spBracketRoundTabs')) $('#spBracketRoundTabs').style.display = 'flex';
+
+    // Hide round tabs that have no games
+    var roundsPresent = new Set(games.map(g => g.round));
+    $$('.brk-rtab').forEach(function(btn) {
+      var r = btn.getAttribute('data-brkround');
+      if (r !== 'all' && !roundsPresent.has(parseInt(r))) btn.style.display = 'none';
+      else btn.style.display = '';
+    });
 
     spRenderBracket();
     if ($('#spBracketStatus')) $('#spBracketStatus').textContent = 'Updated ' + new Date().toLocaleTimeString();
@@ -11527,80 +11548,74 @@ function _bracketDateRange() {
   return fmt(start) + '-' + fmt(end);
 }
 
-// Main bracket renderer
+// Main bracket renderer — matchup box layout
 function spRenderBracket() {
   var view = $('#spBracketView');
   if (!view || !spBracketData) return;
   var games = spBracketData.games || [];
   var picks = spBracketData.userPicks || {};
+  var filter = spBracketRoundFilter;
 
   if (games.length === 0) {
-    view.innerHTML = '<div class="sp-empty" style="padding:20px;text-align:center;"><div style="font-size:.68rem;">No tournament games found</div><div style="font-size:.52rem;color:var(--text-dim);">The tournament may not have started yet, or ESPN data is not available.</div></div>';
+    view.innerHTML = '<div class="sp-empty" style="padding:20px;text-align:center;"><div style="font-size:.68rem;">No tournament games found</div><div style="font-size:.52rem;color:var(--text-dim);">Tournament may not have started, or ESPN data unavailable.</div></div>';
     return;
   }
 
-  // Group games by round
-  var byRound = {};
-  games.forEach(function(g) {
-    if (!byRound[g.round]) byRound[g.round] = [];
-    byRound[g.round].push(g);
-  });
+  // Filter by round
+  var filtered = filter === 'all' ? games : games.filter(function(g) { return g.round === parseInt(filter); });
 
   var html = '';
-  // Title
+  // Compact header
   var yr = new Date().getFullYear();
-  html += '<div style="text-align:center;margin-bottom:6px;">';
-  html += '<div style="font-size:.82rem;font-weight:700;color:var(--text);">' + yr + ' NCAA Tournament Bracket</div>';
-  var total = games.length, completed = games.filter(g => g.completed).length;
-  html += '<div style="font-size:.5rem;color:var(--text-dim);">' + completed + ' of ' + total + ' games completed</div>';
+  var total = filtered.length, completed = filtered.filter(g => g.completed).length;
+  var live = filtered.filter(g => g.state === 'STATUS_IN_PROGRESS').length;
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding:0 2px;">';
+  html += '<span style="font-size:.7rem;font-weight:700;color:var(--text);">' + yr + ' NCAA Tournament</span>';
+  html += '<span style="font-size:.48rem;color:var(--text-dim);">' + completed + '/' + total + ' final' + (live ? ' &middot; <span style="color:#ef4444;font-weight:700;">' + live + ' live</span>' : '') + '</span>';
   html += '</div>';
 
-  // Legend
-  html += '<div style="display:flex;gap:6px;justify-content:center;margin-bottom:6px;flex-wrap:wrap;align-items:center;">';
-  html += '<span style="font-size:.44rem;padding:1px 5px;border-radius:3px;background:#16a34a;color:#fff;">Final</span>';
-  html += '<span style="font-size:.44rem;padding:1px 5px;border-radius:3px;background:#ef4444;color:#fff;">Live</span>';
-  html += '<span style="font-size:.44rem;padding:1px 5px;border-radius:3px;background:rgba(59,130,246,.3);color:var(--text);">Your Pick</span>';
-  Object.keys(BRACKET_TAG_COLORS).forEach(function(k) {
-    html += '<span style="font-size:.42rem;padding:1px 4px;border-radius:2px;background:'+BRACKET_TAG_COLORS[k].bg+';color:#fff;">'+BRACKET_TAG_COLORS[k].label+'</span>';
-  });
-  html += '</div>';
-
-  // Render each round
+  // Group by round then region
+  var byRound = {};
+  filtered.forEach(function(g) { if (!byRound[g.round]) byRound[g.round] = []; byRound[g.round].push(g); });
   var roundOrder = Object.keys(byRound).map(Number).sort((a,b) => a - b);
+
   roundOrder.forEach(function(roundNum) {
     var roundGames = byRound[roundNum];
-    var roundName = BRACKET_ROUND_NAMES[roundNum] || (roundNum === 0 ? 'First Four' : 'Round ' + roundNum);
+    var roundName = BRACKET_ROUND_NAMES[roundNum] || 'Round ' + roundNum;
+    var roundDone = roundGames.filter(g=>g.completed).length;
 
-    html += '<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden;">';
-    html += '<div style="background:rgba(59,130,246,.12);padding:3px 8px;font-weight:700;font-size:.62rem;color:var(--accent);display:flex;justify-content:space-between;align-items:center;">';
-    html += '<span>' + esc(roundName) + '</span>';
-    html += '<span style="font-size:.46rem;color:var(--text-dim);font-weight:400;">' + roundGames.filter(g=>g.completed).length + '/' + roundGames.length + ' complete</span>';
-    html += '</div>';
+    // Round header (collapsible feel)
+    if (filter === 'all') {
+      html += '<div style="padding:3px 6px;margin-top:4px;font-weight:700;font-size:.58rem;color:var(--accent);border-bottom:2px solid var(--accent);display:flex;justify-content:space-between;">';
+      html += '<span>' + esc(roundName) + '</span>';
+      html += '<span style="font-size:.44rem;font-weight:400;color:var(--text-dim);">' + roundDone + '/' + roundGames.length + '</span>';
+      html += '</div>';
+    }
 
-    // Group by region within round
+    // Group by region
     var byRegion = {};
-    roundGames.forEach(function(g) {
-      var r = g.region || 'Other';
-      if (!byRegion[r]) byRegion[r] = [];
-      byRegion[r].push(g);
-    });
+    roundGames.forEach(function(g) { var r = g.region || 'Other'; if (!byRegion[r]) byRegion[r] = []; byRegion[r].push(g); });
 
     Object.keys(byRegion).sort().forEach(function(regionName) {
       var regionGames = byRegion[regionName];
-      if (roundNum <= 4 && regionName !== 'Other') {
-        html += '<div style="padding:2px 8px;font-size:.5rem;font-weight:600;color:var(--text-dim);background:rgba(255,255,255,.02);border-bottom:1px solid var(--border);">' + esc(regionName) + ' Region</div>';
-      }
-      regionGames.forEach(function(game) {
-        html += _renderBracketGame(game, picks);
-      });
-    });
+      var rColor = BRACKET_REGION_COLORS[regionName] || '#6b7280';
 
-    html += '</div>';
+      if (roundNum <= 4 && regionName !== 'Other') {
+        html += '<div style="padding:2px 6px;font-size:.48rem;font-weight:600;color:' + rColor + ';border-left:3px solid ' + rColor + ';margin:4px 0 2px 0;">' + esc(regionName) + ' Region</div>';
+      }
+
+      // Games grid — matchup boxes
+      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;padding:2px 4px;">';
+      regionGames.forEach(function(game) {
+        html += _renderMatchupBox(game, picks);
+      });
+      html += '</div>';
+    });
   });
 
   view.innerHTML = html;
 
-  // Attach click handlers for picking winners
+  // Attach click handlers
   view.querySelectorAll('[data-pick-game]').forEach(function(el) {
     el.onclick = function() {
       var gid = this.getAttribute('data-pick-game');
@@ -11610,72 +11625,86 @@ function spRenderBracket() {
   });
 }
 
-// Render a single game matchup
-function _renderBracketGame(game, picks) {
+// Render a single matchup as a compact box with two teams stacked
+function _renderMatchupBox(game, picks) {
   var ann = spBracketAnnotations[game.id] || {};
-  var isLive = game.state === 'STATUS_IN_PROGRESS' || game.statusText.toLowerCase().includes('half');
+  var isLive = game.state === 'STATUS_IN_PROGRESS' || (game.statusText || '').toLowerCase().includes('half');
   var isFinal = game.completed;
-  var userPick = picks[game.id]; // team index (0 or 1)
+  var userPick = picks[game.id];
 
-  var borderColor = isFinal ? '#16a34a' : isLive ? '#ef4444' : 'var(--border)';
-  var html = '<div style="padding:4px 8px;border-bottom:1px solid var(--border);border-left:3px solid ' + borderColor + ';">';
+  // Box border color
+  var borderColor = isLive ? '#ef4444' : isFinal ? '#16a34a' : 'var(--border)';
+  var boxShadow = isLive ? 'box-shadow:0 0 6px rgba(239,68,68,.3);' : '';
 
+  var html = '<div style="border:1px solid ' + borderColor + ';border-radius:5px;min-width:140px;max-width:200px;flex:1;overflow:hidden;' + boxShadow + '">';
+
+  // Teams (stacked tight)
   if (game.teams.length >= 2) {
     game.teams.forEach(function(team, ti) {
       var isWinner = isFinal && team.winner;
+      var isLoser = isFinal && !team.winner;
       var isPicked = userPick === ti;
       var canPick = !isFinal && game.teams.length === 2;
-      var bgColor = isWinner ? 'rgba(22,163,74,.1)' : isPicked ? 'rgba(59,130,246,.1)' : 'transparent';
-      var cursor = canPick ? 'pointer' : 'default';
-      var fontWeight = isWinner || isPicked ? '700' : '500';
 
-      html += '<div style="display:flex;align-items:center;gap:4px;padding:2px 4px;border-radius:3px;background:' + bgColor + ';cursor:' + cursor + ';margin:1px 0;"';
-      if (canPick) html += ' data-pick-game="' + game.id + '" data-pick-team="' + ti + '" title="Click to pick ' + esc(team.name) + '"';
+      var bg = isWinner ? 'rgba(22,163,74,.12)' : isPicked ? 'rgba(59,130,246,.12)' : 'transparent';
+      var opacity = isLoser ? 'opacity:.5;' : '';
+      var cursor = canPick ? 'cursor:pointer;' : '';
+      var borderBot = ti === 0 ? 'border-bottom:1px solid ' + (isFinal ? '#16a34a33' : isLive ? '#ef444433' : 'var(--border)') + ';' : '';
+
+      html += '<div style="display:flex;align-items:center;gap:3px;padding:3px 5px;background:' + bg + ';' + opacity + cursor + borderBot + '"';
+      if (canPick) html += ' data-pick-game="' + game.id + '" data-pick-team="' + ti + '" title="Pick ' + esc(team.name) + '"';
       html += '>';
 
-      // Seed
-      if (team.seed) html += '<span style="font-size:.46rem;color:var(--text-dim);min-width:14px;text-align:right;">' + team.seed + '</span>';
+      // Seed badge
+      if (team.seed) html += '<span style="font-size:.44rem;color:var(--text-dim);min-width:12px;text-align:right;font-weight:600;">' + team.seed + '</span>';
 
       // Team name
-      html += '<span style="font-size:.58rem;font-weight:' + fontWeight + ';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (isWinner ? 'color:#16a34a;' : '') + '">' + esc(team.name) + '</span>';
+      var nameColor = isWinner ? '#16a34a' : 'var(--text)';
+      var nameWeight = isWinner || isPicked ? '700' : '500';
+      html += '<span style="font-size:.56rem;font-weight:' + nameWeight + ';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + nameColor + ';">' + esc(team.name) + '</span>';
 
-      // Score (for live/final games)
+      // Score
       if (isFinal || isLive) {
-        html += '<span style="font-size:.56rem;font-weight:700;min-width:20px;text-align:right;' + (isWinner ? 'color:#16a34a;' : isLive ? 'color:#ef4444;' : '') + '">' + team.score + '</span>';
+        var scoreColor = isWinner ? '#16a34a' : isLive ? '#ef4444' : 'var(--text)';
+        html += '<span style="font-size:.56rem;font-weight:700;color:' + scoreColor + ';min-width:18px;text-align:right;">' + team.score + '</span>';
       }
 
-      // Pick indicator
-      if (isPicked && !isFinal) html += '<span style="font-size:.42rem;color:var(--accent);">&#10003;</span>';
-      if (isWinner) html += '<span style="font-size:.42rem;color:#16a34a;">&#9733;</span>';
+      // Pick / winner markers
+      if (isPicked && !isFinal) html += '<span style="font-size:.4rem;color:var(--accent);margin-left:1px;">&#10003;</span>';
+      if (isWinner) html += '<span style="font-size:.4rem;color:#16a34a;margin-left:1px;">&#9733;</span>';
 
       html += '</div>';
     });
   } else {
-    html += '<div style="font-size:.52rem;color:var(--text-dim);padding:2px;">TBD</div>';
+    html += '<div style="padding:6px;font-size:.5rem;color:var(--text-dim);text-align:center;">TBD</div>';
   }
 
-  // Status line
-  var statusParts = [];
-  if (isLive) statusParts.push('<span style="color:#ef4444;font-weight:700;">LIVE: ' + esc(game.statusText) + '</span>');
-  else if (isFinal) statusParts.push('<span style="color:#16a34a;">Final</span>');
-  else if (game.statusText) statusParts.push(esc(game.statusText));
+  // Bottom bar: status + annotations
+  var bottomParts = [];
+  if (isLive) bottomParts.push('<span style="color:#ef4444;font-weight:700;">LIVE ' + esc(game.statusText) + '</span>');
+  else if (isFinal) bottomParts.push('<span style="color:#16a34a;">Final</span>');
+  else if (game.statusText) bottomParts.push(esc(game.statusText));
   else if (game.startTime) {
     var d = new Date(game.startTime);
-    statusParts.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+    bottomParts.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
   }
 
-  // Claude annotations
-  if (ann.edge) statusParts.push('<span style="color:var(--accent);font-style:italic;">' + esc(ann.edge) + '</span>');
+  // Annotation tags (distinct colors)
   if (ann.tags && ann.tags.length) {
     ann.tags.forEach(function(t) {
       var tc = BRACKET_TAG_COLORS[t];
-      if (tc) statusParts.push('<span style="padding:0 3px;border-radius:2px;background:' + tc.bg + ';color:#fff;">' + tc.label + '</span>');
+      if (tc) bottomParts.push('<span style="padding:0 3px;border-radius:2px;background:' + tc.bg + ';color:#fff;font-size:.38rem;font-weight:600;">' + tc.icon + ' ' + tc.label + '</span>');
     });
   }
-  if (ann.pct) statusParts.push('<span style="color:var(--accent);">' + ann.pct + '%</span>');
+  if (ann.pct) bottomParts.push('<span style="font-weight:700;color:var(--accent);">' + ann.pct + '%</span>');
 
-  if (statusParts.length) {
-    html += '<div style="font-size:.42rem;color:var(--text-dim);margin-top:1px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;">' + statusParts.join(' ') + '</div>';
+  if (bottomParts.length) {
+    html += '<div style="padding:1px 5px 2px;font-size:.4rem;color:var(--text-dim);display:flex;gap:3px;flex-wrap:wrap;align-items:center;background:rgba(0,0,0,.05);">' + bottomParts.join(' ') + '</div>';
+  }
+
+  // Edge annotation (if any)
+  if (ann.edge) {
+    html += '<div style="padding:1px 5px 2px;font-size:.38rem;color:var(--accent);font-style:italic;background:rgba(59,130,246,.04);border-top:1px solid rgba(59,130,246,.1);">' + esc(ann.edge) + '</div>';
   }
 
   html += '</div>';
@@ -11713,6 +11742,20 @@ if ($('#spBracketRefresh')) $('#spBracketRefresh').onclick = spFetchBracket;
 if ($('#spBracketReset')) $('#spBracketReset').onclick = function() {
   if (confirm('Reset all picks and annotations?')) _bracketResetPicks();
 };
+
+// Round filter tabs
+$$('.brk-rtab').forEach(function(btn) {
+  btn.onclick = function() {
+    spBracketRoundFilter = this.getAttribute('data-brkround');
+    $$('.brk-rtab').forEach(function(b) {
+      b.style.background = 'none'; b.style.color = 'var(--text-dim)'; b.style.borderColor = 'var(--border)';
+      b.classList.remove('brk-rtab-active');
+    });
+    this.style.background = 'var(--accent)'; this.style.color = '#fff'; this.style.borderColor = 'var(--accent)';
+    this.classList.add('brk-rtab-active');
+    spRenderBracket();
+  };
+});
 
 // "Claude Analyze" button → ask Claude to annotate the bracket
 if ($('#spBracketAskClaude')) {
