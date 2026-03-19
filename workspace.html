@@ -452,6 +452,31 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.heat-red { background: rgba(204,68,68,.15); }
 .ss-table td.heat-yellow { background: rgba(204,153,51,.15); }
 .ss-table td.validation-error { border-color: var(--danger); }
+/* Row/column grouping */
+.ss-table th.row-h { position: relative; }
+.ss-table th.row-h .grp-toggle {
+  display: inline-block; width: 14px; height: 14px; line-height: 13px; text-align: center;
+  font-size: .6rem; font-weight: 700; cursor: pointer; border-radius: 3px;
+  background: rgba(255,255,255,.08); border: 1px solid var(--border); color: var(--text-dim);
+  margin-right: 2px; vertical-align: middle; user-select: none;
+}
+.ss-table th.row-h .grp-toggle:hover { background: rgba(59,130,246,.25); color: var(--text); }
+.ss-table tr.grp-hidden { display: none; }
+.ss-table th.row-h.grp-indent-1 .row-num { padding-left: 12px; }
+.ss-table th.row-h.grp-indent-2 .row-num { padding-left: 24px; }
+.ss-table th.row-h.grp-indent-3 .row-num { padding-left: 36px; }
+.ss-table th.col-grp-header {
+  position: relative; font-size: .55rem; padding: 1px 2px; height: 16px; cursor: pointer;
+}
+.ss-table th.col-grp-header .grp-toggle {
+  display: inline-block; width: 14px; height: 14px; line-height: 13px; text-align: center;
+  font-size: .55rem; font-weight: 700; cursor: pointer; border-radius: 3px;
+  background: rgba(255,255,255,.08); border: 1px solid var(--border); color: var(--text-dim);
+  user-select: none;
+}
+.ss-table th.col-grp-header .grp-toggle:hover { background: rgba(59,130,246,.25); color: var(--text); }
+.ss-table col.grp-hidden-col { width: 0 !important; visibility: collapse; }
+.ss-table td.grp-hidden-col, .ss-table th.grp-hidden-col { display: none; }
 
 /* Formula parameter hint tooltip */
 .ss-formula-tooltip {
@@ -2636,6 +2661,14 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="deleteRow">Delete Row</div>
   <div class="ctx-item" data-action="deleteCol">Delete Column</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="groupRows">Group Rows</div>
+  <div class="ctx-item" data-action="ungroupRows">Ungroup Rows</div>
+  <div class="ctx-item" data-action="groupCols">Group Columns</div>
+  <div class="ctx-item" data-action="ungroupCols">Ungroup Columns</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="indentRow">Indent Row &rarr;</div>
+  <div class="ctx-item" data-action="outdentRow">Outdent Row &larr;</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="validate">Validate...</div>
 </div>
@@ -5336,6 +5369,26 @@ let ssUndoHist = []; // array of { data, rows, cols } snapshots
 let ssColWidths = LS('ssColWidths') || []; // per-column widths
 // Cell formatting: ssFmt[r][c] = { bg, color, bold } — sparse, only set cells have entries
 let ssFmt = LS('ssFmt') || {};
+// Row/column grouping: arrays of { start, end, collapsed }
+let ssRowGroups = LS('ssRowGroups') || [];
+let ssColGroups = LS('ssColGroups') || [];
+// Row indentation levels: ssRowIndent[r] = 0|1|2|3
+let ssRowIndent = LS('ssRowIndent') || {};
+
+function ssIsRowHidden(r) {
+  // When collapsed, hide all rows EXCEPT the start row (which has the toggle)
+  return ssRowGroups.some(g => g.collapsed && r > g.start && r <= g.end);
+}
+function ssIsColHidden(c) {
+  // When collapsed, hide all cols EXCEPT the start col (which has the toggle in header)
+  return ssColGroups.some(g => g.collapsed && c > g.start && c <= g.end);
+}
+function ssSaveGroups() {
+  LS('ssRowGroups', ssRowGroups);
+  LS('ssColGroups', ssColGroups);
+  LS('ssRowIndent', ssRowIndent);
+  ssSaveCurrentPage();
+}
 
 function ssSelRange() {
   if (!ssSel) return null;
@@ -5509,6 +5562,9 @@ function ssSaveCurrentPage() {
     page.data = JSON.parse(JSON.stringify(ssD));
     page.colNames = ssColNames.slice();
     page.fmt = JSON.parse(JSON.stringify(ssFmt));
+    page.rowGroups = JSON.parse(JSON.stringify(ssRowGroups));
+    page.colGroups = JSON.parse(JSON.stringify(ssColGroups));
+    page.rowIndent = JSON.parse(JSON.stringify(ssRowIndent));
   }
   saveSsPages();
   LS('sheet', ssD);
@@ -5525,11 +5581,15 @@ function ssSwitchPage(id) {
     ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10;
     ssColNames = page.colNames ? page.colNames.slice() : [];
     ssFmt = page.fmt ? JSON.parse(JSON.stringify(page.fmt)) : {};
+    ssRowGroups = page.rowGroups ? JSON.parse(JSON.stringify(page.rowGroups)) : [];
+    ssColGroups = page.colGroups ? JSON.parse(JSON.stringify(page.colGroups)) : [];
+    ssRowIndent = page.rowIndent ? JSON.parse(JSON.stringify(page.rowIndent)) : {};
   } else {
     ssD = []; ssR = 20; ssC = 10;
     for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; }
     ssColNames = [];
     ssFmt = {};
+    ssRowGroups = []; ssColGroups = []; ssRowIndent = {};
   }
   LS('sheet', ssD); LS('sheetColNames', ssColNames);
   ssRender();
@@ -5584,6 +5644,9 @@ function ssInit() {
     ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10;
     ssColNames = initPage.colNames ? initPage.colNames.slice() : [];
     ssFmt = initPage.fmt ? JSON.parse(JSON.stringify(initPage.fmt)) : (LS('ssFmt') || {});
+    ssRowGroups = initPage.rowGroups ? JSON.parse(JSON.stringify(initPage.rowGroups)) : (LS('ssRowGroups') || []);
+    ssColGroups = initPage.colGroups ? JSON.parse(JSON.stringify(initPage.colGroups)) : (LS('ssColGroups') || []);
+    ssRowIndent = initPage.rowIndent ? JSON.parse(JSON.stringify(initPage.rowIndent)) : (LS('ssRowIndent') || {});
   } else {
     ssD = LS('sheet') || [];
     if (!ssD.length) { for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; } }
@@ -6330,14 +6393,36 @@ function ssRender() {
   let totalW = 40; // row header column
   let h = '<colgroup><col style="width:40px;">';
   for (let c = 0; c < ssC; c++) {
+    if (ssIsColHidden(c)) { h += '<col style="width:0;">'; continue; }
     const w = ssColWidths[c] || 80;
     totalW += w;
     h += '<col style="width:' + w + 'px;">';
   }
   h += '</colgroup>';
   t.style.width = totalW + 'px';
-  h += '<thead><tr><th class="corner"></th>';
-  for (let c = 0; c < ssC; c++) h += '<th data-c="'+c+'" style="position:relative;">' + (ssColNames[c] || colN(c)) + '<div class="col-resize-handle" data-col="'+c+'"></div></th>';
+  // Column grouping header row (only if groups exist)
+  const hasColGroups = ssColGroups.length > 0;
+  h += '<thead>';
+  if (hasColGroups) {
+    h += '<tr class="col-grp-row"><th class="corner" style="height:16px;"></th>';
+    for (let c = 0; c < ssC; c++) {
+      const grp = ssColGroups.find(g => c === g.start);
+      if (ssIsColHidden(c)) { h += '<th class="col-grp-header grp-hidden-col" data-c="'+c+'"></th>'; continue; }
+      if (grp) {
+        h += '<th class="col-grp-header" data-c="'+c+'" data-grp-start="'+grp.start+'" data-grp-end="'+grp.end+'">';
+        h += '<span class="grp-toggle" data-grp-type="col" data-grp-start="'+grp.start+'" data-grp-end="'+grp.end+'">' + (grp.collapsed ? '+' : '−') + '</span>';
+        h += '</th>';
+      } else {
+        h += '<th class="col-grp-header" data-c="'+c+'"></th>';
+      }
+    }
+    h += '</tr>';
+  }
+  h += '<tr><th class="corner"></th>';
+  for (let c = 0; c < ssC; c++) {
+    if (ssIsColHidden(c)) { h += '<th data-c="'+c+'" class="grp-hidden-col"></th>'; continue; }
+    h += '<th data-c="'+c+'" style="position:relative;">' + (ssColNames[c] || colN(c)) + '<div class="col-resize-handle" data-col="'+c+'"></div></th>';
+  }
   h += '</tr></thead><tbody>';
   // Compute all values for heat map
   let allNums = [];
@@ -6353,8 +6438,17 @@ function ssRender() {
   const hRange = hMax - hMin || 1;
 
   for (let r = 0; r < ssR; r++) {
-    h += '<tr><th class="row-h">' + (r+1) + '</th>';
+    const rowHidden = ssIsRowHidden(r);
+    const rowGrp = ssRowGroups.find(g => r === g.start);
+    const indent = ssRowIndent[r] || 0;
+    const indentCls = indent > 0 ? ' grp-indent-' + Math.min(indent, 3) : '';
+    h += '<tr' + (rowHidden ? ' class="grp-hidden"' : '') + '><th class="row-h' + indentCls + '">';
+    if (rowGrp) {
+      h += '<span class="grp-toggle" data-grp-type="row" data-grp-start="'+rowGrp.start+'" data-grp-end="'+rowGrp.end+'">' + (rowGrp.collapsed ? '+' : '−') + '</span>';
+    }
+    h += '<span class="row-num">' + (r+1) + '</span></th>';
     for (let c = 0; c < ssC; c++) {
+      if (ssIsColHidden(c)) { h += '<td class="grp-hidden-col" data-r="'+r+'" data-c="'+c+'"></td>'; continue; }
       const raw = ssD[r][c] || '';
       const isF = typeof raw === 'string' && raw.startsWith('=');
       let display = ssShowFormulas ? raw : (isF ? evalF(raw) : raw);
@@ -6448,6 +6542,18 @@ function ssRender() {
 
   // Apply selection visuals after render
   ssRenderSelection();
+
+  // Attach group toggle click handlers
+  t.querySelectorAll('.grp-toggle').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const type = btn.dataset.grpType;
+      const start = +btn.dataset.grpStart, end = +btn.dataset.grpEnd;
+      const groups = type === 'row' ? ssRowGroups : ssColGroups;
+      const grp = groups.find(g => g.start === start && g.end === end);
+      if (grp) { grp.collapsed = !grp.collapsed; ssSaveGroups(); ssRender(); }
+    });
+  });
 }
 
 // ── Column resize drag handler ──
@@ -7201,6 +7307,52 @@ $$('.ctx-item').forEach(item => {
         const count = Math.min(maxC - minC + 1, ssC - 1);
         ssD.forEach(row => row.splice(minC, count)); ssC -= count; ssSel = null;
       } else { ssD.forEach(row => row.splice(c, 1)); ssC--; }
+    }
+    else if (action === 'groupRows') {
+      const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
+      if (sr.minR === sr.maxR) { toast('Select multiple rows to group'); return; }
+      // Don't allow overlapping groups — check if any existing group overlaps
+      const overlap = ssRowGroups.some(g => !(sr.maxR < g.start || sr.minR > g.end));
+      if (overlap) { toast('Rows already in a group — ungroup first'); return; }
+      ssRowGroups.push({ start: sr.minR, end: sr.maxR, collapsed: false });
+      ssSaveGroups(); ssRender(); toast('Grouped rows ' + (sr.minR+1) + '-' + (sr.maxR+1)); return;
+    }
+    else if (action === 'ungroupRows') {
+      const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
+      const before = ssRowGroups.length;
+      ssRowGroups = ssRowGroups.filter(g => g.start < sr.minR || g.end > sr.maxR);
+      if (ssRowGroups.length === before) { toast('No row group in selection'); return; }
+      ssSaveGroups(); ssRender(); toast('Ungrouped rows'); return;
+    }
+    else if (action === 'groupCols') {
+      const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
+      if (sr.minC === sr.maxC) { toast('Select multiple columns to group'); return; }
+      const overlap = ssColGroups.some(g => !(sr.maxC < g.start || sr.minC > g.end));
+      if (overlap) { toast('Columns already in a group — ungroup first'); return; }
+      ssColGroups.push({ start: sr.minC, end: sr.maxC, collapsed: false });
+      ssSaveGroups(); ssRender(); toast('Grouped columns ' + colN(sr.minC) + '-' + colN(sr.maxC)); return;
+    }
+    else if (action === 'ungroupCols') {
+      const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
+      const before = ssColGroups.length;
+      ssColGroups = ssColGroups.filter(g => g.start < sr.minC || g.end > sr.maxC);
+      if (ssColGroups.length === before) { toast('No column group in selection'); return; }
+      ssSaveGroups(); ssRender(); toast('Ungrouped columns'); return;
+    }
+    else if (action === 'indentRow') {
+      const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
+      for (let ri = sr.minR; ri <= sr.maxR; ri++) {
+        ssRowIndent[ri] = Math.min((ssRowIndent[ri] || 0) + 1, 3);
+      }
+      ssSaveGroups(); ssRender(); toast('Indented'); return;
+    }
+    else if (action === 'outdentRow') {
+      const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
+      for (let ri = sr.minR; ri <= sr.maxR; ri++) {
+        ssRowIndent[ri] = Math.max((ssRowIndent[ri] || 0) - 1, 0);
+        if (ssRowIndent[ri] === 0) delete ssRowIndent[ri];
+      }
+      ssSaveGroups(); ssRender(); toast('Outdented'); return;
     }
     else if (action === 'validate') {
       const rule = prompt('Validation rule:\n  "list:a,b,c" — dropdown\n  "range:0,100" — number range\n  "formula:=A1>0" — custom');
@@ -9404,6 +9556,9 @@ function serializeState() {
     ssPages: JSON.parse(JSON.stringify(ssPages)),
     ssActivePageId: ssActivePageId,
     ssPageIdCounter: ssPageIdCounter,
+    ssRowGroups: JSON.parse(JSON.stringify(ssRowGroups)),
+    ssColGroups: JSON.parse(JSON.stringify(ssColGroups)),
+    ssRowIndent: JSON.parse(JSON.stringify(ssRowIndent)),
     wbCanvas: wbC.toDataURL(),
     wbPages: JSON.parse(JSON.stringify(wbPages)),
     wbActivePageId: wbActivePageId,
@@ -9457,7 +9612,12 @@ function deserializeState(s) {
     ssFmt = pg && pg.fmt ? JSON.parse(JSON.stringify(pg.fmt)) : (s.ssFmt ? JSON.parse(JSON.stringify(s.ssFmt)) : {});
     // Restore column widths
     ssColWidths = s.ssColWidths ? s.ssColWidths.slice() : [];
+    // Restore grouping
+    ssRowGroups = s.ssRowGroups ? JSON.parse(JSON.stringify(s.ssRowGroups)) : [];
+    ssColGroups = s.ssColGroups ? JSON.parse(JSON.stringify(s.ssColGroups)) : [];
+    ssRowIndent = s.ssRowIndent ? JSON.parse(JSON.stringify(s.ssRowIndent)) : {};
     LS('sheet', ssD); LS('sheetColNames', ssColNames); LS('ssFmt', ssFmt); LS('ssColWidths', ssColWidths);
+    LS('ssRowGroups', ssRowGroups); LS('ssColGroups', ssColGroups); LS('ssRowIndent', ssRowIndent);
     ssRender(); renderSsTabs();
   } else {
     if (s.sheet) { ssD = JSON.parse(JSON.stringify(s.sheet)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; LS('sheet', ssD); }
@@ -9466,6 +9626,9 @@ function deserializeState(s) {
     if (s.ssFmt) { ssFmt = JSON.parse(JSON.stringify(s.ssFmt)); LS('ssFmt', ssFmt); }
     else { ssFmt = {}; LS('ssFmt', ssFmt); }
     if (s.ssColWidths) { ssColWidths = s.ssColWidths.slice(); LS('ssColWidths', ssColWidths); }
+    if (s.ssRowGroups) { ssRowGroups = JSON.parse(JSON.stringify(s.ssRowGroups)); LS('ssRowGroups', ssRowGroups); }
+    if (s.ssColGroups) { ssColGroups = JSON.parse(JSON.stringify(s.ssColGroups)); LS('ssColGroups', ssColGroups); }
+    if (s.ssRowIndent) { ssRowIndent = JSON.parse(JSON.stringify(s.ssRowIndent)); LS('ssRowIndent', ssRowIndent); }
     ssRender();
   }
   // Whiteboard pages
@@ -9583,6 +9746,7 @@ function renderWSList() {
       '<span class="ws-name" title="' + ws.name + '">' + ws.name + '</span>' +
       '<span class="ws-date">' + dateStr + '</span>' +
       '<div class="ws-actions">' +
+        '<button class="ws-load-tabs" title="Load as new tabs">&#9776;</button>' +
         '<button class="ws-rename" title="Rename">&#9998;</button>' +
         '<button class="ws-dup" title="Duplicate">&#10697;</button>' +
         '<button class="ws-del" title="Delete" style="color:var(--danger);">&times;</button>' +
@@ -9601,6 +9765,48 @@ function renderWSList() {
         renderWSList();
         toast('Renamed');
       }
+    };
+    div.querySelector('.ws-load-tabs').onclick = () => {
+      const blob = ws.id === wsActiveId ? serializeState() : LS('workspace_' + ws.id);
+      if (!blob) { toast('No data in workspace'); return; }
+      let added = 0;
+      // Add sheet pages as new tabs in current sheet
+      if (blob.ssPages && blob.ssPages.length) {
+        ssSaveCurrentPage();
+        blob.ssPages.forEach(pg => {
+          if (!pg.data) return;
+          ssPageIdCounter++;
+          const newPage = {
+            id: ssPageIdCounter,
+            title: (ws.name ? ws.name + ' — ' : '') + (pg.title || 'Sheet'),
+            data: JSON.parse(JSON.stringify(pg.data)),
+            colNames: pg.colNames ? pg.colNames.slice() : [],
+            fmt: pg.fmt ? JSON.parse(JSON.stringify(pg.fmt)) : {},
+            rowGroups: pg.rowGroups ? JSON.parse(JSON.stringify(pg.rowGroups)) : [],
+            colGroups: pg.colGroups ? JSON.parse(JSON.stringify(pg.colGroups)) : [],
+            rowIndent: pg.rowIndent ? JSON.parse(JSON.stringify(pg.rowIndent)) : {}
+          };
+          ssPages.push(newPage);
+          added++;
+        });
+        saveSsPages(); renderSsTabs();
+      }
+      // Add notepad pages as new tabs
+      if (blob.npPages && blob.npPages.length) {
+        if (typeof npSaveCurrentPage === 'function') npSaveCurrentPage();
+        blob.npPages.forEach(pg => {
+          if (!pg.content && !pg.content === '') return;
+          npPageIdCounter++;
+          npPages.push({
+            id: npPageIdCounter,
+            title: (ws.name ? ws.name + ' — ' : '') + (pg.title || 'Page'),
+            content: pg.content || ''
+          });
+          added++;
+        });
+        saveNpPages(); renderNpTabs();
+      }
+      toast(added ? 'Added ' + added + ' tab' + (added > 1 ? 's' : '') + ' from "' + ws.name + '"' : 'Nothing to load');
     };
     div.querySelector('.ws-dup').onclick = () => {
       const newId = genId();
@@ -9655,9 +9861,11 @@ $('#wsNew').onclick = () => {
   ssR = 20; ssC = 10; ssD = [];
   for (let r = 0; r < ssR; r++) ssD.push(new Array(ssC).fill(''));
   ssFmt = {}; ssColNames = []; ssColWidths = [];
+  ssRowGroups = []; ssColGroups = []; ssRowIndent = {};
   ssPages = [{ id: 1, title: 'Sheet 1', data: null, colNames: [], fmt: {} }];
   ssActivePageId = 1; ssPageIdCounter = 1;
   LS('sheet', ssD); LS('ssFmt', ssFmt); LS('sheetColNames', ssColNames); LS('ssColWidths', ssColWidths);
+  LS('ssRowGroups', ssRowGroups); LS('ssColGroups', ssColGroups); LS('ssRowIndent', ssRowIndent);
   saveSsPages(); ssRender(); renderSsTabs();
   // Whiteboard
   wbPages = [{ id: 1, title: 'Page 1', dataUrl: '', layers: [] }]; wbActivePageId = 1; wbPageIdCounter = 1;
