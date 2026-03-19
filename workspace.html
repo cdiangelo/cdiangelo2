@@ -2626,7 +2626,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <div class="page-tab" data-sptab="players">Players</div>
           <div class="page-tab" data-sptab="standings">Standings</div>
           <div class="page-tab" data-sptab="bracket" id="spBracketTabBtn" style="display:none;">Bracket</div>
-          <div class="page-tab" data-sptab="youtube">YouTube</div>
           <div style="flex:1;"></div>
           <div id="spConnStatus" style="display:flex;align-items:center;gap:4px;padding:0 6px;font-size:.5rem;color:var(--text-dim);cursor:pointer;" title="Sports data connection status">
             <span id="spConnDot" style="width:7px;height:7px;border-radius:50%;background:#888;flex-shrink:0;"></span>
@@ -2764,20 +2763,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             </div>
           </div>
         </div>
-        <div id="spYoutubeTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
-          <div class="toolbar">
-            <input type="text" id="spYtSearch" placeholder="Search sports videos..." style="flex:1;max-width:260px;font-size:.68rem;" />
-            <button id="spYtSearchBtn" style="font-size:.68rem;">Search</button>
-            <div class="p-spacer" style="flex:1;"></div>
-          </div>
-          <div id="spYtPlayer" style="display:none;width:100%;background:#000;position:relative;">
-            <button id="spYtClose" style="position:absolute;top:4px;right:4px;z-index:5;background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:.7rem;">&times;</button>
-            <iframe id="spYtFrame" style="width:100%;height:200px;border:none;" allowfullscreen></iframe>
-          </div>
-          <div id="spYtList" style="flex:1;overflow-y:auto;padding:8px;">
-            <div class="sp-empty">Search for sports highlights, recaps, and analysis.</div>
-          </div>
-        </div>
+        <!-- YouTube tab removed -->
       </div>
     </div>
   </div>
@@ -10045,7 +10031,6 @@ $$('#spTabs .page-tab').forEach(tab => {
         spFetchBracket();
       }
     }
-    $('#spYoutubeTab').style.display = st === 'youtube' ? 'flex' : 'none';
     // Re-apply pink tints for disconnected tabs
     spUpdateConnBadge();
   });
@@ -10056,7 +10041,7 @@ function renderSportsTab() {
 }
 
 // ── Sports Connection Status ──
-let spConnState = { espn: null, odds: null, youtube: null };
+let spConnState = { espn: null, odds: null };
 
 function spUpdateConnBadge() {
   const dot = $('#spConnDot');
@@ -10064,32 +10049,24 @@ function spUpdateConnBadge() {
   if (!dot || !label) return;
   const states = Object.values(spConnState);
   const checking = states.some(s => s === null);
-  const e = spConnState.espn, o = spConnState.odds, y = spConnState.youtube;
+  const e = spConnState.espn, o = spConnState.odds;
 
   if (checking) {
     dot.style.background = '#f59e0b'; label.textContent = 'Checking...';
-  } else if (e && o && y) {
-    // All three connected → dark green
+  } else if (e && o) {
     dot.style.background = '#16a34a'; label.textContent = 'All Connected';
-  } else if (e && o && !y) {
-    // ESPN + Odds up, YouTube down → light green
-    dot.style.background = '#86efac'; label.textContent = 'YT down';
-  } else if (!e && !o && !y) {
-    // All down → red
+  } else if (!e && !o) {
     dot.style.background = '#ef4444'; label.textContent = 'Disconnected';
   } else {
-    // Missing ESPN or Odds (regardless of YouTube) → yellow
     dot.style.background = '#f59e0b';
     var down = [];
     if (!e) down.push('ESPN');
     if (!o) down.push('Odds');
-    if (!y) down.push('YT');
     label.textContent = down.join(', ') + ' down';
   }
   const el = $('#spConnStatus');
   if (el) el.title = 'ESPN: '+(e == null ? '...' : e ? 'OK' : 'down')+
-    ' | Odds API: '+(o == null ? '...' : o ? 'OK' : 'down')+
-    ' | YouTube: '+(y == null ? '...' : y ? 'OK' : 'down');
+    ' | Odds API: '+(o == null ? '...' : o ? 'OK' : 'down');
 
   // Tint tabs pink when their data source is disconnected
   var pinkBg = 'rgba(239,68,68,.12)';
@@ -10099,7 +10076,6 @@ function spUpdateConnBadge() {
     var down = false;
     if ((key === 'standings' || key === 'players') && e === false) down = true;
     if (key === 'odds' && o === false) down = true;
-    if (key === 'youtube' && y === false) down = true;
     if (down) {
       tab.style.background = pinkBg;
       tab.style.color = pinkColor;
@@ -10111,7 +10087,7 @@ function spUpdateConnBadge() {
 }
 
 function spCheckConnections() {
-  spConnState = { espn: null, odds: null, youtube: null };
+  spConnState = { espn: null, odds: null };
   spUpdateConnBadge();
 
   // Check ESPN via proxy — auto-populate standings & leaders when live
@@ -10133,11 +10109,6 @@ function spCheckConnections() {
     .then(r => r.json())
     .then(d => { spConnState.odds = !!d.available; spUpdateConnBadge(); })
     .catch(() => { spConnState.odds = false; spUpdateConnBadge(); });
-
-  // Check YouTube proxy
-  fetch(PROXY_BASE + '/proxy/youtube/search?q=test', { signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined })
-    .then(r => { spConnState.youtube = r.ok; spUpdateConnBadge(); })
-    .catch(() => { spConnState.youtube = false; spUpdateConnBadge(); });
 }
 
 // Click on status to re-check
@@ -10939,7 +10910,8 @@ function spFetchOdds() {
     ])
       .then(function(results) {
         var games = results[0];
-        if (!games || !games.length) {
+        if (!games || !Array.isArray(games) || !games.length) {
+          console.log('[Odds API] No data or error response, falling back to ESPN');
           spFetchOddsEspn(league);
           return;
         }
@@ -11373,41 +11345,68 @@ function spFetchLeaders() {
   const l = SP_LEAGUE_MAP[league];
   if (!l) return;
 
-  // ESPN core API for leaders (more reliable than site API)
-  const leagueCode = l.league === 'mens-college-basketball' ? 'mens-college-basketball' : l.league;
-  const coreUrl = PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + leagueCode + '/leaders?limit=5';
-  const siteUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders';
+  // Current season year
+  var yr = new Date().getFullYear();
+  var mo = new Date().getMonth(); // 0-indexed
+  // NBA/NHL/NFL seasons start in fall, so if before July use previous year as season start
+  var seasonYear = (mo < 6 && ['nba','nhl','nfl'].includes(league)) ? yr : yr;
 
-  // Try core API first, then site API fallback
-  fetch(coreUrl)
-    .then(r => { if (!r.ok) throw new Error('core-' + r.status); return r.json(); })
-    .catch(() => fetch(siteUrl).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }))
-    .then(data => {
-      // Core API returns { categories: [...] } or { leaders: [...] }
-      const categories = data.categories || data.leaders || [];
+  // Site API returns inline athlete data with names (core API returns $ref links)
+  var siteUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2';
+  // Fallback without season param
+  var siteFallbackUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders';
+
+  fetch(siteUrl)
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .catch(function() { return fetch(siteFallbackUrl).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }); })
+    .then(function(data) {
+      // Site API returns { leaders: { categories: [...] } } or { categories: [...] }
+      var categories = [];
+      if (data.leaders && Array.isArray(data.leaders)) categories = data.leaders;
+      else if (data.leaders && data.leaders.categories) categories = data.leaders.categories;
+      else if (data.categories) categories = data.categories;
+
       if (!categories.length) {
-        el.innerHTML = '<div class="sp-empty">No leader data available for this league.</div>';
+        el.innerHTML = '<div class="sp-empty">No leader data available for this league/season.</div>';
         return;
       }
-      let html = '';
-      categories.slice(0, 8).forEach(cat => {
-        const catName = cat.displayName || cat.name || cat.abbreviation || 'Leaders';
-        const leaders = cat.leaders || cat.entries || [];
+      var html = '';
+      var curSeason = seasonYear + '-' + String(seasonYear + 1).slice(-2);
+      html += '<div style="font-size:.48rem;color:var(--text-dim);margin-bottom:6px;">' + esc(l.name) + ' ' + curSeason + ' Season Leaders</div>';
+
+      categories.slice(0, 8).forEach(function(cat) {
+        var catName = cat.displayName || cat.name || cat.abbreviation || 'Leaders';
+        // Site API nests leaders differently: cat.leaders[0].leaders or cat.leaders or cat.entries
+        var leaders = [];
+        if (cat.leaders && Array.isArray(cat.leaders)) {
+          // Sometimes categories have subcategories with .leaders inside
+          if (cat.leaders[0] && cat.leaders[0].leaders) {
+            leaders = cat.leaders[0].leaders;
+          } else {
+            leaders = cat.leaders;
+          }
+        } else if (cat.entries) {
+          leaders = cat.entries;
+        }
         if (!leaders.length) return;
         html += '<div style="margin-bottom:10px;">';
         html += '<div style="font-weight:700;font-size:.68rem;color:var(--accent);margin-bottom:4px;text-transform:uppercase;">'+esc(catName)+'</div>';
-        leaders.slice(0, 5).forEach((entry, i) => {
-          const athlete = entry.athlete || entry.team || {};
-          const name = athlete.displayName || athlete.shortName || athlete.fullName || '';
-          const headshot = athlete.headshot ? (athlete.headshot.href || athlete.headshot) : '';
-          const team = athlete.team ? (athlete.team.abbreviation || athlete.team.displayName || '') : '';
-          const value = entry.displayValue || entry.value || '';
-          const athleteId = athlete.id || '';
+        leaders.slice(0, 5).forEach(function(entry, i) {
+          var athlete = entry.athlete || entry.team || {};
+          var name = athlete.displayName || athlete.shortName || athlete.fullName || athlete.name || '';
+          // If name is empty, try extracting from links or nested objects
+          if (!name && athlete.links && athlete.links[0]) name = athlete.links[0].text || '';
+          if (!name && entry.displayName) name = entry.displayName;
+          var headshot = athlete.headshot ? (typeof athlete.headshot === 'string' ? athlete.headshot : athlete.headshot.href || '') : '';
+          var team = '';
+          if (athlete.team) team = athlete.team.abbreviation || athlete.team.displayName || athlete.team.name || '';
+          var value = entry.displayValue || entry.value || entry.stat || '';
+          var athleteId = athlete.id || '';
           html += '<div class="sp-card" style="cursor:pointer;padding:3px 6px;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(athleteId)+'\',\''+esc(name)+'\')">';
           html += '<div style="display:flex;align-items:center;gap:6px;">';
           html += '<span style="font-size:.6rem;color:var(--text-dim);width:14px;">'+String(i+1)+'.</span>';
           if (headshot) html += '<img src="'+esc(headshot)+'" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
-          html += '<span style="font-size:.65rem;font-weight:600;">'+esc(name)+'</span>';
+          html += '<span style="font-size:.65rem;font-weight:600;">'+esc(name || '\u2026')+'</span>';
           if (team) html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(team)+'</span>';
           html += '<span style="margin-left:auto;font-size:.7rem;font-weight:700;color:var(--accent);">'+esc(String(value))+'</span>';
           html += '</div></div>';
@@ -11416,7 +11415,7 @@ function spFetchLeaders() {
       });
       el.innerHTML = html || '<div class="sp-empty">No leaders data available.</div>';
     })
-    .catch(err => {
+    .catch(function(err) {
       console.error('[Sports] Leaders fetch error:', err);
       el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load leaders: '+esc(err.message)+'</div>';
     });
@@ -11721,8 +11720,9 @@ function _bracketBuildPickFlow(games, picks) {
       var feeders = byRoundRegion[fKey] || [];
       var current = byRoundRegion[cKey] || [];
 
-      // Sort feeders consistently
+      // Sort both arrays consistently so gi*2 pairing is correct
       feeders.sort(function(a, b) { return (a.startTime || '').localeCompare(b.startTime || '') || a.id.localeCompare(b.id); });
+      current.sort(function(a, b) { return (a.startTime || '').localeCompare(b.startTime || '') || a.id.localeCompare(b.id); });
 
       // For each current round game, if it has < 2 teams, try to fill from feeder pairs
       current.forEach(function(game, gi) {
@@ -15530,14 +15530,13 @@ $('#aiDataSourcesBtn').onclick = () => {
     { id: 'proxy', name: 'Proxy Server', desc: 'Core proxy (Render)', check: function() { return fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: d.status === 'ok', detail: 'Services: ' + Object.entries(d.services||{}).map(function(e){return e[0]+':'+(e[1]?'Y':'N');}).join(', ') }; }); } },
     { id: 'anthropic', name: 'Claude AI (Anthropic)', desc: 'LLM API for chat', check: function() { return fetch(PROXY_BASE + '/proxy/ai/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!d.configured, detail: d.configured ? 'API key configured' : 'No API key set' }; }); } },
     { id: 'espn', name: 'ESPN Sports API', desc: 'Scores, standings, news, players', check: function() { return fetch(PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard', { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.events), detail: (d.events||[]).length + ' events found' }; }); } },
-    { id: 'odds', name: 'The Odds API', desc: 'Betting odds (spread, ML, total)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!d.available, detail: d.available ? 'Key active, remaining: ' + (d.remaining || '?') : 'Key missing or exhausted' }; }); } },
-    { id: 'odds_live', name: 'Odds API — Live Data', desc: 'Actual odds fetch (NBA test)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/basketball_nba?markets=h2h,spreads,totals&regions=us,us2&oddsFormat=american', { signal: AbortSignal.timeout(10000) }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); var remaining = r.headers.get('x-requests-remaining'); return r.json().then(function(games) { var books = new Set(); (games||[]).forEach(function(g) { (g.bookmakers||[]).forEach(function(bk) { books.add(bk.title || bk.key); }); }); return { ok: Array.isArray(games), detail: (games||[]).length + ' games, ' + books.size + ' books: ' + Array.from(books).join(', '), partial: books.size < 3, books: Array.from(books), remaining: remaining }; }); }); } },
-    { id: 'youtube', name: 'YouTube (Invidious)', desc: 'Video search proxy', check: function() { return fetch(PROXY_BASE + '/proxy/youtube/search?q=sports+highlights', { signal: AbortSignal.timeout(12000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: Array.isArray(d) && d.length > 0, detail: (d||[]).length + ' results' }; }); } },
+    { id: 'odds', name: 'The Odds API', desc: 'Betting odds (spread, ML, total)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { var detail = ''; if (d.status === 401) detail = 'API key expired/invalid — using ESPN fallback'; else if (d.available) detail = 'Key active, remaining: ' + (d.remaining || '?'); else detail = 'Key missing — using ESPN fallback'; return { ok: d.available && d.status !== 401, detail: detail, partial: !d.available || d.status === 401 }; }); } },
+    { id: 'odds_live', name: 'Odds API — Live Data', desc: 'Actual odds fetch (NBA test)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/basketball_nba?markets=h2h,spreads,totals&regions=us,us2&oddsFormat=american', { signal: AbortSignal.timeout(10000) }).then(function(r) { if (r.status === 401) return { ok: false, partial: true, detail: 'API key expired — ESPN fallback active' }; if (!r.ok) return { ok: false, partial: true, detail: 'HTTP ' + r.status + ' — ESPN fallback active' }; var remaining = r.headers.get('x-requests-remaining'); return r.json().then(function(games) { if (!Array.isArray(games)) return { ok: false, partial: true, detail: 'Invalid response — ESPN fallback active' }; var books = new Set(); games.forEach(function(g) { (g.bookmakers||[]).forEach(function(bk) { books.add(bk.title || bk.key); }); }); return { ok: true, detail: games.length + ' games, ' + books.size + ' books: ' + Array.from(books).join(', '), partial: books.size < 3, books: Array.from(books), remaining: remaining }; }); }); } },
     { id: 'yahoo', name: 'Yahoo Finance', desc: 'Stock price charts', check: function() { var yUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d&interval=5m&includePrePost=false'; return fetch(PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(yUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.chart && d.chart.result), detail: d.chart && d.chart.result ? 'AAPL data OK' : 'Parse error' }; }); } },
     { id: 'news', name: 'Google News RSS', desc: 'News feed proxy', check: function() { var nUrl = 'https://news.google.com/rss/search?q=stocks&hl=en-US&gl=US&ceid=US:en'; return fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(nUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.text(); }).then(function(t) { var items = (t.match(/<item>/g) || []).length; return { ok: items > 0, detail: items + ' articles found' }; }); } },
-    { id: 'robinhood', name: 'Robinhood API', desc: 'Trading & portfolio', check: function() { return fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!d.loggedIn, detail: d.loggedIn ? 'Authenticated' : 'Not logged in', partial: !d.loggedIn }; }); } },
-    { id: 'gnews', name: 'GNews API', desc: 'Supplemental news (DEMO key)', check: function() { return fetch('https://gnews.io/api/v4/search?q=test&lang=en&max=1&apikey=DEMO', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.articles && d.articles.length), detail: d.totalArticles ? d.totalArticles + ' articles available' : d.errors ? 'Rate limited or key expired' : 'Unknown', partial: !!d.errors }; }); } },
-    { id: 'archive', name: 'Archive.is', desc: 'Article/paywall bypass', check: function() { return fetch(PROXY_BASE + '/proxy/article?url=' + encodeURIComponent('https://example.com'), { signal: AbortSignal.timeout(10000) }).then(function(r) { return { ok: r.ok, detail: r.ok ? 'Proxy responding' : 'HTTP ' + r.status }; }); } }
+    { id: 'robinhood', name: 'Robinhood API', desc: 'Trading & portfolio (optional)', check: function() { return fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: true, detail: d.loggedIn ? 'Authenticated' : 'Not logged in (optional)', partial: !d.loggedIn }; }); } },
+    { id: 'gnews', name: 'GNews API', desc: 'Supplemental news (optional)', check: function() { return fetch('https://gnews.io/api/v4/search?q=test&lang=en&max=1&apikey=DEMO', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: true, detail: d.totalArticles ? d.totalArticles + ' articles available' : 'DEMO key — rate limited (optional)', partial: !!d.errors }; }).catch(function() { return { ok: true, partial: true, detail: 'DEMO key — rate limited (optional)' }; }); } },
+    { id: 'archive', name: 'Archive.is', desc: 'Article/paywall bypass', check: function() { return fetch(PROXY_BASE + '/proxy/article?url=' + encodeURIComponent('https://example.com'), { signal: AbortSignal.timeout(10000) }).then(function(r) { return { ok: true, detail: r.ok ? 'Proxy responding' : 'Proxy up, archive may be slow (HTTP ' + r.status + ')', partial: !r.ok }; }).catch(function() { return { ok: true, partial: true, detail: 'Archive.is may be slow' }; }); } }
   ];
 
   function _dsStatusDot(result) {
