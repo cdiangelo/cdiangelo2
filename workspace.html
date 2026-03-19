@@ -6441,7 +6441,7 @@ function ssRender() {
   function ssEnterEdit(r, c) {
     ssEditing = true;
     const inp = t.querySelector('.ci[data-r="'+r+'"][data-c="'+c+'"]');
-    if (inp) { inp.removeAttribute('readonly'); inp.focus(); inp.select(); }
+    if (inp) { inp.value = ssD[r][c] || ''; inp.removeAttribute('readonly'); inp.focus(); inp.select(); }
   }
   function ssExitEdit() {
     if (!ssEditing || !ssSel) return;
