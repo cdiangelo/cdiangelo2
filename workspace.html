@@ -3312,25 +3312,80 @@ const PROXY_BASE = (() => {
   return 'https://planning-tool-7o36.onrender.com';
 })();
 
-// ── Proxy health check ──
+// ── Proxy health check + keep-alive ──
 let _proxyAlive = null; // null=unknown, true=reachable, false=down
 let _proxyLastCheck = 0;
+let _proxyWasDown = false; // track if proxy went down so we can show recovery
 const PROXY_CHECK_INTERVAL = 10000; // re-check every 10s (fast recovery from transient failures)
 
 async function checkProxyHealth(force) {
   if (!force && _proxyAlive !== null && Date.now() - _proxyLastCheck < PROXY_CHECK_INTERVAL) return _proxyAlive;
   try {
-    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(6000) });
+    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(8000) });
+    const wasDown = _proxyAlive === false;
     _proxyAlive = r.ok;
     _proxyLastCheck = Date.now();
+    if (wasDown && r.ok) {
+      console.log('[Proxy] Reconnected after cold start');
+      toast('Server reconnected');
+      // Re-check sports connections after server restart
+      if (typeof spCheckConnections === 'function') setTimeout(spCheckConnections, 1000);
+    }
     return _proxyAlive;
   } catch(e) {
+    if (_proxyAlive === true) {
+      _proxyWasDown = true;
+      console.warn('[Proxy] Connection lost — will retry. Server may be restarting.');
+    }
     _proxyAlive = false;
     _proxyLastCheck = Date.now();
-    console.error('[Proxy] Health check failed:', e.message);
     return false;
   }
 }
+
+// ── Client-side keep-alive ping (prevents Render free tier from sleeping) ──
+// Pings the proxy health endpoint every 4 minutes to keep Render's service awake.
+// Also detects cold starts and auto-reconnects.
+(function startClientKeepAlive() {
+  var KEEP_ALIVE_MS = 4 * 60 * 1000; // 4 minutes
+  var _consecutiveFails = 0;
+  var _reconnecting = false;
+
+  async function keepAlivePing() {
+    try {
+      var r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(10000), cache: 'no-store' });
+      if (r.ok) {
+        if (_consecutiveFails > 0) {
+          console.log('[Keep-Alive] Proxy recovered after ' + _consecutiveFails + ' failed pings');
+          toast('Server reconnected');
+          _reconnecting = false;
+          // Refresh data connections
+          if (typeof spCheckConnections === 'function') spCheckConnections();
+          if (typeof checkSecureProxy === 'function') checkSecureProxy();
+        }
+        _consecutiveFails = 0;
+        _proxyAlive = true;
+        _proxyLastCheck = Date.now();
+      } else {
+        _consecutiveFails++;
+      }
+    } catch(e) {
+      _consecutiveFails++;
+      if (_consecutiveFails === 2 && !_reconnecting) {
+        _reconnecting = true;
+        console.warn('[Keep-Alive] Proxy appears down. Retrying every 30s for cold start recovery...');
+      }
+    }
+    // If proxy is down, switch to faster retry (every 30s) to catch cold start recovery quickly
+    if (_consecutiveFails >= 2 && _consecutiveFails < 20) {
+      setTimeout(keepAlivePing, 30000);
+    }
+  }
+
+  setInterval(keepAlivePing, KEEP_ALIVE_MS);
+  // First ping after 10s to catch initial cold start
+  setTimeout(keepAlivePing, 10000);
+})();
 
 function proxyDownError() {
   const cmd = 'node proxy.js';
@@ -18402,16 +18457,24 @@ setTimeout(() => {
       }
     } catch(_) { /* offline or transient — ignore, poll will catch it */ }
   })();
-  // Ongoing poll every 60s for deploys that happen while the tab is open
-  const CHECK_INTERVAL = 60000;
+  // Ongoing poll every 5 min for deploys (non-disruptive — notify instead of auto-reload)
+  const CHECK_INTERVAL = 5 * 60000;
+  let _versionNotified = false;
   setInterval(async () => {
     try {
       const res = await fetch('/api/version', { cache: 'no-store' });
       if (!res.ok) return;
       const { version } = await res.json();
-      if (version && version !== window.__BUILD_VERSION) {
-        console.log('[DEPLOY] New version detected:', version, '(was:', window.__BUILD_VERSION + ')');
-        window.location.reload();
+      if (version && version !== window.__BUILD_VERSION && !_versionNotified) {
+        _versionNotified = true;
+        console.log('[DEPLOY] New version available:', version, '(current:', window.__BUILD_VERSION + ')');
+        // Don't auto-reload — show a non-disruptive banner instead
+        if (typeof toast === 'function') toast('Update available — refresh when ready');
+        var banner = document.createElement('div');
+        banner.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:99999;background:var(--accent,#3b82f6);color:#fff;padding:6px 14px;border-radius:6px;font-size:.65rem;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+        banner.textContent = '\u2191 Update available — click to refresh';
+        banner.onclick = function() { location.reload(); };
+        document.body.appendChild(banner);
       }
     } catch(_) { /* offline or transient — ignore */ }
   }, CHECK_INTERVAL);

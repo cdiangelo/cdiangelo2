@@ -297,9 +297,11 @@ let anthropicLimiter = createAnthropicLimiter();
 app.use((req, res, next) => globalLimiter(req, res, next));
 
 // ── Health check ──
+const SERVER_START_TIME = Date.now();
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
+    uptime: Math.round((Date.now() - SERVER_START_TIME) / 1000),
     services: {
       robinhood: rhReady(),
       anthropic: hasAnthropicKey,
@@ -309,6 +311,29 @@ app.get('/health', (_req, res) => {
     rh_error: rhLoginError || undefined
   });
 });
+
+// ── Keep-alive self-ping (prevents Render free tier sleep) ──
+// Render sleeps free services after ~15min inactivity. Self-ping every 4min.
+const SELF_PING_INTERVAL = 4 * 60 * 1000; // 4 minutes
+let _selfPingTimer = null;
+function startSelfPing() {
+  if (_selfPingTimer) clearInterval(_selfPingTimer);
+  const selfUrl = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || null;
+  if (!selfUrl) {
+    console.log('[Keep-Alive] No RENDER_EXTERNAL_URL or SELF_URL set — self-ping disabled (local dev)');
+    return;
+  }
+  console.log('[Keep-Alive] Self-ping enabled every 4min → ' + selfUrl + '/health');
+  _selfPingTimer = setInterval(async () => {
+    try {
+      const r = await fetch(selfUrl + '/health', { timeout: 10000 });
+      if (r.ok) console.log('[Keep-Alive] Ping OK — uptime: ' + Math.round((Date.now() - SERVER_START_TIME) / 1000) + 's');
+      else console.warn('[Keep-Alive] Ping returned HTTP ' + r.status);
+    } catch (e) {
+      console.warn('[Keep-Alive] Ping failed:', e.message);
+    }
+  }, SELF_PING_INTERVAL);
+}
 
 // ── Robinhood set-token (paste browser token) ──
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'animalcrackers';
@@ -674,4 +699,7 @@ app.listen(PORT, async () => {
   } else {
     console.log('[Proxy] Robinhood: DISABLED (no credentials)');
   }
+
+  // Start self-ping keep-alive to prevent Render sleep
+  startSelfPing();
 });
