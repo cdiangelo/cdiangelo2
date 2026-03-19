@@ -439,12 +439,19 @@ body.light .fun-btn { background: var(--accent); }
   position: absolute; z-index: 30; background: var(--panel-inset); border: 1px solid var(--border);
   border-radius: 5px; padding: 4px 10px; font-size: .68rem; font-family: monospace;
   color: var(--text-dim); box-shadow: 0 3px 10px rgba(0,0,0,.35); pointer-events: none;
-  white-space: nowrap; line-height: 1.5;
+  white-space: nowrap; line-height: 1.5; max-width: 420px;
 }
 .ss-formula-tooltip .fn-name { color: var(--accent); font-weight: 700; }
 .ss-formula-tooltip .fn-param { color: var(--text-dim); }
 .ss-formula-tooltip .fn-param.active { color: var(--accent2); font-weight: 700; text-decoration: underline; }
 .ss-formula-tooltip .fn-param.optional { font-style: italic; }
+.ss-formula-tooltip .metrics-list {
+  margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px 12px; font-size: .62rem;
+}
+.ss-formula-tooltip .metrics-list .ml-item { color: var(--text-dim); white-space: nowrap; }
+.ss-formula-tooltip .metrics-list .ml-key { color: var(--accent); font-weight: 600; }
+.ss-formula-tooltip .metrics-list .ml-desc { color: var(--text-dim); opacity: .7; }
 
 /* ═══ CLAUDE HORIZONTAL LAYOUT ═══ */
 .claude-content-row { display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; }
@@ -5641,13 +5648,27 @@ function ssFillAdjust(srcVal, rowOff, colOff) {
 const ssStockCache = {};
 const SS_STOCK_TTL = 5 * 60 * 1000; // 5 min
 
-// Valid metric names for STOCK formula
-const SS_STOCK_METRICS = ['PRICE','MKTCAP','MARKETCAP','PE','EPS','REVENUE','SHARES','FORWARDPE',
-  'PRICETOBOOKVALUE','PB','HIGH52','LOW52','DIVYIELD','DIVIDENDYIELD','BID','ASK','VOLUME','OPEN',
-  'CHANGE','CHANGEPCT','NAME','SOURCE'];
+// Valid metric names for STOCK formula — { key: description }
+const SS_STOCK_METRICS = {
+  PRICE: 'Current price', MKTCAP: 'Market cap', PE: 'P/E ratio', EPS: 'Earnings per share',
+  REVENUE: 'Total revenue', SHARES: 'Shares outstanding', FORWARDPE: 'Forward P/E',
+  PB: 'Price to book', HIGH52: '52-week high', LOW52: '52-week low',
+  DIVYIELD: 'Dividend yield', BID: 'Bid price', ASK: 'Ask price', SOURCE: 'Data source', NAME: 'Company name'
+};
+// Aliases
+const SS_STOCK_ALIASES = { MARKETCAP: 'MKTCAP', PRICETOBOOKVALUE: 'PB', DIVIDENDYIELD: 'DIVYIELD' };
+
+/*  STOCK error codes:
+ *  #LOADING   — data is being fetched, will auto-update
+ *  #TICKER!   — ticker is empty or invalid
+ *  #METRIC!   — unrecognised metric name (check spelling)
+ *  #CONN!     — network/API connection failed (proxy down, no internet, API error)
+ *  #NODATA    — connected successfully but metric not available for this ticker
+ */
 
 function ssStockFetch(ticker) {
   const key = ticker.toUpperCase();
+  if (!key || !/^[A-Z.^=\-]{1,10}$/.test(key)) return { _error: '#TICKER!' };
   const cached = ssStockCache[key];
   if (cached && (Date.now() - cached.ts < SS_STOCK_TTL)) return cached.data;
   if (cached && cached.pending) return cached.data; // still loading, show stale
@@ -5659,9 +5680,13 @@ function ssStockFetch(ticker) {
   (async () => {
     try {
       const metrics = await getCompanyMetricsReal(key);
-      ssStockCache[key] = { data: metrics, ts: Date.now(), pending: false };
+      if (!metrics || metrics.source === 'unavailable') {
+        ssStockCache[key] = { data: { _error: '#CONN!', source: 'unavailable' }, ts: Date.now(), pending: false };
+      } else {
+        ssStockCache[key] = { data: metrics, ts: Date.now(), pending: false };
+      }
     } catch(e) {
-      ssStockCache[key] = { data: { source: 'error', message: e.message }, ts: Date.now(), pending: false };
+      ssStockCache[key] = { data: { _error: '#CONN!', source: 'error', message: e.message }, ts: Date.now(), pending: false };
     }
     // Re-render to show updated values
     ssRender();
@@ -5670,24 +5695,27 @@ function ssStockFetch(ticker) {
 }
 
 function ssGetStockMetric(data, metric) {
-  if (!data) return '...';
-  const m = metric.toUpperCase();
-  if (m === 'PRICE') return data.price ?? '#N/A';
-  if (m === 'MKTCAP' || m === 'MARKETCAP') return data.mktCap ?? '#N/A';
-  if (m === 'PE') return data.pe ?? '#N/A';
-  if (m === 'EPS') return data.eps ?? '#N/A';
-  if (m === 'REVENUE') return data.revenue ?? '#N/A';
-  if (m === 'SHARES') return data.sharesOutstanding ?? '#N/A';
-  if (m === 'FORWARDPE') return data.forwardPE ?? '#N/A';
-  if (m === 'PRICETOBOOKVALUE' || m === 'PB') return data.priceToBook ?? '#N/A';
-  if (m === 'HIGH52') return data.high_52 ?? '#N/A';
-  if (m === 'LOW52') return data.low_52 ?? '#N/A';
-  if (m === 'DIVYIELD' || m === 'DIVIDENDYIELD') return data.dividend_yield ?? '#N/A';
-  if (m === 'BID') return data.bid ?? '#N/A';
-  if (m === 'ASK') return data.ask ?? '#N/A';
-  if (m === 'SOURCE') return data.source ?? '#N/A';
-  if (m === 'NAME') { const c = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === data._ticker); return c ? c.name : '#N/A'; }
-  return '#METRIC?';
+  if (!data) return '#LOADING';
+  if (data._error) return data._error;
+  const raw = metric.toUpperCase();
+  const m = SS_STOCK_ALIASES[raw] || raw;
+  if (!SS_STOCK_METRICS[m] && m !== 'MARKETCAP' && m !== 'PRICETOBOOKVALUE' && m !== 'DIVIDENDYIELD') return '#METRIC!';
+  if (m === 'PRICE') return data.price ?? '#NODATA';
+  if (m === 'MKTCAP') return data.mktCap ?? '#NODATA';
+  if (m === 'PE') return data.pe ?? '#NODATA';
+  if (m === 'EPS') return data.eps ?? '#NODATA';
+  if (m === 'REVENUE') return data.revenue ?? '#NODATA';
+  if (m === 'SHARES') return data.sharesOutstanding ?? '#NODATA';
+  if (m === 'FORWARDPE') return data.forwardPE ?? '#NODATA';
+  if (m === 'PB') return data.priceToBook ?? '#NODATA';
+  if (m === 'HIGH52') return data.high_52 ?? '#NODATA';
+  if (m === 'LOW52') return data.low_52 ?? '#NODATA';
+  if (m === 'DIVYIELD') return data.dividend_yield ?? '#NODATA';
+  if (m === 'BID') return data.bid ?? '#NODATA';
+  if (m === 'ASK') return data.ask ?? '#NODATA';
+  if (m === 'SOURCE') return data.source ?? '#NODATA';
+  if (m === 'NAME') { const c = typeof COMPANY_DB !== 'undefined' && COMPANY_DB.find(c => c.ticker === data._ticker); return c ? c.name : '#NODATA'; }
+  return '#METRIC!';
 }
 
 function evalF(formula, visited) {
@@ -5699,22 +5727,36 @@ function evalF(formula, visited) {
     if (f.match(/^SPARK\(/)) return '$$SPARK$$' + f;
 
     // STOCK(ticker, metric) — pull live stock data
+    // Accepts: =STOCK("AAPL","PE")  =STOCK(AAPL,PE)  =STOCK(A1,"PRICE")  =STOCK(AAPL)
     const stockM = f.match(/^STOCK\((.+)\)$/);
     if (stockM) {
       const args = parseFormulaArgs(stockM[1]);
-      if (args.length < 1) return '#VALUE!';
-      // Resolve ticker — cell ref or string
+      if (args.length < 1) return '#TICKER!';
+      // Resolve ticker — quoted string, cell ref, or bare text
       let ticker = args[0].trim();
       if (ticker.startsWith('"') && ticker.endsWith('"')) ticker = ticker.slice(1, -1);
-      else { const ref = parseRef(ticker); if (ref) ticker = String(cellVal(ref.row, ref.col, new Set(visited))); }
-      ticker = ticker.toUpperCase();
-      // Metric defaults to PRICE
+      else {
+        const ref = parseRef(ticker);
+        if (ref) ticker = String(cellVal(ref.row, ref.col, new Set(visited)));
+        // else: bare text like AAPL — use as-is
+      }
+      ticker = ticker.toUpperCase().trim();
+      if (!ticker) return '#TICKER!';
+      // Metric defaults to PRICE — accepts quoted, bare text, or cell ref
       let metric = 'PRICE';
       if (args[1]) {
         metric = args[1].trim();
         if (metric.startsWith('"') && metric.endsWith('"')) metric = metric.slice(1, -1);
-        else { const ref = parseRef(metric); if (ref) metric = String(cellVal(ref.row, ref.col, new Set(visited))); }
+        else {
+          const ref = parseRef(metric);
+          if (ref) metric = String(cellVal(ref.row, ref.col, new Set(visited)));
+          // else: bare text like PE — use as-is
+        }
       }
+      metric = metric.toUpperCase().trim();
+      // Validate metric name before fetching
+      const resolvedMetric = SS_STOCK_ALIASES[metric] || metric;
+      if (!SS_STOCK_METRICS[resolvedMetric]) return '#METRIC!';
       const data = ssStockFetch(ticker);
       if (data) data._ticker = ticker;
       return ssGetStockMetric(data, metric);
@@ -6759,8 +6801,9 @@ $('#ssHelp').onclick = () => {
       ['POW(A1,2)', 'Power/exponent'],
       ['NOW()', 'Current date/time'],
       ['TODAY()', 'Current date'],
-      ['STOCK("AAPL","PRICE")', 'Live stock price (Robinhood/Yahoo)'],
-      ['STOCK("AAPL","PE")', 'P/E ratio. Metrics: PRICE, MKTCAP, PE, EPS, REVENUE, SHARES, FORWARDPE, PB, HIGH52, LOW52, DIVYIELD, BID, ASK'],
+      ['STOCK(AAPL) or STOCK("AAPL")', 'Live stock price — quotes are optional'],
+      ['STOCK(AAPL,PE)', 'Metrics: PRICE MKTCAP PE EPS REVENUE SHARES FORWARDPE PB HIGH52 LOW52 DIVYIELD BID ASK'],
+      ['STOCK errors:', '#LOADING=fetching | #TICKER!=bad ticker | #METRIC!=unknown metric | #CONN!=network/API error | #NODATA=no data for metric'],
       ['SPARK(A1:A10)', 'Inline sparkline chart'],
       ['Cell refs: A1, B2:D5', 'Single cell or range'],
       ['Arithmetic: +, -, *, /', 'Basic math operators']
@@ -6870,7 +6913,7 @@ const ssFormulaSigs = {
   POW:         [{ name: 'base', ex: 'A1' }, { name: 'exponent', ex: '2' }],
   LOG:         [{ name: 'number', ex: 'A1' }, { name: 'base', ex: '10', opt: true }],
   MOD:         [{ name: 'number', ex: 'A1' }, { name: 'divisor', ex: '3' }],
-  STOCK:       [{ name: 'ticker', ex: '"AAPL"' }, { name: 'metric', ex: '"PRICE"', opt: true }],
+  STOCK:       [{ name: 'ticker', ex: 'AAPL or "AAPL" or A1' }, { name: 'metric', ex: 'PRICE (quotes optional)', opt: true }],
   SPARK:       [{ name: 'range', ex: 'A1:A10' }],
   NOW:         [],
   TODAY:       [],
@@ -6951,6 +6994,19 @@ function ssShowFormulaTooltip(inputEl) {
   const activeParam = ctx.sig[Math.min(ctx.paramIdx, ctx.sig.length - 1)];
   if (activeParam && activeParam.ex) {
     html += '  <span style="color:var(--text-dim);opacity:.6;">— e.g. ' + activeParam.ex + '</span>';
+  }
+  // For STOCK formula: show metrics list when on the metric parameter
+  if (ctx.fn === 'STOCK' && ctx.paramIdx >= 1) {
+    html += '<div class="metrics-list">';
+    for (const [key, desc] of Object.entries(SS_STOCK_METRICS)) {
+      html += '<div class="ml-item"><span class="ml-key">' + key + '</span> <span class="ml-desc">' + desc + '</span></div>';
+    }
+    html += '</div>';
+    html += '<div style="margin-top:3px;font-size:.58rem;color:var(--text-dim);opacity:.6;">Quotes optional: =STOCK(AAPL,PE) or =STOCK(&quot;AAPL&quot;,&quot;PE&quot;)</div>';
+  }
+  // For STOCK formula: show note about quoting on ticker param too
+  if (ctx.fn === 'STOCK' && ctx.paramIdx === 0) {
+    html += '<div style="margin-top:3px;font-size:.58rem;color:var(--text-dim);opacity:.6;">Quotes optional: =STOCK(AAPL) or =STOCK(&quot;AAPL&quot;) or =STOCK(A1)</div>';
   }
   ssFormulaTooltipEl.innerHTML = html;
 
