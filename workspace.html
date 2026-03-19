@@ -1696,6 +1696,35 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 </noscript>
 <script>
+// ── PDF Viewer Intercept ──
+// If URL has ?pdf=<id>, render the stored PDF in a clean view and stop loading the app
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var pdfId = params.get('pdf');
+  if (!pdfId) return;
+  var stored = null;
+  try { stored = localStorage.getItem('spPdf_' + pdfId); } catch(e) {}
+  if (stored) {
+    document.open();
+    document.write(stored);
+    document.close();
+  } else {
+    document.open();
+    document.write('<!DOCTYPE html><html><head><title>PDF Not Found</title>' +
+      '<style>body{font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f5f5f5;color:#333;}' +
+      '.card{text-align:center;padding:40px;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.1);max-width:400px;}' +
+      'h1{font-size:1.3em;margin-bottom:8px;}p{color:#888;font-size:.9em;line-height:1.5;}' +
+      'a{color:#3b82f6;text-decoration:none;font-weight:600;}</style></head>' +
+      '<body><div class="card"><h1>PDF Not Found</h1>' +
+      '<p>This report may have been cleared from storage or generated on a different device.</p>' +
+      '<p style="margin-top:16px;"><a href="' + window.location.pathname + '">Back to Workspace</a></p>' +
+      '</div></body></html>');
+    document.close();
+  }
+  window.stop(); // Stop loading rest of the page
+  return;
+})();
+
 // ── Global error boundary — catches uncaught errors and shows fallback ──
 (function() {
   var errorCount = 0;
@@ -13068,6 +13097,7 @@ Format this as a polished research report. Cite specific sources by name. Use re
     header.innerHTML = '<span style="font-size:.72rem;font-weight:700;color:var(--accent2);">&#128269; Deep Research Report: ' + query + '</span>' +
       '<div style="display:flex;gap:4px;">' +
       '<button id="researchPdf" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.6rem;font-weight:600;">&#128196; Download PDF</button>' +
+      '<button id="researchCopyLink" style="padding:3px 8px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);cursor:pointer;font-size:.6rem;font-weight:600;">\uD83D\uDD17 Copy Link</button>' +
       '<button id="researchToNote" style="padding:3px 8px;border:1px solid var(--accent2);border-radius:4px;background:none;color:var(--accent2);cursor:pointer;font-size:.6rem;">&#128221; To Notepad</button>' +
       '<button id="researchBack" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">Back</button>' +
       '</div>';
@@ -13092,17 +13122,33 @@ Format this as a polished research report. Cite specific sources by name. Use re
     sourcesDiv.innerHTML = '<b>Sources fetched via Google News RSS:</b><br>' + articleContext.replace(/\n/g, '<br>');
     feed.appendChild(sourcesDiv);
 
-    // PDF download
+    // Store research report as persistent PDF
+    var _researchPdfId = spGeneratePdfId();
+    var _researchHtml = '<html><head><title>Research Report: ' + query + '</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:20px;line-height:1.7;color:#222;}h1{font-size:1.4em;border-bottom:2px solid #333;padding-bottom:8px;}h2{font-size:1.1em;color:#444;margin-top:20px;}h3{font-size:1em;color:#555;}b{font-weight:700;}.sources{margin-top:30px;padding-top:12px;border-top:1px solid #ccc;font-size:.85em;color:#666;}</style></head><body>' +
+      '<h1>Deep Research Report: ' + query + '</h1>' +
+      '<p style="color:#888;font-size:.85em;">Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' via Workspace Agent</p>' +
+      html.replace(/color:var\(--[^)]+\)/g, 'color:#333') +
+      '<div class="sources"><b>Sources (Google News RSS):</b><br>' + articleContext.replace(/\n/g, '<br>') + '</div>' +
+      '</body></html>';
+    spStorePdf(_researchPdfId, _researchHtml);
+    // Also save to export history
+    pdfExports.push({ id: _researchPdfId, type: 'pdf_export', title: 'Deep Research: ' + query, pdfId: _researchPdfId, generatedAt: Date.now() });
+    if (pdfExports.length > 20) { var old = pdfExports.shift(); if (old && old.pdfId) try { localStorage.removeItem(_spPdfStorageKey(old.pdfId)); } catch(e) {} }
+    LS('compplan_pdf_exports', pdfExports);
+
+    // PDF download — open persistent link
     document.getElementById('researchPdf').onclick = () => {
-      const printWin = window.open('', '_blank');
-      printWin.document.write('<html><head><title>Research Report: ' + query + '</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:20px;line-height:1.7;color:#222;}h1{font-size:1.4em;border-bottom:2px solid #333;padding-bottom:8px;}h2{font-size:1.1em;color:#444;margin-top:20px;}h3{font-size:1em;color:#555;}b{font-weight:700;}.sources{margin-top:30px;padding-top:12px;border-top:1px solid #ccc;font-size:.85em;color:#666;}</style></head><body>');
-      printWin.document.write('<h1>Deep Research Report: ' + query + '</h1>');
-      printWin.document.write('<p style="color:#888;font-size:.85em;">Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' via Workspace Agent</p>');
-      printWin.document.write(html.replace(/color:var\(--[^)]+\)/g, 'color:#333'));
-      printWin.document.write('<div class="sources"><b>Sources (Google News RSS):</b><br>' + articleContext.replace(/\n/g, '<br>') + '</div>');
-      printWin.document.write('</body></html>');
-      printWin.document.close();
-      setTimeout(() => printWin.print(), 500);
+      window.open(spGetPdfUrl(_researchPdfId), '_blank');
+    };
+
+    // Copy shareable link
+    document.getElementById('researchCopyLink').onclick = () => {
+      var url = spGetPdfUrl(_researchPdfId);
+      navigator.clipboard.writeText(url).then(() => toast('Link copied!')).catch(() => {
+        var ta = document.createElement('textarea'); ta.value = url;
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta); toast('Link copied!');
+      });
     };
 
     // Copy to notepad
@@ -16093,10 +16139,44 @@ function renderSavedActionsPanel() {
   document.querySelector('#q-claude .p-body')?.appendChild(panel);
 }
 
-// ── PDF Export for deep research ──
+// ── PDF Export for deep research (persistent, shareable links) ──
 let pdfExports = LS('compplan_pdf_exports') || [];
 
+// Persistent PDF storage — stores full HTML in localStorage keyed by unique ID
+// PDFs are viewable via: workspace.html?pdf=<id>
+function _spPdfStorageKey(id) { return 'spPdf_' + id; }
+
+function spGeneratePdfId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function spStorePdf(id, htmlContent) {
+  try { localStorage.setItem(_spPdfStorageKey(id), htmlContent); } catch(e) {
+    // If localStorage is full, prune oldest PDFs
+    var keys = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.startsWith('spPdf_')) keys.push(k);
+    }
+    keys.sort();
+    if (keys.length > 2) {
+      localStorage.removeItem(keys[0]);
+      localStorage.removeItem(keys[1]);
+      try { localStorage.setItem(_spPdfStorageKey(id), htmlContent); } catch(e2) {}
+    }
+  }
+}
+
+function spLoadPdf(id) {
+  try { return localStorage.getItem(_spPdfStorageKey(id)); } catch(e) { return null; }
+}
+
+function spGetPdfUrl(id) {
+  return window.location.origin + window.location.pathname + '?pdf=' + id;
+}
+
 function generateResearchPDF(title, content, meta) {
+  const pdfId = spGeneratePdfId();
   const htmlContent = '<!DOCTYPE html><html><head><title>' + title.replace(/</g, '&lt;') + '</title>' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">' +
     '<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">' +
@@ -16115,9 +16195,14 @@ function generateResearchPDF(title, content, meta) {
     '<div class="meta">Generated ' + new Date().toLocaleString() + (meta?.model ? ' \u00B7 Model: ' + meta.model : '') + (meta?.dataAge ? ' \u00B7 Data as of ' + meta.dataAge : '') + '</div>' +
     content + '</body></html>';
 
+  // Persist to localStorage
+  spStorePdf(pdfId, htmlContent);
+
+  // Also create blob URL for immediate use
   const blob = new Blob([htmlContent], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  return { url, title, htmlContent, generatedAt: Date.now() };
+  const blobUrl = URL.createObjectURL(blob);
+
+  return { url: blobUrl, pdfId, title, htmlContent, generatedAt: Date.now() };
 }
 
 function renderPdfAttachment(pdfResult, taskDescription, persona) {
@@ -16125,24 +16210,53 @@ function renderPdfAttachment(pdfResult, taskDescription, persona) {
   div.className = 'ai-msg system';
   div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--panel-inset);font-size:.6rem;margin-top:4px;';
   const dateStr = new Date(pdfResult.generatedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  div.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">\uD83D\uDCC4 ' + pdfResult.title + ' \u2014 ' + dateStr + '</div>' +
-    '<div style="display:flex;gap:6px;margin-top:4px;">' +
-    '<a href="' + pdfResult.url + '" target="_blank" style="padding:3px 10px;border:1px solid var(--accent);border-radius:4px;color:var(--accent);text-decoration:none;font-size:.56rem;cursor:pointer;">Open</a>' +
-    '<a href="' + pdfResult.url + '" download="research_' + pdfResult.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) + '_' + new Date().toISOString().slice(0, 10) + '.html" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);text-decoration:none;font-size:.56rem;cursor:pointer;">Download</a>' +
-    '</div>';
+  const shareUrl = spGetPdfUrl(pdfResult.pdfId);
+  const downloadName = 'research_' + pdfResult.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) + '_' + new Date().toISOString().slice(0, 10) + '.html';
+
+  div.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">\uD83D\uDCC4 ' + esc(pdfResult.title) + ' \u2014 ' + dateStr + '</div>' +
+    '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">' +
+    '<a href="' + esc(shareUrl) + '" target="_blank" style="padding:3px 10px;border:1px solid var(--accent);border-radius:4px;color:var(--accent);text-decoration:none;font-size:.56rem;cursor:pointer;">Open</a>' +
+    '<a href="' + esc(pdfResult.url) + '" download="' + esc(downloadName) + '" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);text-decoration:none;font-size:.56rem;cursor:pointer;">Download</a>' +
+    '<button class="sp-copy-link-btn" data-pdf-url="' + esc(shareUrl) + '" style="padding:3px 10px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);font-size:.56rem;cursor:pointer;font-weight:600;">\uD83D\uDD17 Copy Link</button>' +
+    '</div>' +
+    '<div style="margin-top:4px;font-size:.48rem;color:var(--text-dim);word-break:break-all;">' + esc(shareUrl) + '</div>';
+
+  // Wire up copy button
+  div.querySelector('.sp-copy-link-btn').addEventListener('click', function() {
+    var url = this.getAttribute('data-pdf-url');
+    navigator.clipboard.writeText(url).then(function() {
+      toast('Link copied to clipboard!');
+    }).catch(function() {
+      // Fallback for older browsers
+      var ta = document.createElement('textarea');
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      toast('Link copied!');
+    });
+  });
+
   $('#aiMsgs').appendChild(div);
   $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
 
-  // Save to saved actions
+  // Save to export history
   const entry = {
-    id: Date.now(), type: 'pdf_export', title: pdfResult.title,
+    id: pdfResult.pdfId, type: 'pdf_export', title: pdfResult.title,
     taskDescription: (taskDescription || '').substring(0, 100),
     persona: persona || 'General',
     generatedAt: pdfResult.generatedAt,
-    contentUrl: pdfResult.url, taskId: null
+    pdfId: pdfResult.pdfId, taskId: null
   };
   pdfExports.push(entry);
-  if (pdfExports.length > 20) pdfExports = pdfExports.slice(-20);
+  if (pdfExports.length > 20) {
+    // Remove oldest export's stored HTML too
+    var removed = pdfExports.shift();
+    if (removed && removed.pdfId) {
+      try { localStorage.removeItem(_spPdfStorageKey(removed.pdfId)); } catch(e) {}
+    }
+  }
   LS('compplan_pdf_exports', pdfExports);
 }
 
