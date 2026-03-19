@@ -19885,11 +19885,21 @@ async function sendAgentMessage() {
       }
     }
 
-    // Build combined system prompt: persona → tier → base → context
+    // Build combined system prompt as content blocks with cache_control
     const personaPrompt = getActivePersona().systemPrompt || '';
     const contextInjection = buildContextInjection();
-    const assembledSystemPrompt = (personaPrompt ? personaPrompt + '\n\n' : '') + (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + getAiSystemPrompt() + contextInjection;
-    console.log('[API] System prompt: ~' + Math.round(assembledSystemPrompt.length / 1000) + 'k chars | Persona: ' + getActivePersona().label + ' | Tier: ' + TASK_TIERS[currentTierKey].label + ' | Context slots: ' + getActiveContextSlots().length);
+    // Block 1: Persona + base prompt (stable within session — cacheable)
+    const _corePrompt = (personaPrompt ? personaPrompt + '\n\n' : '') + (tierSystemPrompt ? tierSystemPrompt + '\n\n' : '') + getAiSystemPrompt();
+    const systemBlocks = [
+      { type: 'text', text: _corePrompt, cache_control: { type: 'ephemeral' } }
+    ];
+    // Block 2: Dynamic context injection (changes per call — not cached)
+    if (contextInjection) {
+      systemBlocks.push({ type: 'text', text: contextInjection });
+    }
+    // Keep concatenated string for logging/size tracking
+    const assembledSystemPrompt = _corePrompt + (contextInjection || '');
+    console.log('[API] System prompt: ~' + Math.round(assembledSystemPrompt.length / 1000) + 'k chars (' + systemBlocks.length + ' blocks, cached) | Persona: ' + getActivePersona().label + ' | Tier: ' + TASK_TIERS[currentTierKey].label + ' | Context slots: ' + getActiveContextSlots().length);
     // Item 2: Input token source breakdown
     if (!window._toolCharsCache) window._toolCharsCache = JSON.stringify(AGENT_TOOLS).length;
     const _msgChars = JSON.stringify(apiMsgs).length;
@@ -19912,7 +19922,7 @@ async function sendAgentMessage() {
         const resp = await aiApiFetch({
             model: model,
             max_tokens: 4096,
-            system: assembledSystemPrompt,
+            system: systemBlocks,
             messages: apiMsgs,
             tools: AGENT_TOOLS,
             stream: true
@@ -19931,7 +19941,7 @@ async function sendAgentMessage() {
         const reader = resp.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let inputTokens = 0, outputTokens = 0, stopReason = 'end_turn';
+        let inputTokens = 0, outputTokens = 0, cacheReadTokens = 0, cacheCreateTokens = 0, stopReason = 'end_turn';
         const contentBlocks = [];
         let currentBlockIdx = -1;
         let streamDiv = null; // Live text rendering div
@@ -19956,6 +19966,8 @@ async function sendAgentMessage() {
             switch (evt.type) {
               case 'message_start':
                 inputTokens = evt.message?.usage?.input_tokens || 0;
+                cacheReadTokens = evt.message?.usage?.cache_read_input_tokens || 0;
+                cacheCreateTokens = evt.message?.usage?.cache_creation_input_tokens || 0;
                 break;
               case 'content_block_start': {
                 currentBlockIdx = evt.index;
@@ -20010,7 +20022,7 @@ async function sendAgentMessage() {
         result = {
           content: contentBlocks.filter(Boolean),
           stop_reason: stopReason,
-          usage: { input_tokens: inputTokens, output_tokens: outputTokens }
+          usage: { input_tokens: inputTokens, output_tokens: outputTokens, cache_read_input_tokens: cacheReadTokens, cache_creation_input_tokens: cacheCreateTokens }
         };
       } catch (streamErr) {
         // Streaming failed — fall back to non-streaming retry once
@@ -20022,7 +20034,7 @@ async function sendAgentMessage() {
         const resp2 = await aiApiFetch({
             model: model,
             max_tokens: 4096,
-            system: assembledSystemPrompt,
+            system: systemBlocks,
             messages: apiMsgs,
             tools: AGENT_TOOLS
           });
