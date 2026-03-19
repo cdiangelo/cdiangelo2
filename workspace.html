@@ -13109,8 +13109,9 @@ async function runDeepResearch() {
       const doc = parser.parseFromString(xmlText, 'text/xml');
       const items = doc.querySelectorAll('item');
       const articles = [];
+      // Cap at 8 articles — prioritize quality over quantity to keep Claude fast
       items.forEach((item, idx) => {
-        if (idx >= 15) return;
+        if (idx >= 8) return;
         const title = item.querySelector('title')?.textContent || '';
         const source = item.querySelector('source')?.textContent || '';
         const pubDate = item.querySelector('pubDate')?.textContent || '';
@@ -13122,26 +13123,25 @@ async function runDeepResearch() {
       articleContext = '(Failed to fetch articles: ' + e.message + ')';
     }
 
-    // Step 2: Send to Claude for deep analysis
-    progressEl.textContent = 'Step 2/3: Claude is analyzing and synthesizing findings...';
+    // Step 2: Send to Claude for targeted analysis
+    progressEl.textContent = 'Step 2/3: Claude is analyzing sources...';
     const model = $('#aiModel').value;
-    const researchPrompt = `You are conducting deep research on the topic: "${query}"
+    const researchPrompt = `Research topic: "${query}"
 
-Here are real, verified articles from Google News on this topic:
+Sources (${articles.length} articles from Google News):
 ${articleContext}
 
-Based on these real sources, produce a comprehensive research report with:
+Write a focused research brief. Be direct and selective — only include findings that are high-signal, skip filler.
 
-1. **Executive Summary** (2-3 sentences)
-2. **Key Findings** (5-8 bullet points with specific data/claims from the articles)
-3. **Source Analysis** — for each source, note what unique angle or data it provides
-4. **Sentiment & Market Impact** — overall market sentiment and potential implications
-5. **Key Risks & Contrarian Views** — any warnings, downsides, or opposing perspectives
-6. **Conclusion & Outlook** — synthesize into a forward-looking perspective
+## Format:
+1. **Summary** — 2-3 sentences, the key takeaway
+2. **Key Findings** — 4-6 bullet points with specific data/claims. Cite source names inline.
+3. **Risks & Contrarian Views** — anything counter to consensus
+4. **Outlook** — 2-3 sentences, forward-looking
 
-Format this as a polished research report. Cite specific sources by name. Use real data from the articles. Keep it professional and analytical.`;
+Keep it tight. No padding. Cite sources by name but don't analyze each one individually.`;
 
-    const resp = await aiApiFetch({ model, max_tokens: 4096, messages: [{ role: 'user', content: researchPrompt }] });
+    const resp = await aiApiFetch({ model, max_tokens: 3000, messages: [{ role: 'user', content: researchPrompt }] });
 
     if (!resp.ok) throw new Error('API error: ' + resp.status);
     const result = await safeParseJson(resp, 'AI research');
@@ -13837,8 +13837,8 @@ const TASK_TIERS = {
     systemPrompt: 'You are a precise assistant. Complete the task directly and concisely.' },
   TIER_2: { model: 'claude-sonnet-4-6', maxTokens: 4000, label: 'Standard',
     systemPrompt: 'Think step by step. First produce a brief plan (3-5 bullets), then execute each step. For financial models, decompose into: assumptions → revenue drivers → cost structure → output metrics.' },
-  TIER_3: { model: 'claude-sonnet-4-6', maxTokens: 8000, label: 'Deep Research',
-    systemPrompt: 'You are a senior analyst. Use extended reasoning. For financial models: define assumptions explicitly, build a structured model, include sensitivity analysis. For stock analysis: cover fundamentals, technicals, recent catalysts, risks, and a clear thesis. If a verified company profile is provided, use the segment breakdown to ensure your analysis correctly attributes metrics, comparisons, and commentary to the right segment. Never conflate segments. If a metric applies to the whole company, state "consolidated". If it applies to a specific segment, name the segment explicitly.' }
+  TIER_3: { model: 'claude-sonnet-4-6', maxTokens: 4000, label: 'Deep Research',
+    systemPrompt: 'You are a senior analyst. Be targeted and selective — prioritize high-signal findings over exhaustive coverage. For financial models: define key assumptions, build a focused model, note top sensitivities. For stock analysis: lead with thesis, cover 2-3 key catalysts, top risks, and a clear price framework. If a verified company profile is provided, use the segment breakdown to correctly attribute metrics to the right segment. Never conflate segments. Keep analysis tight — no filler, no restating the obvious.' }
 };
 
 function classifyTask(prompt) {
@@ -17384,8 +17384,9 @@ async function executeAgentTool(name, input) {
           const doc = parser.parseFromString(xmlText, 'text/xml');
           const items = doc.querySelectorAll('item');
           const articles = [];
+          // Cap at 8 articles for speed — quality over quantity
           items.forEach((item, idx) => {
-            if (idx >= 15) return;
+            if (idx >= 8) return;
             articles.push({
               title: item.querySelector('title')?.textContent || '',
               source: item.querySelector('source')?.textContent || '',
@@ -17394,7 +17395,7 @@ async function executeAgentTool(name, input) {
             });
           });
           toast('Deep research: fetched ' + articles.length + ' articles');
-          return JSON.stringify({ topic: input.topic, articles_found: articles.length, articles, instruction: 'Analyze these real articles and synthesize findings. Write a structured report to the notepad using write_note.' });
+          return JSON.stringify({ topic: input.topic, articles_found: articles.length, articles, instruction: 'Be selective — focus on the 3-5 highest-signal articles. Write a tight, focused analysis to the notepad using write_note. Skip filler sources.' });
         } catch (err) {
           return JSON.stringify({ error: 'Research fetch failed: ' + err.message });
         }
@@ -18216,7 +18217,7 @@ async function sendAgentMessage() {
   // Add workspace context to the latest user message
   const ctx = getWorkspaceContext();
   const deepOn = $('#aiDeepToggle') && $('#aiDeepToggle').checked;
-  const deepPrefix = deepOn ? '[DEEP RESEARCH MODE ON] Before answering, use the deep_research tool to fetch real articles about the topic, then synthesize findings into your response. Also write a structured analysis to the notepad.\n\n' : '';
+  const deepPrefix = deepOn ? '[DEEP RESEARCH MODE ON] Use the deep_research tool to fetch articles, then give a focused synthesis — lead with the key takeaway, cover only high-signal findings, skip filler. Write a concise analysis to the notepad.\n\n' : '';
   const contextMsg = { role: 'user', content: '[Current Workspace State]\n' + ctx + '\n\n' + deepPrefix + '[User Request]\n' + input };
 
   // Manage history
