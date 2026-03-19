@@ -3175,12 +3175,12 @@ const PROXY_BASE = (() => {
 // ── Proxy health check ──
 let _proxyAlive = null; // null=unknown, true=reachable, false=down
 let _proxyLastCheck = 0;
-const PROXY_CHECK_INTERVAL = 30000; // re-check every 30s max
+const PROXY_CHECK_INTERVAL = 10000; // re-check every 10s (fast recovery from transient failures)
 
 async function checkProxyHealth(force) {
   if (!force && _proxyAlive !== null && Date.now() - _proxyLastCheck < PROXY_CHECK_INTERVAL) return _proxyAlive;
   try {
-    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(3000) });
+    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(6000) });
     _proxyAlive = r.ok;
     _proxyLastCheck = Date.now();
     return _proxyAlive;
@@ -5692,50 +5692,84 @@ function ssStockFetch(ticker) {
   if (!ssStockCache[key]) ssStockCache[key] = { data: null, ts: 0, pending: true };
   else ssStockCache[key].pending = true;
 
-  // Async fetch with retry — mirrors fetchRealStockData resilience
+  // Async fetch — try metrics API first, then chart-cache fallback, then direct Yahoo
   (async () => {
     let metrics = null;
     let lastErr = null;
-    // Attempt up to 2 tries (initial + 1 retry) with proxy health pre-check
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
-        // Pre-check proxy health before wasting time on a dead connection
-        const alive = await checkProxyHealth(attempt > 0);
-        if (!alive) { lastErr = 'proxy down'; continue; }
-        metrics = await getCompanyMetricsReal(key);
-        if (metrics && metrics.source !== 'unavailable') break; // success
-        lastErr = 'unavailable';
-        metrics = null;
-      } catch(e) {
-        lastErr = e.message;
-        metrics = null;
+
+    // Attempt 1: getCompanyMetricsReal (RH → Yahoo via proxy)
+    try {
+      metrics = await getCompanyMetricsReal(key);
+      if (metrics && metrics.source !== 'unavailable') {
+        ssStockCache[key] = { data: metrics, ts: Date.now(), pending: false };
+        ssRender();
+        return;
       }
+      lastErr = 'unavailable';
+    } catch(e) { lastErr = e.message; }
+
+    // Attempt 2: pull from stockDataCache (chart pipeline may already have data)
+    const chartEntry = stockDataCache[key + '_1M'] || stockDataCache[key + '_1D'] ||
+      stockDataCache[key + '_5D'] || stockDataCache[key + '_6M'] || stockDataCache[key + '_1Y'];
+    if (chartEntry && chartEntry.data && chartEntry.data.length >= 1) {
+      const closes = chartEntry.data;
+      ssStockCache[key] = { data: {
+        price: closes[closes.length - 1],
+        mktCap: null, pe: null, eps: null, revenue: null, sharesOutstanding: null,
+        forwardPE: null, priceToBook: null,
+        high_52: chartEntry.high ? Math.max(...chartEntry.high.filter(v => v != null)) : null,
+        low_52: chartEntry.low ? Math.min(...chartEntry.low.filter(v => v != null && v > 0)) : null,
+        bid: null, ask: null, dividend_yield: null,
+        source: 'chart-cache'
+      }, ts: Date.now(), pending: false };
+      ssRender();
+      return;
     }
 
-    if (metrics && metrics.source !== 'unavailable') {
-      ssStockCache[key] = { data: metrics, ts: Date.now(), pending: false };
-    } else {
-      // Before giving up, check if chart pipeline already has price data
-      const chartEntry = stockDataCache[key + '_1M'] || stockDataCache[key + '_1D'] ||
-        stockDataCache[key + '_5D'] || stockDataCache[key + '_6M'] || stockDataCache[key + '_1Y'];
-      if (chartEntry && chartEntry.data && chartEntry.data.length >= 1) {
-        const closes = chartEntry.data;
+    // Attempt 3: fetch chart data directly (same path the dashboard uses) then extract price
+    try {
+      const chartData = await fetchRealStockData(key, '1M');
+      if (chartData && chartData.length >= 1) {
+        const ce = stockDataCache[key + '_1M'];
         ssStockCache[key] = { data: {
-          price: closes[closes.length - 1],
+          price: chartData[chartData.length - 1],
           mktCap: null, pe: null, eps: null, revenue: null, sharesOutstanding: null,
           forwardPE: null, priceToBook: null,
-          high_52: chartEntry.high ? Math.max(...chartEntry.high.filter(v => v != null)) : null,
-          low_52: chartEntry.low ? Math.min(...chartEntry.low.filter(v => v != null && v > 0)) : null,
+          high_52: ce && ce.high ? Math.max(...ce.high.filter(v => v != null)) : null,
+          low_52: ce && ce.low ? Math.min(...ce.low.filter(v => v != null && v > 0)) : null,
           bid: null, ask: null, dividend_yield: null,
           source: 'chart-cache'
         }, ts: Date.now(), pending: false };
-      } else {
-        // Also try kicking off a chart fetch to warm the cache for next time
-        fetchRealStockData(key, '1M').catch(() => {});
-        ssStockCache[key] = { data: { _error: '#CONN!', source: 'error', message: lastErr }, ts: Date.now(), pending: false };
+        ssRender();
+        return;
       }
-    }
+    } catch(e) { lastErr = lastErr || e.message; }
+
+    // Attempt 4: direct Yahoo Finance fetch bypassing proxy entirely (allorigins)
+    try {
+      const yUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(key) + '?range=1d&interval=5m&includePrePost=false';
+      const resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(yUrl), { signal: AbortSignal.timeout(10000) });
+      if (resp.ok) {
+        const json = await resp.json();
+        const meta = json.chart?.result?.[0]?.meta;
+        if (meta && meta.regularMarketPrice) {
+          ssStockCache[key] = { data: {
+            price: meta.regularMarketPrice,
+            mktCap: null, pe: null, eps: null, revenue: null, sharesOutstanding: null,
+            forwardPE: null, priceToBook: null,
+            high_52: meta.fiftyTwoWeekHigh || null,
+            low_52: meta.fiftyTwoWeekLow || null,
+            bid: null, ask: null, dividend_yield: null,
+            source: 'yahoo-direct'
+          }, ts: Date.now(), pending: false };
+          ssRender();
+          return;
+        }
+      }
+    } catch(e) { lastErr = lastErr || e.message; }
+
+    // All attempts failed
+    ssStockCache[key] = { data: { _error: '#CONN!', source: 'error', message: lastErr }, ts: Date.now(), pending: false };
     ssRender();
   })();
   return cached ? cached.data : null;
@@ -7619,13 +7653,17 @@ async function fetchRealStockData(ticker, range) {
   async function attemptFetch(retries) {
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ticker) +
       '?range=' + yRange + '&interval=' + yInterval + '&includePrePost=false';
-    let proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(url);
+    const proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(url);
+    const alloriginsUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
     let resp;
-    try {
-      resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
-    } catch (_) {
-      proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-      resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+    if (_proxyAlive === false) {
+      try { resp = await fetch(alloriginsUrl, { signal: AbortSignal.timeout(10000) }); } catch (_) {
+        resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
+      }
+    } else {
+      try { resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) }); } catch (_) {
+        resp = await fetch(alloriginsUrl, { signal: AbortSignal.timeout(10000) });
+      }
     }
     if (!resp.ok) {
       if (retries > 0 && resp.status >= 500) {
@@ -7819,9 +7857,7 @@ function rhCacheGet(key) {
 }
 
 async function rhFetch(endpoint, auth) {
-  const alive = await checkProxyHealth();
-  if (!alive) throw proxyDownError();
-  // All RH calls go through secure proxy POST — token injected server-side
+  // Try the fetch directly — don't gate on health check (stale false blocks everything)
   const resp = await fetch(PROXY_BASE + '/proxy/robinhood', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -10020,11 +10056,20 @@ async function getCompanyMetricsReal(ticker) {
       encodeURIComponent(ticker) + '?modules=summaryDetail,defaultKeyStatistics,financialData';
 
     async function attemptYahooFetch(retries) {
-      let proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(url);
+      // If proxy is known-dead, skip it and go straight to allorigins
+      const proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(url);
+      const alloriginsUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
       let resp;
-      try { resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) }); } catch (_) {
-        proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-        resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+      if (_proxyAlive === false) {
+        // Proxy known-down: try allorigins directly, proxy as fallback
+        try { resp = await fetch(alloriginsUrl, { signal: AbortSignal.timeout(10000) }); } catch (_) {
+          resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
+        }
+      } else {
+        // Proxy alive or unknown: try proxy first, allorigins as fallback
+        try { resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) }); } catch (_) {
+          resp = await fetch(alloriginsUrl, { signal: AbortSignal.timeout(10000) });
+        }
       }
       if (!resp.ok) {
         if (retries > 0 && resp.status >= 500) {
