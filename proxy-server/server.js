@@ -22,6 +22,8 @@ const rhPassword = process.env.RH_PASSWORD || '';
 const hasRhCredentials = !!(rhUsername && rhPassword);
 const hasStaticToken = !!process.env.RH_AUTH_TOKEN;
 const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
+const oddsApiKey = process.env.ODDS_API_KEY || '';
+const hasOddsApiKey = !!oddsApiKey;
 
 // Browser-like headers for Robinhood API (matches old proxy)
 const RH_BROWSER_HEADERS = {
@@ -220,6 +222,7 @@ if (!hasRhCredentials && !hasStaticToken) {
   console.log('[STARTUP] RH_AUTH_TOKEN found — using static token');
 }
 if (!hasAnthropicKey) console.warn('[STARTUP] ANTHROPIC_API_KEY not set — /proxy/anthropic route disabled');
+if (!hasOddsApiKey) console.warn('[STARTUP] ODDS_API_KEY not set — /proxy/odds route disabled (get free key at the-odds-api.com)');
 
 // ── CORS — allow configured origins (comma-separated) or all ──
 // ALLOWED_ORIGIN can be a single origin or comma-separated list
@@ -299,7 +302,8 @@ app.get('/health', (_req, res) => {
     status: 'ok',
     services: {
       robinhood: rhReady(),
-      anthropic: hasAnthropicKey
+      anthropic: hasAnthropicKey,
+      odds: hasOddsApiKey
     },
     rh_status: rhLoginStatus,
     rh_error: rhLoginError || undefined
@@ -435,6 +439,47 @@ app.post('/proxy/robinhood', async (req, res) => {
   }
 });
 
+// ── Odds API Proxy (the-odds-api.com) ──
+app.get('/proxy/odds/status', (_req, res) => {
+  res.json({ available: hasOddsApiKey });
+});
+
+app.get('/proxy/odds/:sport', async (req, res) => {
+  if (!hasOddsApiKey) {
+    return res.status(503).json({ error: true, message: 'ODDS_API_KEY not configured on server' });
+  }
+
+  const sport = req.params.sport;
+  const markets = req.query.markets || 'spreads,totals,h2h';
+  const regions = req.query.regions || 'us';
+  const oddsFormat = req.query.oddsFormat || 'american';
+
+  const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${oddsApiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}`;
+
+  try {
+    const oddsResp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+
+    // Forward rate limit headers
+    const remaining = oddsResp.headers.get('x-requests-remaining');
+    const used = oddsResp.headers.get('x-requests-used');
+    if (remaining) res.setHeader('x-requests-remaining', remaining);
+    if (used) res.setHeader('x-requests-used', used);
+
+    if (!oddsResp.ok) {
+      const errText = await oddsResp.text();
+      console.error(`[Odds API] HTTP ${oddsResp.status}: ${errText.substring(0, 300)}`);
+      return res.status(oddsResp.status).json({ error: true, message: 'Odds API error: HTTP ' + oddsResp.status });
+    }
+
+    const data = await oddsResp.json();
+    if (remaining) console.log(`[Odds API] Requests remaining: ${remaining}, used: ${used}`);
+    res.json(data);
+  } catch (e) {
+    console.error('[Odds API] Fetch error:', e.message);
+    res.status(502).json({ error: true, message: 'Odds API request failed' });
+  }
+});
+
 // ── Anthropic Proxy ──
 app.post('/proxy/anthropic', (req, res, next) => anthropicLimiter(req, res, next), async (req, res) => {
   if (!hasAnthropicKey) {
@@ -538,6 +583,7 @@ app.post('/proxy/admin/rate-limits', (req, res) => {
 app.listen(PORT, async () => {
   console.log(`[Proxy] Server running on port ${PORT}`);
   console.log(`[Proxy] Anthropic: ${hasAnthropicKey ? 'enabled' : 'DISABLED (no key)'}`);
+  console.log(`[Proxy] Odds API: ${hasOddsApiKey ? 'enabled' : 'DISABLED (no key)'}`);
   if (allowedOrigins.length) {
     console.log(`[Proxy] CORS origins: ${allowedOrigins.join(', ')}`);
   } else {
