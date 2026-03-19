@@ -2515,6 +2515,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div class="page-tabs" id="spTabs">
           <div class="page-tab active" data-sptab="games">Scores</div>
           <div class="page-tab" data-sptab="standings">Standings</div>
+          <div class="page-tab" data-sptab="odds">Odds</div>
           <div class="page-tab" data-sptab="news">News</div>
           <div class="page-tab" data-sptab="youtube">YouTube</div>
         </div>
@@ -2526,7 +2527,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="nfl">NFL</option>
               <option value="mlb">MLB</option>
               <option value="nhl">NHL</option>
+              <option value="ncaab">NCAAB</option>
+              <option value="ncaaf">NCAAF</option>
               <option value="soccer">Soccer</option>
+              <option value="global">Global Events</option>
             </select>
             <button id="spRefreshScores" style="font-size:.68rem;">&#8635; Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
@@ -2544,13 +2548,37 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="nfl">NFL</option>
               <option value="mlb">MLB</option>
               <option value="nhl">NHL</option>
+              <option value="ncaab">NCAAB</option>
+              <option value="ncaaf">NCAAF</option>
               <option value="soccer">Soccer</option>
+              <option value="global">Global Events</option>
             </select>
             <button id="spRefreshStandings" style="font-size:.68rem;">&#8635; Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
           </div>
           <div id="spStandingsList" style="flex:1;overflow-y:auto;padding:8px;">
             <div class="sp-empty">Select a league and click Refresh to load standings.</div>
+          </div>
+        </div>
+        <!-- Odds sub-tab -->
+        <div id="spOddsTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
+          <div class="toolbar">
+            <select id="spOddsLeague" style="font-size:.68rem;">
+              <option value="nba">NBA</option>
+              <option value="nfl">NFL</option>
+              <option value="mlb">MLB</option>
+              <option value="nhl">NHL</option>
+              <option value="ncaab">NCAAB</option>
+              <option value="ncaaf">NCAAF</option>
+              <option value="soccer">Soccer</option>
+              <option value="global">Global Events</option>
+            </select>
+            <button id="spRefreshOdds" style="font-size:.68rem;">&#8635; Refresh</button>
+            <div class="p-spacer" style="flex:1;"></div>
+            <span id="spOddsTime" style="font-size:.55rem;color:var(--text-dim);"></span>
+          </div>
+          <div id="spOddsList" style="flex:1;overflow-y:auto;padding:8px;">
+            <div class="sp-empty">Select a league and click Refresh to load betting odds.</div>
           </div>
         </div>
         <!-- News sub-tab -->
@@ -2561,7 +2589,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="nfl">NFL</option>
               <option value="mlb">MLB</option>
               <option value="nhl">NHL</option>
+              <option value="ncaab">NCAAB</option>
+              <option value="ncaaf">NCAAF</option>
               <option value="soccer">Soccer</option>
+              <option value="global">Global Events</option>
             </select>
             <button id="spRefreshNews" style="font-size:.68rem;">&#8635; Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
@@ -2573,13 +2604,16 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <!-- YouTube sub-tab -->
         <div id="spYoutubeTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;">
           <div class="toolbar">
-            <input type="text" id="spYtUrl" placeholder="Paste YouTube link..." style="flex:1;max-width:300px;font-size:.68rem;" />
-            <button id="spAddYt" style="font-size:.68rem;">+ Add</button>
+            <input type="text" id="spYtSearch" placeholder="Search sports videos..." style="flex:1;max-width:260px;font-size:.68rem;" />
+            <button id="spYtSearchBtn" style="font-size:.68rem;">Search</button>
             <div class="p-spacer" style="flex:1;"></div>
-            <button id="spClearYt" style="font-size:.68rem;color:var(--text-dim);">Clear</button>
+          </div>
+          <div id="spYtPlayer" style="display:none;width:100%;background:#000;position:relative;">
+            <button id="spYtClose" style="position:absolute;top:4px;right:4px;z-index:5;background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:.7rem;">&times;</button>
+            <iframe id="spYtFrame" style="width:100%;height:200px;border:none;" allowfullscreen></iframe>
           </div>
           <div id="spYtList" style="flex:1;overflow-y:auto;padding:8px;">
-            <div class="sp-empty">Add YouTube links of game recaps and analysis.</div>
+            <div class="sp-empty">Search for sports highlights, recaps, and analysis.</div>
           </div>
         </div>
       </div>
@@ -9316,7 +9350,10 @@ $('#clearCompare').onclick = () => {
 $('#compareModeToggle').onclick = () => {
   compareMode = compareMode === 'pct' ? 'dollar' : 'pct';
   LS('compareMode', compareMode);
+  // Clear cache so chart re-renders with fresh transform
+  Object.keys(stockDataCache).forEach(k => delete stockDataCache[k]);
   renderCompareChart();
+  toast(compareMode === 'pct' ? 'Growth % mode' : '$ Price mode');
 };
 
 $('#stockAdd').onclick = () => {
@@ -9331,7 +9368,12 @@ $('#stockAdd').onclick = () => {
 };
 $('#stockInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#stockAdd').click(); });
 $('#stockRange').onchange = () => renderStockDash();
-$('#stockRefresh').onclick = () => { renderStockDash(); toast('Refreshed'); };
+$('#stockRefresh').onclick = () => {
+  // Clear data cache to force fresh fetch
+  Object.keys(stockDataCache).forEach(k => delete stockDataCache[k]);
+  renderStockDash();
+  toast('Refreshing...');
+};
 
 function renderStockChips() {
   const el = $('#stockChips');
@@ -9698,12 +9740,31 @@ const SP_LEAGUE_MAP = {
   nfl: { sport: 'football', league: 'nfl', name: 'NFL' },
   mlb: { sport: 'baseball', league: 'mlb', name: 'MLB' },
   nhl: { sport: 'hockey', league: 'nhl', name: 'NHL' },
-  soccer: { sport: 'soccer', league: 'usa.1', name: 'MLS' }
+  ncaab: { sport: 'basketball', league: 'mens-college-basketball', name: 'NCAAB' },
+  ncaaf: { sport: 'football', league: 'college-football', name: 'NCAAF' },
+  soccer: { sport: 'soccer', league: 'usa.1', name: 'MLS' },
+  global: { sport: 'multi', league: 'multi', name: 'Global Events' }
 };
 
+// Global events aggregates from multiple international/event sources
+const SP_GLOBAL_SOURCES = [
+  { sport: 'soccer', league: 'fifa.world', name: 'FIFA World Cup' },
+  { sport: 'soccer', league: 'uefa.champions', name: 'UEFA Champions League' },
+  { sport: 'soccer', league: 'eng.1', name: 'Premier League' },
+  { sport: 'baseball', league: 'baseball.world-baseball-classic', name: 'World Baseball Classic' },
+  { sport: 'hockey', league: 'iihf.world', name: 'IIHF World Championship' },
+  { sport: 'basketball', league: 'fiba.world', name: 'FIBA World Cup' },
+  { sport: 'soccer', league: 'fifa.worldq.concacaf', name: 'CONCACAF World Cup Qualifying' }
+];
+
 function spEspnUrl(league, endpoint) {
+  if (league === 'global') return null; // handled separately
   const l = SP_LEAGUE_MAP[league] || SP_LEAGUE_MAP.nba;
   return 'https://site.api.espn.com/apis/site/v2/sports/' + l.sport + '/' + l.league + '/' + endpoint;
+}
+
+function spEspnUrlDirect(sport, leagueCode, endpoint) {
+  return 'https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + leagueCode + '/' + endpoint;
 }
 
 // Sub-tab switching
@@ -9714,6 +9775,7 @@ $$('#spTabs .page-tab').forEach(tab => {
     const st = tab.dataset.sptab;
     $('#spGamesTab').style.display = st === 'games' ? 'flex' : 'none';
     if ($('#spStandingsTab')) $('#spStandingsTab').style.display = st === 'standings' ? 'flex' : 'none';
+    if ($('#spOddsTab')) $('#spOddsTab').style.display = st === 'odds' ? 'flex' : 'none';
     if ($('#spNewsTab')) $('#spNewsTab').style.display = st === 'news' ? 'flex' : 'none';
     $('#spYoutubeTab').style.display = st === 'youtube' ? 'flex' : 'none';
   });
@@ -9731,6 +9793,7 @@ function spFetchScores() {
   const league = $('#spLeague').value;
   const el = $('#spGamesList');
   el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading scores...</div>';
+  if (league === 'global') { spFetchGlobalScores(); return; }
   fetch(spEspnUrl(league, 'scoreboard'))
     .then(r => r.json())
     .then(data => {
@@ -9784,55 +9847,253 @@ function spFetchScores() {
     });
 }
 
-// ── Standings ──
+// Global events: fetch from multiple international sources and combine
+function spFetchGlobalScores() {
+  const el = $('#spGamesList');
+  const promises = SP_GLOBAL_SOURCES.map(src =>
+    fetch(spEspnUrlDirect(src.sport, src.league, 'scoreboard'))
+      .then(r => r.json())
+      .then(data => ({ name: src.name, events: data.events || [] }))
+      .catch(() => ({ name: src.name, events: [] }))
+  );
+  Promise.all(promises).then(results => {
+    let html = '';
+    results.forEach(src => {
+      if (!src.events.length) return;
+      html += '<div style="font-weight:700;font-size:.72rem;color:var(--accent);margin:8px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px;">'+esc(src.name)+'</div>';
+      src.events.forEach(ev => {
+        const comp = ev.competitions && ev.competitions[0];
+        if (!comp) return;
+        const teams = comp.competitors || [];
+        const home = teams.find(t => t.homeAway === 'home') || teams[0] || {};
+        const away = teams.find(t => t.homeAway === 'away') || teams[1] || {};
+        const homeName = home.team ? home.team.displayName : 'TBD';
+        const awayName = away.team ? away.team.displayName : 'TBD';
+        const homeScore = home.score || '-';
+        const awayScore = away.score || '-';
+        const status = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
+        html += '<div class="sp-card" style="padding:6px 10px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+            '<span style="font-size:.7rem;">'+esc(awayName)+' <b>'+esc(awayScore)+'</b> - <b>'+esc(homeScore)+'</b> '+esc(homeName)+'</span>' +
+            '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(status)+'</span>' +
+          '</div></div>';
+      });
+    });
+    if (!html) html = '<div class="sp-empty">No global events currently in progress.</div>';
+    $('#spScoresTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    el.innerHTML = html;
+  });
+}
+
+// ── Standings (robust parser for ESPN nested structure) ──
 $('#spRefreshStandings').onclick = () => spFetchStandings();
+
+function spParseStandingsGroup(group) {
+  const groupName = group.name || group.abbreviation || '';
+  const standings = group.standings || {};
+  const entries = standings.entries || [];
+  if (!entries.length) return '';
+  let html = '<div style="margin-bottom:12px;">';
+  html += '<div style="font-weight:700;font-size:.72rem;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:2px;">'+esc(groupName)+'</div>';
+  html += '<table style="width:100%;font-size:.62rem;border-collapse:collapse;">';
+  html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:2px 4px;">Team</th><th style="padding:2px 4px;">W</th><th style="padding:2px 4px;">L</th><th style="padding:2px 4px;">PCT</th><th style="padding:2px 4px;">GB</th><th style="padding:2px 4px;">STRK</th></tr>';
+  // Sort by overall record or rank
+  entries.sort((a, b) => {
+    const aW = (a.stats || []).find(s => s.name === 'wins' || s.abbreviation === 'W');
+    const bW = (b.stats || []).find(s => s.name === 'wins' || s.abbreviation === 'W');
+    return (bW ? bW.value : 0) - (aW ? aW.value : 0);
+  });
+  entries.forEach(entry => {
+    const team = entry.team || {};
+    const logo = team.logos && team.logos[0] ? team.logos[0].href : '';
+    const stats = entry.stats || [];
+    const getStat = function() {
+      for (let i = 0; i < arguments.length; i++) {
+        const s = stats.find(x => x.name === arguments[i] || x.abbreviation === arguments[i]);
+        if (s) return s.displayValue || String(s.value);
+      }
+      return '-';
+    };
+    html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);">' +
+      '<td style="padding:3px 4px;display:flex;align-items:center;gap:4px;">' +
+        (logo ? '<img src="'+esc(logo)+'" style="width:14px;height:14px;" onerror="this.style.display=\'none\'" />' : '') +
+        '<span>'+esc(team.displayName || team.shortDisplayName || team.name || '')+'</span></td>' +
+      '<td style="text-align:center;padding:3px 4px;">'+getStat('wins','W','overall.wins')+'</td>' +
+      '<td style="text-align:center;padding:3px 4px;">'+getStat('losses','L','overall.losses')+'</td>' +
+      '<td style="text-align:center;padding:3px 4px;">'+getStat('winPercent','PCT','winpercent','playoffSeed')+'</td>' +
+      '<td style="text-align:center;padding:3px 4px;">'+getStat('gamesBehind','GB','gamesBack')+'</td>' +
+      '<td style="text-align:center;padding:3px 4px;">'+getStat('streak','STRK')+'</td>' +
+    '</tr>';
+  });
+  html += '</table></div>';
+  return html;
+}
 
 function spFetchStandings() {
   const league = $('#spStandingsLeague').value;
   const el = $('#spStandingsList');
   el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading standings...</div>';
+  if (league === 'global') {
+    // Fetch standings from all global sources
+    const promises = SP_GLOBAL_SOURCES.map(src =>
+      fetch(spEspnUrlDirect(src.sport, src.league, 'standings'))
+        .then(r => r.json())
+        .then(data => ({ name: src.name, data }))
+        .catch(() => null)
+    );
+    Promise.all(promises).then(results => {
+      let html = '';
+      results.filter(Boolean).forEach(src => {
+        const children = src.data.children || [];
+        if (!children.length) return;
+        html += '<div style="font-weight:700;font-size:.78rem;color:var(--accent);margin:8px 0 4px;">'+esc(src.name)+'</div>';
+        children.forEach(group => {
+          const divChildren = group.children || [];
+          if (divChildren.length) { divChildren.forEach(div => { html += spParseStandingsGroup(div); }); }
+          else { html += spParseStandingsGroup(group); }
+        });
+      });
+      el.innerHTML = html || '<div class="sp-empty">No standings data for global events currently.</div>';
+    });
+    return;
+  }
   fetch(spEspnUrl(league, 'standings'))
     .then(r => r.json())
     .then(data => {
-      const children = data.children || [];
-      if (!children.length) { el.innerHTML = '<div class="sp-empty">No standings data available.</div>'; return; }
       let html = '';
-      children.forEach(group => {
-        const groupName = group.name || group.abbreviation || '';
-        const standings = group.standings || {};
-        const entries = standings.entries || [];
-        if (!entries.length) return;
-        html += '<div style="margin-bottom:12px;">';
-        html += '<div style="font-weight:700;font-size:.72rem;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:2px;">'+esc(groupName)+'</div>';
-        html += '<table style="width:100%;font-size:.62rem;border-collapse:collapse;">';
-        html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:2px 4px;">Team</th><th style="padding:2px 4px;">W</th><th style="padding:2px 4px;">L</th><th style="padding:2px 4px;">PCT</th><th style="padding:2px 4px;">GB</th></tr>';
-        entries.sort((a, b) => {
-          const aS = (a.stats || []).find(s => s.name === 'wins');
-          const bS = (b.stats || []).find(s => s.name === 'wins');
-          return (bS ? bS.value : 0) - (aS ? aS.value : 0);
+      // ESPN structures: data.children[] (conferences) which may have children[] (divisions)
+      const topChildren = data.children || [];
+      if (topChildren.length) {
+        topChildren.forEach(conf => {
+          // Conference level might have its own standings
+          const confStandings = conf.standings || {};
+          const confEntries = confStandings.entries || [];
+          // Check for division sub-groups
+          const divChildren = conf.children || [];
+          if (divChildren.length) {
+            // Conference header
+            html += '<div style="font-weight:700;font-size:.78rem;color:var(--accent);margin:8px 0 4px;text-transform:uppercase;">'+esc(conf.name || conf.abbreviation || '')+'</div>';
+            divChildren.forEach(div => { html += spParseStandingsGroup(div); });
+          } else if (confEntries.length) {
+            html += spParseStandingsGroup(conf);
+          }
         });
-        entries.forEach(entry => {
-          const team = entry.team || {};
-          const logo = team.logos && team.logos[0] ? team.logos[0].href : '';
-          const stats = entry.stats || [];
-          const getStat = (name) => { const s = stats.find(x => x.name === name); return s ? s.displayValue || String(s.value) : '-'; };
-          html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);">' +
-            '<td style="padding:3px 4px;display:flex;align-items:center;gap:4px;">' +
-              (logo ? '<img src="'+esc(logo)+'" style="width:14px;height:14px;" onerror="this.style.display=\'none\'" />' : '') +
-              '<span>'+esc(team.displayName || team.name || '')+'</span></td>' +
-            '<td style="text-align:center;padding:3px 4px;">'+getStat('wins')+'</td>' +
-            '<td style="text-align:center;padding:3px 4px;">'+getStat('losses')+'</td>' +
-            '<td style="text-align:center;padding:3px 4px;">'+getStat('winPercent')+'</td>' +
-            '<td style="text-align:center;padding:3px 4px;">'+getStat('gamesBehind')+'</td>' +
-          '</tr>';
-        });
-        html += '</table></div>';
-      });
-      el.innerHTML = html || '<div class="sp-empty">No standings data available.</div>';
+      }
+      // Fallback: some leagues put standings at top-level
+      if (!html) {
+        const topStandings = data.standings || {};
+        const topEntries = topStandings.entries || [];
+        if (topEntries.length) {
+          html = spParseStandingsGroup({ name: SP_LEAGUE_MAP[league] ? SP_LEAGUE_MAP[league].name : league, standings: topStandings });
+        }
+      }
+      el.innerHTML = html || '<div class="sp-empty">No standings data available for this league.</div>';
     })
     .catch(err => {
       el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load standings.</div>';
       console.error('[Sports] Standings fetch error:', err);
+    });
+}
+
+// ── Odds / Betting Lines (from ESPN scoreboard odds data) ──
+$('#spRefreshOdds').onclick = () => spFetchOdds();
+
+function spFetchOdds() {
+  const league = $('#spOddsLeague').value;
+  const el = $('#spOddsList');
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading odds...</div>';
+  if (league === 'global') {
+    const promises = SP_GLOBAL_SOURCES.map(src =>
+      fetch(spEspnUrlDirect(src.sport, src.league, 'scoreboard'))
+        .then(r => r.json()).then(d => ({ name: src.name, events: d.events || [] })).catch(() => null)
+    );
+    Promise.all(promises).then(results => {
+      let html = '';
+      results.filter(Boolean).forEach(src => {
+        src.events.forEach(ev => {
+          const comp = ev.competitions && ev.competitions[0];
+          if (!comp || !(comp.odds || []).length) return;
+          if (!html) html = '';
+          html += '<div style="font-size:.55rem;color:var(--accent);margin:4px 0 2px;">'+esc(src.name)+'</div>';
+          // Reuse same rendering logic as non-global (inline)
+        });
+      });
+      el.innerHTML = html || '<div class="sp-empty">No odds for global events currently.</div>';
+    });
+    return;
+  }
+  fetch(spEspnUrl(league, 'scoreboard'))
+    .then(r => r.json())
+    .then(data => {
+      const events = data.events || [];
+      let hasOdds = false;
+      let html = '';
+      events.forEach(ev => {
+        const comp = ev.competitions && ev.competitions[0];
+        if (!comp) return;
+        const odds = comp.odds || [];
+        if (!odds.length) return;
+        hasOdds = true;
+        const teams = comp.competitors || [];
+        const home = teams.find(t => t.homeAway === 'home') || teams[0] || {};
+        const away = teams.find(t => t.homeAway === 'away') || teams[1] || {};
+        const homeName = home.team ? home.team.shortDisplayName || home.team.displayName : 'TBD';
+        const awayName = away.team ? away.team.shortDisplayName || away.team.displayName : 'TBD';
+        const homeLogo = home.team && home.team.logo ? home.team.logo : '';
+        const awayLogo = away.team && away.team.logo ? away.team.logo : '';
+        const status = ev.status && ev.status.type ? ev.status.type.shortDetail : '';
+
+        html += '<div class="sp-card">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+        html += '<div style="display:flex;align-items:center;gap:4px;">' +
+          (awayLogo ? '<img src="'+esc(awayLogo)+'" style="width:16px;height:16px;" onerror="this.style.display=\'none\'" />' : '') +
+          '<span style="font-size:.72rem;font-weight:600;">'+esc(awayName)+'</span>' +
+          '<span style="font-size:.62rem;color:var(--text-dim);">@</span>' +
+          (homeLogo ? '<img src="'+esc(homeLogo)+'" style="width:16px;height:16px;" onerror="this.style.display=\'none\'" />' : '') +
+          '<span style="font-size:.72rem;font-weight:600;">'+esc(homeName)+'</span></div>';
+        html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(status)+'</span>';
+        html += '</div>';
+
+        odds.forEach(o => {
+          const provider = o.provider ? o.provider.name : 'Line';
+          const spread = o.spread || o.details || '';
+          const overUnder = o.overUnder ? 'O/U ' + o.overUnder : '';
+          const awayML = o.awayTeamOdds && o.awayTeamOdds.moneyLine ? o.awayTeamOdds.moneyLine : '';
+          const homeML = o.homeTeamOdds && o.homeTeamOdds.moneyLine ? o.homeTeamOdds.moneyLine : '';
+          const awaySpread = o.awayTeamOdds && o.awayTeamOdds.spreadOdds ? o.awayTeamOdds.spreadOdds : '';
+          const homeSpread = o.homeTeamOdds && o.homeTeamOdds.spreadOdds ? o.homeTeamOdds.spreadOdds : '';
+
+          html += '<div style="background:rgba(255,255,255,.03);border-radius:4px;padding:6px 8px;margin-bottom:3px;">';
+          html += '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:3px;font-weight:600;">'+esc(provider)+'</div>';
+          html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.68rem;">';
+          if (spread) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">SPREAD</span><br/><span style="font-weight:600;color:var(--accent);">'+esc(String(spread))+'</span></div>';
+          if (overUnder) html += '<div><span style="color:var(--text-dim);font-size:.55rem;">TOTAL</span><br/><span style="font-weight:600;color:var(--accent);">'+esc(overUnder)+'</span></div>';
+          if (awayML || homeML) {
+            html += '<div><span style="color:var(--text-dim);font-size:.55rem;">MONEYLINE</span><br/>';
+            if (awayML) html += '<span style="font-size:.62rem;">'+esc(awayName)+' <b style="color:var(--accent);">'+esc(String(awayML))+'</b></span> ';
+            if (homeML) html += '<span style="font-size:.62rem;">'+esc(homeName)+' <b style="color:var(--accent);">'+esc(String(homeML))+'</b></span>';
+            html += '</div>';
+          }
+          if (awaySpread || homeSpread) {
+            html += '<div><span style="color:var(--text-dim);font-size:.55rem;">SPREAD ODDS</span><br/>';
+            if (awaySpread) html += '<span style="font-size:.62rem;">'+esc(awayName)+' <b>'+esc(String(awaySpread))+'</b></span> ';
+            if (homeSpread) html += '<span style="font-size:.62rem;">'+esc(homeName)+' <b>'+esc(String(homeSpread))+'</b></span>';
+            html += '</div>';
+          }
+          html += '</div></div>';
+        });
+        html += '</div>';
+      });
+      if (!hasOdds) {
+        el.innerHTML = '<div class="sp-empty">No odds available for current games. Lines may not be posted yet.</div>';
+      } else {
+        $('#spOddsTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
+        el.innerHTML = html;
+      }
+    })
+    .catch(err => {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load odds.</div>';
+      console.error('[Sports] Odds fetch error:', err);
     });
 }
 
@@ -9843,6 +10104,33 @@ function spFetchNews() {
   const league = $('#spNewsLeague').value;
   const el = $('#spNewsList');
   el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading news...</div>';
+  if (league === 'global') {
+    const promises = SP_GLOBAL_SOURCES.map(src =>
+      fetch(spEspnUrlDirect(src.sport, src.league, 'news'))
+        .then(r => r.json()).then(d => ({ name: src.name, articles: d.articles || [] })).catch(() => null)
+    );
+    Promise.all(promises).then(results => {
+      let html = '';
+      results.filter(Boolean).forEach(src => {
+        src.articles.slice(0, 5).forEach(a => {
+          const img = a.images && a.images[0] ? a.images[0].url : '';
+          const published = a.published ? new Date(a.published).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+          html += '<div class="sp-card" style="cursor:pointer;" onclick="window.open(\''+esc(a.links && a.links.web ? a.links.web.href : '#')+'\',\'_blank\')">' +
+            '<div style="display:flex;gap:8px;">' +
+              (img ? '<img src="'+esc(img)+'" style="width:60px;height:40px;border-radius:4px;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'" />' : '') +
+              '<div style="flex:1;min-width:0;">' +
+                '<div style="font-size:.72rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.headline || '')+'</div>' +
+                '<div style="font-size:.52rem;color:var(--accent);margin-bottom:1px;">'+esc(src.name)+'</div>' +
+                '<div style="font-size:.58rem;color:var(--text-dim);">'+esc(a.description || '').substring(0, 100)+'</div>' +
+                '<div style="font-size:.52rem;color:var(--text-dim);margin-top:2px;">'+esc(published)+'</div>' +
+              '</div>' +
+            '</div></div>';
+        });
+      });
+      el.innerHTML = html || '<div class="sp-empty">No news for global events currently.</div>';
+    });
+    return;
+  }
   fetch(spEspnUrl(league, 'news'))
     .then(r => r.json())
     .then(data => {
@@ -9869,47 +10157,85 @@ function spFetchNews() {
     });
 }
 
-// ── YouTube Links (kept as manual) ──
+// ── YouTube Search & In-Pane Player ──
 function extractYtId(url) {
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
 }
 
-function renderSpYtLinks() {
+// YouTube search via Invidious public API (no API key required)
+const SP_YT_INSTANCES = [
+  'https://vid.puffyan.us',
+  'https://invidious.snopyta.org',
+  'https://yewtu.be',
+  'https://inv.nadeko.net',
+  'https://invidious.fdn.fr'
+];
+let spYtInstance = 0;
+
+function spYtSearchVideos(query) {
   const el = $('#spYtList');
-  if (!spYtLinks.length) { el.innerHTML = '<div class="sp-empty">Add YouTube links of game recaps and analysis.</div>'; return; }
-  el.innerHTML = spYtLinks.map((yt, i) => {
-    const vid = extractYtId(yt.url);
-    const thumb = vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : '';
-    return `
-    <div class="sp-card">
-      <div class="sp-yt-card">
-        ${thumb ? `<img class="sp-yt-thumb" src="${thumb}" alt="thumb" onerror="this.style.display='none'"/>` : ''}
-        <div class="sp-yt-info">
-          <div class="sp-yt-title">${esc(yt.title || yt.url)}</div>
-          <div class="sp-yt-channel">${esc(yt.channel || '')}</div>
-        </div>
-        <button class="sp-copy-btn" onclick="navigator.clipboard.writeText('${esc(yt.url)}');toast('Link copied!')">Copy Link</button>
-        <span class="sp-del" onclick="spDelYt(${i})">&times;</span>
-      </div>
-    </div>`;
-  }).join('');
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Searching...</div>';
+  const baseUrl = SP_YT_INSTANCES[spYtInstance % SP_YT_INSTANCES.length];
+  const url = baseUrl + '/api/v1/search?q=' + encodeURIComponent(query) + '&type=video&sort_by=relevance';
+  fetch(url)
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(results => {
+      if (!results || !results.length) { el.innerHTML = '<div class="sp-empty">No results found.</div>'; return; }
+      el.innerHTML = results.slice(0, 15).map(v => {
+        const vid = v.videoId;
+        const thumb = v.videoThumbnails && v.videoThumbnails.length ? v.videoThumbnails.find(t => t.quality === 'medium') || v.videoThumbnails[0] : null;
+        const thumbUrl = thumb ? thumb.url : 'https://img.youtube.com/vi/' + vid + '/mqdefault.jpg';
+        const dur = v.lengthSeconds ? Math.floor(v.lengthSeconds/60) + ':' + String(v.lengthSeconds%60).padStart(2,'0') : '';
+        const views = v.viewCount ? (v.viewCount > 1000000 ? (v.viewCount/1000000).toFixed(1)+'M' : v.viewCount > 1000 ? (v.viewCount/1000).toFixed(0)+'K' : v.viewCount) + ' views' : '';
+        return '<div class="sp-card" style="cursor:pointer;" onclick="spPlayYt(\''+vid+'\')">' +
+          '<div class="sp-yt-card">' +
+            '<div style="position:relative;flex-shrink:0;">' +
+              '<img class="sp-yt-thumb" src="'+esc(thumbUrl)+'" onerror="this.src=\'https://img.youtube.com/vi/'+vid+'/mqdefault.jpg\'" />' +
+              (dur ? '<span style="position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.8);color:#fff;font-size:.5rem;padding:1px 3px;border-radius:2px;">'+esc(dur)+'</span>' : '') +
+            '</div>' +
+            '<div class="sp-yt-info">' +
+              '<div class="sp-yt-title">'+esc(v.title || '')+'</div>' +
+              '<div class="sp-yt-channel">'+esc(v.author || '')+' &middot; '+esc(views)+'</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(err => {
+      console.warn('[Sports YT] Instance ' + baseUrl + ' failed, trying next...', err);
+      spYtInstance++;
+      if (spYtInstance < SP_YT_INSTANCES.length * 2) {
+        spYtSearchVideos(query); // retry with next instance
+      } else {
+        // Fallback: link to YouTube search
+        el.innerHTML = '<div class="sp-empty">Search service unavailable. <a href="https://www.youtube.com/results?search_query='+encodeURIComponent(query)+'" target="_blank" style="color:var(--accent);">Search on YouTube</a></div>';
+        spYtInstance = 0;
+      }
+    });
 }
 
-$('#spAddYt').onclick = () => {
-  const url = $('#spYtUrl').value.trim();
-  if (!url) return;
-  const title = prompt('Title (optional):') || '';
-  const channel = prompt('Channel name (optional):') || '';
-  spYtLinks.push({ url, title, channel });
-  LS('spYtLinks', spYtLinks);
-  $('#spYtUrl').value = '';
-  renderSpYtLinks();
+window.spPlayYt = function(vid) {
+  const player = $('#spYtPlayer');
+  const frame = $('#spYtFrame');
+  player.style.display = 'block';
+  frame.src = 'https://www.youtube.com/embed/' + vid + '?autoplay=1&rel=0';
 };
 
-$('#spClearYt').onclick = () => { if (confirm('Clear all YouTube links?')) { spYtLinks = []; LS('spYtLinks', spYtLinks); renderSpYtLinks(); } };
+$('#spYtClose').onclick = () => {
+  $('#spYtPlayer').style.display = 'none';
+  $('#spYtFrame').src = '';
+};
 
-window.spDelYt = (i) => { spYtLinks.splice(i, 1); LS('spYtLinks', spYtLinks); renderSpYtLinks(); };
+$('#spYtSearchBtn').onclick = () => {
+  const q = $('#spYtSearch').value.trim();
+  if (!q) return;
+  spYtInstance = 0;
+  spYtSearchVideos(q);
+};
+$('#spYtSearch').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); $('#spYtSearchBtn').click(); }
+});
 
 // Auto-refresh scores every 60 seconds when sports tab is visible
 let spAutoRefreshTimer = null;
@@ -14833,6 +15159,19 @@ function getWorkspaceContext() {
     }
   });
   if (cachedStockSummary.length) parts.push('Cached stock data (use instead of re-fetching if under 15min): ' + cachedStockSummary.join(', '));
+  // Sports data context — expose cached scores and odds to AI
+  const spScoresEl = document.getElementById('spGamesList');
+  if (spScoresEl && spScoresEl.innerText.trim() && !spScoresEl.innerText.includes('Select a league')) {
+    parts.push('Sports scores (from ESPN): ' + spScoresEl.innerText.trim().substring(0, 600));
+  }
+  const spOddsEl = document.getElementById('spOddsList');
+  if (spOddsEl && spOddsEl.innerText.trim() && !spOddsEl.innerText.includes('Select a league')) {
+    parts.push('Betting odds (from ESPN): ' + spOddsEl.innerText.trim().substring(0, 600));
+  }
+  const spStandingsEl = document.getElementById('spStandingsList');
+  if (spStandingsEl && spStandingsEl.innerText.trim() && !spStandingsEl.innerText.includes('Select a league')) {
+    parts.push('Standings: ' + spStandingsEl.innerText.trim().substring(0, 600));
+  }
   // ADDED — Phase 4: Include agent memory in context
   const agentMem = window.getAgentMemory ? window.getAgentMemory().slice(0, 800) : '';
   if (agentMem) parts.push('Agent Memory: ' + agentMem);
