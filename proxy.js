@@ -65,8 +65,8 @@ app.get('/health', (_req, res) => {
 });
 
 // ── ESPN API Proxy (avoids browser CORS issues) ──
-app.get('/proxy/espn/*', async (req, res) => {
-  const espnPath = req.params[0];
+app.get('/proxy/espn/:path+', async (req, res) => {
+  const espnPath = Array.isArray(req.params.path) ? req.params.path.join('/') : req.params.path;
   if (!espnPath || espnPath.includes('..')) {
     return res.status(400).json({ error: true, message: 'Invalid ESPN path' });
   }
