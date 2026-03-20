@@ -8404,22 +8404,31 @@ function ssRender() {
       LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); return;
     }
     // Ctrl+C: copy range (data + formatting)
+    // Internal clipboard stores raw formulas; system clipboard gets display values (for external apps)
     if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
       e.preventDefault();
       const sr = ssSelRange();
-      let text = '';
+      let displayText = '';
       const data = [], fmt = [];
       for (let r = sr.minR; r <= sr.maxR; r++) {
-        const row = [], fmtRow = [];
+        const row = [], displayRow = [], fmtRow = [];
         for (let c = sr.minC; c <= sr.maxC; c++) {
-          row.push(ssD[r][c] || '');
+          const raw = ssD[r][c] || '';
+          row.push(raw);
+          // System clipboard gets evaluated values so external apps see numbers, not formulas
+          if (typeof raw === 'string' && raw.startsWith('=')) {
+            const ev = evalF(raw);
+            displayRow.push(ev != null ? String(ev) : '');
+          } else {
+            displayRow.push(raw);
+          }
           const f = ssFmt[r + ',' + c];
           fmtRow.push(f ? Object.assign({}, f) : null);
         }
-        text += row.join('\t') + '\n';
+        displayText += displayRow.join('\t') + '\n';
         data.push(row); fmt.push(fmtRow);
       }
-      navigator.clipboard.writeText(text).catch(() => {});
+      navigator.clipboard.writeText(displayText).catch(() => {});
       ssClipboardRange = { data, fmt, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1, srcRow: sr.minR, srcCol: sr.minC };
       toast('Copied ' + (sr.maxR-sr.minR+1) + '×' + (sr.maxC-sr.minC+1));
       return;
@@ -8428,21 +8437,28 @@ function ssRender() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
       e.preventDefault();
       const sr = ssSelRange();
-      let text = '';
+      let displayText = '';
       const data = [], fmt = [];
       for (let r = sr.minR; r <= sr.maxR; r++) {
-        const row = [], fmtRow = [];
+        const row = [], displayRow = [], fmtRow = [];
         for (let c = sr.minC; c <= sr.maxC; c++) {
-          row.push(ssD[r][c] || ''); ssD[r][c] = '';
+          const raw = ssD[r][c] || '';
+          row.push(raw); ssD[r][c] = '';
+          if (typeof raw === 'string' && raw.startsWith('=')) {
+            const ev = evalF(raw);
+            displayRow.push(ev != null ? String(ev) : '');
+          } else {
+            displayRow.push(raw);
+          }
           const fk = r + ',' + c;
           const f = ssFmt[fk];
           fmtRow.push(f ? Object.assign({}, f) : null);
           delete ssFmt[fk];
         }
-        text += row.join('\t') + '\n';
+        displayText += displayRow.join('\t') + '\n';
         data.push(row); fmt.push(fmtRow);
       }
-      navigator.clipboard.writeText(text).catch(() => {});
+      navigator.clipboard.writeText(displayText).catch(() => {});
       ssClipboardRange = { data, fmt, rows: sr.maxR-sr.minR+1, cols: sr.maxC-sr.minC+1, isCut: true };
       LS('sheet', ssD); LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender(); toast('Cut');
       return;
@@ -8510,13 +8526,17 @@ function ssRender() {
       }
       // Expose ssPasteData globally for context menu paste special
       window._ssPasteData = ssPasteData;
-      navigator.clipboard.readText().then(text => {
-        const rows = text.split('\n').filter(r => r.length);
-        const clipData = rows.map(r => r.split('\t'));
-        ssPasteData(clipData, ssClipboardRange);
-      }).catch(() => {
-        if (ssClipboardRange) ssPasteData(ssClipboardRange.data, ssClipboardRange);
-      });
+      // Prefer internal clipboard (retains formulas + source position for reference adjustment)
+      // Only fall back to system clipboard if no internal data exists
+      if (ssClipboardRange && ssClipboardRange.data) {
+        ssPasteData(ssClipboardRange.data, ssClipboardRange);
+      } else {
+        navigator.clipboard.readText().then(text => {
+          const rows = text.split('\n').filter(r => r.length);
+          const clipData = rows.map(r => r.split('\t'));
+          ssPasteData(clipData, null);
+        }).catch(() => {});
+      }
       return;
     }
     // Ctrl+A: select all
@@ -9115,14 +9135,21 @@ $$('.ctx-item').forEach(item => {
     else if (action === 'copy') {
       const sr = ssSel ? ssSelRange() : { minR: r, maxR: r, minC: c, maxC: c };
       const data = [], fmt = [];
+      let _ctxCopyText = '';
       for (let ri = sr.minR; ri <= sr.maxR; ri++) {
-        const row = [], fmtRow = [];
+        const row = [], displayRow = [], fmtRow = [];
         for (let ci = sr.minC; ci <= sr.maxC; ci++) {
-          row.push(ssD[ri][ci] || '');
+          const raw = ssD[ri][ci] || '';
+          row.push(raw);
+          if (typeof raw === 'string' && raw.startsWith('=')) {
+            const ev = evalF(raw); displayRow.push(ev != null ? String(ev) : '');
+          } else { displayRow.push(raw); }
           const f = ssFmt[ri + ',' + ci]; fmtRow.push(f ? Object.assign({}, f) : null);
         }
+        _ctxCopyText += displayRow.join('\t') + '\n';
         data.push(row); fmt.push(fmtRow);
       }
+      navigator.clipboard.writeText(_ctxCopyText).catch(() => {});
       ssClipboardRange = { data, fmt, rows: data.length, cols: data[0].length, srcRow: sr.minR, srcCol: sr.minC };
     }
     else if ((action === 'paste' || action === 'pasteValues' || action === 'pasteFormulas' || action === 'pasteFormat') && ssClipboardRange) {
