@@ -560,6 +560,34 @@ app.get('/proxy/espn-player/:sport/:league/athletes/:id/gamelog', async (req, re
   }
 });
 
+// ── ESPN Standings Proxy (v3 web API — returns fully resolved data) ──
+app.get('/proxy/espn-standings/:sport/:league', async (req, res) => {
+  const { sport, league } = req.params;
+  const season = req.query.season || new Date().getFullYear();
+  const seasontype = req.query.seasontype || '2';
+  // Try v3 web API first (fully resolved), then v2 site API
+  const urls = [
+    'https://site.web.api.espn.com/apis/v2/sports/' + sport + '/' + league + '/standings?region=us&lang=en&contentorigin=espn&season=' + season + '&type=' + seasontype + '&level=1',
+    'https://site.web.api.espn.com/apis/v2/sports/' + sport + '/' + league + '/standings?region=us&lang=en&contentorigin=espn&season=' + season,
+    'https://site.api.espn.com/apis/v2/sports/' + sport + '/' + league + '/standings?season=' + season + '&sort=winpercent:desc'
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { timeout: 10000, headers: { 'Accept': 'application/json' } });
+      if (!r.ok) continue;
+      const data = await r.json();
+      // Validate that the response has actual standings data (not just fullViewLink)
+      if (data.children && data.children.length) return res.json(data);
+      if (data.standings && (Array.isArray(data.standings) ? data.standings.length : data.standings.entries)) return res.json(data);
+      if (data.groups && data.groups.length) return res.json(data);
+      console.log('[ESPN Standings] Response from ' + url.split('?')[0] + ' had no standings data, trying next');
+    } catch (e) {
+      console.log('[ESPN Standings] ' + url.split('?')[0] + ' failed: ' + e.message);
+    }
+  }
+  res.status(404).json({ error: true, message: 'No standings data available' });
+});
+
 // ── ESPN Player Overview/Bio Proxy ──
 app.get('/proxy/espn-player/:sport/:league/athletes/:id/overview', async (req, res) => {
   const { sport, league, id } = req.params;

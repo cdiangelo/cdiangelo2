@@ -11394,14 +11394,14 @@ function spFetchStandings() {
   var seasonYr = (mo < 6 && ['nba','nhl','nfl'].includes(league)) ? yr - 1 : yr;
 
   var standingsUrls = [
-    // 1. Standard site API v2
+    // 1. Dedicated standings proxy (tries v3 web API with full data resolution)
+    PROXY_BASE + '/proxy/espn-standings/' + leagueInfo.sport + '/' + leagueInfo.league + '?season=' + seasonYr + '&seasontype=2',
+    // 2. Standard site API v2
     PROXY_BASE + '/proxy/espn/' + leagueInfo.sport + '/' + leagueInfo.league + '/standings?season=' + seasonYr + '&sort=winpercent:desc',
-    // 2. Standard site API v2 without query params
+    // 3. Standard site API v2 without query params
     PROXY_BASE + '/proxy/espn/' + leagueInfo.sport + '/' + leagueInfo.league + '/standings',
-    // 3. ESPN core API v2 — season in path (most reliable format)
+    // 4. ESPN core API v2 — season in path
     PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/seasons/' + seasonYr + '/types/2/standings',
-    // 4. ESPN core API v2 with query params
-    PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/standings?season=' + seasonYr + '&seasontype=2',
     // 5. ESPN core API v2 without season
     PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/standings'
   ];
@@ -12411,12 +12411,53 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
     if (gamelogData) {
       var glSeasonTypes = gamelogData.seasonTypes || [];
       var glEvents = gamelogData.events || {};
+      // ESPN gamelog: labels can be at top level, seasonType level, or category level
+      // Top-level labels apply to all categories combined, or per-category if categories have their own
+      var topLabels = gamelogData.labels || gamelogData.names || gamelogData.displayNames || [];
+      console.log('[Sports] Gamelog top-level keys:', Object.keys(gamelogData));
+      console.log('[Sports] Gamelog top labels (' + topLabels.length + '):', topLabels.slice(0, 15));
+
+      // Helper: resolve labels for a category, checking all possible locations
+      function _glResolveLabels(cat, st) {
+        // 1. Category-level labels
+        if (cat.labels && cat.labels.length) return cat.labels;
+        if (cat.names && cat.names.length) return cat.names;
+        if (cat.displayNames && cat.displayNames.length) return cat.displayNames;
+        if (cat.abbreviations && cat.abbreviations.length) return cat.abbreviations;
+        // 2. Category stats as objects with name fields
+        if (cat.stats && Array.isArray(cat.stats) && cat.stats[0] && typeof cat.stats[0] === 'object') {
+          return cat.stats.map(function(s) { return s.abbreviation || s.shortDisplayName || s.name || s.displayName || ''; });
+        }
+        // 3. SeasonType-level labels
+        if (st) {
+          if (st.labels && st.labels.length) return st.labels;
+          if (st.names && st.names.length) return st.names;
+          if (st.displayNames && st.displayNames.length) return st.displayNames;
+        }
+        // 4. Top-level labels — if only one category, these are the labels
+        // If multiple categories, assign top labels proportionally
+        return topLabels;
+      }
+
       glSeasonTypes.forEach(function(st) {
         // Skip preseason (type 1) — only regular season (2) and postseason (3)
         if (st.type && st.type === 1) return;
-        (st.categories || []).forEach(function(cat) {
-          var labels = cat.labels || cat.names || [];
-          (cat.events || []).forEach(function(ev) {
+        var stCats = st.categories || [];
+        // Track label offset for multi-category top-level labels
+        var labelOffset = 0;
+        stCats.forEach(function(cat) {
+          var resolvedLabels = _glResolveLabels(cat, st);
+          // If using top-level labels with multiple categories, slice to this category's stat count
+          var catStatCount = 0;
+          var catEvents = cat.events || [];
+          if (catEvents.length && catEvents[0].stats) catStatCount = catEvents[0].stats.length;
+          var labels = resolvedLabels;
+          if (resolvedLabels === topLabels && stCats.length > 1 && catStatCount > 0) {
+            labels = topLabels.slice(labelOffset, labelOffset + catStatCount);
+            labelOffset += catStatCount;
+          }
+          console.log('[Sports] Gamelog cat "' + (cat.displayName || cat.name || '?') + '" labels(' + labels.length + '):', labels.slice(0, 8));
+          catEvents.forEach(function(ev) {
             var game = { stats: {} };
             var evInfo = glEvents[ev.eventId];
             if (evInfo) {
@@ -12430,9 +12471,18 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
         });
       });
       if (!glGames.length) {
-        (gamelogData.categories || []).forEach(function(cat) {
-          var labels = cat.labels || cat.names || [];
-          (cat.events || []).forEach(function(ev) {
+        var flatCats = gamelogData.categories || [];
+        var flatLabelOffset = 0;
+        flatCats.forEach(function(cat) {
+          var resolvedLabels = _glResolveLabels(cat, null);
+          var catEvents = cat.events || [];
+          var catStatCount = catEvents.length && catEvents[0].stats ? catEvents[0].stats.length : 0;
+          var labels = resolvedLabels;
+          if (resolvedLabels === topLabels && flatCats.length > 1 && catStatCount > 0) {
+            labels = topLabels.slice(flatLabelOffset, flatLabelOffset + catStatCount);
+            flatLabelOffset += catStatCount;
+          }
+          catEvents.forEach(function(ev) {
             var game = { stats: {} };
             var evInfo = (gamelogData.events || {})[ev.eventId];
             if (evInfo) { game.date = evInfo.gameDate || ''; game.opponent = evInfo.opponent ? (evInfo.opponent.displayName || '') : ''; game.result = evInfo.gameResult || ''; }
