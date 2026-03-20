@@ -7119,14 +7119,26 @@ function ssFillAdjust(srcVal, rowOff, colOff) {
     if (!isNaN(n)) return String(n + (rowOff || colOff));
     return srcVal;
   }
-  // Adjust cell references: respect $ locks
-  return srcVal.replace(/(\$?)([A-Z]+)(\$?)(\d+)/gi, (m, colLock, col, rowLock, row) => {
-    const newRow = rowLock ? parseInt(row) : parseInt(row) + rowOff;
-    const colIdx = col.toUpperCase().split('').reduce((a, c) => a * 26 + c.charCodeAt(0) - 64, 0) - 1;
-    const newColIdx = colLock ? colIdx : colIdx + colOff;
-    if (newRow < 1 || newColIdx < 0) return m;
-    return colLock + colN(newColIdx) + rowLock + newRow;
-  });
+  // Adjust cell references: respect $ locks, but skip anything inside double-quoted strings
+  var result = '', inQuote = false;
+  // Split formula into quoted vs unquoted segments
+  var segments = srcVal.split('"');
+  for (var si = 0; si < segments.length; si++) {
+    if (si % 2 === 1) {
+      // Inside quotes — preserve as-is
+      result += '"' + segments[si] + '"';
+    } else {
+      // Outside quotes — adjust cell references
+      result += segments[si].replace(/(\$?)([A-Z]+)(\$?)(\d+)/gi, function(m, colLock, col, rowLock, row) {
+        var newRow = rowLock ? parseInt(row) : parseInt(row) + rowOff;
+        var colIdx = col.toUpperCase().split('').reduce(function(a, c) { return a * 26 + c.charCodeAt(0) - 64; }, 0) - 1;
+        var newColIdx = colLock ? colIdx : colIdx + colOff;
+        if (newRow < 1 || newColIdx < 0) return m;
+        return colLock + colN(newColIdx) + rowLock + newRow;
+      });
+    }
+  }
+  return result;
 }
 
 // ── STOCK formula: async cache + sync evaluation ──
@@ -8062,6 +8074,52 @@ function ssRender() {
     }
     const r = +td.dataset.r, c = +td.dataset.c;
     if (ssEditing && ssSel && r === ssSel.r1 && c === ssSel.c1) return; // clicking active editing cell
+    // Click-to-reference: if editing a formula and cursor is after an operator, insert cell ref instead of exiting
+    // Works for both inline cell input and the formula bar
+    if (ssEditing && ssSel) {
+      var _fRefInp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+      var _fRefBar = document.getElementById('ssFormula');
+      // Determine which input to use: prefer formula bar if it was last focused
+      var _fRefTarget = (document.activeElement === _fRefBar) ? _fRefBar : _fRefInp;
+      if (_fRefTarget) {
+        var _fRefVal = _fRefTarget.value;
+        var _fRefCursor = _fRefTarget.selectionStart != null ? _fRefTarget.selectionStart : _fRefVal.length;
+        var _fRefIsFormula = _fRefVal.startsWith('=');
+        if (_fRefIsFormula) {
+          var _fRefCharBefore = _fRefCursor > 0 ? _fRefVal[_fRefCursor - 1] : '';
+          var _fRefAfterOp = /[=+\-*\/(<>,;:& ^]/.test(_fRefCharBefore);
+          var _fRefEmpty = _fRefVal === '=';
+          if (_fRefAfterOp || _fRefEmpty || ssFormulaRef) {
+            e.preventDefault();
+            var _fRefStr = colN(c) + (r + 1);
+            if (ssFormulaRef) {
+              // Replace existing reference
+              var _fBefore = _fRefVal.substring(0, ssFormulaRef.inputPos);
+              var _fAfter = _fRefVal.substring(ssFormulaRef.inputPos + ssFormulaRef.inputLen);
+              _fRefTarget.value = _fBefore + _fRefStr + _fAfter;
+              ssFormulaRef.anchorR = ssFormulaRef.endR = r;
+              ssFormulaRef.anchorC = ssFormulaRef.endC = c;
+              ssFormulaRef.inputLen = _fRefStr.length;
+            } else {
+              // Insert new reference at cursor
+              var _fBefore2 = _fRefVal.substring(0, _fRefCursor);
+              var _fAfter2 = _fRefVal.substring(_fRefCursor);
+              _fRefTarget.value = _fBefore2 + _fRefStr + _fAfter2;
+              ssFormulaRef = { anchorR: r, anchorC: c, endR: r, endC: c, inputPos: _fRefCursor, inputLen: _fRefStr.length };
+            }
+            var _fNewCursor = ssFormulaRef.inputPos + ssFormulaRef.inputLen;
+            _fRefTarget.setSelectionRange(_fNewCursor, _fNewCursor);
+            _fRefTarget.focus();
+            // Sync cell input and formula bar
+            if (_fRefTarget === _fRefBar && _fRefInp) _fRefInp.value = _fRefTarget.value;
+            else if (_fRefTarget !== _fRefBar && _fRefBar) _fRefBar.value = _fRefTarget.value;
+            ssRenderFormulaRefHighlight(ssFormulaRef);
+            ssShowFormulaTooltip(_fRefTarget);
+            return;
+          }
+        }
+      }
+    }
     ssExitEdit();
     ssMouseDownCell = { r, c };
     if (e.shiftKey && ssSel) {
@@ -8474,12 +8532,74 @@ function renderSparkline(canvas, values) {
 
 // Formula bar
 $('#ssFormula').addEventListener('keydown', e => {
+  var _fbInp = document.getElementById('ssFormula');
   if (e.key === 'Enter' && ssSel) {
-    ssD[ssSel.r1][ssSel.c1] = $('#ssFormula').value;
+    ssFormulaRef = null; ssClearFormulaRefHighlight();
+    ssD[ssSel.r1][ssSel.c1] = _fbInp.value;
+    // Sync to cell input if exists
+    var _fbCi = document.querySelector('#ssTable .ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+    if (_fbCi) _fbCi.value = _fbInp.value;
     LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
     ssHideFormulaTooltip();
   }
-  if (e.key === 'Escape') ssHideFormulaTooltip();
+  if (e.key === 'Escape') { ssFormulaRef = null; ssClearFormulaRefHighlight(); ssHideFormulaTooltip(); }
+  // Arrow keys in formula bar: select cell references (same as cell input)
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') && ssSel) {
+    var _fbVal = _fbInp.value;
+    var _fbCursor = _fbInp.selectionStart || 0;
+    var _fbIsFormula = _fbVal.startsWith('=');
+    var _fbCharBefore = _fbCursor > 0 ? _fbVal[_fbCursor - 1] : '';
+    var _fbAfterOp = /[=+\-*\/(<>,;:& ^]/.test(_fbCharBefore);
+    if (_fbIsFormula && (ssFormulaRef || _fbAfterOp)) {
+      e.preventDefault();
+      if (!ssFormulaRef) {
+        var _fbSr = ssSel.r1, _fbSc = ssSel.c1;
+        if (e.key === 'ArrowDown') _fbSr = Math.min(_fbSr + 1, ssR - 1);
+        if (e.key === 'ArrowUp') _fbSr = Math.max(_fbSr - 1, 0);
+        if (e.key === 'ArrowRight') _fbSc = Math.min(_fbSc + 1, ssC - 1);
+        if (e.key === 'ArrowLeft') _fbSc = Math.max(_fbSc - 1, 0);
+        ssFormulaRef = { anchorR: _fbSr, anchorC: _fbSc, endR: _fbSr, endC: _fbSc, inputPos: _fbCursor, inputLen: 0 };
+      } else if (e.shiftKey) {
+        if (e.key === 'ArrowDown') ssFormulaRef.endR = Math.min(ssFormulaRef.endR + 1, ssR - 1);
+        if (e.key === 'ArrowUp') ssFormulaRef.endR = Math.max(ssFormulaRef.endR - 1, 0);
+        if (e.key === 'ArrowRight') ssFormulaRef.endC = Math.min(ssFormulaRef.endC + 1, ssC - 1);
+        if (e.key === 'ArrowLeft') ssFormulaRef.endC = Math.max(ssFormulaRef.endC - 1, 0);
+      } else {
+        var _fbNr = ssFormulaRef.anchorR, _fbNc = ssFormulaRef.anchorC;
+        if (e.key === 'ArrowDown') _fbNr = Math.min(_fbNr + 1, ssR - 1);
+        if (e.key === 'ArrowUp') _fbNr = Math.max(_fbNr - 1, 0);
+        if (e.key === 'ArrowRight') _fbNc = Math.min(_fbNc + 1, ssC - 1);
+        if (e.key === 'ArrowLeft') _fbNc = Math.max(_fbNc - 1, 0);
+        ssFormulaRef.anchorR = ssFormulaRef.endR = _fbNr;
+        ssFormulaRef.anchorC = ssFormulaRef.endC = _fbNc;
+      }
+      // Build reference string
+      var _fbRef = ssFormulaRef;
+      var _fbRefStr;
+      if (_fbRef.anchorR === _fbRef.endR && _fbRef.anchorC === _fbRef.endC) {
+        _fbRefStr = colN(_fbRef.anchorC) + (_fbRef.anchorR + 1);
+      } else {
+        var _fbMinR = Math.min(_fbRef.anchorR, _fbRef.endR), _fbMaxR = Math.max(_fbRef.anchorR, _fbRef.endR);
+        var _fbMinC = Math.min(_fbRef.anchorC, _fbRef.endC), _fbMaxC = Math.max(_fbRef.anchorC, _fbRef.endC);
+        _fbRefStr = colN(_fbMinC) + (_fbMinR + 1) + ':' + colN(_fbMaxC) + (_fbMaxR + 1);
+      }
+      var _fbBefore = _fbVal.substring(0, _fbRef.inputPos);
+      var _fbAfter2 = _fbVal.substring(_fbRef.inputPos + _fbRef.inputLen);
+      _fbInp.value = _fbBefore + _fbRefStr + _fbAfter2;
+      _fbRef.inputLen = _fbRefStr.length;
+      var _fbNewCursor = _fbRef.inputPos + _fbRefStr.length;
+      _fbInp.setSelectionRange(_fbNewCursor, _fbNewCursor);
+      // Sync to cell input
+      var _fbCi2 = document.querySelector('#ssTable .ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
+      if (_fbCi2) _fbCi2.value = _fbInp.value;
+      ssRenderFormulaRefHighlight(_fbRef);
+      ssShowFormulaTooltip(_fbInp);
+    }
+  }
+  // Typing commits formula ref
+  if (ssFormulaRef && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+    ssFormulaRef = null; ssClearFormulaRefHighlight();
+  }
 });
 
 // ── Cell formatting helpers ──
@@ -9096,7 +9216,7 @@ const ssFormulaSigs = {
   POW:         [{ name: 'base', ex: 'A1' }, { name: 'exponent', ex: '2' }],
   LOG:         [{ name: 'number', ex: 'A1' }, { name: 'base', ex: '10', opt: true }],
   MOD:         [{ name: 'number', ex: 'A1' }, { name: 'divisor', ex: '3' }],
-  STOCK:       [{ name: 'ticker', ex: 'AAPL or "AAPL" or A1' }, { name: 'metric', ex: 'PRICE (quotes optional)', opt: true }],
+  STOCK:       [{ name: 'ticker', ex: 'AAPL, "AAPL", or A1 (click cell!)' }, { name: 'metric', ex: 'PE, MKTCAP, or B1 (click cell!)', opt: true }],
   SPARK:       [{ name: 'range', ex: 'A1:A10' }],
   NOW:         [],
   TODAY:       [],
@@ -9185,11 +9305,11 @@ function ssShowFormulaTooltip(inputEl) {
       html += '<div class="ml-item"><span class="ml-key">' + key + '</span> <span class="ml-desc">' + desc + '</span></div>';
     }
     html += '</div>';
-    html += '<div style="margin-top:3px;font-size:.58rem;color:var(--text-dim);opacity:.6;">Quotes optional: =STOCK(AAPL,PE) or =STOCK(&quot;AAPL&quot;,&quot;PE&quot;)</div>';
+    html += '<div style="margin-top:3px;font-size:.58rem;color:var(--text-dim);opacity:.6;">Click a cell or use arrow keys to insert a cell reference. Quotes optional.</div>';
   }
   // For STOCK formula: show note about quoting on ticker param too
   if (ctx.fn === 'STOCK' && ctx.paramIdx === 0) {
-    html += '<div style="margin-top:3px;font-size:.58rem;color:var(--text-dim);opacity:.6;">Quotes optional: =STOCK(AAPL) or =STOCK(&quot;AAPL&quot;) or =STOCK(A1)</div>';
+    html += '<div style="margin-top:3px;font-size:.58rem;color:var(--text-dim);opacity:.6;">Click a cell or arrow-key to reference it. E.g. =STOCK(A1) reads ticker from A1</div>';
   }
   ssFormulaTooltipEl.innerHTML = html;
 
