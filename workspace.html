@@ -2176,6 +2176,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="aiNudge" title="Nudge Claude — push to delegate, try a different approach, or take action" style="background:rgba(255,152,0,.7);color:#fff;font-size:.7rem;padding:6px 10px;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">Nudge</button>
         <button id="aiSend">Send</button>
         <button id="aiStop" title="Stop Claude" style="display:none;padding:5px 12px;border:none;border-radius:6px;background:rgba(239,68,68,.8);color:#fff;cursor:pointer;font-weight:600;font-size:.72rem;align-self:flex-end;">Stop</button>
+        <span id="aiCostBadge" style="font-size:.5rem;color:var(--text-dim);white-space:nowrap;padding:0 4px;" title="Session cost — click $ button for details">$0.00</span>
       </div>
       <div id="aiOutputOpts" style="display:flex;align-items:center;gap:6px;padding:1px 8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--panel-inset);">
         <span style="font-size:.46rem;color:var(--text-dim);font-weight:600;">Output to:</span>
@@ -15023,16 +15024,31 @@ function classifyTask(prompt) {
   return 'general';
 }
 
+// Item 14: Output length constraints per tier
+const TIER_OUTPUT_RULES = {
+  TIER_1: '\n\nOUTPUT RULES: Answer in 1-3 sentences unless a tool call is needed. Max 200 words.',
+  TIER_2: '\n\nOUTPUT RULES: Be thorough but concise. Max 400 words of prose. Prefer tool output over narrative.',
+  TIER_3: '\n\nOUTPUT RULES: Structured analysis. Max 600 words. Lead with thesis, support with data.'
+};
+
+// Item 16: Expanded model router
 function getTierForTask(prompt) {
+  const p = (prompt || '').toLowerCase();
+  // TIER_3 (Sonnet) — complex multi-step reasoning
   if (classifyTask(prompt) === 'stock_analysis') return 'TIER_3';
+  if (/thesis|scenario|deep dive|full analysis|comprehensive|investment|portfolio review/.test(p)) return 'TIER_3';
+  // TIER_2 (Sonnet) — moderate reasoning + tool use
+  if (/compare|model|forecast|evaluate|create.*table|build.*sheet|summarize.*research|pricing analysis/.test(p)) return 'TIER_2';
+  // TIER_1 (Haiku) — everything else: simple queries, lookups, single tool calls
   return 'TIER_1';
 }
 
 async function runTierPlanStep(prompt, tier) {
   if (tier === 'TIER_1') return null; // No planning for fast tier
   try {
+    // Item 17: Planning is lightweight — always use Haiku
     const planResp = await aiApiFetch({
-      model: TASK_TIERS[tier].model,
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       messages: [{ role: 'user', content: 'In 3-5 bullet points, outline the steps to complete this task: ' + prompt }]
     });
@@ -15305,6 +15321,27 @@ function updateCostPanel() {
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
     '<div style="display:flex;justify-content:space-between;margin:3px 0;color:var(--text-dim);"><span>Rate:</span><span>$' + rates.input.toFixed(2) + '/1M in, $' + rates.output.toFixed(2) + '/1M out</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:3px 0;font-weight:700;color:var(--accent2);"><span>Session cost:</span><span>~$' + cost.toFixed(4) + '</span></div>' +
+    // Item 18: Cache hit rate and I/O ratio
+    (function() {
+      const totalCacheRead = aiCallLog.reduce(function(s, c) { return s + (c.cacheRead || 0); }, 0);
+      const totalCacheMiss = aiCallLog.reduce(function(s, c) { return s + (c.cacheMiss || 0); }, 0);
+      const cacheTotal = totalCacheRead + totalCacheMiss;
+      const cacheRate = cacheTotal > 0 ? Math.round(totalCacheRead / cacheTotal * 100) : 0;
+      const ioRatio = aiSessionTokensOut > 0 ? (aiSessionTokensIn / aiSessionTokensOut).toFixed(1) : '—';
+      let html = '<div style="display:flex;justify-content:space-between;margin:3px 0;color:var(--text-dim);"><span>I/O ratio:</span><span>' + ioRatio + ':1</span></div>';
+      if (cacheTotal > 0) {
+        html += '<div style="display:flex;justify-content:space-between;margin:3px 0;color:' + (cacheRate > 50 ? '#22c55e' : '#f59e0b') + ';"><span>Cache hit rate:</span><span>' + cacheRate + '% (' + totalCacheRead.toLocaleString() + '/' + cacheTotal.toLocaleString() + ' tokens)</span></div>';
+      }
+      // Last 5 calls breakdown
+      if (aiCallLog.length > 0) {
+        html += '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>';
+        html += '<div style="color:var(--text-dim);font-size:.6rem;font-weight:600;margin-bottom:2px;">Recent calls:</div>';
+        aiCallLog.slice(-5).reverse().forEach(function(c) {
+          html += '<div style="display:flex;justify-content:space-between;font-size:.55rem;color:var(--text-dim);margin:1px 0;"><span>' + c.label.substring(0, 25) + '</span><span>in:' + c.tokIn + ' out:' + c.tokOut + (c.cacheRead ? ' cache:' + c.cacheRead : '') + ' $' + c.cost.toFixed(4) + '</span></div>';
+        });
+      }
+      return html;
+    })() +
     '<div style="border-top:1px solid var(--border);margin:6px 0;"></div>' +
     '<div style="color:var(--text-dim);font-size:.68rem;font-weight:600;margin-bottom:4px;">Example asks &amp; estimated cost:</div>' +
     // Simple Q&A — no tools
@@ -15354,6 +15391,9 @@ function updateCostPanel() {
       (baseline > 0 ? '<div style="display:flex;justify-content:space-between;font-size:.6rem;color:#f59e0b;"><span>Unmapped/Historical (fixed):</span><span>$' + baseline.toFixed(2) + '</span></div>' : '') +
       '<div style="display:flex;justify-content:space-between;font-size:.6rem;color:#22c55e;"><span>Tracked (live' + (histReqs > 0 ? ', ' + histReqs + ' requests' : '') + '):</span><span>$' + trackedTotal.toFixed(4) + '</span></div>';
   } catch(_) {}
+  // Item 18: Update persistent cost badge
+  const badge = document.getElementById('aiCostBadge');
+  if (badge) badge.textContent = '$' + cost.toFixed(2);
 }
 
 // Close all admin action panels (mutually exclusive)
@@ -16201,7 +16241,7 @@ $('#aiKeySave').onclick = async () => {
   if (inp) inp.value = aiProxyAvailable ? 'Managed via secure proxy' : 'Proxy not connected';
 };
 
-$('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); };
+$('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); window._sessionResetNudged = false; };
 $('#aiSavedActionsBtn').onclick = renderSavedActionsPanel;
 
 // ── Cleanup tool: context-aware workspace cleanup ──
@@ -16767,8 +16807,8 @@ Return ONLY the polished HTML content (no <html>, <body>, or <style> tags). The 
   try {
     const resp = await aiApiFetch({
       model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
-      system: polishSystemPrompt,
+      max_tokens: 6000,
+      system: polishSystemPrompt + '\n\nReturn ONLY the polished HTML. No preamble, no explanation, no markdown fences.',
       messages: [{ role: 'user', content: userMsg }]
     });
     if (resp.ok) {
@@ -19753,6 +19793,13 @@ async function sendAgentMessage() {
     const summaryMsg = { role: 'user', content: '[Prior conversation summary — ' + oldMsgs.length + ' messages compressed]\n' + summary.substring(0, 2000) };
     aiMessages = [summaryMsg].concat(aiMessages.slice(-MAX_HISTORY_MSGS));
   }
+  // Item 19: Session reset nudge when context is large
+  const _histChars = JSON.stringify(aiMessages).length;
+  const _estHistTokens = Math.round(_histChars / 3.5);
+  if (_estHistTokens > 8000 && !window._sessionResetNudged) {
+    window._sessionResetNudged = true;
+    addAiMsg('system', 'Context is getting large (~' + Math.round(_estHistTokens / 1000) + 'k tokens). Consider clearing chat to reduce costs. Older context is automatically summarized.');
+  }
 
   // Tiered execution: determine starting tier
   let currentTierKey = getTierForTask(input);
@@ -19760,11 +19807,20 @@ async function sendAgentMessage() {
   let model = userSelectedModel;
   let tierSystemPrompt = '';
 
-  // If stock analysis, skip to TIER_3 directly
-  if (currentTierKey === 'TIER_3') {
+  // Item 16: Auto-route model based on tier (override user selection for efficiency)
+  if (currentTierKey === 'TIER_1') {
+    model = 'claude-haiku-4-5-20251001';
+    tierSystemPrompt = TASK_TIERS.TIER_1.systemPrompt;
+    chatTimestamp('start', 'Haiku — fast mode');
+  } else if (currentTierKey === 'TIER_2') {
+    model = TASK_TIERS.TIER_2.model;
+    tierSystemPrompt = TASK_TIERS.TIER_2.systemPrompt;
+  } else if (currentTierKey === 'TIER_3') {
     model = TASK_TIERS.TIER_3.model;
     tierSystemPrompt = TASK_TIERS.TIER_3.systemPrompt;
   }
+  // Item 14: Append output length rules to tier prompt
+  tierSystemPrompt += TIER_OUTPUT_RULES[currentTierKey] || '';
 
   // ── Company Intelligence gate (before analysis) ──
   let companyProfileInjection = '';
@@ -19963,7 +20019,7 @@ async function sendAgentMessage() {
       try {
         const resp = await aiApiFetch({
             model: model,
-            max_tokens: 4096,
+            max_tokens: TASK_TIERS[currentTierKey] ? TASK_TIERS[currentTierKey].maxTokens : 4096,
             system: systemBlocks,
             messages: apiMsgs,
             tools: AGENT_TOOLS,
@@ -20075,7 +20131,7 @@ async function sendAgentMessage() {
       if (streamFailed) {
         const resp2 = await aiApiFetch({
             model: model,
-            max_tokens: 4096,
+            max_tokens: TASK_TIERS[currentTierKey] ? TASK_TIERS[currentTierKey].maxTokens : 4096,
             system: systemBlocks,
             messages: apiMsgs,
             tools: AGENT_TOOLS
@@ -20103,7 +20159,7 @@ async function sendAgentMessage() {
         cacheRead: _cacheRead, cacheMiss: _cacheMiss,
         sysChars: assembledSystemPrompt.length || 0, msgCount: apiMsgs.length
       });
-      if ($('#aiCostPanel').style.display !== 'none') updateCostPanel();
+      updateCostPanel();
 
       // Extract text and tool_use blocks
       const textBlocks = (result.content || []).filter(b => b.type === 'text');
