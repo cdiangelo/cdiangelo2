@@ -230,6 +230,72 @@ body.light .fun-btn { background: var(--accent); }
   display: grid; grid-template-columns: 1fr 4px 1fr 4px 1fr; grid-template-rows: 1fr 4px 1fr;
   height: calc(100vh - 44px); background: var(--border);
 }
+
+/* ═══ SIMPLIFIED MODE (Desktop) ═══ */
+.workspace.simplified-mode {
+  grid-template-columns: 1fr 1fr !important;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 2fr) !important;
+  gap: 2px !important;
+}
+.workspace.simplified-mode .divider-h,
+.workspace.simplified-mode .divider-v { display: none !important; }
+/* Hide all panes except claude and the simplified output area */
+.workspace.simplified-mode .pane { display: none !important; grid-column: unset !important; grid-row: unset !important; }
+.workspace.simplified-mode #q-claude {
+  display: flex !important;
+  grid-column: 1 / -1 !important;
+  grid-row: 1 !important;
+}
+/* In simplified mode, restructure claude pane: bot left, chat right */
+.workspace.simplified-mode #q-claude .claude-content-row {
+  flex-direction: row-reverse !important;
+}
+.workspace.simplified-mode #q-claude .robot-scene-wrapper {
+  width: 50% !important;
+  border-left: none !important;
+  border-right: 1px solid var(--border) !important;
+}
+.workspace.simplified-mode #q-claude .claude-midbar { display: none !important; }
+.workspace.simplified-mode #q-claude .ai-msgs { flex: 1 !important; }
+/* Simplified output area — full width bottom 2/3 */
+.workspace.simplified-mode #simplifiedOutput {
+  display: flex !important;
+  grid-column: 1 / -1 !important;
+  grid-row: 2 !important;
+  background: var(--panel);
+  flex-direction: column;
+  overflow: hidden;
+}
+.simplified-output-tabs {
+  display: flex; align-items: center; gap: 0; background: var(--bg);
+  border-bottom: 1px solid var(--border); flex-shrink: 0; padding: 0 4px;
+}
+.simplified-output-tabs button {
+  padding: 6px 14px; font-size: .7rem; border: none; background: none;
+  color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all .15s;
+}
+.simplified-output-tabs button.active {
+  color: var(--accent2); border-bottom-color: var(--accent); font-weight: 600;
+}
+.simplified-output-tabs button:hover { color: var(--text); }
+.simplified-output-body {
+  flex: 1; overflow: hidden; position: relative;
+}
+.simplified-output-body > .simp-tab-content {
+  display: none; position: absolute; inset: 0; overflow: auto;
+}
+.simplified-output-body > .simp-tab-content.active {
+  display: flex; flex-direction: column;
+}
+/* Mode toggle in header */
+.mode-toggle-btn {
+  font-size: .6rem; padding: 3px 8px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--panel-inset); color: var(--text-dim);
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.mode-toggle-btn:hover { color: var(--accent2); border-color: var(--accent); }
+.mode-toggle-btn .mode-label { font-weight: 600; color: var(--accent2); }
 .divider-h, .divider-v {
   background: var(--border); z-index: 10;
   transition: background .15s;
@@ -1614,6 +1680,39 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   .page-tab { font-size: .46rem !important; padding: 2px 6px !important; }
   .page-tab-add { font-size: .52rem !important; }
 
+  /* ═══ MOBILE SIMPLIFIED MODE ═══ */
+  .workspace.simplified-mode {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: unset !important;
+    grid-template-rows: unset !important;
+    gap: 0 !important;
+  }
+  .workspace.simplified-mode .divider-h,
+  .workspace.simplified-mode .divider-v { display: none !important; }
+  .workspace.simplified-mode .pane { display: none !important; grid-column: unset !important; grid-row: unset !important; }
+  .workspace.simplified-mode #q-claude {
+    display: flex !important;
+    flex: 0 0 35% !important;
+    grid-column: unset !important; grid-row: unset !important;
+  }
+  .workspace.simplified-mode #q-claude .claude-content-row {
+    flex-direction: row-reverse !important;
+  }
+  .workspace.simplified-mode #q-claude .robot-scene-wrapper {
+    width: 45% !important;
+    border-left: none !important;
+    border-right: 1px solid var(--border) !important;
+  }
+  .workspace.simplified-mode #q-claude .claude-midbar { display: none !important; }
+  .workspace.simplified-mode #simplifiedOutput {
+    display: flex !important;
+    flex: 1 !important;
+    grid-column: unset !important; grid-row: unset !important;
+  }
+  .workspace.simplified-mode .mob-control-bar { display: none !important; }
+  .workspace.simplified-mode .mob-split-handle { display: none !important; }
+
   /* ═══ AUTH GATE MOBILE ═══ */
   #authGate { padding: 8px; align-items: flex-start; padding-top: 40px; }
   #authBox { padding: 24px 16px !important; border-radius: 12px !important; }
@@ -1886,6 +1985,20 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <h2 id="authTitle" style="color:var(--text);margin:0 0 6px;font-size:1.2rem;">QuantBot</h2>
     <p id="authSubtitle" style="color:var(--text-dim);font-size:.78rem;margin:0 0 24px;">Select your account to continue</p>
 
+    <!-- Mode selector: Suite vs Simplified -->
+    <div id="authModeSelector" style="display:flex;gap:8px;justify-content:center;margin-bottom:18px;">
+      <button id="authModeSuite" onclick="selectWorkspaceMode('suite')" style="flex:1;max-width:180px;padding:12px 10px;border:2px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.12);color:var(--text);cursor:pointer;transition:all .15s;text-align:center;">
+        <div style="font-size:1.2rem;margin-bottom:4px;">&#9638;&#9638;&#9638;</div>
+        <div style="font-size:.78rem;font-weight:700;">Suite</div>
+        <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Full workspace &mdash; 6 panes, all tools</div>
+      </button>
+      <button id="authModeSimplified" onclick="selectWorkspaceMode('simplified')" style="flex:1;max-width:180px;padding:12px 10px;border:2px solid var(--border);border-radius:10px;background:none;color:var(--text);cursor:pointer;transition:all .15s;text-align:center;">
+        <div style="font-size:1.2rem;margin-bottom:4px;">&#129302;</div>
+        <div style="font-size:.78rem;font-weight:700;">Simplified</div>
+        <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Chat-focused &mdash; bot + outputs</div>
+      </button>
+    </div>
+
     <!-- Step 1: User list + New User + Admin -->
     <div id="authUserList" style="margin-bottom:12px;">
       <div id="authUserListItems" style="max-height:220px;overflow-y:auto;margin-bottom:12px;"></div>
@@ -1919,6 +2032,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <!-- ═══ HEADER ═══ -->
 <div class="header">
   <h1>Quant<span>Bot</span></h1>
+  <button id="modeToggleBtn" class="mode-toggle-btn" onclick="toggleWorkspaceMode()" title="Switch between Suite and Simplified mode">
+    <span class="mode-label" id="modeToggleLabel">Suite</span>
+  </button>
   <div class="nav-groups">
     <div class="nav-group">
       <div class="nav-group-label">Panes</div>
@@ -2732,7 +2848,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </div>
 
         <!-- Bracket sub-tab (seasonal: Feb-Apr) -->
-        <div id="spBracketTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+        <div id="spBracketTab" class="sp-subtab" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:auto;">
           <div class="toolbar" style="flex-wrap:wrap;gap:4px;">
             <span style="font-size:.62rem;font-weight:700;color:var(--text);">NCAA Bracket</span>
             <button id="spBracketFetch" style="font-size:.58rem;background:rgba(59,130,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;" title="Fetch live tournament data from ESPN">Load Bracket</button>
@@ -2823,6 +2939,22 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div style="font-size:2rem;margin-bottom:8px;">&#9654;</div>
         No video playing.<br>Click <b>Media</b> in the header or add a video above.
       </div>
+    </div>
+  </div>
+
+  <!-- ═══ SIMPLIFIED MODE OUTPUT AREA ═══ -->
+  <div id="simplifiedOutput" style="display:none;" class="pane">
+    <div class="simplified-output-tabs" id="simpTabs">
+      <button class="active" data-simp-tab="simp-sheet">Sheet</button>
+      <button data-simp-tab="simp-notepad">Notepad</button>
+      <button data-simp-tab="simp-whiteboard">Whiteboard</button>
+      <button data-simp-tab="simp-sports">Sports</button>
+    </div>
+    <div class="simplified-output-body" id="simpBody">
+      <div class="simp-tab-content active" id="simp-sheet"></div>
+      <div class="simp-tab-content" id="simp-notepad"></div>
+      <div class="simp-tab-content" id="simp-whiteboard"></div>
+      <div class="simp-tab-content" id="simp-sports"></div>
     </div>
   </div>
 </div>
@@ -3382,6 +3514,113 @@ const wsHardwareId = getHardwareFingerprint();
   };
 })();
 
+// ── Workspace Mode: Suite vs Simplified ──
+let wsMode = localStorage.getItem('ws_mode') || 'suite';
+
+function selectWorkspaceMode(mode) {
+  wsMode = mode;
+  localStorage.setItem('ws_mode', mode);
+  // Update auth gate toggle visuals
+  const suiteBtn = document.getElementById('authModeSuite');
+  const simpBtn = document.getElementById('authModeSimplified');
+  if (suiteBtn && simpBtn) {
+    suiteBtn.style.borderColor = mode === 'suite' ? 'var(--accent)' : 'var(--border)';
+    suiteBtn.style.background = mode === 'suite' ? 'rgba(59,130,246,.12)' : 'none';
+    simpBtn.style.borderColor = mode === 'simplified' ? 'var(--accent)' : 'var(--border)';
+    simpBtn.style.background = mode === 'simplified' ? 'rgba(59,130,246,.12)' : 'none';
+  }
+}
+
+function toggleWorkspaceMode() {
+  const newMode = wsMode === 'suite' ? 'simplified' : 'suite';
+  selectWorkspaceMode(newMode);
+  applyWorkspaceMode();
+}
+
+function applyWorkspaceMode() {
+  const ws = document.getElementById('workspace');
+  const label = document.getElementById('modeToggleLabel');
+  const simpOutput = document.getElementById('simplifiedOutput');
+  if (!ws) return;
+
+  if (wsMode === 'simplified') {
+    ws.classList.add('simplified-mode');
+    if (label) label.textContent = 'Simplified';
+    // Move real pane contents into simplified output tabs
+    _mirrorPaneToSimp('q-sheet', 'simp-sheet');
+    _mirrorPaneToSimp('q-notepad', 'simp-notepad');
+    _mirrorPaneToSimp('q-whiteboard', 'simp-whiteboard');
+    _mirrorPaneToSimp('q-news', 'simp-sports');
+    // Wire simplified tab buttons
+    document.querySelectorAll('[data-simp-tab]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('[data-simp-tab]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.simp-tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        const target = document.getElementById(btn.dataset.simpTab);
+        if (target) target.classList.add('active');
+        // Trigger resize for whiteboard/graph
+        setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); if (typeof resizeCM === 'function') resizeCM(); }, 50);
+      };
+    });
+    // Hide suite-only header elements
+    const navGroups = document.querySelector('.nav-groups');
+    if (navGroups) navGroups.style.display = 'none';
+  } else {
+    ws.classList.remove('simplified-mode');
+    if (label) label.textContent = 'Suite';
+    // Restore pane contents from simplified tabs back to original panes
+    _restorePaneFromSimp('q-sheet', 'simp-sheet');
+    _restorePaneFromSimp('q-notepad', 'simp-notepad');
+    _restorePaneFromSimp('q-whiteboard', 'simp-whiteboard');
+    _restorePaneFromSimp('q-news', 'simp-sports');
+    // Restore suite header elements
+    const navGroups = document.querySelector('.nav-groups');
+    if (navGroups) navGroups.style.display = '';
+    setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); if (typeof resizeCM === 'function') resizeCM(); }, 50);
+  }
+}
+
+function _mirrorPaneToSimp(paneId, simpId) {
+  const pane = document.getElementById(paneId);
+  const simp = document.getElementById(simpId);
+  if (!pane || !simp) return;
+  // Move the p-body content into the simplified tab
+  const body = pane.querySelector('.p-body');
+  if (body && !simp.dataset.mirrored) {
+    simp.dataset.mirrored = '1';
+    simp.dataset.sourcePane = paneId;
+    // Move the actual DOM node so all event handlers stay intact
+    simp.appendChild(body);
+  }
+}
+
+function _restorePaneFromSimp(paneId, simpId) {
+  const pane = document.getElementById(paneId);
+  const simp = document.getElementById(simpId);
+  if (!pane || !simp || !simp.dataset.mirrored) return;
+  const body = simp.querySelector('.p-body');
+  if (body) {
+    // Re-insert after p-head
+    const head = pane.querySelector('.p-head');
+    if (head && head.nextSibling) {
+      pane.insertBefore(body, head.nextSibling);
+    } else {
+      pane.appendChild(body);
+    }
+  }
+  delete simp.dataset.mirrored;
+  delete simp.dataset.sourcePane;
+}
+
+// Apply saved mode on load (deferred to after DOM ready)
+setTimeout(() => {
+  // Set auth gate toggle to match saved preference
+  selectWorkspaceMode(wsMode);
+  // Apply mode if already logged in
+  if (wsIsAdmin || wsUserName) applyWorkspaceMode();
+}, 100);
+
 // ── Role permissions: apply all role-dependent UI in one pass ──
 // Called after login (admin or user) AND on page reload for returning sessions.
 function applyRolePermissions() {
@@ -3429,6 +3668,9 @@ function applyRolePermissions() {
 
   // Dispatch event for any components that need to react to profile changes
   window.dispatchEvent(new CustomEvent('profileReady', { detail: { role, userName: wsUserName, isAdmin: wsIsAdmin } }));
+
+  // Apply workspace mode (suite vs simplified) after login
+  setTimeout(applyWorkspaceMode, 200);
 }
 
 // On page load: if returning session exists, apply permissions immediately
@@ -12592,13 +12834,14 @@ if ($('#spBracketExport')) {
     var pickCount = Object.keys(picks).length;
     var fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<title>' + yr + ' NCAA Tournament Bracket</title>' +
-      '<style>body{margin:0;padding:20px;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;}' +
-      '.header{max-width:900px;margin:0 auto 10px;display:flex;justify-content:space-between;align-items:center;padding:0 20px;}' +
+      '<style>html,body{margin:0;padding:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;min-height:100%;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;}' +
+      'body{padding:20px;}' +
+      '.header{max-width:900px;margin:0 auto 10px;display:flex;justify-content:space-between;align-items:center;padding:0 20px;flex-wrap:wrap;gap:6px;}' +
       '.header h1{font-size:18px;margin:0;color:#222;}.header .meta{font-size:11px;color:#888;}' +
       '</style></head><body>' +
       '<div class="header"><h1>' + yr + ' NCAA Tournament Bracket</h1>' +
       '<div class="meta">' + completed + '/' + total + ' games final' + (pickCount ? ' &middot; ' + pickCount + ' picks' : '') + ' &middot; Exported ' + new Date().toLocaleString() + '</div></div>' +
-      bracketHtml + annHtml +
+      annHtml + bracketHtml +
       '<div style="text-align:center;padding:20px;font-size:10px;color:#bbb;">Generated by Workspace Analytics</div>' +
       '</body></html>';
 
