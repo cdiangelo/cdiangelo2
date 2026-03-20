@@ -275,19 +275,45 @@ body.light .fun-btn { background: var(--accent); }
   max-height: none !important;
 }
 .workspace.simplified-mode #simpBotArea .robot-scene { height: 100% !important; }
+/* Hide inline controls in simplified — replaced by popup button */
 .workspace.simplified-mode #simpBotArea .robot-controls {
-  border-top: 1px solid rgba(128,128,128,.1); padding: 4px 6px; flex-shrink: 0;
-  flex-direction: column !important; gap: 2px !important;
-  align-items: stretch !important; justify-content: flex-start !important;
-  position: absolute; right: 4px; top: 4px; bottom: auto;
-  background: rgba(0,0,0,.4); border-radius: 6px; border: none;
-  backdrop-filter: blur(6px); z-index: 5; width: auto; min-width: 60px;
+  display: none !important;
 }
-.workspace.simplified-mode #simpBotArea .robot-controls select {
-  font-size: .52rem !important; padding: 2px 4px !important;
-  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1);
-  color: var(--text-dim); border-radius: 4px;
+/* Customize button in bottom-right of robot */
+.workspace.simplified-mode #simpBotArea .simp-bot-customize {
+  display: flex !important;
 }
+.simp-bot-customize {
+  display: none; position: absolute; bottom: 8px; right: 8px; z-index: 10;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.12);
+  color: rgba(255,255,255,.6); cursor: pointer;
+  align-items: center; justify-content: center; font-size: .6rem;
+  backdrop-filter: blur(4px); transition: all .15s;
+}
+.simp-bot-customize:hover {
+  background: rgba(0,0,0,.6); color: rgba(255,255,255,.9);
+  border-color: rgba(255,255,255,.25);
+}
+/* Popup panel for robot specs */
+.simp-bot-specs {
+  display: none; position: absolute; bottom: 42px; right: 8px; z-index: 20;
+  background: rgba(14,14,26,.92); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px; padding: 10px; min-width: 120px;
+  backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  flex-direction: column; gap: 6px;
+}
+.simp-bot-specs.open { display: flex; }
+.simp-bot-specs label {
+  font-size: .5rem; color: rgba(255,255,255,.45); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.simp-bot-specs select {
+  font-size: .58rem; padding: 4px 6px; border-radius: 5px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+  color: rgba(255,255,255,.7); cursor: pointer; width: 100%;
+}
+.simp-bot-specs select:hover { border-color: var(--accent); }
 
 /* Chat input area (right column of top row) — soft rounded shape */
 .workspace.simplified-mode #q-claude > .p-body {
@@ -320,7 +346,7 @@ body.light .fun-btn { background: var(--accent); }
   background: rgba(255,255,255,.025) !important;
   padding: 0 !important;
   position: relative;
-  overflow: hidden;
+  overflow: visible !important;
   max-height: 50vh;
   gap: 0 !important;
 }
@@ -328,7 +354,7 @@ body.light .fun-btn { background: var(--accent); }
 .workspace.simplified-mode #q-claude #aiInput {
   flex: 1 !important; resize: none !important;
   font-size: .82rem; color: var(--text) !important;
-  border: none !important; border-radius: 0 !important;
+  border: none !important; border-radius: 16px !important;
   background: transparent !important;
   padding: 14px 16px 40px 16px !important;
   min-height: 80px;
@@ -3169,7 +3195,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <!-- Inline viewer removed — both modes now open new tabs -->
     </div>
   </div>
-</div>
 
   <!-- ADDED — Phase 11: Media pane (YouTube/video player grid pane) -->
   <div class="pane" id="q-media" style="grid-column:5;grid-row:3;display:none;">
@@ -3823,9 +3848,43 @@ function applyWorkspaceMode() {
     if (!botArea) {
       botArea = document.createElement('div');
       botArea.id = 'simpBotArea';
+      botArea.style.position = 'relative';
       claude.insertBefore(botArea, claude.firstChild);
       const robotWrapper = document.getElementById('robotSceneWrapper');
       if (robotWrapper) botArea.appendChild(robotWrapper);
+      // Add customize button + specs popup
+      const custBtn = document.createElement('button');
+      custBtn.className = 'simp-bot-customize';
+      custBtn.innerHTML = _ic('gear');
+      custBtn.title = 'Customize';
+      const specsPanel = document.createElement('div');
+      specsPanel.className = 'simp-bot-specs';
+      specsPanel.id = 'simpBotSpecs';
+      // Clone the 3 selects into the popup
+      const tieOrig = document.getElementById('robotTieSelect');
+      const sceneOrig = document.getElementById('robotSceneSelect');
+      const styleOrig = document.getElementById('robotStyleSelect');
+      [{orig: tieOrig, lbl: 'Tie'}, {orig: sceneOrig, lbl: 'Scene'}, {orig: styleOrig, lbl: 'Style'}].forEach(function(s) {
+        if (!s.orig) return;
+        var lbl = document.createElement('label');
+        lbl.textContent = s.lbl;
+        specsPanel.appendChild(lbl);
+        var clone = s.orig.cloneNode(true);
+        clone.id = 'simp_' + s.orig.id;
+        clone.value = s.orig.value;
+        clone.onchange = function() { s.orig.value = clone.value; s.orig.dispatchEvent(new Event('change')); };
+        specsPanel.appendChild(clone);
+      });
+      custBtn.onclick = function(e) {
+        e.stopPropagation();
+        specsPanel.classList.toggle('open');
+      };
+      // Close on outside click
+      document.addEventListener('click', function(e) {
+        if (!specsPanel.contains(e.target) && e.target !== custBtn) specsPanel.classList.remove('open');
+      });
+      botArea.appendChild(custBtn);
+      botArea.appendChild(specsPanel);
     }
 
     // --- Move chat messages (aiMsgs) into the output chat panel ---
