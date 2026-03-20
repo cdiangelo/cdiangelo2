@@ -3132,8 +3132,15 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="nfl">NFL</option>
               <option value="mlb">MLB</option>
               <option value="nhl">NHL</option>
+              <option value="ncaab">NCAAB</option>
+              <option value="ncaaf">NCAAF</option>
             </select>
-            <button id="spRefreshPlayers" style="font-size:.68rem;" title="Show league leaders">Leaders</button>
+            <select id="spPlayersView" style="font-size:.68rem;" title="View mode">
+              <option value="leaders">Leaders</option>
+              <option value="table">Table</option>
+              <option value="team">By Team</option>
+            </select>
+            <button id="spRefreshPlayers" style="font-size:.68rem;" title="Refresh">Refresh</button>
           </div>
           <div id="spPlayersList" style="flex:1;overflow-y:auto;padding:8px;">
             <div class="sp-empty">Loading league leaders when ESPN connects...</div>
@@ -11375,7 +11382,7 @@ function spFetchStandings() {
   // Current season year (NBA/NHL/NFL start in fall)
   var yr = new Date().getFullYear();
   var mo = new Date().getMonth();
-  var seasonYr = (mo < 6 && ['nba','nhl','nfl'].includes(league)) ? yr : yr;
+  var seasonYr = (mo < 6 && ['nba','nhl','nfl'].includes(league)) ? yr - 1 : yr;
 
   var standingsUrls = [
     // 1. Standard site API v2
@@ -11409,7 +11416,7 @@ function spFetchStandings() {
 }
 
 function _spRenderStandingsData(data, league, el) {
-  console.log('[Sports] Standings raw response keys:', Object.keys(data));
+  console.log('[Sports] Standings raw response keys:', Object.keys(data), JSON.stringify(data).substring(0, 500));
   let html = '';
 
   // Helper: recursively find all groups with standings entries
@@ -11450,6 +11457,29 @@ function _spRenderStandingsData(data, league, el) {
   // Fallback: try flat entries at top level
   if (!html && data.entries) {
     html = spParseStandingsGroup({ name: SP_LEAGUE_MAP[league] ? SP_LEAGUE_MAP[league].name : league, standings: { entries: data.entries } });
+  }
+
+  // Fallback: ESPN sometimes returns { leagues: [{ standings: {...} }] } or { leagues: [{ divisions: [...] }] }
+  if (!html && data.leagues && data.leagues.length) {
+    data.leagues.forEach(function(lg) {
+      // Try divisions
+      if (lg.divisions && lg.divisions.length) {
+        lg.divisions.forEach(function(div) { walkGroups(div, 1); });
+      }
+      // Try conferences
+      if (!html && lg.conferences && lg.conferences.length) {
+        lg.conferences.forEach(function(conf) { walkGroups(conf, 1); });
+      }
+      // Try standings directly on league
+      if (!html && lg.standings) {
+        html = spParseStandingsGroup({ name: lg.name || '', standings: lg.standings });
+      }
+    });
+  }
+
+  // Fallback: ESPN v2 site API may return { uid, id, name, season, standings: [...] } with standings as array of groups
+  if (!html && Array.isArray(data.standings)) {
+    data.standings.forEach(function(g) { walkGroups(g, 0); });
   }
 
   // Debug: if still empty, log data structure
@@ -12217,7 +12247,20 @@ function spFetchNews() {
 
 
 // ── Player Stats ──
-$('#spRefreshPlayers').onclick = () => spFetchLeaders();
+$('#spRefreshPlayers').onclick = function() {
+  var view = $('#spPlayersView') ? $('#spPlayersView').value : 'leaders';
+  if (view === 'leaders') spFetchLeaders();
+  else if (view === 'table') spFetchLeadersTable();
+  else if (view === 'team') spFetchTeamRoster();
+};
+if ($('#spPlayersView')) {
+  $('#spPlayersView').onchange = function() {
+    var view = this.value;
+    if (view === 'leaders') spFetchLeaders();
+    else if (view === 'table') spFetchLeadersTable();
+    else if (view === 'team') spFetchTeamRoster();
+  };
+}
 $('#spPlayerSearchBtn').onclick = () => {
   const q = $('#spPlayerSearch').value.trim();
   if (q) spSearchPlayer(q);
@@ -12274,15 +12317,20 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
   const l = SP_LEAGUE_MAP[league];
   if (!l || !athleteId) return;
 
-  // ESPN athlete detail + stats via dedicated player proxy routes
+  // ESPN athlete detail + stats + gamelog via dedicated player proxy routes
   const profileUrl = PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/overview';
   const statsUrl = PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/stats';
+  const gamelogUrl = PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/gamelog';
+  // Also try standard ESPN site API as fallback for profile
+  const profileFallbackUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/athletes/' + athleteId;
 
-  // Fetch both profile/overview and stats in parallel
+  // Fetch profile, stats, and gamelog in parallel
   Promise.all([
-    fetch(profileUrl).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(statsUrl).then(r => r.ok ? r.json() : null).catch(() => null)
-  ]).then(([profileResp, statsData]) => {
+    fetch(profileUrl).then(r => r.ok ? r.json() : null).catch(() => null)
+      .then(function(d) { return d || fetch(profileFallbackUrl).then(r => r.ok ? r.json() : null).catch(() => null); }),
+    fetch(statsUrl).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(gamelogUrl).then(r => r.ok ? r.json() : null).catch(() => null)
+  ]).then(([profileResp, statsData, gamelogData]) => {
     // overview endpoint wraps athlete data differently
     var profile = profileResp && profileResp.athlete ? profileResp.athlete : profileResp;
     let html = '<div style="margin-bottom:8px;"><button onclick="$(\'#spPlayersList\').innerHTML=\'<div class=sp-empty>Search for a player or click Leaders.</div>\'" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>';
@@ -12372,122 +12420,392 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
       html += '<div class="sp-empty" style="font-size:.6rem;">Stats data not available for this player.</div>';
     }
 
+    // Gamelog sparklines — show recent game trends
+    if (gamelogData) {
+      var glSeasonTypes = gamelogData.seasonTypes || [];
+      var glEvents = gamelogData.events || {};
+      var glGames = [];
+      // Extract game-by-game data
+      glSeasonTypes.forEach(function(st) {
+        (st.categories || []).forEach(function(cat) {
+          var labels = cat.labels || cat.names || [];
+          (cat.events || []).forEach(function(ev) {
+            var game = { stats: {} };
+            var evInfo = glEvents[ev.eventId];
+            if (evInfo) {
+              game.date = evInfo.gameDate || '';
+              game.opponent = evInfo.opponent ? (evInfo.opponent.displayName || evInfo.opponent.abbreviation || '') : '';
+              game.result = evInfo.gameResult || '';
+            }
+            (ev.stats || []).forEach(function(val, idx) { game.stats[labels[idx] || ('s' + idx)] = val; });
+            glGames.push(game);
+          });
+        });
+      });
+      if (!glGames.length) {
+        // Flat format fallback
+        (gamelogData.categories || []).forEach(function(cat) {
+          var labels = cat.labels || cat.names || [];
+          (cat.events || []).forEach(function(ev) {
+            var game = { stats: {} };
+            var evInfo = glEvents[ev.eventId];
+            if (evInfo) { game.date = evInfo.gameDate || ''; game.opponent = evInfo.opponent ? (evInfo.opponent.displayName || '') : ''; game.result = evInfo.gameResult || ''; }
+            (ev.stats || []).forEach(function(val, idx) { game.stats[labels[idx] || ('s' + idx)] = val; });
+            glGames.push(game);
+          });
+        });
+      }
+      if (glGames.length > 1) {
+        html += '<div style="margin-top:10px;margin-bottom:8px;">';
+        html += '<div style="font-weight:700;font-size:.68rem;color:var(--accent);margin-bottom:6px;text-transform:uppercase;">Recent Game Trends (last ' + Math.min(glGames.length, 15) + ' games)</div>';
+        // Collect all stat keys that have numeric data
+        var recentGames = glGames.slice(-15);
+        var statKeys = {};
+        recentGames.forEach(function(g) {
+          Object.keys(g.stats).forEach(function(k) {
+            var v = parseFloat(g.stats[k]);
+            if (!isNaN(v)) { if (!statKeys[k]) statKeys[k] = []; statKeys[k].push(v); }
+          });
+        });
+        // Show sparklines for stats that have enough data points
+        var sparkHtml = '';
+        Object.keys(statKeys).forEach(function(k) {
+          var vals = statKeys[k];
+          if (vals.length < 3) return;
+          var avg = (vals.reduce(function(s,v){return s+v;}, 0) / vals.length).toFixed(1);
+          var last = vals[vals.length - 1];
+          var trend = vals.length >= 3 ? (vals.slice(-3).reduce(function(s,v){return s+v;}, 0) / 3) : last;
+          var trendDir = trend > parseFloat(avg) ? '#16a34a' : (trend < parseFloat(avg) ? '#ef4444' : 'var(--text-dim)');
+          sparkHtml += '<div style="display:inline-flex;align-items:center;gap:4px;background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:3px 6px;margin:2px;">';
+          sparkHtml += '<span style="font-size:.55rem;color:var(--text-dim);min-width:28px;">'+esc(k)+'</span>';
+          sparkHtml += _spSparkline(vals, 50, 14, trendDir);
+          sparkHtml += '<span style="font-size:.6rem;font-weight:600;">'+esc(String(last))+'</span>';
+          sparkHtml += '<span style="font-size:.48rem;color:var(--text-dim);">avg '+esc(avg)+'</span>';
+          sparkHtml += '</div>';
+        });
+        if (sparkHtml) html += '<div style="display:flex;flex-wrap:wrap;gap:2px;">' + sparkHtml + '</div>';
+
+        // Recent games mini-table
+        html += '<div style="margin-top:8px;"><div style="font-weight:600;font-size:.6rem;color:var(--text-dim);margin-bottom:3px;">Game Log</div>';
+        html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.52rem;border-collapse:collapse;">';
+        var topStats = Object.keys(statKeys).slice(0, 8);
+        html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:2px 3px;">Opp</th><th style="padding:2px 3px;">Result</th>';
+        topStats.forEach(function(k) { html += '<th style="padding:2px 3px;">'+esc(k)+'</th>'; });
+        html += '</tr>';
+        recentGames.slice().reverse().slice(0, 10).forEach(function(g) {
+          html += '<tr style="border-bottom:1px solid rgba(255,255,255,.03);">';
+          html += '<td style="padding:2px 3px;">'+esc(g.opponent || '-')+'</td>';
+          html += '<td style="padding:2px 3px;text-align:center;color:'+(g.result === 'W' ? '#16a34a' : g.result === 'L' ? '#ef4444' : 'var(--text-dim)')+';font-weight:600;">'+esc(g.result || '-')+'</td>';
+          topStats.forEach(function(k) { html += '<td style="text-align:center;padding:2px 3px;">'+esc(String(g.stats[k] != null ? g.stats[k] : '-'))+'</td>'; });
+          html += '</tr>';
+        });
+        html += '</table></div></div>';
+        html += '</div>';
+      }
+    }
+
     el.innerHTML = html;
   });
 };
 
 // Fetch league leaders — uses ESPN core API with site API fallback
+// Helper: render inline SVG sparkline from an array of numbers
+function _spSparkline(values, w, h, color) {
+  w = w || 60; h = h || 16; color = color || 'var(--accent)';
+  if (!values || values.length < 2) return '';
+  var nums = values.map(Number).filter(function(n) { return !isNaN(n); });
+  if (nums.length < 2) return '';
+  var min = Math.min.apply(null, nums), max = Math.max.apply(null, nums);
+  var range = max - min || 1;
+  var points = nums.map(function(v, i) {
+    var x = (i / (nums.length - 1)) * w;
+    var y = h - ((v - min) / range) * (h - 2) - 1;
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  }).join(' ');
+  return '<svg width="'+w+'" height="'+h+'" style="vertical-align:middle;"><polyline points="'+points+'" fill="none" stroke="'+color+'" stroke-width="1.2" stroke-linejoin="round" /></svg>';
+}
+
+// Helper: extract leader entries from ESPN categories (handles all known formats)
+function _spExtractLeaders(cat) {
+  var leaders = [];
+  if (cat.leaders && Array.isArray(cat.leaders)) {
+    if (cat.leaders[0] && cat.leaders[0].leaders) {
+      leaders = cat.leaders[0].leaders;
+    } else {
+      leaders = cat.leaders;
+    }
+  } else if (cat.entries) {
+    leaders = cat.entries;
+  }
+  return leaders;
+}
+
+// Helper: extract athlete info from an entry (handles inline + $ref formats)
+function _spExtractAthlete(entry) {
+  var athlete = entry.athlete || entry.team || {};
+  var id = athlete.id || '';
+  if (!id && athlete.$ref) { var m = athlete.$ref.match(/athletes\/(\d+)/); if (m) id = m[1]; }
+  if (!id && entry.id) id = entry.id;
+  var name = athlete.displayName || athlete.shortName || athlete.fullName || athlete.name || '';
+  if (!name && entry.displayName) name = entry.displayName;
+  if (!name && athlete.links && athlete.links[0]) name = athlete.links[0].text || '';
+  if (!name && id) name = 'Player #' + id;
+  var headshot = '';
+  if (athlete.headshot) headshot = typeof athlete.headshot === 'string' ? athlete.headshot : (athlete.headshot.href || '');
+  var team = '';
+  if (athlete.team && typeof athlete.team === 'object' && !athlete.team.$ref) {
+    team = athlete.team.abbreviation || athlete.team.displayName || athlete.team.name || '';
+  }
+  if (!team && entry.team && typeof entry.team === 'object' && !entry.team.$ref) {
+    team = entry.team.abbreviation || entry.team.displayName || '';
+  }
+  var value = entry.displayValue || (entry.value != null ? String(entry.value) : '') || entry.stat || '';
+  return { id: id, name: name, headshot: headshot, team: team, value: value };
+}
+
+// Extract categories from ESPN leaders response (handles all known wrapper formats)
+function _spExtractCategories(data) {
+  if (data.leaders && Array.isArray(data.leaders)) return data.leaders;
+  if (data.leaders && data.leaders.categories) return data.leaders.categories;
+  if (data.categories) return data.categories;
+  // Some responses wrap in { leaders: { id, name, categories } }
+  if (data.leaders && data.leaders.id && data.leaders.categories) return data.leaders.categories;
+  return [];
+}
+
+function _spSeasonYear() {
+  var yr = new Date().getFullYear(), mo = new Date().getMonth();
+  return function(league) {
+    return (mo < 6 && ['nba','nhl','nfl','ncaab'].includes(league)) ? yr - 1 : yr;
+  };
+}
+
 function spFetchLeaders() {
-  const league = $('#spPlayersLeague').value;
-  const el = $('#spPlayersList');
+  var league = $('#spPlayersLeague').value;
+  var el = $('#spPlayersList');
   el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading leaders...</div>';
-  const l = SP_LEAGUE_MAP[league];
+  var l = SP_LEAGUE_MAP[league];
   if (!l) return;
+  var seasonYear = _spSeasonYear()(league);
 
-  // Current season year
-  var yr = new Date().getFullYear();
-  var mo = new Date().getMonth(); // 0-indexed
-  // NBA/NHL/NFL seasons start in fall, so if before July use previous year as season start
-  var seasonYear = (mo < 6 && ['nba','nhl','nfl'].includes(league)) ? yr : yr;
-
-  // Try multiple ESPN endpoint patterns — cascade through fallbacks
   var leaderUrls = [
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2',
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders',
+    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/leaders',
     PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/seasons/' + seasonYear + '/types/2/leaders'
   ];
-  function _tryLeaderUrl(idx) {
+  (function _tryUrl(idx) {
     if (idx >= leaderUrls.length) {
-      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load leaders. ESPN endpoints may be temporarily unavailable.</div>';
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load leaders. All ESPN endpoints returned errors.</div>';
       return;
     }
-    console.log('[Sports] Trying leaders URL ' + (idx+1) + '/' + leaderUrls.length);
-    fetch(leaderUrls[idx], { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+    console.log('[Sports] Leaders try ' + (idx+1) + '/' + leaderUrls.length + ': ' + leaderUrls[idx].replace(PROXY_BASE, ''));
+    fetch(leaderUrls[idx], { signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined })
       .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(function(data) { return _processLeadersData(data); })
+      .then(function(data) {
+        console.log('[Sports] Leaders data keys:', Object.keys(data));
+        var categories = _spExtractCategories(data);
+        if (!categories.length) {
+          console.warn('[Sports] Leaders: no categories in response from attempt ' + (idx+1));
+          throw new Error('no categories');
+        }
+        _spRenderLeadersCards(categories, league, l, seasonYear, el);
+      })
       .catch(function(err) {
         console.warn('[Sports] Leaders attempt ' + (idx+1) + ' failed:', err.message);
-        _tryLeaderUrl(idx + 1);
+        _tryUrl(idx + 1);
       });
-  }
-  _tryLeaderUrl(0);
-  function _processLeadersData(data) {
-      // Site API returns { leaders: { categories: [...] } } or { categories: [...] }
-      var categories = [];
-      if (data.leaders && Array.isArray(data.leaders)) categories = data.leaders;
-      else if (data.leaders && data.leaders.categories) categories = data.leaders.categories;
-      else if (data.categories) categories = data.categories;
-
-      if (!categories.length) {
-        el.innerHTML = '<div class="sp-empty">No leader data available for this league/season.</div>';
-        return;
-      }
-      var html = '';
-      var curSeason = seasonYear + '-' + String(seasonYear + 1).slice(-2);
-      html += '<div style="font-size:.48rem;color:var(--text-dim);margin-bottom:6px;">' + esc(l.name) + ' ' + curSeason + ' Season Leaders</div>';
-
-      categories.slice(0, 8).forEach(function(cat) {
-        var catName = cat.displayName || cat.name || cat.abbreviation || 'Leaders';
-        // Site API nests leaders differently: cat.leaders[0].leaders or cat.leaders or cat.entries
-        var leaders = [];
-        if (cat.leaders && Array.isArray(cat.leaders)) {
-          // Sometimes categories have subcategories with .leaders inside
-          if (cat.leaders[0] && cat.leaders[0].leaders) {
-            leaders = cat.leaders[0].leaders;
-          } else {
-            leaders = cat.leaders;
-          }
-        } else if (cat.entries) {
-          leaders = cat.entries;
-        }
-        if (!leaders.length) return;
-        html += '<div style="margin-bottom:10px;">';
-        html += '<div style="font-weight:700;font-size:.68rem;color:var(--accent);margin-bottom:4px;text-transform:uppercase;">'+esc(catName)+'</div>';
-        leaders.slice(0, 5).forEach(function(entry, i) {
-          var athlete = entry.athlete || entry.team || {};
-          // Handle $ref-only athlete objects — extract ID from $ref URL
-          var athleteId = athlete.id || '';
-          if (!athleteId && athlete.$ref) {
-            var refMatch = athlete.$ref.match(/athletes\/(\d+)/);
-            if (refMatch) athleteId = refMatch[1];
-          }
-          // Extract name — try all known field locations
-          var name = athlete.displayName || athlete.shortName || athlete.fullName || athlete.name || '';
-          if (!name && athlete.links && athlete.links[0]) name = athlete.links[0].text || '';
-          if (!name && entry.displayName) name = entry.displayName;
-          if (!name && entry.athlete && entry.athlete.shortName) name = entry.athlete.shortName;
-          if (!name && entry.athlete && entry.athlete.displayName) name = entry.athlete.displayName;
-          // Last resort: if we have athleteId but no name, show a placeholder
-          if (!name && athleteId) name = 'Player #' + athleteId;
-          var headshot = '';
-          if (athlete.headshot) headshot = typeof athlete.headshot === 'string' ? athlete.headshot : (athlete.headshot.href || '');
-          if (!headshot && entry.athlete && entry.athlete.headshot) headshot = typeof entry.athlete.headshot === 'string' ? entry.athlete.headshot : (entry.athlete.headshot.href || '');
-          var team = '';
-          if (athlete.team) {
-            if (typeof athlete.team === 'object' && !athlete.team.$ref) {
-              team = athlete.team.abbreviation || athlete.team.displayName || athlete.team.name || '';
-            }
-          }
-          if (!team && entry.team) {
-            if (typeof entry.team === 'object' && !entry.team.$ref) {
-              team = entry.team.abbreviation || entry.team.displayName || '';
-            }
-          }
-          var value = entry.displayValue || entry.value || entry.stat || '';
-          html += '<div class="sp-card" style="cursor:pointer;padding:3px 6px;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(athleteId)+'\',\''+esc(name)+'\')">';
-          html += '<div style="display:flex;align-items:center;gap:6px;">';
-          html += '<span style="font-size:.6rem;color:var(--text-dim);width:14px;">'+String(i+1)+'.</span>';
-          if (headshot) html += '<img src="'+esc(headshot)+'" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
-          html += '<span style="font-size:.65rem;font-weight:600;">'+esc(name || '\u2026')+'</span>';
-          if (team) html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(team)+'</span>';
-          html += '<span style="margin-left:auto;font-size:.7rem;font-weight:700;color:var(--accent);">'+esc(String(value))+'</span>';
-          html += '</div></div>';
-        });
-        html += '</div>';
-      });
-      el.innerHTML = html || '<div class="sp-empty">No leaders data available.</div>';
-  }
+  })(0);
 }
+
+function _spRenderLeadersCards(categories, league, leagueInfo, seasonYear, el) {
+  var html = '';
+  var curSeason = seasonYear + '-' + String(seasonYear + 1).slice(-2);
+  html += '<div style="font-size:.48rem;color:var(--text-dim);margin-bottom:6px;">' + esc(leagueInfo.name) + ' ' + curSeason + ' Season Leaders</div>';
+  categories.slice(0, 10).forEach(function(cat) {
+    var catName = cat.displayName || cat.name || cat.abbreviation || 'Leaders';
+    var leaders = _spExtractLeaders(cat);
+    if (!leaders.length) return;
+    html += '<div style="margin-bottom:10px;">';
+    html += '<div style="font-weight:700;font-size:.68rem;color:var(--accent);margin-bottom:4px;text-transform:uppercase;">'+esc(catName)+'</div>';
+    leaders.slice(0, 5).forEach(function(entry, i) {
+      var a = _spExtractAthlete(entry);
+      html += '<div class="sp-card" style="cursor:pointer;padding:3px 6px;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(a.id)+'\',\''+esc(a.name)+'\')">';
+      html += '<div style="display:flex;align-items:center;gap:6px;">';
+      html += '<span style="font-size:.6rem;color:var(--text-dim);width:14px;">'+String(i+1)+'.</span>';
+      if (a.headshot) html += '<img src="'+esc(a.headshot)+'" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
+      html += '<span style="font-size:.65rem;font-weight:600;">'+esc(a.name)+'</span>';
+      if (a.team) html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(a.team)+'</span>';
+      html += '<span style="margin-left:auto;font-size:.7rem;font-weight:700;color:var(--accent);">'+esc(a.value)+'</span>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+  el.innerHTML = html || '<div class="sp-empty">No leaders data available.</div>';
+}
+
+// ── Table view: multi-stat leaders with sparklines ──
+function spFetchLeadersTable() {
+  var league = $('#spPlayersLeague').value;
+  var el = $('#spPlayersList');
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading stats table...</div>';
+  var l = SP_LEAGUE_MAP[league];
+  if (!l) return;
+  var seasonYear = _spSeasonYear()(league);
+  var url = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2';
+  var fallback = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders';
+  fetch(url)
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .catch(function() { return fetch(fallback).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }); })
+    .then(function(data) {
+      var categories = _spExtractCategories(data);
+      if (!categories.length) { el.innerHTML = '<div class="sp-empty">No leaders data.</div>'; return; }
+      // Build a merged table: player → { name, team, headshot, stats: { catName: value } }
+      var playerMap = {};
+      var statCols = [];
+      categories.slice(0, 8).forEach(function(cat) {
+        var catName = cat.abbreviation || cat.name || cat.displayName || 'Stat';
+        statCols.push(catName);
+        var leaders = _spExtractLeaders(cat);
+        leaders.slice(0, 10).forEach(function(entry, rank) {
+          var a = _spExtractAthlete(entry);
+          var key = a.id || a.name;
+          if (!key) return;
+          if (!playerMap[key]) playerMap[key] = { id: a.id, name: a.name, team: a.team, headshot: a.headshot, stats: {}, bestRank: rank };
+          playerMap[key].stats[catName] = a.value;
+          if (rank < playerMap[key].bestRank) playerMap[key].bestRank = rank;
+        });
+      });
+      // Sort by best rank across categories
+      var players = Object.values(playerMap).sort(function(a, b) { return a.bestRank - b.bestRank; });
+      var curSeason = seasonYear + '-' + String(seasonYear + 1).slice(-2);
+      var html = '<div style="font-size:.48rem;color:var(--text-dim);margin-bottom:4px;">' + esc(l.name) + ' ' + curSeason + ' Leaders Table</div>';
+      html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.58rem;border-collapse:collapse;min-width:400px;">';
+      html += '<tr style="color:var(--text-dim);position:sticky;top:0;background:var(--bg);z-index:1;"><th style="text-align:left;padding:3px 4px;">Player</th><th style="padding:3px 4px;">Team</th>';
+      statCols.forEach(function(col) { html += '<th style="padding:3px 4px;white-space:nowrap;">'+esc(col)+'</th>'; });
+      html += '</tr>';
+      players.slice(0, 25).forEach(function(p) {
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(p.id)+'\',\''+esc(p.name)+'\')">';
+        html += '<td style="padding:3px 4px;display:flex;align-items:center;gap:4px;">';
+        if (p.headshot) html += '<img src="'+esc(p.headshot)+'" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
+        html += '<span style="font-weight:600;">'+esc(p.name)+'</span></td>';
+        html += '<td style="text-align:center;padding:3px 4px;color:var(--text-dim);">'+esc(p.team)+'</td>';
+        statCols.forEach(function(col) {
+          var val = p.stats[col] || '-';
+          html += '<td style="text-align:center;padding:3px 4px;">'+esc(val)+'</td>';
+        });
+        html += '</tr>';
+      });
+      html += '</table></div>';
+      el.innerHTML = html;
+    })
+    .catch(function(err) {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Table view failed: '+esc(err.message)+'</div>';
+    });
+}
+
+// ── Team roster view: select a team, see all players in table format ──
+function spFetchTeamRoster() {
+  var league = $('#spPlayersLeague').value;
+  var el = $('#spPlayersList');
+  var l = SP_LEAGUE_MAP[league];
+  if (!l) return;
+  // First show team picker
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading teams...</div>';
+  var teamsUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/teams';
+  fetch(teamsUrl)
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data) {
+      var teams = [];
+      if (data.sports && data.sports[0] && data.sports[0].leagues) {
+        data.sports[0].leagues.forEach(function(lg) { (lg.teams || []).forEach(function(t) { teams.push(t.team || t); }); });
+      } else if (data.teams) {
+        teams = data.teams.map(function(t) { return t.team || t; });
+      }
+      if (!teams.length) { el.innerHTML = '<div class="sp-empty">No teams found.</div>'; return; }
+      teams.sort(function(a, b) { return (a.displayName || '').localeCompare(b.displayName || ''); });
+      var html = '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:6px;">Select a team to view roster stats:</div>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+      teams.forEach(function(team) {
+        var logo = team.logos && team.logos[0] ? team.logos[0].href : '';
+        var abbr = team.abbreviation || team.shortDisplayName || '';
+        html += '<div class="sp-card" style="cursor:pointer;padding:3px 6px;display:inline-flex;align-items:center;gap:3px;font-size:.6rem;" onclick="spFetchTeamRosterDetail(\''+esc(league)+'\',\''+esc(team.id)+'\',\''+esc(team.displayName || '')+'\')">';
+        if (logo) html += '<img src="'+esc(logo)+'" style="width:16px;height:16px;" onerror="this.style.display=\'none\'" />';
+        html += esc(abbr) + '</div>';
+      });
+      html += '</div>';
+      el.innerHTML = html;
+    })
+    .catch(function(err) {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load teams: '+esc(err.message)+'</div>';
+    });
+}
+
+window.spFetchTeamRosterDetail = function(league, teamId, teamName) {
+  var el = $('#spPlayersList');
+  el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading ' + esc(teamName) + ' roster...</div>';
+  var l = SP_LEAGUE_MAP[league];
+  if (!l) return;
+  var rosterUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/teams/' + teamId + '/roster';
+  fetch(rosterUrl)
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data) {
+      var athletes = data.athletes || [];
+      var html = '<div style="margin-bottom:6px;"><button onclick="spFetchTeamRoster()" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back to Teams</button>';
+      html += ' <span style="font-weight:700;font-size:.72rem;">' + esc(teamName) + '</span></div>';
+      // Flatten position groups
+      var allPlayers = [];
+      athletes.forEach(function(group) {
+        var pos = group.position || '';
+        (group.items || []).forEach(function(p) {
+          allPlayers.push({
+            id: p.id || '',
+            name: p.displayName || p.fullName || '',
+            pos: (p.position && p.position.abbreviation) || pos || '',
+            jersey: p.jersey || '',
+            age: p.age || '',
+            height: p.displayHeight || '',
+            weight: p.displayWeight || '',
+            exp: p.experience ? (p.experience.years != null ? p.experience.years + 'yr' : '') : '',
+            headshot: p.headshot ? (p.headshot.href || '') : ''
+          });
+        });
+      });
+      if (!allPlayers.length) {
+        // Try flat format
+        if (data.roster) {
+          (data.roster || []).forEach(function(p) {
+            allPlayers.push({
+              id: p.id || '', name: p.displayName || p.fullName || '',
+              pos: (p.position && p.position.abbreviation) || '', jersey: p.jersey || '',
+              age: p.age || '', height: p.displayHeight || '', weight: p.displayWeight || '',
+              exp: '', headshot: p.headshot ? (p.headshot.href || '') : ''
+            });
+          });
+        }
+      }
+      html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.58rem;border-collapse:collapse;">';
+      html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:3px 4px;">#</th><th style="text-align:left;padding:3px 4px;">Name</th><th style="padding:3px 4px;">Pos</th><th style="padding:3px 4px;">Age</th><th style="padding:3px 4px;">Ht</th><th style="padding:3px 4px;">Wt</th><th style="padding:3px 4px;">Exp</th></tr>';
+      allPlayers.forEach(function(p) {
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(p.id)+'\',\''+esc(p.name)+'\')">';
+        html += '<td style="padding:3px 4px;color:var(--text-dim);">'+esc(p.jersey)+'</td>';
+        html += '<td style="padding:3px 4px;display:flex;align-items:center;gap:4px;">';
+        if (p.headshot) html += '<img src="'+esc(p.headshot)+'" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
+        html += '<span style="font-weight:600;">'+esc(p.name)+'</span></td>';
+        html += '<td style="text-align:center;padding:3px 4px;">'+esc(p.pos)+'</td>';
+        html += '<td style="text-align:center;padding:3px 4px;">'+esc(String(p.age))+'</td>';
+        html += '<td style="text-align:center;padding:3px 4px;">'+esc(p.height)+'</td>';
+        html += '<td style="text-align:center;padding:3px 4px;">'+esc(p.weight)+'</td>';
+        html += '<td style="text-align:center;padding:3px 4px;">'+esc(p.exp)+'</td>';
+        html += '</tr>';
+      });
+      html += '</table></div>';
+      el.innerHTML = html;
+    })
+    .catch(function(err) {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Roster failed: '+esc(err.message)+'</div>';
+    });
+};
 
 
 
