@@ -16999,29 +16999,8 @@ MODEL_MIX_IDS.forEach(id => {
   if (toggleBtn) toggleBtn.style.display = 'none';
 })();
 
-// API key is server-managed — Save button checks proxy status instead
-$('#aiKeySave').onclick = async () => {
-  try {
-    const r = await fetch(PROXY_BASE + '/health', { signal: AbortSignal.timeout(3000) });
-    if (r.ok) {
-      const data = await r.json();
-      aiProxyAvailable = !!data.services?.anthropic;
-      _proxyAlive = true; _proxyLastCheck = Date.now();
-      if (data.services?.anthropic) {
-        addAiMsg('system', 'Proxy connected — Anthropic API key is configured server-side. Claude is ready.');
-      } else {
-        addAiMsg('system', 'Proxy is running but Anthropic API key is not configured. Contact admin.');
-      }
-    } else {
-      addAiMsg('system', 'Proxy not reachable — check server status.');
-    }
-  } catch(_) {
-    addAiMsg('system', 'Cannot reach proxy at ' + PROXY_BASE + '. Is the server running?');
-  }
-  // Update display
-  const inp = $('#aiApiKey');
-  if (inp) inp.value = aiProxyAvailable ? 'Managed via secure proxy' : 'Proxy not connected';
-};
+// API key is server-managed — section removed from UI
+// (Save/Toggle/Unlock buttons no longer exist in DOM)
 
 $('#aiClear').onclick = () => { aiMessages = []; $('#aiMsgs').innerHTML = ''; addAiMsg('system', 'Chat cleared.'); window._sessionResetNudged = false; };
 $('#aiSavedActionsBtn').onclick = renderSavedActionsPanel;
