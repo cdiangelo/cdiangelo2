@@ -3025,7 +3025,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <div id="simpChatPane" style="display:none;"></div>
 
   <!-- ═══ SIMPLIFIED MODE OUTPUT AREA (bottom) ═══ -->
-  <div id="simplifiedOutput" style="display:none;" class="pane">
+  <div id="simplifiedOutput" style="display:none;">
     <div class="simplified-output-tabs" id="simpTabs">
       <button class="active" data-simp-tab="simp-sheet">Sheet</button>
       <button data-simp-tab="simp-notepad">Notepad</button>
@@ -3633,11 +3633,9 @@ function applyWorkspaceMode() {
     // --- Move robot scene into simpBotPane ---
     const botPane = document.getElementById('simpBotPane');
     const robotWrapper = document.getElementById('robotSceneWrapper');
-    const robotControls = document.querySelector('.robot-controls');
     if (botPane && robotWrapper && !botPane.dataset.filled) {
       botPane.dataset.filled = '1';
       botPane.appendChild(robotWrapper);
-      if (robotControls) botPane.appendChild(robotControls);
     }
 
     // --- Move chat elements into simpChatPane ---
@@ -3693,46 +3691,32 @@ function applyWorkspaceMode() {
     const botPane = document.getElementById('simpBotPane');
     const claudeContentRow = document.getElementById('claudeContentRow');
     const robotWrapper = document.getElementById('robotSceneWrapper');
-    const robotControls = document.querySelector('.robot-controls');
     if (botPane && botPane.dataset.filled && claudeContentRow) {
       if (robotWrapper) claudeContentRow.appendChild(robotWrapper);
-      if (robotControls) {
-        const rw = document.getElementById('robotSceneWrapper');
-        if (rw) rw.appendChild(robotControls);
-      }
       delete botPane.dataset.filled;
     }
 
     // --- Restore chat elements back to claude pane ---
     const chatPane = document.getElementById('simpChatPane');
     const claudeBody = document.querySelector('#q-claude .p-body');
+    const contentRow = document.getElementById('claudeContentRow');
     if (chatPane && chatPane.dataset.filled && claudeBody) {
-      // Move actions bar controls back
+      // Move action bar controls back to original actions bar
       const simpActionsRow = document.getElementById('simpActionsRow');
       const aiActionsBar = document.getElementById('aiActionsBar');
       if (simpActionsRow && aiActionsBar) {
         while (simpActionsRow.firstChild) aiActionsBar.appendChild(simpActionsRow.firstChild);
         simpActionsRow.remove();
       }
-      // Move messages and input back
+      // Move messages back into claude-content-row (before robot wrapper)
       const aiMsgs = document.getElementById('aiMsgs');
+      if (aiMsgs && contentRow) contentRow.insertBefore(aiMsgs, contentRow.firstChild);
+      // Move input row and output opts back into p-body (before claude-content-row)
       const aiInputRow = chatPane.querySelector('.ai-input-row');
       const aiOutputOpts = document.getElementById('aiOutputOpts');
-      const contentRow = document.getElementById('claudeContentRow');
-      if (aiMsgs && contentRow) contentRow.insertBefore(aiMsgs, contentRow.firstChild);
-      if (aiInputRow) {
-        const existingInputRow = claudeBody.querySelector('.ai-input-row');
-        if (existingInputRow) {
-          claudeBody.insertBefore(aiInputRow, existingInputRow);
-          existingInputRow.remove();
-        } else {
-          claudeBody.appendChild(aiInputRow);
-        }
-      }
-      if (aiOutputOpts) {
-        const inputRow = claudeBody.querySelector('.ai-input-row');
-        if (inputRow) inputRow.after(aiOutputOpts);
-        else claudeBody.appendChild(aiOutputOpts);
+      if (contentRow) {
+        if (aiOutputOpts) claudeBody.insertBefore(aiOutputOpts, contentRow);
+        if (aiInputRow) claudeBody.insertBefore(aiInputRow, aiOutputOpts || contentRow);
       }
       delete chatPane.dataset.filled;
     }
