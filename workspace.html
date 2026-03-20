@@ -16221,6 +16221,7 @@ function getCompanyMetrics(ticker) { return getCompanyMetricsSimulated(ticker); 
 // Async version — Robinhood primary, Yahoo Finance fallback, simulated last resort
 async function getCompanyMetricsReal(ticker) {
   // Tier 1: Try Robinhood quote + fundamentals (no auth needed)
+  let rhResult = null;
   try {
     const [quote, fund] = await Promise.all([
       fetchRobinhoodQuote(ticker),
@@ -16232,7 +16233,7 @@ async function getCompanyMetricsReal(ticker) {
       const mktCap = fund?.market_cap ? parseFloat(fund.market_cap) : null;
       const sharesOut = fund?.shares_outstanding ? parseFloat(fund.shares_outstanding) : null;
       const companyEntry = COMPANY_DB.find(c => c.ticker === ticker);
-      return {
+      rhResult = {
         price: price || null,
         mktCap: mktCap,
         sizeGroup: companyEntry?.isETF ? 'ETF' : (mktCap ? (mktCap > 200e9 ? 'Mega Cap' : mktCap > 10e9 ? 'Large Cap' : mktCap > 2e9 ? 'Mid Cap' : 'Small Cap') : null),
@@ -16249,18 +16250,23 @@ async function getCompanyMetricsReal(ticker) {
         ask: quote.ask_price ? parseFloat(quote.ask_price) : null,
         source: 'robinhood'
       };
+      // If fundamentals are complete (have PE + mktCap), return immediately
+      if (pe != null && mktCap != null) return rhResult;
+      // Otherwise fall through to try Yahoo for missing fundamentals
     }
   } catch(e) {}
 
-  // Fallback: Yahoo Finance (with retry logic matching fetchRealStockData)
+  // Tier 2: Yahoo Finance — get full fundamentals (or supplement Robinhood)
+  // Try v6 quote first (lighter, more reliable), then v10 quoteSummary as fallback
   try {
-    const url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' +
-      encodeURIComponent(ticker) + '?modules=summaryDetail,defaultKeyStatistics,financialData';
+    const url = 'https://query1.finance.yahoo.com/v6/finance/quote?symbols=' +
+      encodeURIComponent(ticker);
 
-    async function attemptYahooFetch(retries) {
+    async function attemptYahooFetch(retries, fetchUrl) {
+      fetchUrl = fetchUrl || url;
       // If proxy is known-dead, skip it and go straight to allorigins
-      const proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(url);
-      const alloriginsUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+      const proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(fetchUrl);
+      const alloriginsUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(fetchUrl);
       let resp;
       if (_proxyAlive === false) {
         // Proxy known-down: try allorigins directly, proxy as fallback
@@ -16276,39 +16282,94 @@ async function getCompanyMetricsReal(ticker) {
       if (!resp.ok) {
         if (retries > 0 && resp.status >= 500) {
           await new Promise(r => setTimeout(r, 1500));
-          return attemptYahooFetch(retries - 1);
+          return attemptYahooFetch(retries - 1, fetchUrl);
         }
         throw new Error('HTTP ' + resp.status);
       }
       return resp;
     }
 
-    const resp = await attemptYahooFetch(2);
-    const json = await resp.json();
+    // Try v6 first, fall back to v10 if v6 fails or returns no data
+    let resp, json;
+    const v10Url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' +
+      encodeURIComponent(ticker) + '?modules=summaryDetail,defaultKeyStatistics,financialData';
+    try {
+      resp = await attemptYahooFetch(1, url);
+      json = await resp.json();
+    } catch(_) {}
+    if (!json || json.error || (!json.quoteResponse?.result?.[0] && !json.quoteSummary?.result?.[0])) {
+      // v6 failed, try v10
+      resp = await attemptYahooFetch(2, v10Url);
+      json = await resp.json();
+    }
     if (json.error) throw new Error('Proxy error');
+    // Parse v6 quote format (flat fields) or v10 quoteSummary format (nested .raw)
+    let yahooResult = null;
+    const q6 = json.quoteResponse?.result?.[0];
     const summary = json.quoteSummary?.result?.[0];
-    if (!summary) throw new Error('No data');
-    const sd = summary.summaryDetail || {};
-    const ks = summary.defaultKeyStatistics || {};
-    const fd = summary.financialData || {};
-    return {
-      price: fd.currentPrice?.raw || null,
-      mktCap: sd.marketCap?.raw || null,
-      sizeGroup: sd.marketCap?.raw ? (sd.marketCap.raw > 200e9 ? 'Mega Cap' : sd.marketCap.raw > 10e9 ? 'Large Cap' : sd.marketCap.raw > 2e9 ? 'Mid Cap' : 'Small Cap') : null,
-      pe: sd.trailingPE?.raw || null,
-      eps: ks.trailingEps?.raw || null,
-      revenue: fd.totalRevenue?.raw || null,
-      sharesOutstanding: ks.sharesOutstanding?.raw || null,
-      forwardPE: ks.forwardPE?.raw || null,
-      priceToBook: ks.priceToBook?.raw || null,
-      high_52: sd.fiftyTwoWeekHigh?.raw || null,
-      low_52: sd.fiftyTwoWeekLow?.raw || null,
-      dividend_yield: sd.dividendYield?.raw || null,
-      bid: sd.bid?.raw || null,
-      ask: sd.ask?.raw || null,
-      source: 'yahoo'
-    };
+    if (q6 && q6.regularMarketPrice) {
+      // v6 format: flat numeric fields
+      const mc = q6.marketCap || null;
+      yahooResult = {
+        price: q6.regularMarketPrice || null,
+        mktCap: mc,
+        sizeGroup: mc ? (mc > 200e9 ? 'Mega Cap' : mc > 10e9 ? 'Large Cap' : mc > 2e9 ? 'Mid Cap' : 'Small Cap') : null,
+        pe: q6.trailingPE || null,
+        eps: q6.epsTrailingTwelveMonths || null,
+        revenue: q6.totalRevenue || null,
+        sharesOutstanding: q6.sharesOutstanding || null,
+        forwardPE: q6.forwardPE || null,
+        priceToBook: q6.priceToBook || null,
+        high_52: q6.fiftyTwoWeekHigh || null,
+        low_52: q6.fiftyTwoWeekLow || null,
+        dividend_yield: q6.trailingAnnualDividendYield || q6.dividendYield || null,
+        bid: q6.bid || null,
+        ask: q6.ask || null,
+        source: 'yahoo-v6'
+      };
+    } else if (summary) {
+      // v10 format: nested objects with .raw values
+      const sd = summary.summaryDetail || {};
+      const ks = summary.defaultKeyStatistics || {};
+      const fd = summary.financialData || {};
+      const mc = sd.marketCap?.raw || null;
+      yahooResult = {
+        price: fd.currentPrice?.raw || null,
+        mktCap: mc,
+        sizeGroup: mc ? (mc > 200e9 ? 'Mega Cap' : mc > 10e9 ? 'Large Cap' : mc > 2e9 ? 'Mid Cap' : 'Small Cap') : null,
+        pe: sd.trailingPE?.raw || null,
+        eps: ks.trailingEps?.raw || null,
+        revenue: fd.totalRevenue?.raw || null,
+        sharesOutstanding: ks.sharesOutstanding?.raw || null,
+        forwardPE: ks.forwardPE?.raw || null,
+        priceToBook: ks.priceToBook?.raw || null,
+        high_52: sd.fiftyTwoWeekHigh?.raw || null,
+        low_52: sd.fiftyTwoWeekLow?.raw || null,
+        dividend_yield: sd.dividendYield?.raw || null,
+        bid: sd.bid?.raw || null,
+        ask: sd.ask?.raw || null,
+        source: 'yahoo-v10'
+      };
+    }
+    if (!yahooResult) throw new Error('No data in Yahoo response');
+    // If we have partial Robinhood data, merge: prefer RH for real-time fields, Yahoo for fundamentals
+    if (rhResult) {
+      const merged = Object.assign({}, yahooResult);
+      // RH has better real-time price/bid/ask
+      if (rhResult.price != null) merged.price = rhResult.price;
+      if (rhResult.bid != null) merged.bid = rhResult.bid;
+      if (rhResult.ask != null) merged.ask = rhResult.ask;
+      // Fill in any RH fundamentals that Yahoo missed
+      for (const k of ['pe','eps','mktCap','sharesOutstanding','high_52','low_52','dividend_yield','sizeGroup']) {
+        if (merged[k] == null && rhResult[k] != null) merged[k] = rhResult[k];
+      }
+      merged.source = 'robinhood+yahoo';
+      return merged;
+    }
+    return yahooResult;
   } catch (e) {
+    // If Yahoo failed but we have partial Robinhood data, return that
+    if (rhResult) return rhResult;
     // Tier 3: Pull from stockDataCache if charts already fetched price data
     const chartEntry = stockDataCache[ticker + '_1M'] || stockDataCache[ticker + '_1D'] ||
       stockDataCache[ticker + '_5D'] || stockDataCache[ticker + '_6M'] || stockDataCache[ticker + '_1Y'];
