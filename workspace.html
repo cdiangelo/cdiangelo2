@@ -778,6 +778,26 @@ body.light .fun-btn { background: var(--accent); }
   width: 100%; height: 100%; padding: 1px 5px; background: transparent;
   border: none; color: var(--text); font-size: .72rem; font-family: monospace; outline: none;
 }
+.ss-table td.ss-list-cell { position: relative; }
+.ss-table td.ss-list-cell .ci { padding-right: 18px; }
+.ss-dd-arrow {
+  position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+  font-size: .55rem; color: var(--text-dim); cursor: pointer; z-index: 2;
+  padding: 2px; line-height: 1; user-select: none;
+}
+.ss-dd-arrow:hover { color: var(--accent); }
+.ss-dropdown {
+  position: absolute; z-index: 100; min-width: 100%; max-height: 200px;
+  overflow-y: auto; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  font-size: .72rem; font-family: monospace;
+}
+.ss-dropdown .ss-dd-item {
+  padding: 4px 8px; cursor: pointer; color: var(--text); white-space: nowrap;
+}
+.ss-dropdown .ss-dd-item:hover, .ss-dropdown .ss-dd-item.selected {
+  background: var(--accent); color: #fff;
+}
 .ss-table td:hover { background: var(--panel-inset); }
 .ss-table td .ci:focus { background: rgba(255,255,255,.05); }
 .ss-table td.formula-cell .ci { color: var(--accent2); }
@@ -6643,6 +6663,8 @@ let ssRowHeights = LS('ssRowHeights') || []; // per-row heights
 let ssHeaderDragType = null; // 'row' | 'col' | null — for header drag selection
 // Cell formatting: ssFmt[r][c] = { bg, color, bold } — sparse, only set cells have entries
 let ssFmt = LS('ssFmt') || {};
+// Data validation: ssValidation['r,c'] = { type: 'list'|'range'|'formula', values: [...], min, max, formula }
+let ssValidation = LS('ssValidation') || {};
 // Row/column grouping: arrays of { start, end, collapsed }
 let ssRowGroups = LS('ssRowGroups') || [];
 let ssColGroups = LS('ssColGroups') || [];
@@ -6950,12 +6972,14 @@ function ssSaveCurrentPage() {
     page.colGroups = JSON.parse(JSON.stringify(ssColGroups));
     page.rowIndent = JSON.parse(JSON.stringify(ssRowIndent));
     page.rowHeights = ssRowHeights.slice();
+    page.validation = JSON.parse(JSON.stringify(ssValidation));
   }
   saveSsPages();
   LS('sheet', ssD);
   LS('sheetColNames', ssColNames);
   LS('ssFmt', ssFmt);
   LS('ssRowHeights', ssRowHeights);
+  LS('ssValidation', ssValidation);
 }
 
 function ssSwitchPage(id) {
@@ -6971,6 +6995,7 @@ function ssSwitchPage(id) {
     ssColGroups = page.colGroups ? JSON.parse(JSON.stringify(page.colGroups)) : [];
     ssRowIndent = page.rowIndent ? JSON.parse(JSON.stringify(page.rowIndent)) : {};
     ssRowHeights = page.rowHeights ? page.rowHeights.slice() : [];
+    ssValidation = page.validation ? JSON.parse(JSON.stringify(page.validation)) : {};
   } else {
     ssD = []; ssR = 20; ssC = 10;
     for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; }
@@ -6978,6 +7003,7 @@ function ssSwitchPage(id) {
     ssFmt = {};
     ssRowGroups = []; ssColGroups = []; ssRowIndent = {};
     ssRowHeights = [];
+    ssValidation = {};
   }
   LS('sheet', ssD); LS('sheetColNames', ssColNames);
   ssRender();
@@ -7926,7 +7952,9 @@ function ssRender() {
             }
           }
         }
-        h += '<td class="'+cls+spillCls+'" data-r="'+r+'" data-c="'+c+'"' + (style ? ' style="'+style+'"' : '') + '><input class="ci" value="'+displayStr.replace(/"/g,'&quot;')+'" data-r="'+r+'" data-c="'+c+'"' + (inpStyle ? ' style="'+inpStyle+'"' : '') + ' readonly /></td>';
+        const valRule = ssValidation[r + ',' + c];
+        const isListVal = valRule && valRule.type === 'list';
+        h += '<td class="'+cls+spillCls+(isListVal ? ' ss-list-cell' : '')+'" data-r="'+r+'" data-c="'+c+'"' + (style ? ' style="'+style+'"' : '') + '><input class="ci" value="'+displayStr.replace(/"/g,'&quot;')+'" data-r="'+r+'" data-c="'+c+'"' + (inpStyle ? ' style="'+inpStyle+'"' : '') + ' readonly />'+(isListVal ? '<span class="ss-dd-arrow" data-r="'+r+'" data-c="'+c+'">&#9660;</span>' : '')+'</td>';
       }
     }
     h += '</tr>';
@@ -8042,6 +8070,12 @@ function ssRender() {
   if (!t) return;
 
   function ssEnterEdit(r, c) {
+    // For list-validated cells, show dropdown instead of free-text edit
+    const valRule = ssValidation[r + ',' + c];
+    if (valRule && valRule.type === 'list') {
+      ssShowDropdown(r, c);
+      return;
+    }
     ssEditing = true;
     const inp = t.querySelector('.ci[data-r="'+r+'"][data-c="'+c+'"]');
     if (inp) { inp.value = ssD[r][c] || ''; inp.removeAttribute('readonly'); inp.focus(); inp.select(); }
@@ -8055,6 +8089,61 @@ function ssRender() {
     else if (inp) { inp.setAttribute('readonly', ''); }
     LS('sheet', ssD); ssSaveCurrentPage(); ssRender(); ssShowHint();
   }
+
+  // ── Data validation dropdown for list-type cells ──
+  function ssShowDropdown(r, c) {
+    ssCloseDropdown();
+    const key = r + ',' + c;
+    const rule = ssValidation[key];
+    if (!rule || rule.type !== 'list') return;
+    const td = t.querySelector('td[data-r="'+r+'"][data-c="'+c+'"]');
+    if (!td) return;
+    const rect = td.getBoundingClientRect();
+    const dd = document.createElement('div');
+    dd.className = 'ss-dropdown';
+    dd.id = 'ssActiveDropdown';
+    dd.style.left = rect.left + 'px';
+    dd.style.top = rect.bottom + 'px';
+    dd.style.minWidth = rect.width + 'px';
+    dd.style.position = 'fixed';
+    const currentVal = ssD[r][c] || '';
+    rule.values.forEach(v => {
+      const item = document.createElement('div');
+      item.className = 'ss-dd-item' + (v === currentVal ? ' selected' : '');
+      item.textContent = v;
+      item.addEventListener('mousedown', e => {
+        e.preventDefault(); e.stopPropagation();
+        ssPushUndo();
+        ssD[r][c] = v;
+        LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
+        ssCloseDropdown();
+      });
+      dd.appendChild(item);
+    });
+    document.body.appendChild(dd);
+    // Close on outside click
+    setTimeout(() => document.addEventListener('mousedown', ssDropdownOutsideClick, { once: true }), 0);
+  }
+  function ssDropdownOutsideClick(e) {
+    const dd = document.getElementById('ssActiveDropdown');
+    if (dd && !dd.contains(e.target)) ssCloseDropdown();
+  }
+  function ssCloseDropdown() {
+    const dd = document.getElementById('ssActiveDropdown');
+    if (dd) dd.remove();
+  }
+
+  // Handle dropdown arrow clicks
+  t.addEventListener('click', e => {
+    const arrow = e.target.closest('.ss-dd-arrow');
+    if (arrow) {
+      e.preventDefault(); e.stopPropagation();
+      const r = +arrow.dataset.r, c = +arrow.dataset.c;
+      ssSel = { r1: r, c1: c, r2: r, c2: c };
+      ssRenderSelection();
+      ssShowDropdown(r, c);
+    }
+  });
 
   // ── Single-click to edit: mousedown records anchor, mouseup enters edit if no drag ──
   let ssDragged = false;
@@ -9272,8 +9361,27 @@ $$('.ctx-item').forEach(item => {
       return;
     }
     else if (action === 'validate') {
-      const rule = prompt('Validation rule:\n  "list:a,b,c" — dropdown\n  "range:0,100" — number range\n  "formula:=A1>0" — custom');
-      if (rule) toast('Validation set: ' + rule);
+      const rule = prompt('Validation rule:\n  "list:a,b,c" — dropdown\n  "range:0,100" — number range\n  "formula:=A1>0" — custom\n  "clear" — remove validation');
+      if (!rule) return;
+      if (!ssSel) return;
+      ssPushUndo();
+      for (let r = ssSel.r1; r <= ssSel.r2; r++) {
+        for (let c = ssSel.c1; c <= ssSel.c2; c++) {
+          const key = r + ',' + c;
+          if (rule.toLowerCase() === 'clear') {
+            delete ssValidation[key];
+          } else if (rule.startsWith('list:')) {
+            ssValidation[key] = { type: 'list', values: rule.substring(5).split(',').map(v => v.trim()) };
+          } else if (rule.startsWith('range:')) {
+            const parts = rule.substring(6).split(',');
+            ssValidation[key] = { type: 'range', min: parseFloat(parts[0]), max: parseFloat(parts[1]) };
+          } else if (rule.startsWith('formula:')) {
+            ssValidation[key] = { type: 'formula', formula: rule.substring(8) };
+          }
+        }
+      }
+      LS('ssValidation', ssValidation); ssSaveCurrentPage(); ssRender();
+      toast('Validation set: ' + rule);
       return;
     }
     LS('sheet', ssD); LS('ssFmt', ssFmt); ssSaveCurrentPage(); ssRender();
@@ -16278,7 +16386,7 @@ async function getCompanyMetricsReal(ticker) {
           priceToBook: null,
           high_52: fq.yearHigh || null,
           low_52: fq.yearLow || null,
-          dividend_yield: fq.dividendYielTTM || null, // FMP field name
+          dividend_yield: fq.dividendYieldTTM || null,
           bid: null, ask: null,
           source: 'fmp'
         };
@@ -16291,7 +16399,7 @@ async function getCompanyMetricsReal(ticker) {
             if (rat) {
               if (fmpResult.pe == null && rat.peRatioTTM) fmpResult.pe = rat.peRatioTTM;
               if (rat.priceToBookRatioTTM) fmpResult.priceToBook = rat.priceToBookRatioTTM;
-              if (rat.dividendYielTTM || rat.dividendYieldTTM) fmpResult.dividend_yield = rat.dividendYielTTM || rat.dividendYieldTTM;
+              if (rat.dividendYieldTTM) fmpResult.dividend_yield = rat.dividendYieldTTM;
             }
           }
         } catch(_) {}
@@ -19203,7 +19311,7 @@ $('#aiDataSourcesBtn').onclick = () => {
     { id: 'espn', name: 'ESPN Sports API', desc: 'Scores, standings, news, players', check: function() { return fetch(PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard', { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.events), detail: (d.events||[]).length + ' events found' }; }); } },
     { id: 'odds', name: 'The Odds API', desc: 'Betting odds (spread, ML, total)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { var detail = ''; if (d.status === 401) detail = 'API key expired/invalid — using ESPN fallback'; else if (d.available) detail = 'Key active, remaining: ' + (d.remaining || '?'); else detail = 'Key missing — using ESPN fallback'; return { ok: d.available && d.status !== 401, detail: detail, partial: !d.available || d.status === 401 }; }); } },
     { id: 'odds_live', name: 'Odds API — Live Data', desc: 'Actual odds fetch (NBA test)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/basketball_nba?markets=h2h,spreads,totals&regions=us,us2&oddsFormat=american', { signal: AbortSignal.timeout(10000) }).then(function(r) { if (r.status === 401) return { ok: false, partial: true, detail: 'API key expired — ESPN fallback active' }; if (!r.ok) return { ok: false, partial: true, detail: 'HTTP ' + r.status + ' — ESPN fallback active' }; var remaining = r.headers.get('x-requests-remaining'); return r.json().then(function(games) { if (!Array.isArray(games)) return { ok: false, partial: true, detail: 'Invalid response — ESPN fallback active' }; var books = new Set(); games.forEach(function(g) { (g.bookmakers||[]).forEach(function(bk) { books.add(bk.title || bk.key); }); }); return { ok: true, detail: games.length + ' games, ' + books.size + ' books: ' + Array.from(books).join(', '), partial: books.size < 3, books: Array.from(books), remaining: remaining }; }); }); } },
-    { id: 'fmp', name: 'Financial Modeling Prep', desc: 'Stock fundamentals (PE, EPS, mktCap)', check: function() { return fetch(PROXY_BASE + '/proxy/fmp/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: d.available, detail: d.available ? 'FMP_API key configured' : 'FMP_API env var not set', partial: !d.available }; }).catch(function() { return { ok: false, partial: true, detail: 'Proxy unreachable' }; }); } },
+    { id: 'fmp', name: 'Financial Modeling Prep', desc: 'Stock fundamentals (PE, EPS, mktCap)', check: function() { return fetch(PROXY_BASE + '/proxy/fmp/status', { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { var detail = ''; if (d.available) { detail = 'Connected — AAPL test OK'; } else if (d.keyLength > 0) { detail = 'Key set (' + d.keyLength + ' chars) but API returned: ' + (d.bodyPreview || d.error || 'HTTP ' + d.status); } else { detail = 'FMP_API env var not set on server'; } return { ok: d.available, detail: detail, partial: !d.available && d.keyLength > 0 }; }).catch(function(e) { return { ok: false, partial: true, detail: 'Proxy unreachable: ' + e.message }; }); } },
     { id: 'yahoo', name: 'Yahoo Finance', desc: 'Stock price charts', check: function() { var yUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d&interval=5m&includePrePost=false'; return fetch(PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(yUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.chart && d.chart.result), detail: d.chart && d.chart.result ? 'AAPL data OK' : 'Parse error' }; }); } },
     { id: 'news', name: 'Google News RSS', desc: 'News feed proxy', check: function() { var nUrl = 'https://news.google.com/rss/search?q=stocks&hl=en-US&gl=US&ceid=US:en'; return fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(nUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.text(); }).then(function(t) { var items = (t.match(/<item>/g) || []).length; return { ok: items > 0, detail: items + ' articles found' }; }); } },
     { id: 'robinhood', name: 'Robinhood API', desc: 'Trading & portfolio (optional)', check: function() { return fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: true, detail: d.loggedIn ? 'Authenticated' : 'Not logged in (optional)', partial: !d.loggedIn }; }); } },
@@ -22775,6 +22883,18 @@ function activateGenieMode() {
   // Load remaining prompts from storage (informational only — never blocks sends)
   const stored = localStorage.getItem('ws_geniePrompts_' + (wsUserName || 'anon'));
   if (stored !== null) geniePromptsLeft = Math.max(0, parseInt(stored) || 0);
+  // Also check server-side prompt balance (covers mobile users granted prompts by admin)
+  if (wsUserName) {
+    fetch(PROXY_BASE + '/proxy/user/prompts?name=' + encodeURIComponent(wsUserName), { signal: AbortSignal.timeout(3000) })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.remaining > 0 && d.remaining > geniePromptsLeft) {
+          geniePromptsLeft = d.remaining;
+          localStorage.setItem('ws_geniePrompts_' + wsUserName, geniePromptsLeft);
+          updateGeniePromptsBadge();
+        }
+      }).catch(function() {});
+  }
   updateGeniePromptsBadge();
   // Show greeting
   addAiMsg('system', 'Welcome, ' + (wsUserName || 'traveler') + '! Ask me anything about your workspace.');
@@ -22875,6 +22995,11 @@ function grantUserAccess(userName, extraPrompts) {
   const req = requests.find(r => r.name === userName && r.status === 'pending');
   if (req) { req.status = 'granted'; req.grantedAt = new Date().toISOString(); req.extraPrompts = extraPrompts; }
   localStorage.setItem('ws_accessRequests', JSON.stringify(requests));
+  // Sync to server so mobile users can pick up granted prompts
+  fetch(PROXY_BASE + '/proxy/admin/grant-prompts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: ADMIN_PASSWORD, userName, prompts: extraPrompts })
+  }).catch(function() {});
   toast('Granted ' + extraPrompts + ' prompts to ' + userName);
 }
 
@@ -22929,6 +23054,12 @@ function getAllKnownUsers() {
   const contacts = JSON.parse(localStorage.getItem('ws_registeredContacts') || '{}');
   Object.values(contacts).forEach(name => {
     if (!users[name]) users[name] = { name, firstSeen: null };
+  });
+  // From registered users (mobile profiles)
+  const registered = JSON.parse(localStorage.getItem('ws_registeredUsers') || '{}');
+  Object.values(registered).forEach(u => {
+    const name = u.name || u;
+    if (!users[name]) users[name] = { name, firstSeen: u.lastLogin || null };
   });
   return Object.values(users);
 }
@@ -22988,8 +23119,21 @@ async function renderAccessRequestsPanel() {
     }
   }
 
-  // User management section
+  // User management section — merge local + server-side users
   const allUsers = getAllKnownUsers();
+  // Also fetch server-side user registry (includes mobile users)
+  try {
+    const usersResp = await fetch(PROXY_BASE + '/proxy/admin/users?password=' + encodeURIComponent(ADMIN_PASSWORD), { signal: AbortSignal.timeout(3000) });
+    if (usersResp.ok) {
+      const serverUsers = await usersResp.json();
+      const localNames = new Set(allUsers.map(u => u.name));
+      Object.entries(serverUsers).forEach(([name, data]) => {
+        if (!localNames.has(name)) {
+          allUsers.push({ name, firstSeen: data.firstSeen || null, serverOnly: true, promptsUsed: data.promptsUsed || 0 });
+        }
+      });
+    }
+  } catch(_) {}
   const blocked = JSON.parse(localStorage.getItem('ws_blockedUsers') || '{}');
   if (allUsers.length) {
     html += '<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px;">' +

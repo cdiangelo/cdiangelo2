@@ -321,12 +321,19 @@ app.get('/proxy/odds/:sport', async (req, res) => {
 
 // ── Financial Modeling Prep Proxy (FMP_API env var) ──
 app.get('/proxy/fmp/status', async (_req, res) => {
-  if (!fmpApiKey) return res.json({ available: false });
+  const keyLen = fmpApiKey ? fmpApiKey.length : 0;
+  const keyPreview = fmpApiKey ? fmpApiKey.substring(0, 4) + '...' : '(empty)';
+  console.log('[FMP] Status check — key length:', keyLen, 'preview:', keyPreview);
+  if (!fmpApiKey) return res.json({ available: false, keyLength: 0, hint: 'FMP_API env var is empty at server start' });
   try {
-    const r = await fetch(`https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=${fmpApiKey}`, { signal: AbortSignal.timeout(8000) });
-    res.json({ available: r.ok, status: r.status });
+    const r = await fetch(`https://financialmodelingprep.com/stable/quote?symbol=AAPL&apikey=${fmpApiKey}`, { signal: AbortSignal.timeout(8000) });
+    const body = await r.text();
+    console.log('[FMP] Test call status:', r.status, 'body preview:', body.substring(0, 200));
+    let parsed;
+    try { parsed = JSON.parse(body); } catch(_) { parsed = null; }
+    res.json({ available: r.ok && Array.isArray(parsed) && parsed.length > 0, status: r.status, keyLength: keyLen, bodyPreview: body.substring(0, 100) });
   } catch(e) {
-    res.json({ available: false, error: e.message });
+    res.json({ available: false, error: e.message, keyLength: keyLen });
   }
 });
 
@@ -344,7 +351,7 @@ app.get('/proxy/fmp/quote/:symbol', async (req, res) => {
   if (cached) { res.setHeader('Content-Type', 'application/json'); return res.send(cached.data); }
 
   try {
-    const url = `https://financialmodelingprep.com/api/v3/quote/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+    const url = `https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(symbol)}&apikey=${fmpApiKey}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) {
       return res.status(r.status).json({ error: true, message: 'FMP HTTP ' + r.status });
@@ -373,7 +380,7 @@ app.get('/proxy/fmp/ratios/:symbol', async (req, res) => {
   if (cached) { res.setHeader('Content-Type', 'application/json'); return res.send(cached.data); }
 
   try {
-    const url = `https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+    const url = `https://financialmodelingprep.com/stable/ratios-ttm?symbol=${encodeURIComponent(symbol)}&apikey=${fmpApiKey}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) {
       return res.status(r.status).json({ error: true, message: 'FMP HTTP ' + r.status });
@@ -1153,6 +1160,7 @@ async function refreshRobinhoodToken() {
 const userUsage = new Map();      // userName -> {prompts, tokens, lastActive, devices, ips}
 const deviceRegistry = new Map(); // deviceId -> {userName, ips[], firstSeen, lastSeen}
 const accessRequests = [];        // [{name, contact, message, ts}]
+const userPrompts = new Map();    // userName -> { granted: N, used: N }
 
 // Helper: extract client IP from request (works behind proxies like Render)
 function getClientIp(req) {
@@ -1237,6 +1245,47 @@ app.get('/proxy/admin/users', (req, res) => {
     if (aliases.size > 0) data.possibleAliases = [...aliases];
   }
   res.json(users);
+});
+
+// POST /proxy/admin/grant-prompts — Grant prompts to a user (admin-protected)
+app.post('/proxy/admin/grant-prompts', (req, res) => {
+  const { password, userName, prompts } = req.body || {};
+  if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: true, message: 'Invalid admin password' });
+  if (!userName || !prompts) return res.status(400).json({ error: true, message: 'Missing userName or prompts' });
+  const existing = userPrompts.get(userName) || { granted: 0, used: 0 };
+  existing.granted += parseInt(prompts) || 0;
+  userPrompts.set(userName, existing);
+  console.log('[Admin] Granted', prompts, 'prompts to', userName, '— total:', existing.granted, 'used:', existing.used, 'remaining:', existing.granted - existing.used);
+  res.json({ ok: true, userName, remaining: existing.granted - existing.used });
+});
+
+// GET /proxy/user/prompts — Check prompt balance for a user
+app.get('/proxy/user/prompts', (req, res) => {
+  const name = req.query.name;
+  if (!name) return res.status(400).json({ error: true, message: 'Missing name' });
+  const data = userPrompts.get(name) || { granted: 0, used: 0 };
+  res.json({ name, granted: data.granted, used: data.used, remaining: Math.max(0, data.granted - data.used) });
+});
+
+// POST /proxy/user/use-prompt — Deduct a prompt for a user
+app.post('/proxy/user/use-prompt', (req, res) => {
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: true, message: 'Missing name' });
+  const data = userPrompts.get(name) || { granted: 0, used: 0 };
+  if (data.granted - data.used <= 0) return res.json({ ok: false, remaining: 0, message: 'No prompts remaining' });
+  data.used++;
+  userPrompts.set(name, data);
+  res.json({ ok: true, remaining: data.granted - data.used });
+});
+
+// POST /proxy/user/refund-prompt — Refund a prompt for a user
+app.post('/proxy/user/refund-prompt', (req, res) => {
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: true, message: 'Missing name' });
+  const data = userPrompts.get(name) || { granted: 0, used: 0 };
+  if (data.used > 0) data.used--;
+  userPrompts.set(name, data);
+  res.json({ ok: true, remaining: data.granted - data.used });
 });
 
 // GET /proxy/admin/devices — Returns device registry (admin-protected)

@@ -697,7 +697,7 @@ app.get('/proxy/fmp/quote/:symbol', async (req, res) => {
     return res.status(400).json({ error: true, message: 'Invalid symbol' });
   }
   try {
-    const url = `https://financialmodelingprep.com/api/v3/quote/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+    const url = `https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(symbol)}&apikey=${fmpApiKey}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) {
       return res.status(r.status).json({ error: true, message: 'FMP HTTP ' + r.status });
@@ -719,7 +719,7 @@ app.get('/proxy/fmp/ratios/:symbol', async (req, res) => {
     return res.status(400).json({ error: true, message: 'Invalid symbol' });
   }
   try {
-    const url = `https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+    const url = `https://financialmodelingprep.com/stable/ratios-ttm?symbol=${encodeURIComponent(symbol)}&apikey=${fmpApiKey}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!r.ok) {
       return res.status(r.status).json({ error: true, message: 'FMP HTTP ' + r.status });
