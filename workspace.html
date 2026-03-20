@@ -11491,12 +11491,13 @@ function _spRenderStandingsData(data, league, el) {
     data.standings.forEach(function(g) { walkGroups(g, 0); });
   }
 
-  // Debug: if still empty, log data structure
+  // If still empty, throw so the cascade tries the next URL
   if (!html) {
     console.log('[Sports] Standings: no entries found. Full data:', JSON.stringify(data).substring(0, 2000));
+    throw new Error('no standings entries in response');
   }
 
-  el.innerHTML = html || '<div class="sp-empty">No standings data available for this league. Try refreshing or check back during the season.</div>';
+  el.innerHTML = html;
 }
 
 // ── Odds / Betting Lines ──
@@ -12531,6 +12532,10 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
     }
 
     el.innerHTML = html;
+  }).catch(function(err) {
+    console.error('[Sports] Player stats error:', err);
+    el.innerHTML = '<div style="margin-bottom:8px;"><button onclick="$(\'#spPlayersList\').innerHTML=\'<div class=sp-empty>Search for a player or click Leaders.</div>\'" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>' +
+      '<div class="sp-empty" style="color:var(--danger);">Failed to load stats for ' + esc(name) + ': ' + esc(err.message) + '</div>';
   });
 };
 
@@ -12566,12 +12571,24 @@ function _spExtractLeaders(cat) {
   return leaders;
 }
 
+// Session cache for resolved athlete $ref data
+var _spAthleteCache = {};
+
 // Helper: extract athlete info from an entry (handles inline + $ref formats)
 function _spExtractAthlete(entry) {
   var athlete = entry.athlete || entry.team || {};
   var id = athlete.id || '';
   if (!id && athlete.$ref) { var m = athlete.$ref.match(/athletes\/(\d+)/); if (m) id = m[1]; }
   if (!id && entry.id) id = entry.id;
+  // Merge cached $ref data if available
+  if (id && _spAthleteCache[id]) {
+    var cached = _spAthleteCache[id];
+    // Use cached fields as fallbacks (don't overwrite inline data)
+    athlete = Object.assign({}, cached, athlete);
+    // But prefer cached displayName over missing inline name
+    if (!athlete.displayName && cached.displayName) athlete.displayName = cached.displayName;
+    if (!athlete.fullName && cached.fullName) athlete.fullName = cached.fullName;
+  }
   var name = athlete.displayName || athlete.shortName || athlete.fullName || athlete.name || '';
   if (!name && entry.displayName) name = entry.displayName;
   if (!name && athlete.links && athlete.links[0]) name = athlete.links[0].text || '';
@@ -12585,8 +12602,49 @@ function _spExtractAthlete(entry) {
   if (!team && entry.team && typeof entry.team === 'object' && !entry.team.$ref) {
     team = entry.team.abbreviation || entry.team.displayName || '';
   }
+  var position = '';
+  if (athlete.position) {
+    position = athlete.position.abbreviation || athlete.position.name || '';
+  }
   var value = entry.displayValue || (entry.value != null ? String(entry.value) : '') || entry.stat || '';
-  return { id: id, name: name, headshot: headshot, team: team, value: value };
+  return { id: id, name: name, headshot: headshot, team: team, value: value, position: position };
+}
+
+// Resolve $ref athlete URLs from ESPN core API categories
+// Collects unique athlete IDs, batch-fetches their data, populates _spAthleteCache
+function _spResolveAthleteRefs(categories, leagueInfo) {
+  var idsToFetch = [];
+  categories.forEach(function(cat) {
+    var leaders = _spExtractLeaders(cat);
+    leaders.forEach(function(entry) {
+      var athlete = entry.athlete || {};
+      if (athlete.$ref && !athlete.displayName) {
+        var m = athlete.$ref.match(/athletes\/(\d+)/);
+        if (m && !_spAthleteCache[m[1]] && idsToFetch.indexOf(m[1]) === -1) {
+          idsToFetch.push(m[1]);
+        }
+      }
+    });
+  });
+  if (!idsToFetch.length) return Promise.resolve();
+  console.log('[Sports] Resolving ' + idsToFetch.length + ' athlete refs...');
+  // Fetch in parallel batches of 10
+  var BATCH = 10;
+  var batches = [];
+  for (var i = 0; i < idsToFetch.length; i += BATCH) batches.push(idsToFetch.slice(i, i + BATCH));
+  return batches.reduce(function(chain, batch) {
+    return chain.then(function() {
+      return Promise.all(batch.map(function(id) {
+        var url = PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/athletes/' + id;
+        return fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined })
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(data) { if (data) _spAthleteCache[id] = data; })
+          .catch(function() { /* skip failed */ });
+      }));
+    });
+  }, Promise.resolve()).then(function() {
+    console.log('[Sports] Resolved ' + Object.keys(_spAthleteCache).length + ' athletes total');
+  });
 }
 
 // Extract categories from ESPN leaders response (handles all known wrapper formats)
@@ -12650,7 +12708,10 @@ function spFetchLeaders() {
           console.warn('[Sports] Leaders: no categories in response from attempt ' + (idx+1));
           throw new Error('no categories');
         }
-        _spRenderLeadersCards(categories, league, l, seasonYear, el);
+        // Resolve $ref athlete URLs before rendering
+        _spResolveAthleteRefs(categories, l).then(function() {
+          _spRenderLeadersCards(categories, league, l, seasonYear, el);
+        });
       })
       .catch(function(err) {
         console.warn('[Sports] Leaders attempt ' + (idx+1) + ' failed:', err.message);
@@ -12676,6 +12737,7 @@ function _spRenderLeadersCards(categories, league, leagueInfo, seasonYear, el) {
       html += '<span style="font-size:.6rem;color:var(--text-dim);width:14px;">'+String(i+1)+'.</span>';
       if (a.headshot) html += '<img src="'+esc(a.headshot)+'" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
       html += '<span style="font-size:.65rem;font-weight:600;">'+esc(a.name)+'</span>';
+      if (a.position) html += '<span style="font-size:.5rem;color:var(--text-dim);opacity:.7;">'+esc(a.position)+'</span>';
       if (a.team) html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(a.team)+'</span>';
       html += '<span style="margin-left:auto;font-size:.7rem;font-weight:700;color:var(--accent);">'+esc(a.value)+'</span>';
       html += '</div></div>';
@@ -12685,7 +12747,20 @@ function _spRenderLeadersCards(categories, league, leagueInfo, seasonYear, el) {
   el.innerHTML = html || '<div class="sp-empty">No leaders data available.</div>';
 }
 
-// ── Table view: multi-stat leaders with sparklines ──
+// ── Position filters per sport ──
+var SP_POSITIONS = {
+  nba: ['All', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'],
+  nfl: ['All', 'QB', 'RB', 'WR', 'TE', 'K', 'LB', 'CB', 'S', 'DE', 'DT'],
+  mlb: ['All', 'SP', 'RP', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'],
+  nhl: ['All', 'C', 'LW', 'RW', 'D', 'G'],
+  ncaab: ['All', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'],
+  ncaaf: ['All', 'QB', 'RB', 'WR', 'TE', 'K', 'LB', 'CB', 'S', 'DE', 'DT']
+};
+
+// Stored table data for re-sorting/filtering without re-fetching
+var _spTableData = { players: [], statCols: [], league: '', leagueInfo: null, seasonYear: 0 };
+
+// ── Table view: multi-stat leaders with sorting + position filter ──
 function spFetchLeadersTable() {
   var league = $('#spPlayersLeague').value;
   var el = $('#spPlayersList');
@@ -12708,49 +12783,111 @@ function spFetchLeadersTable() {
     .then(function(data) {
       var categories = _spExtractCategories(data);
       if (!categories.length) { el.innerHTML = '<div class="sp-empty">No leaders data.</div>'; return; }
-      // Build a merged table: player → { name, team, headshot, stats: { catName: value } }
-      var playerMap = {};
-      var statCols = [];
-      categories.slice(0, 8).forEach(function(cat) {
-        var catName = cat.abbreviation || cat.name || cat.displayName || 'Stat';
-        statCols.push(catName);
-        var leaders = _spExtractLeaders(cat);
-        leaders.slice(0, 10).forEach(function(entry, rank) {
-          var a = _spExtractAthlete(entry);
-          var key = a.id || a.name;
-          if (!key) return;
-          if (!playerMap[key]) playerMap[key] = { id: a.id, name: a.name, team: a.team, headshot: a.headshot, stats: {}, bestRank: rank };
-          playerMap[key].stats[catName] = a.value;
-          if (rank < playerMap[key].bestRank) playerMap[key].bestRank = rank;
+      // Resolve $ref athlete URLs before building table
+      return _spResolveAthleteRefs(categories, l).then(function() {
+        // Build a merged table: player → { name, team, headshot, position, stats: { catName: value } }
+        var playerMap = {};
+        var statCols = [];
+        categories.slice(0, 8).forEach(function(cat) {
+          var catName = cat.abbreviation || cat.name || cat.displayName || 'Stat';
+          statCols.push(catName);
+          var leaders = _spExtractLeaders(cat);
+          leaders.slice(0, 25).forEach(function(entry, rank) {
+            var a = _spExtractAthlete(entry);
+            var key = a.id || a.name;
+            if (!key) return;
+            if (!playerMap[key]) playerMap[key] = { id: a.id, name: a.name, team: a.team, headshot: a.headshot, position: a.position, stats: {}, rawStats: {}, bestRank: rank };
+            playerMap[key].stats[catName] = a.value;
+            playerMap[key].rawStats[catName] = parseFloat(a.value) || 0;
+            if (rank < playerMap[key].bestRank) playerMap[key].bestRank = rank;
+            // Update position if we got a better one
+            if (a.position && !playerMap[key].position) playerMap[key].position = a.position;
+          });
         });
+        var players = Object.values(playerMap);
+        // Store data for re-sorting/filtering
+        _spTableData = { players: players, statCols: statCols, league: league, leagueInfo: l, seasonYear: seasonYear };
+        _spRenderLeadersTable('bestRank', 'asc', 'All');
       });
-      // Sort by best rank across categories
-      var players = Object.values(playerMap).sort(function(a, b) { return a.bestRank - b.bestRank; });
-      var curSeason = seasonYear + '-' + String(seasonYear + 1).slice(-2);
-      var html = '<div style="font-size:.48rem;color:var(--text-dim);margin-bottom:4px;">' + esc(l.name) + ' ' + curSeason + ' Leaders Table</div>';
-      html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.58rem;border-collapse:collapse;min-width:400px;">';
-      html += '<tr style="color:var(--text-dim);position:sticky;top:0;background:var(--bg);z-index:1;"><th style="text-align:left;padding:3px 4px;">Player</th><th style="padding:3px 4px;">Team</th>';
-      statCols.forEach(function(col) { html += '<th style="padding:3px 4px;white-space:nowrap;">'+esc(col)+'</th>'; });
-      html += '</tr>';
-      players.slice(0, 25).forEach(function(p) {
-        html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(p.id)+'\',\''+esc(p.name)+'\')">';
-        html += '<td style="padding:3px 4px;display:flex;align-items:center;gap:4px;">';
-        if (p.headshot) html += '<img src="'+esc(p.headshot)+'" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
-        html += '<span style="font-weight:600;">'+esc(p.name)+'</span></td>';
-        html += '<td style="text-align:center;padding:3px 4px;color:var(--text-dim);">'+esc(p.team)+'</td>';
-        statCols.forEach(function(col) {
-          var val = p.stats[col] || '-';
-          html += '<td style="text-align:center;padding:3px 4px;">'+esc(val)+'</td>';
-        });
-        html += '</tr>';
-      });
-      html += '</table></div>';
-      el.innerHTML = html;
     })
     .catch(function(err) {
       el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Table view failed: '+esc(err.message)+'</div>';
     });
 }
+
+// Render the leaders table with current sort and position filter
+function _spRenderLeadersTable(sortCol, sortDir, posFilter) {
+  var d = _spTableData;
+  var el = $('#spPlayersList');
+  if (!d.players.length) { el.innerHTML = '<div class="sp-empty">No data.</div>'; return; }
+  var league = d.league;
+  var players = d.players.slice();
+  // Apply position filter
+  if (posFilter && posFilter !== 'All') {
+    players = players.filter(function(p) { return p.position === posFilter; });
+  }
+  // Sort
+  if (sortCol === 'bestRank') {
+    players.sort(function(a, b) { return sortDir === 'asc' ? a.bestRank - b.bestRank : b.bestRank - a.bestRank; });
+  } else if (sortCol === 'name') {
+    players.sort(function(a, b) { return sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name); });
+  } else if (sortCol === 'team') {
+    players.sort(function(a, b) { return sortDir === 'asc' ? (a.team || '').localeCompare(b.team || '') : (b.team || '').localeCompare(a.team || ''); });
+  } else if (sortCol === 'position') {
+    players.sort(function(a, b) { return sortDir === 'asc' ? (a.position || '').localeCompare(b.position || '') : (b.position || '').localeCompare(a.position || ''); });
+  } else {
+    // Sort by stat column (numeric)
+    players.sort(function(a, b) {
+      var va = a.rawStats[sortCol] || 0, vb = b.rawStats[sortCol] || 0;
+      return sortDir === 'asc' ? va - vb : vb - va;
+    });
+  }
+  var curSeason = d.seasonYear + '-' + String(d.seasonYear + 1).slice(-2);
+  var positions = SP_POSITIONS[league] || ['All'];
+  // Build position filter bar
+  var html = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">';
+  html += '<span style="font-size:.48rem;color:var(--text-dim);">' + esc(d.leagueInfo.name) + ' ' + curSeason + ' Leaders Table</span>';
+  html += '<select id="spTablePosFilter" style="font-size:.58rem;padding:1px 4px;" onchange="_spTableSort(\'' + esc(sortCol) + '\',\'' + esc(sortDir) + '\',this.value)">';
+  positions.forEach(function(pos) {
+    html += '<option value="'+esc(pos)+'"'+(pos === posFilter ? ' selected' : '')+'>'+esc(pos === 'All' ? 'All Positions' : pos)+'</option>';
+  });
+  html += '</select>';
+  html += '<span style="font-size:.45rem;color:var(--text-dim);">'+players.length+' players</span>';
+  html += '</div>';
+  // Build sortable header helper
+  function thSort(label, col) {
+    var arrow = sortCol === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    var nextDir = (sortCol === col && sortDir === 'desc') ? 'asc' : 'desc';
+    return '<th style="padding:3px 4px;cursor:pointer;white-space:nowrap;user-select:none;" onclick="_spTableSort(\''+esc(col)+'\',\''+esc(nextDir)+'\',document.getElementById(\'spTablePosFilter\').value)">' + esc(label) + arrow + '</th>';
+  }
+  html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.58rem;border-collapse:collapse;min-width:400px;">';
+  html += '<tr style="color:var(--text-dim);position:sticky;top:0;background:var(--bg);z-index:1;">';
+  html += thSort('Player', 'name');
+  html += thSort('Pos', 'position');
+  html += thSort('Team', 'team');
+  d.statCols.forEach(function(col) { html += thSort(col, col); });
+  html += '</tr>';
+  players.slice(0, 50).forEach(function(p) {
+    html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(p.id)+'\',\''+esc(p.name)+'\')">';
+    html += '<td style="padding:3px 4px;display:flex;align-items:center;gap:4px;">';
+    if (p.headshot) html += '<img src="'+esc(p.headshot)+'" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
+    html += '<span style="font-weight:600;">'+esc(p.name)+'</span></td>';
+    html += '<td style="text-align:center;padding:3px 4px;color:var(--text-dim);font-size:.52rem;">'+esc(p.position || '-')+'</td>';
+    html += '<td style="text-align:center;padding:3px 4px;color:var(--text-dim);">'+esc(p.team || '-')+'</td>';
+    d.statCols.forEach(function(col) {
+      var val = p.stats[col] || '-';
+      html += '<td style="text-align:center;padding:3px 4px;">'+esc(val)+'</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</table></div>';
+  el.innerHTML = html;
+}
+
+// Global sort handler for table view
+window._spTableSort = function(col, dir, posFilter) {
+  _spRenderLeadersTable(col, dir, posFilter || 'All');
+};
 
 // ── Team roster view: select a team, see all players in table format ──
 function spFetchTeamRoster() {
