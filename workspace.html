@@ -237,7 +237,7 @@ body.light .fun-btn { background: var(--accent); }
 .workspace.simplified-mode {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
-  grid-template-rows: 28vh auto 1fr !important;
+  grid-template-rows: minmax(28vh, auto) auto 1fr !important;
   gap: 0 !important;
   overflow: visible !important;
   background: var(--bg) !important;
@@ -263,13 +263,14 @@ body.light .fun-btn { background: var(--accent); }
 .workspace.simplified-mode #q-claude > .p-head { display: none !important; }
 .workspace.simplified-mode #q-claude > .ai-actions-bar { display: none !important; }
 
-/* Bot area (left column of top row) */
+/* Bot area (left column of top row) — fixed height, never grows with chat */
 .workspace.simplified-mode #simpBotArea {
   display: flex !important;
   grid-column: 1 !important; grid-row: 1 !important;
   flex-direction: column; overflow: hidden;
   background: var(--panel);
   border-right: 1px solid rgba(128,128,128,.08);
+  height: 28vh; max-height: 28vh; align-self: start;
 }
 .workspace.simplified-mode #simpBotArea .robot-scene-wrapper {
   position: relative !important; display: flex !important;
@@ -326,6 +327,7 @@ body.light .fun-btn { background: var(--accent); }
   background: transparent;
   padding: 10px 14px 10px 8px;
   position: relative;
+  z-index: 5;
 }
 /* Hide all chrome inside p-body except the input row */
 .workspace.simplified-mode .claude-content-row { display: none !important; }
@@ -413,6 +415,8 @@ body.light .fun-btn { background: var(--accent); }
   flex-wrap: wrap; flex-shrink: 0;
   backdrop-filter: blur(8px);
   min-height: 32px;
+  z-index: 2;
+  position: relative;
 }
 .simp-toolbar, .simp-output-container {
   display: none; /* shown via simplified-mode rule */
@@ -432,6 +436,12 @@ body.light .fun-btn { background: var(--accent); }
   color: var(--text); cursor: pointer; transition: border-color .15s;
 }
 .simp-toolbar select:hover { border-color: var(--accent); }
+.simp-toolbar button.p-btn {
+  font-size: .52rem; padding: 2px 6px; border-radius: 4px;
+  border: 1px solid rgba(128,128,128,.12); background: rgba(255,255,255,.04);
+  color: var(--text-dim); cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s;
+}
+.simp-toolbar button.p-btn:hover { border-color: var(--accent); color: var(--text); }
 .simp-toolbar label {
   font-size: .56rem; color: var(--text-dim); display: flex;
   align-items: center; gap: 3px; cursor: pointer; white-space: nowrap;
@@ -4009,6 +4019,58 @@ function _setupSimpToolbar() {
     lbl.appendChild(document.createTextNode('Deep'));
     ctrlGroup.appendChild(lbl);
   }
+
+  // Separator before deliverable checkboxes
+  const sep1 = document.createElement('span');
+  sep1.className = 'simp-tb-sep';
+  ctrlGroup.appendChild(sep1);
+
+  // Deliverable output checkboxes
+  const deliverables = [
+    { id: 'aiOutChat', label: 'Chat' },
+    { id: 'aiOutSheet', label: 'Sheet' },
+    { id: 'aiOutNote', label: 'Notepad' },
+    { id: 'aiOutWb', label: 'WB' }
+  ];
+  deliverables.forEach(function(d) {
+    const orig = document.getElementById(d.id);
+    if (!orig) return;
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:.5rem;color:var(--text-dim);display:flex;align-items:center;gap:2px;cursor:pointer;';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = orig.checked;
+    cb.id = 'simp_' + d.id;
+    cb.style.cssText = 'width:10px;height:10px;accent-color:var(--accent);';
+    cb.onchange = function() { orig.checked = cb.checked; orig.dispatchEvent(new Event('change')); };
+    // Sync if original changes
+    orig.addEventListener('change', function() { cb.checked = orig.checked; });
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(d.label));
+    ctrlGroup.appendChild(lbl);
+  });
+
+  // Separator before action buttons
+  const sep2 = document.createElement('span');
+  sep2.className = 'simp-tb-sep';
+  ctrlGroup.appendChild(sep2);
+
+  // Sources, Info, History buttons
+  const btns = [
+    { id: 'aiDataSourcesBtn', label: 'Sources' },
+    { id: 'aiInfoBtn', label: 'Info' },
+    { id: 'aiLogBtn', label: 'History' }
+  ];
+  btns.forEach(function(b) {
+    const orig = document.getElementById(b.id);
+    if (!orig) return;
+    const btn = document.createElement('button');
+    btn.textContent = b.label;
+    btn.className = 'p-btn';
+    btn.id = 'simp_' + b.id;
+    btn.style.cssText = 'font-size:.52rem;padding:2px 6px;border-radius:4px;border:1px solid rgba(128,128,128,.12);background:rgba(255,255,255,.04);color:var(--text-dim);cursor:pointer;white-space:nowrap;';
+    btn.onclick = function() { orig.click(); };
+    ctrlGroup.appendChild(btn);
+  });
 }
 
 function _teardownSimpToolbar() {
