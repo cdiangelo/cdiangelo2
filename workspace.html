@@ -234,30 +234,45 @@ body.light .fun-btn { background: var(--accent); }
 /* ═══ SIMPLIFIED MODE (Desktop) ═══ */
 .workspace.simplified-mode {
   grid-template-columns: 1fr 1fr !important;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 2fr) !important;
+  grid-template-rows: 1fr 3fr !important;
   gap: 2px !important;
 }
 .workspace.simplified-mode .divider-h,
 .workspace.simplified-mode .divider-v { display: none !important; }
 /* Hide all panes except claude and the simplified output area */
 .workspace.simplified-mode .pane { display: none !important; grid-column: unset !important; grid-row: unset !important; }
-.workspace.simplified-mode #q-claude {
+/* Robot scene — top left quarter */
+.workspace.simplified-mode #simpBotPane {
   display: flex !important;
-  grid-column: 1 / -1 !important;
+  grid-column: 1 !important;
   grid-row: 1 !important;
+  background: var(--panel);
+  flex-direction: column;
+  overflow: hidden;
 }
-/* In simplified mode, restructure claude pane: bot left, chat right */
-.workspace.simplified-mode #q-claude .claude-content-row {
-  flex-direction: row-reverse !important;
+/* Chat input — top right quarter */
+.workspace.simplified-mode #simpChatPane {
+  display: flex !important;
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  background: var(--panel);
+  flex-direction: column;
+  overflow: hidden;
 }
-.workspace.simplified-mode #q-claude .robot-scene-wrapper {
-  width: 50% !important;
-  border-left: none !important;
-  border-right: 1px solid var(--border) !important;
+.workspace.simplified-mode #simpChatPane .ai-msgs {
+  flex: 1; overflow-y: auto; padding: 8px 10px; display: flex;
+  flex-direction: column; gap: 6px; min-height: 0;
 }
-.workspace.simplified-mode #q-claude .claude-midbar { display: none !important; }
-.workspace.simplified-mode #q-claude .ai-msgs { flex: 1 !important; }
-/* Simplified output area — full width bottom 2/3 */
+.workspace.simplified-mode #simpChatPane .ai-input-row {
+  padding: 6px 10px; border-top: 1px solid var(--border);
+  display: flex; gap: 6px; background: var(--panel-inset); flex-shrink: 0;
+}
+.workspace.simplified-mode #simpChatPane .simp-actions-row {
+  display: flex; align-items: center; gap: 4px; padding: 3px 8px;
+  background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  flex-wrap: wrap;
+}
+/* Simplified output area — full width bottom 3/4 */
 .workspace.simplified-mode #simplifiedOutput {
   display: flex !important;
   grid-column: 1 / -1 !important;
@@ -287,6 +302,64 @@ body.light .fun-btn { background: var(--accent); }
 }
 .simplified-output-body > .simp-tab-content.active {
   display: flex; flex-direction: column;
+}
+/* Simplified header: hide media/workspace/layout buttons, clean up */
+.header.simplified-header .fun-btn-wrap,
+.header.simplified-header #funPlayBtn,
+.header.simplified-header #funEditBtn,
+.header.simplified-header #wsToggle,
+.header.simplified-header .nav-groups,
+.header.simplified-header #resetGridBtn,
+.header.simplified-header #gridSettingsBtn,
+.header.simplified-header .header-spacer { display: none !important; }
+.header.simplified-header {
+  border-bottom: none; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+}
+/* Simplified UI: softer, fewer borders, cleaner */
+.workspace.simplified-mode #simpBotPane {
+  border: none; border-right: 1px solid rgba(128,128,128,.12);
+}
+.workspace.simplified-mode #simpBotPane .robot-scene-wrapper {
+  border: none !important; width: 100% !important; flex: 1;
+}
+.workspace.simplified-mode #simpBotPane .robot-scene { height: 100% !important; }
+.workspace.simplified-mode #simpBotPane .robot-controls {
+  border-top: 1px solid rgba(128,128,128,.1); padding: 3px 6px;
+}
+.workspace.simplified-mode #simpChatPane {
+  border: none; border-left: 1px solid rgba(128,128,128,.12);
+}
+.workspace.simplified-mode #simpChatPane .simp-actions-row {
+  border-bottom: 1px solid rgba(128,128,128,.08); background: transparent;
+}
+.workspace.simplified-mode #simpChatPane .ai-input-row {
+  border-top: 1px solid rgba(128,128,128,.08); background: transparent;
+}
+.workspace.simplified-mode #simpChatPane #aiOutputOpts {
+  border-bottom: none; background: transparent; padding: 2px 8px;
+}
+.workspace.simplified-mode #simplifiedOutput {
+  border-top: 1px solid rgba(128,128,128,.12);
+}
+.workspace.simplified-mode .simplified-output-tabs {
+  background: transparent; border-bottom: 1px solid rgba(128,128,128,.1);
+}
+/* Stronger font contrast in simplified mode */
+.workspace.simplified-mode .ai-msg {
+  color: var(--text) !important; font-size: .72rem !important;
+}
+.workspace.simplified-mode .ai-msg.user {
+  color: var(--text) !important; font-weight: 500;
+}
+.workspace.simplified-mode .ai-msg.assistant {
+  color: var(--text) !important;
+}
+.workspace.simplified-mode .simp-actions-row select,
+.workspace.simplified-mode .simp-actions-row label {
+  color: var(--text) !important; font-size: .65rem;
+}
+.workspace.simplified-mode #aiInput {
+  color: var(--text) !important; font-size: .78rem;
 }
 /* Mode toggle in header */
 .mode-toggle-btn {
@@ -1691,20 +1764,23 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   .workspace.simplified-mode .divider-h,
   .workspace.simplified-mode .divider-v { display: none !important; }
   .workspace.simplified-mode .pane { display: none !important; grid-column: unset !important; grid-row: unset !important; }
-  .workspace.simplified-mode #q-claude {
+  .workspace.simplified-mode #simpBotPane {
     display: flex !important;
-    flex: 0 0 35% !important;
+    flex: 0 0 auto !important;
+    height: 80px !important;
+    grid-column: unset !important; grid-row: unset !important;
+    flex-direction: row !important;
+  }
+  .workspace.simplified-mode #simpBotPane .robot-scene-wrapper {
+    width: 35% !important; height: 100% !important;
+  }
+  .workspace.simplified-mode #simpBotPane .robot-scene { height: 80px !important; }
+  .workspace.simplified-mode #simpChatPane {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    max-height: 30% !important;
     grid-column: unset !important; grid-row: unset !important;
   }
-  .workspace.simplified-mode #q-claude .claude-content-row {
-    flex-direction: row-reverse !important;
-  }
-  .workspace.simplified-mode #q-claude .robot-scene-wrapper {
-    width: 45% !important;
-    border-left: none !important;
-    border-right: 1px solid var(--border) !important;
-  }
-  .workspace.simplified-mode #q-claude .claude-midbar { display: none !important; }
   .workspace.simplified-mode #simplifiedOutput {
     display: flex !important;
     flex: 1 !important;
@@ -2942,7 +3018,13 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
   </div>
 
-  <!-- ═══ SIMPLIFIED MODE OUTPUT AREA ═══ -->
+  <!-- ═══ SIMPLIFIED MODE: BOT PANE (top left) ═══ -->
+  <div id="simpBotPane" style="display:none;"></div>
+
+  <!-- ═══ SIMPLIFIED MODE: CHAT PANE (top right) ═══ -->
+  <div id="simpChatPane" style="display:none;"></div>
+
+  <!-- ═══ SIMPLIFIED MODE OUTPUT AREA (bottom) ═══ -->
   <div id="simplifiedOutput" style="display:none;" class="pane">
     <div class="simplified-output-tabs" id="simpTabs">
       <button class="active" data-simp-tab="simp-sheet">Sheet</button>
@@ -3540,17 +3622,57 @@ function toggleWorkspaceMode() {
 function applyWorkspaceMode() {
   const ws = document.getElementById('workspace');
   const label = document.getElementById('modeToggleLabel');
-  const simpOutput = document.getElementById('simplifiedOutput');
+  const header = document.querySelector('.header');
   if (!ws) return;
 
   if (wsMode === 'simplified') {
     ws.classList.add('simplified-mode');
+    if (header) header.classList.add('simplified-header');
     if (label) label.textContent = 'Simplified';
-    // Move real pane contents into simplified output tabs
+
+    // --- Move robot scene into simpBotPane ---
+    const botPane = document.getElementById('simpBotPane');
+    const robotWrapper = document.getElementById('robotSceneWrapper');
+    const robotControls = document.querySelector('.robot-controls');
+    if (botPane && robotWrapper && !botPane.dataset.filled) {
+      botPane.dataset.filled = '1';
+      botPane.appendChild(robotWrapper);
+      if (robotControls) botPane.appendChild(robotControls);
+    }
+
+    // --- Move chat elements into simpChatPane ---
+    const chatPane = document.getElementById('simpChatPane');
+    const aiMsgs = document.getElementById('aiMsgs');
+    const aiInputRow = document.querySelector('#q-claude .ai-input-row');
+    const aiOutputOpts = document.getElementById('aiOutputOpts');
+    const aiActionsBar = document.getElementById('aiActionsBar');
+    const aiCostBadge = document.getElementById('aiCostBadge');
+    if (chatPane && !chatPane.dataset.filled) {
+      chatPane.dataset.filled = '1';
+      // Compact actions row: just model + persona + cost
+      const actionsRow = document.createElement('div');
+      actionsRow.className = 'simp-actions-row';
+      actionsRow.id = 'simpActionsRow';
+      const aiModel = document.getElementById('aiModel');
+      const personaSelect = document.getElementById('personaSelect');
+      const costBtn = document.getElementById('aiCostBtn');
+      const deepToggle = document.getElementById('aiDeepToggleLabel');
+      if (aiModel) actionsRow.appendChild(aiModel);
+      if (personaSelect) actionsRow.appendChild(personaSelect);
+      if (deepToggle) actionsRow.appendChild(deepToggle);
+      if (costBtn) actionsRow.appendChild(costBtn);
+      chatPane.appendChild(actionsRow);
+      if (aiMsgs) chatPane.appendChild(aiMsgs);
+      if (aiInputRow) chatPane.appendChild(aiInputRow);
+      if (aiOutputOpts) chatPane.appendChild(aiOutputOpts);
+    }
+
+    // --- Move pane bodies into output tabs ---
     _mirrorPaneToSimp('q-sheet', 'simp-sheet');
     _mirrorPaneToSimp('q-notepad', 'simp-notepad');
     _mirrorPaneToSimp('q-whiteboard', 'simp-whiteboard');
     _mirrorPaneToSimp('q-news', 'simp-sports');
+
     // Wire simplified tab buttons
     document.querySelectorAll('[data-simp-tab]').forEach(btn => {
       btn.onclick = () => {
@@ -3559,24 +3681,68 @@ function applyWorkspaceMode() {
         btn.classList.add('active');
         const target = document.getElementById(btn.dataset.simpTab);
         if (target) target.classList.add('active');
-        // Trigger resize for whiteboard/graph
         setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); if (typeof resizeCM === 'function') resizeCM(); }, 50);
       };
     });
-    // Hide suite-only header elements
-    const navGroups = document.querySelector('.nav-groups');
-    if (navGroups) navGroups.style.display = 'none';
   } else {
     ws.classList.remove('simplified-mode');
+    if (header) header.classList.remove('simplified-header');
     if (label) label.textContent = 'Suite';
-    // Restore pane contents from simplified tabs back to original panes
+
+    // --- Restore robot scene back to claude pane ---
+    const botPane = document.getElementById('simpBotPane');
+    const claudeContentRow = document.getElementById('claudeContentRow');
+    const robotWrapper = document.getElementById('robotSceneWrapper');
+    const robotControls = document.querySelector('.robot-controls');
+    if (botPane && botPane.dataset.filled && claudeContentRow) {
+      if (robotWrapper) claudeContentRow.appendChild(robotWrapper);
+      if (robotControls) {
+        const rw = document.getElementById('robotSceneWrapper');
+        if (rw) rw.appendChild(robotControls);
+      }
+      delete botPane.dataset.filled;
+    }
+
+    // --- Restore chat elements back to claude pane ---
+    const chatPane = document.getElementById('simpChatPane');
+    const claudeBody = document.querySelector('#q-claude .p-body');
+    if (chatPane && chatPane.dataset.filled && claudeBody) {
+      // Move actions bar controls back
+      const simpActionsRow = document.getElementById('simpActionsRow');
+      const aiActionsBar = document.getElementById('aiActionsBar');
+      if (simpActionsRow && aiActionsBar) {
+        while (simpActionsRow.firstChild) aiActionsBar.appendChild(simpActionsRow.firstChild);
+        simpActionsRow.remove();
+      }
+      // Move messages and input back
+      const aiMsgs = document.getElementById('aiMsgs');
+      const aiInputRow = chatPane.querySelector('.ai-input-row');
+      const aiOutputOpts = document.getElementById('aiOutputOpts');
+      const contentRow = document.getElementById('claudeContentRow');
+      if (aiMsgs && contentRow) contentRow.insertBefore(aiMsgs, contentRow.firstChild);
+      if (aiInputRow) {
+        const existingInputRow = claudeBody.querySelector('.ai-input-row');
+        if (existingInputRow) {
+          claudeBody.insertBefore(aiInputRow, existingInputRow);
+          existingInputRow.remove();
+        } else {
+          claudeBody.appendChild(aiInputRow);
+        }
+      }
+      if (aiOutputOpts) {
+        const inputRow = claudeBody.querySelector('.ai-input-row');
+        if (inputRow) inputRow.after(aiOutputOpts);
+        else claudeBody.appendChild(aiOutputOpts);
+      }
+      delete chatPane.dataset.filled;
+    }
+
+    // Restore pane bodies
     _restorePaneFromSimp('q-sheet', 'simp-sheet');
     _restorePaneFromSimp('q-notepad', 'simp-notepad');
     _restorePaneFromSimp('q-whiteboard', 'simp-whiteboard');
     _restorePaneFromSimp('q-news', 'simp-sports');
-    // Restore suite header elements
-    const navGroups = document.querySelector('.nav-groups');
-    if (navGroups) navGroups.style.display = '';
+
     setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); if (typeof resizeCM === 'function') resizeCM(); }, 50);
   }
 }
@@ -3585,12 +3751,10 @@ function _mirrorPaneToSimp(paneId, simpId) {
   const pane = document.getElementById(paneId);
   const simp = document.getElementById(simpId);
   if (!pane || !simp) return;
-  // Move the p-body content into the simplified tab
   const body = pane.querySelector('.p-body');
   if (body && !simp.dataset.mirrored) {
     simp.dataset.mirrored = '1';
     simp.dataset.sourcePane = paneId;
-    // Move the actual DOM node so all event handlers stay intact
     simp.appendChild(body);
   }
 }
@@ -3601,13 +3765,9 @@ function _restorePaneFromSimp(paneId, simpId) {
   if (!pane || !simp || !simp.dataset.mirrored) return;
   const body = simp.querySelector('.p-body');
   if (body) {
-    // Re-insert after p-head
     const head = pane.querySelector('.p-head');
-    if (head && head.nextSibling) {
-      pane.insertBefore(body, head.nextSibling);
-    } else {
-      pane.appendChild(body);
-    }
+    if (head && head.nextSibling) pane.insertBefore(body, head.nextSibling);
+    else pane.appendChild(body);
   }
   delete simp.dataset.mirrored;
   delete simp.dataset.sourcePane;
