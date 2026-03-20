@@ -12326,19 +12326,36 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
   const l = SP_LEAGUE_MAP[league];
   if (!l || !athleteId) return;
 
-  // ESPN athlete detail + stats + gamelog via dedicated player proxy routes
-  const profileUrl = PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/overview';
-  const statsUrl = PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/stats';
-  const gamelogUrl = PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/gamelog';
-  // Also try standard ESPN site API as fallback for profile
-  const profileFallbackUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/athletes/' + athleteId;
+  // Helper: try multiple URLs, return first successful JSON response
+  function _tryFetch(urls) {
+    return urls.reduce(function(chain, url) {
+      return chain.then(function(result) {
+        if (result) return result;
+        return fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .catch(function() { return null; });
+      });
+    }, Promise.resolve(null));
+  }
 
-  // Fetch profile, stats, and gamelog in parallel
+  // Try standard ESPN API first (already deployed), then player-specific routes
+  var profileUrls = [
+    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/athletes/' + athleteId,
+    PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/overview'
+  ];
+  var statsUrls = [
+    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/statistics',
+    PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/stats'
+  ];
+  var gamelogUrls = [
+    PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/gamelog'
+  ];
+
+  // Fetch profile, stats, and gamelog in parallel (each tries multiple URLs)
   Promise.all([
-    fetch(profileUrl).then(r => r.ok ? r.json() : null).catch(() => null)
-      .then(function(d) { return d || fetch(profileFallbackUrl).then(r => r.ok ? r.json() : null).catch(() => null); }),
-    fetch(statsUrl).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(gamelogUrl).then(r => r.ok ? r.json() : null).catch(() => null)
+    _tryFetch(profileUrls),
+    _tryFetch(statsUrls),
+    _tryFetch(gamelogUrls)
   ]).then(([profileResp, statsData, gamelogData]) => {
     // overview endpoint wraps athlete data differently
     var profile = profileResp && profileResp.athlete ? profileResp.athlete : profileResp;
@@ -12613,7 +12630,22 @@ function spFetchLeaders() {
       .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(data) {
         console.log('[Sports] Leaders data keys:', Object.keys(data));
+        console.log('[Sports] Leaders raw sample:', JSON.stringify(data).substring(0, 1000));
         var categories = _spExtractCategories(data);
+        console.log('[Sports] Leaders categories count:', categories.length);
+        if (categories.length > 0) {
+          var firstCat = categories[0];
+          console.log('[Sports] First category keys:', Object.keys(firstCat));
+          console.log('[Sports] First category sample:', JSON.stringify(firstCat).substring(0, 500));
+          var firstLeaders = _spExtractLeaders(firstCat);
+          console.log('[Sports] First leaders count:', firstLeaders.length);
+          if (firstLeaders.length > 0) {
+            console.log('[Sports] First leader entry keys:', Object.keys(firstLeaders[0]));
+            console.log('[Sports] First leader entry:', JSON.stringify(firstLeaders[0]).substring(0, 500));
+            var firstAthlete = _spExtractAthlete(firstLeaders[0]);
+            console.log('[Sports] Extracted athlete:', JSON.stringify(firstAthlete));
+          }
+        }
         if (!categories.length) {
           console.warn('[Sports] Leaders: no categories in response from attempt ' + (idx+1));
           throw new Error('no categories');
@@ -12661,11 +12693,18 @@ function spFetchLeadersTable() {
   var l = SP_LEAGUE_MAP[league];
   if (!l) return;
   var seasonYear = _spSeasonYear()(league);
-  var url = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2';
-  var fallback = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders';
-  fetch(url)
-    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .catch(function() { return fetch(fallback).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }); })
+  var leaderUrls = [
+    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2',
+    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders',
+    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/leaders'
+  ];
+  // Try each URL until one works
+  leaderUrls.reduce(function(chain, url) {
+    return chain.catch(function() {
+      return fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined })
+        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    });
+  }, Promise.reject())
     .then(function(data) {
       var categories = _spExtractCategories(data);
       if (!categories.length) { el.innerHTML = '<div class="sp-empty">No leaders data.</div>'; return; }
@@ -12759,40 +12798,63 @@ window.spFetchTeamRosterDetail = function(league, teamId, teamName) {
   fetch(rosterUrl)
     .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(data) {
-      var athletes = data.athletes || [];
+      console.log('[Sports] Roster data keys:', Object.keys(data));
       var html = '<div style="margin-bottom:6px;"><button onclick="spFetchTeamRoster()" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back to Teams</button>';
       html += ' <span style="font-weight:700;font-size:.72rem;">' + esc(teamName) + '</span></div>';
-      // Flatten position groups
+
+      // Helper: normalize a player object from any ESPN format
+      function _normPlayer(p, fallbackPos) {
+        return {
+          id: p.id || '',
+          name: p.displayName || p.fullName || p.shortName || '',
+          pos: (p.position ? (p.position.abbreviation || p.position.name || p.position) : '') || fallbackPos || '',
+          jersey: p.jersey || '',
+          age: p.age || '',
+          height: p.displayHeight || '',
+          weight: p.displayWeight || '',
+          exp: p.experience ? (p.experience.years != null ? p.experience.years + 'yr' : (p.experience.displayValue || '')) : '',
+          headshot: p.headshot ? (typeof p.headshot === 'string' ? p.headshot : (p.headshot.href || '')) : ''
+        };
+      }
+
+      // Flatten position groups — handle multiple ESPN roster formats
       var allPlayers = [];
+      var athletes = data.athletes || [];
+
+      // Format 1: data.athletes = [{ position: "Guards", items: [...] }]
       athletes.forEach(function(group) {
-        var pos = group.position || '';
-        (group.items || []).forEach(function(p) {
-          allPlayers.push({
-            id: p.id || '',
-            name: p.displayName || p.fullName || '',
-            pos: (p.position && p.position.abbreviation) || pos || '',
-            jersey: p.jersey || '',
-            age: p.age || '',
-            height: p.displayHeight || '',
-            weight: p.displayWeight || '',
-            exp: p.experience ? (p.experience.years != null ? p.experience.years + 'yr' : '') : '',
-            headshot: p.headshot ? (p.headshot.href || '') : ''
+        var pos = group.position || group.displayName || '';
+        if (group.items && group.items.length) {
+          group.items.forEach(function(p) { allPlayers.push(_normPlayer(p, pos)); });
+        } else if (group.id && group.displayName) {
+          // The "group" is actually a player (flat array of athletes)
+          allPlayers.push(_normPlayer(group, ''));
+        }
+      });
+
+      // Format 2: data.roster = [{ id, displayName, ... }]
+      if (!allPlayers.length && data.roster) {
+        (Array.isArray(data.roster) ? data.roster : []).forEach(function(p) {
+          allPlayers.push(_normPlayer(p, ''));
+        });
+      }
+
+      // Format 3: data.team.athletes = [...]
+      if (!allPlayers.length && data.team && data.team.athletes) {
+        (data.team.athletes || []).forEach(function(group) {
+          var pos = group.position || '';
+          (group.items || [group]).forEach(function(p) {
+            if (p.id) allPlayers.push(_normPlayer(p, pos));
           });
         });
-      });
-      if (!allPlayers.length) {
-        // Try flat format
-        if (data.roster) {
-          (data.roster || []).forEach(function(p) {
-            allPlayers.push({
-              id: p.id || '', name: p.displayName || p.fullName || '',
-              pos: (p.position && p.position.abbreviation) || '', jersey: p.jersey || '',
-              age: p.age || '', height: p.displayHeight || '', weight: p.displayWeight || '',
-              exp: '', headshot: p.headshot ? (p.headshot.href || '') : ''
-            });
-          });
-        }
       }
+
+      // Format 4: data.players = [...] (some leagues)
+      if (!allPlayers.length && data.players) {
+        (data.players || []).forEach(function(p) { allPlayers.push(_normPlayer(p, '')); });
+      }
+
+      console.log('[Sports] Roster: found ' + allPlayers.length + ' players');
       html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.58rem;border-collapse:collapse;">';
       html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:3px 4px;">#</th><th style="text-align:left;padding:3px 4px;">Name</th><th style="padding:3px 4px;">Pos</th><th style="padding:3px 4px;">Age</th><th style="padding:3px 4px;">Ht</th><th style="padding:3px 4px;">Wt</th><th style="padding:3px 4px;">Exp</th></tr>';
       allPlayers.forEach(function(p) {
