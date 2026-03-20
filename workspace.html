@@ -12557,6 +12557,7 @@ function _spSparkline(values, w, h, color) {
 }
 
 // Helper: extract leader entries from ESPN categories (handles all known formats)
+// Filters to active players only when the data includes the active flag
 function _spExtractLeaders(cat) {
   var leaders = [];
   if (cat.leaders && Array.isArray(cat.leaders)) {
@@ -12567,6 +12568,10 @@ function _spExtractLeaders(cat) {
     }
   } else if (cat.entries) {
     leaders = cat.entries;
+  }
+  // Filter to active players only (core API all-time includes retired players)
+  if (leaders.length && leaders[0] && leaders[0].hasOwnProperty('active')) {
+    leaders = leaders.filter(function(e) { return e.active !== false; });
   }
   return leaders;
 }
@@ -12648,7 +12653,13 @@ function _spResolveAthleteRefs(categories, leagueInfo) {
 }
 
 // Extract categories from ESPN leaders response (handles all known wrapper formats)
-function _spExtractCategories(data) {
+// If seasonOnly is true, rejects all-time/total responses so the cascade continues
+function _spExtractCategories(data, seasonOnly) {
+  // Check if this is all-time totals data (core API /leaders without season)
+  if (seasonOnly && data.type === 'total') {
+    console.log('[Sports] Skipping all-time leaders response (type=total), want season data');
+    return [];
+  }
   if (data.leaders && Array.isArray(data.leaders)) return data.leaders;
   if (data.leaders && data.leaders.categories) return data.leaders.categories;
   if (data.categories) return data.categories;
@@ -12673,10 +12684,14 @@ function spFetchLeaders() {
   var seasonYear = _spSeasonYear()(league);
 
   var leaderUrls = [
+    // 1. Site API with season (current season stats)
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2',
+    // 2. Core API season-specific (current season stats)
+    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/seasons/' + seasonYear + '/types/2/leaders',
+    // 3. Site API without params
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders',
-    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/leaders',
-    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/seasons/' + seasonYear + '/types/2/leaders'
+    // 4. Core API all-time (last resort — will be filtered to active players)
+    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/leaders'
   ];
   (function _tryUrl(idx) {
     if (idx >= leaderUrls.length) {
@@ -12769,8 +12784,13 @@ function spFetchLeadersTable() {
   if (!l) return;
   var seasonYear = _spSeasonYear()(league);
   var leaderUrls = [
+    // 1. Site API with season (current season stats)
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2',
+    // 2. Core API season-specific (current season stats)
+    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/seasons/' + seasonYear + '/types/2/leaders',
+    // 3. Site API without params
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders',
+    // 4. Core API all-time (last resort — will be filtered to active players)
     PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/leaders'
   ];
   // Try each URL until one works
