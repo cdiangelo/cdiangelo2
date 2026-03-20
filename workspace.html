@@ -12405,7 +12405,55 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
     var profile = profileResp && profileResp.athlete ? profileResp.athlete : profileResp;
     let html = '<div style="margin-bottom:8px;"><button onclick="var v=document.getElementById(\'spPlayersView\').value;if(v===\'leaders\')spFetchLeaders();else if(v===\'table\')spFetchLeadersTable();else spFetchTeamRoster();" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>';
 
-    // Profile header
+    // Build gamelog data early so we can use sparklines in header
+    var glGames = [];
+    var glStatKeys = {};
+    if (gamelogData) {
+      var glSeasonTypes = gamelogData.seasonTypes || [];
+      var glEvents = gamelogData.events || {};
+      glSeasonTypes.forEach(function(st) {
+        // Skip preseason (type 1) — only regular season (2) and postseason (3)
+        if (st.type && st.type === 1) return;
+        (st.categories || []).forEach(function(cat) {
+          var labels = cat.labels || cat.names || [];
+          (cat.events || []).forEach(function(ev) {
+            var game = { stats: {} };
+            var evInfo = glEvents[ev.eventId];
+            if (evInfo) {
+              game.date = evInfo.gameDate || '';
+              game.opponent = evInfo.opponent ? (evInfo.opponent.displayName || evInfo.opponent.abbreviation || '') : '';
+              game.result = evInfo.gameResult || '';
+            }
+            (ev.stats || []).forEach(function(val, idx) { game.stats[labels[idx] || ('s' + idx)] = val; });
+            glGames.push(game);
+          });
+        });
+      });
+      if (!glGames.length) {
+        (gamelogData.categories || []).forEach(function(cat) {
+          var labels = cat.labels || cat.names || [];
+          (cat.events || []).forEach(function(ev) {
+            var game = { stats: {} };
+            var evInfo = (gamelogData.events || {})[ev.eventId];
+            if (evInfo) { game.date = evInfo.gameDate || ''; game.opponent = evInfo.opponent ? (evInfo.opponent.displayName || '') : ''; game.result = evInfo.gameResult || ''; }
+            (ev.stats || []).forEach(function(val, idx) { game.stats[labels[idx] || ('s' + idx)] = val; });
+            glGames.push(game);
+          });
+        });
+      }
+      // Build stat keys from recent games
+      var recentGames = glGames.slice(-15);
+      recentGames.forEach(function(g) {
+        Object.keys(g.stats).forEach(function(k) {
+          var v = parseFloat(g.stats[k]);
+          if (!isNaN(v)) { if (!glStatKeys[k]) glStatKeys[k] = []; glStatKeys[k].push(v); }
+        });
+      });
+    }
+    // Pick top sparkline stats (ones with enough data and variance)
+    var sparkStats = Object.keys(glStatKeys).filter(function(k) { return glStatKeys[k].length >= 3; });
+
+    // Profile header — player info left, sparkline right
     if (profile) {
       const headshot = profile.headshot ? (profile.headshot.href || '') : '';
       const team = profile.team ? (profile.team.displayName || '') : '';
@@ -12416,21 +12464,61 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
       const weight = profile.displayWeight || '';
       const exp = profile.experience ? profile.experience.years + ' yrs' : '';
 
-      html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:6px;background:var(--card-bg);border-radius:6px;border:1px solid var(--border);">';
-      if (headshot) html += '<img src="'+esc(headshot)+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
-      html += '<div>';
-      html += '<div style="font-weight:700;font-size:.82rem;">'+esc(profile.displayName || name)+'</div>';
-      html += '<div style="font-size:.6rem;color:var(--text-dim);">';
+      html += '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;padding:8px;background:var(--card-bg);border-radius:6px;border:1px solid var(--border);">';
+      // Left: headshot + info
+      if (headshot) html += '<img src="'+esc(headshot)+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'" />';
+      html += '<div style="flex:0 0 auto;min-width:100px;">';
+      html += '<div style="font-weight:700;font-size:1rem;">'+esc(profile.displayName || name)+'</div>';
+      html += '<div style="font-size:.7rem;color:var(--text-dim);">';
       if (jersey) html += '#'+esc(jersey)+' ';
       if (pos) html += esc(pos)+' ';
       if (team) html += '&middot; '+esc(team)+' ';
       html += '</div>';
-      html += '<div style="font-size:.55rem;color:var(--text-dim);">';
+      html += '<div style="font-size:.65rem;color:var(--text-dim);">';
       if (age) html += 'Age: '+esc(String(age))+' ';
       if (height) html += '&middot; '+esc(height)+' ';
       if (weight) html += '&middot; '+esc(weight)+' ';
       if (exp) html += '&middot; '+esc(exp);
-      html += '</div></div></div>';
+      html += '</div></div>';
+
+      // Right: sparkline preview (top stat)
+      if (sparkStats.length) {
+        var defaultStat = sparkStats[0];
+        // Pick a "main" stat intelligently based on sport
+        var mainStatOrder = { nba: ['PTS','REB','AST'], nfl: ['YDS','TD','QBR'], mlb: ['HR','AVG','RBI'], nhl: ['G','A','PTS'], ncaab: ['PTS','REB','AST'], ncaaf: ['YDS','TD','QBR'] };
+        var preferred = mainStatOrder[league] || [];
+        for (var pi = 0; pi < preferred.length; pi++) {
+          if (glStatKeys[preferred[pi]]) { defaultStat = preferred[pi]; break; }
+        }
+        var vals = glStatKeys[defaultStat];
+        var avg = (vals.reduce(function(s,v){return s+v;}, 0) / vals.length).toFixed(1);
+        var last = vals[vals.length - 1];
+        var trend3 = vals.length >= 3 ? (vals.slice(-3).reduce(function(s,v){return s+v;}, 0) / 3) : last;
+        var tColor = trend3 > parseFloat(avg) ? '#16a34a' : (trend3 < parseFloat(avg) ? '#ef4444' : 'var(--accent)');
+        html += '<div style="flex:1;min-width:80px;text-align:right;">';
+        html += '<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-bottom:2px;">';
+        // Stat selector
+        html += '<select id="spSparkStat" style="font-size:.65rem;padding:1px 4px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;" onchange="window._spUpdateHeaderSparkline(this.value)">';
+        sparkStats.forEach(function(k) {
+          html += '<option value="'+esc(k)+'"'+(k === defaultStat ? ' selected' : '')+'>'+esc(k)+'</option>';
+        });
+        html += '</select>';
+        html += '</div>';
+        html += '<div id="spHeaderSparkline">';
+        html += _spSparkline(vals, 120, 28, tColor);
+        html += '<div style="font-size:.7rem;font-weight:700;color:var(--accent);">'+esc(String(last))+'</div>';
+        html += '<div style="font-size:.58rem;color:var(--text-dim);">avg '+esc(avg)+' &middot; last '+esc(String(vals.length))+' games</div>';
+        html += '</div>';
+        html += '<button id="spSparkExpand" onclick="window._spToggleSparkExpand()" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:1px 6px;cursor:pointer;color:var(--text-dim);margin-top:3px;">Expand</button>';
+        html += '</div>';
+      }
+      html += '</div>';
+
+      // Expandable accumulation chart (hidden by default)
+      if (sparkStats.length) {
+        html += '<div id="spSparkExpandArea" style="display:none;margin-bottom:10px;padding:8px;background:var(--card-bg);border-radius:6px;border:1px solid var(--border);">';
+        html += '</div>';
+      }
     }
 
     // Stats
@@ -12438,18 +12526,18 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
       const categories = statsData.categories || statsData.splits?.categories || [];
       if (categories.length) {
         categories.forEach(cat => {
-          html += '<div style="margin-bottom:8px;">';
-          html += '<div style="font-weight:700;font-size:.68rem;color:var(--accent);margin-bottom:4px;text-transform:uppercase;">'+esc(cat.displayName || cat.name || 'Stats')+'</div>';
-          html += '<table style="width:100%;font-size:.58rem;border-collapse:collapse;">';
+          html += '<div style="margin-bottom:10px;">';
+          html += '<div style="font-weight:700;font-size:.8rem;color:var(--accent);margin-bottom:5px;text-transform:uppercase;">'+esc(cat.displayName || cat.name || 'Stats')+'</div>';
+          html += '<table style="width:100%;font-size:.7rem;border-collapse:collapse;">';
           // Use stat names as headers
           const statNames = cat.stats || [];
           if (statNames.length && cat.splits && cat.splits.length) {
-            html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:2px 4px;">Season</th>';
-            statNames.forEach(s => { html += '<th style="padding:2px 4px;">'+esc(s.abbreviation || s.shortDisplayName || s.name || '')+'</th>'; });
+            html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:3px 5px;">Season</th>';
+            statNames.forEach(s => { html += '<th style="padding:3px 5px;">'+esc(s.abbreviation || s.shortDisplayName || s.name || '')+'</th>'; });
             html += '</tr>';
             cat.splits.forEach(split => {
               html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);">';
-              html += '<td style="padding:2px 4px;font-weight:600;">'+esc(split.displayName || split.season?.displayName || '')+'</td>';
+              html += '<td style="padding:3px 5px;font-weight:600;">'+esc(split.displayName || split.season?.displayName || '')+'</td>';
               (split.stats || []).forEach(val => {
                 html += '<td style="text-align:center;padding:2px 4px;">'+esc(String(val.displayValue != null ? val.displayValue : val.value != null ? val.value : val))+'</td>';
               });
@@ -12490,89 +12578,28 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
       html += '<div class="sp-empty" style="font-size:.6rem;">Stats data not available for this player.</div>';
     }
 
-    // Gamelog sparklines — show recent game trends
-    if (gamelogData) {
-      var glSeasonTypes = gamelogData.seasonTypes || [];
-      var glEvents = gamelogData.events || {};
-      var glGames = [];
-      // Extract game-by-game data
-      glSeasonTypes.forEach(function(st) {
-        (st.categories || []).forEach(function(cat) {
-          var labels = cat.labels || cat.names || [];
-          (cat.events || []).forEach(function(ev) {
-            var game = { stats: {} };
-            var evInfo = glEvents[ev.eventId];
-            if (evInfo) {
-              game.date = evInfo.gameDate || '';
-              game.opponent = evInfo.opponent ? (evInfo.opponent.displayName || evInfo.opponent.abbreviation || '') : '';
-              game.result = evInfo.gameResult || '';
-            }
-            (ev.stats || []).forEach(function(val, idx) { game.stats[labels[idx] || ('s' + idx)] = val; });
-            glGames.push(game);
-          });
-        });
-      });
-      if (!glGames.length) {
-        // Flat format fallback
-        (gamelogData.categories || []).forEach(function(cat) {
-          var labels = cat.labels || cat.names || [];
-          (cat.events || []).forEach(function(ev) {
-            var game = { stats: {} };
-            var evInfo = glEvents[ev.eventId];
-            if (evInfo) { game.date = evInfo.gameDate || ''; game.opponent = evInfo.opponent ? (evInfo.opponent.displayName || '') : ''; game.result = evInfo.gameResult || ''; }
-            (ev.stats || []).forEach(function(val, idx) { game.stats[labels[idx] || ('s' + idx)] = val; });
-            glGames.push(game);
-          });
-        });
-      }
-      if (glGames.length > 1) {
-        html += '<div style="margin-top:10px;margin-bottom:8px;">';
-        html += '<div style="font-weight:700;font-size:.68rem;color:var(--accent);margin-bottom:6px;text-transform:uppercase;">Recent Game Trends (last ' + Math.min(glGames.length, 15) + ' games)</div>';
-        // Collect all stat keys that have numeric data
-        var recentGames = glGames.slice(-15);
-        var statKeys = {};
-        recentGames.forEach(function(g) {
-          Object.keys(g.stats).forEach(function(k) {
-            var v = parseFloat(g.stats[k]);
-            if (!isNaN(v)) { if (!statKeys[k]) statKeys[k] = []; statKeys[k].push(v); }
-          });
-        });
-        // Show sparklines for stats that have enough data points
-        var sparkHtml = '';
-        Object.keys(statKeys).forEach(function(k) {
-          var vals = statKeys[k];
-          if (vals.length < 3) return;
-          var avg = (vals.reduce(function(s,v){return s+v;}, 0) / vals.length).toFixed(1);
-          var last = vals[vals.length - 1];
-          var trend = vals.length >= 3 ? (vals.slice(-3).reduce(function(s,v){return s+v;}, 0) / 3) : last;
-          var trendDir = trend > parseFloat(avg) ? '#16a34a' : (trend < parseFloat(avg) ? '#ef4444' : 'var(--text-dim)');
-          sparkHtml += '<div style="display:inline-flex;align-items:center;gap:4px;background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:3px 6px;margin:2px;">';
-          sparkHtml += '<span style="font-size:.55rem;color:var(--text-dim);min-width:28px;">'+esc(k)+'</span>';
-          sparkHtml += _spSparkline(vals, 50, 14, trendDir);
-          sparkHtml += '<span style="font-size:.6rem;font-weight:600;">'+esc(String(last))+'</span>';
-          sparkHtml += '<span style="font-size:.48rem;color:var(--text-dim);">avg '+esc(avg)+'</span>';
-          sparkHtml += '</div>';
-        });
-        if (sparkHtml) html += '<div style="display:flex;flex-wrap:wrap;gap:2px;">' + sparkHtml + '</div>';
-
-        // Recent games mini-table
-        html += '<div style="margin-top:8px;"><div style="font-weight:600;font-size:.6rem;color:var(--text-dim);margin-bottom:3px;">Game Log</div>';
-        html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.52rem;border-collapse:collapse;">';
-        var topStats = Object.keys(statKeys).slice(0, 8);
-        html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:2px 3px;">Opp</th><th style="padding:2px 3px;">Result</th>';
-        topStats.forEach(function(k) { html += '<th style="padding:2px 3px;">'+esc(k)+'</th>'; });
+    // Game Log table (sparklines are already in header)
+    if (glGames.length > 1) {
+      var recentGames = glGames.slice(-15);
+      var topStats = sparkStats.slice(0, 8);
+      html += '<div style="margin-top:10px;margin-bottom:8px;">';
+      html += '<div style="font-weight:700;font-size:.78rem;color:var(--accent);margin-bottom:6px;text-transform:uppercase;">Game Log (last ' + recentGames.length + ')</div>';
+      html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.65rem;border-collapse:collapse;">';
+      html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:3px 4px;">Opp</th><th style="padding:3px 4px;">Result</th>';
+      topStats.forEach(function(k) { html += '<th style="padding:3px 4px;">'+esc(k)+'</th>'; });
+      html += '</tr>';
+      recentGames.slice().reverse().slice(0, 15).forEach(function(g) {
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);">';
+        html += '<td style="padding:3px 4px;font-size:.65rem;">'+esc(g.opponent || '-')+'</td>';
+        html += '<td style="padding:3px 4px;text-align:center;color:'+(g.result === 'W' ? '#16a34a' : g.result === 'L' ? '#ef4444' : 'var(--text-dim)')+';font-weight:600;">'+esc(g.result || '-')+'</td>';
+        topStats.forEach(function(k) { html += '<td style="text-align:center;padding:3px 4px;">'+esc(String(g.stats[k] != null ? g.stats[k] : '-'))+'</td>'; });
         html += '</tr>';
-        recentGames.slice().reverse().slice(0, 10).forEach(function(g) {
-          html += '<tr style="border-bottom:1px solid rgba(255,255,255,.03);">';
-          html += '<td style="padding:2px 3px;">'+esc(g.opponent || '-')+'</td>';
-          html += '<td style="padding:2px 3px;text-align:center;color:'+(g.result === 'W' ? '#16a34a' : g.result === 'L' ? '#ef4444' : 'var(--text-dim)')+';font-weight:600;">'+esc(g.result || '-')+'</td>';
-          topStats.forEach(function(k) { html += '<td style="text-align:center;padding:2px 3px;">'+esc(String(g.stats[k] != null ? g.stats[k] : '-'))+'</td>'; });
-          html += '</tr>';
-        });
-        html += '</table></div></div>';
-        html += '</div>';
-      }
+      });
+      html += '</table></div></div>';
     }
+
+    // Store gamelog data globally for sparkline updates
+    window._spCurrentGamelog = { statKeys: glStatKeys, games: glGames };
 
     el.innerHTML = html;
   }).catch(function(err) {
@@ -12599,9 +12626,121 @@ function _spSparkline(values, w, h, color) {
   return '<svg width="'+w+'" height="'+h+'" style="vertical-align:middle;"><polyline points="'+points+'" fill="none" stroke="'+color+'" stroke-width="1.2" stroke-linejoin="round" /></svg>';
 }
 
+// Render a larger sparkline with filled area and game labels for the expand view
+function _spSparklineExpanded(values, opponents, results, w, h, color, label) {
+  w = w || 300; h = h || 80; color = color || 'var(--accent)';
+  if (!values || values.length < 2) return '';
+  var nums = values.map(Number).filter(function(n) { return !isNaN(n); });
+  if (nums.length < 2) return '';
+  var min = Math.min.apply(null, nums), max = Math.max.apply(null, nums);
+  var range = max - min || 1;
+  var padL = 30, padR = 8, padT = 6, padB = 20;
+  var plotW = w - padL - padR, plotH = h - padT - padB;
+  var pts = nums.map(function(v, i) {
+    var x = padL + (i / (nums.length - 1)) * plotW;
+    var y = padT + plotH - ((v - min) / range) * plotH;
+    return { x: x, y: y, v: v };
+  });
+  var polyPts = pts.map(function(p) { return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
+  var fillPts = polyPts + ' ' + pts[pts.length-1].x.toFixed(1)+','+(padT+plotH)+' '+pts[0].x.toFixed(1)+','+(padT+plotH);
+  var svg = '<svg width="'+w+'" height="'+h+'" style="display:block;">';
+  // Y-axis labels
+  svg += '<text x="'+padL+'" y="'+(padT+6)+'" fill="var(--text-dim)" font-size="9" text-anchor="end">'+max.toFixed(0)+'</text>';
+  svg += '<text x="'+padL+'" y="'+(padT+plotH)+'" fill="var(--text-dim)" font-size="9" text-anchor="end">'+min.toFixed(0)+'</text>';
+  // Fill area
+  svg += '<polygon points="'+fillPts+'" fill="'+color+'" opacity="0.12" />';
+  // Line
+  svg += '<polyline points="'+polyPts+'" fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linejoin="round" />';
+  // Data points + X labels
+  pts.forEach(function(p, i) {
+    svg += '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="2.5" fill="'+color+'" />';
+    svg += '<text x="'+p.x.toFixed(1)+'" y="'+(p.y - 5)+'" fill="var(--text)" font-size="8" text-anchor="middle">'+p.v+'</text>';
+    if (opponents && opponents[i]) {
+      var rColor = results && results[i] === 'W' ? '#16a34a' : (results && results[i] === 'L' ? '#ef4444' : 'var(--text-dim)');
+      svg += '<text x="'+p.x.toFixed(1)+'" y="'+(padT+plotH+12)+'" fill="'+rColor+'" font-size="7" text-anchor="middle">'+_spEscSvg(opponents[i].substring(0,3))+'</text>';
+    }
+  });
+  svg += '</svg>';
+  // Accumulation line
+  var cumVals = []; var running = 0;
+  nums.forEach(function(v) { running += v; cumVals.push(running); });
+  var cumMin = 0, cumMax = Math.max.apply(null, cumVals);
+  var cumRange = cumMax - cumMin || 1;
+  var cumPts = cumVals.map(function(v, i) {
+    var x = padL + (i / (cumVals.length - 1)) * plotW;
+    var y = padT + plotH - ((v - cumMin) / cumRange) * plotH;
+    return { x: x, y: y, v: v };
+  });
+  var cumPolyPts = cumPts.map(function(p) { return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
+  var cumFillPts = cumPolyPts + ' ' + cumPts[cumPts.length-1].x.toFixed(1)+','+(padT+plotH)+' '+cumPts[0].x.toFixed(1)+','+(padT+plotH);
+  var svg2 = '<svg width="'+w+'" height="'+h+'" style="display:block;margin-top:4px;">';
+  svg2 += '<text x="'+padL+'" y="'+(padT+6)+'" fill="var(--text-dim)" font-size="9" text-anchor="end">'+cumMax.toFixed(0)+'</text>';
+  svg2 += '<text x="'+padL+'" y="'+(padT+plotH)+'" fill="var(--text-dim)" font-size="9" text-anchor="end">0</text>';
+  svg2 += '<polygon points="'+cumFillPts+'" fill="var(--accent)" opacity="0.08" />';
+  svg2 += '<polyline points="'+cumPolyPts+'" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round" stroke-dasharray="4 2" />';
+  cumPts.forEach(function(p) {
+    svg2 += '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="2" fill="var(--accent)" />';
+    svg2 += '<text x="'+p.x.toFixed(1)+'" y="'+(p.y - 5)+'" fill="var(--text)" font-size="7" text-anchor="middle">'+p.v+'</text>';
+  });
+  svg2 += '</svg>';
+  return '<div style="margin-bottom:4px;font-weight:700;font-size:.75rem;color:var(--accent);text-transform:uppercase;">'+_spEscSvg(label)+' per Game</div>' + svg +
+    '<div style="margin-top:6px;font-weight:600;font-size:.65rem;color:var(--text-dim);">Cumulative '+_spEscSvg(label)+' ('+cumMax.toFixed(0)+' total)</div>' + svg2;
+}
+function _spEscSvg(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Update header sparkline when stat selector changes
+window._spUpdateHeaderSparkline = function(stat) {
+  var gl = window._spCurrentGamelog;
+  if (!gl || !gl.statKeys[stat]) return;
+  var vals = gl.statKeys[stat];
+  var avg = (vals.reduce(function(s,v){return s+v;}, 0) / vals.length).toFixed(1);
+  var last = vals[vals.length - 1];
+  var trend3 = vals.length >= 3 ? (vals.slice(-3).reduce(function(s,v){return s+v;}, 0) / 3) : last;
+  var tColor = trend3 > parseFloat(avg) ? '#16a34a' : (trend3 < parseFloat(avg) ? '#ef4444' : 'var(--accent)');
+  var el = document.getElementById('spHeaderSparkline');
+  if (el) {
+    el.innerHTML = _spSparkline(vals, 120, 28, tColor) +
+      '<div style="font-size:.7rem;font-weight:700;color:var(--accent);">'+esc(String(last))+'</div>' +
+      '<div style="font-size:.58rem;color:var(--text-dim);">avg '+esc(avg)+' &middot; last '+vals.length+' games</div>';
+  }
+  // Also update expand area if visible
+  var expandEl = document.getElementById('spSparkExpandArea');
+  if (expandEl && expandEl.style.display !== 'none') {
+    window._spRenderExpandArea(stat);
+  }
+};
+
+// Toggle the expanded sparkline/accumulation view
+window._spToggleSparkExpand = function() {
+  var expandEl = document.getElementById('spSparkExpandArea');
+  var btn = document.getElementById('spSparkExpand');
+  if (!expandEl) return;
+  if (expandEl.style.display === 'none') {
+    expandEl.style.display = 'block';
+    if (btn) btn.textContent = 'Collapse';
+    var stat = document.getElementById('spSparkStat');
+    window._spRenderExpandArea(stat ? stat.value : '');
+  } else {
+    expandEl.style.display = 'none';
+    if (btn) btn.textContent = 'Expand';
+  }
+};
+
+window._spRenderExpandArea = function(stat) {
+  var gl = window._spCurrentGamelog;
+  var expandEl = document.getElementById('spSparkExpandArea');
+  if (!gl || !expandEl || !stat || !gl.statKeys[stat]) return;
+  var vals = gl.statKeys[stat];
+  var recentGames = gl.games.slice(-15);
+  var opponents = recentGames.map(function(g) { return g.opponent || ''; });
+  var results = recentGames.map(function(g) { return g.result || ''; });
+  expandEl.innerHTML = _spSparklineExpanded(vals, opponents, results, Math.min(400, expandEl.offsetWidth - 16), 90, 'var(--accent)', stat);
+};
+
 // Helper: extract leader entries from ESPN categories (handles all known formats)
 // Filters to active players only when the data includes the active flag
-function _spExtractLeaders(cat) {
+// For NCAA: also filters out players who have moved to pro leagues
+function _spExtractLeaders(cat, leagueKey) {
   var leaders = [];
   if (cat.leaders && Array.isArray(cat.leaders)) {
     if (cat.leaders[0] && cat.leaders[0].leaders) {
@@ -12615,6 +12754,23 @@ function _spExtractLeaders(cat) {
   // Filter to active players only (core API all-time includes retired players)
   if (leaders.length && leaders[0] && leaders[0].hasOwnProperty('active')) {
     leaders = leaders.filter(function(e) { return e.active !== false; });
+  }
+  // NCAA: filter out players who have moved to pro leagues
+  if (leagueKey && (leagueKey === 'ncaab' || leagueKey === 'ncaaf')) {
+    leaders = leaders.filter(function(e) {
+      var athlete = e.athlete || {};
+      if (_spAthleteCache[athlete.id || '']) athlete = Object.assign({}, _spAthleteCache[athlete.id], athlete);
+      // If athlete has a status indicating they left (e.g., "not active"), exclude
+      if (athlete.status && athlete.status.type === 'inactive') return false;
+      // If linked to an NBA/NFL team (pro league), exclude
+      if (athlete.team && typeof athlete.team === 'object') {
+        var teamName = (athlete.team.displayName || athlete.team.name || '').toLowerCase();
+        // Pro team names won't contain "university", "state", "college", etc.
+        var proLeagues = ['nba', 'nfl', 'nhl', 'mlb'];
+        if (athlete.team.league && proLeagues.indexOf(athlete.team.league) >= 0) return false;
+      }
+      return true;
+    });
   }
   return leaders;
 }
@@ -12714,8 +12870,24 @@ function _spExtractCategories(data, seasonOnly) {
 function _spSeasonYear() {
   var yr = new Date().getFullYear(), mo = new Date().getMonth();
   return function(league) {
-    return (mo < 6 && ['nba','nhl','nfl','ncaab'].includes(league)) ? yr - 1 : yr;
+    // For fall/winter sports, if before June use previous year as season start
+    if (mo < 6 && ['nba','nhl','nfl','ncaab','ncaaf'].includes(league)) return yr - 1;
+    // MLB: if before March (spring training hasn't started), use previous season
+    if (league === 'mlb' && mo < 3) return yr - 1;
+    return yr;
   };
+}
+
+// Determine if a league is likely out of season
+function _spIsOffseason(league) {
+  var mo = new Date().getMonth(); // 0=Jan
+  // NCAAF: season is Aug-Jan (months 7-0). Off-season Feb-Jul (1-6)
+  if (league === 'ncaaf' && mo >= 2 && mo <= 6) return true;
+  // NFL: season is Sep-Feb. Off-season Mar-Aug (2-7)
+  if (league === 'nfl' && mo >= 3 && mo <= 7) return true;
+  // NCAAB: season is Nov-Apr. Off-season May-Oct (4-9)
+  if (league === 'ncaab' && mo >= 5 && mo <= 9) return true;
+  return false;
 }
 
 function spFetchLeaders() {
@@ -12725,20 +12897,29 @@ function spFetchLeaders() {
   var l = SP_LEAGUE_MAP[league];
   if (!l) return;
   var seasonYear = _spSeasonYear()(league);
+  var prevYear = seasonYear - 1;
 
   var leaderUrls = [
-    // 1. Site API with season (current season stats)
+    // 1. Site API with season — regular season only (seasontype=2)
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2',
-    // 2. Core API season-specific (current season stats)
+    // 2. Core API season-specific — regular season
     PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/seasons/' + seasonYear + '/types/2/leaders',
     // 3. Site API without params
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders',
-    // 4. Core API all-time (last resort — will be filtered to active players)
+    // 4. Previous season fallback (for early offseason / spring training)
+    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + prevYear + '&seasontype=2',
+    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/seasons/' + prevYear + '/types/2/leaders',
+    // 5. Core API all-time (last resort — will be filtered to active players)
     PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/leaders'
   ];
   (function _tryUrl(idx) {
     if (idx >= leaderUrls.length) {
-      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load leaders. All ESPN endpoints returned errors.</div>';
+      // Off-season: show graceful message instead of error
+      if (_spIsOffseason(league)) {
+        el.innerHTML = '<div class="sp-empty" style="padding:20px;text-align:center;"><div style="font-size:.85rem;color:var(--text-dim);margin-bottom:8px;">' + esc(l.name) + ' is currently in the off-season</div><div style="font-size:.7rem;color:var(--text-dim);opacity:.7;">Leaders data will be available when the ' + esc(String(seasonYear)) + '-' + esc(String(seasonYear+1).slice(-2)) + ' season begins.</div></div>';
+      } else {
+        el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load leaders. All ESPN endpoints returned errors.</div>';
+      }
       return;
     }
     console.log('[Sports] Leaders try ' + (idx+1) + '/' + leaderUrls.length + ': ' + leaderUrls[idx].replace(PROXY_BASE, ''));
@@ -12766,6 +12947,12 @@ function spFetchLeaders() {
           console.warn('[Sports] Leaders: no categories in response from attempt ' + (idx+1));
           throw new Error('no categories');
         }
+        // Check if data looks like preseason (very few leaders with tiny stat values)
+        var firstLeadersCheck = _spExtractLeaders(categories[0]);
+        if (firstLeadersCheck.length < 5 && idx < leaderUrls.length - 1) {
+          console.log('[Sports] Leaders: only ' + firstLeadersCheck.length + ' entries — may be preseason, trying next URL');
+          throw new Error('too few leaders (preseason?)');
+        }
         // Resolve $ref athlete URLs before rendering
         _spResolveAthleteRefs(categories, l).then(function() {
           _spRenderLeadersCards(categories, league, l, seasonYear, el);
@@ -12781,23 +12968,23 @@ function spFetchLeaders() {
 function _spRenderLeadersCards(categories, league, leagueInfo, seasonYear, el) {
   var html = '';
   var curSeason = seasonYear + '-' + String(seasonYear + 1).slice(-2);
-  html += '<div style="font-size:.48rem;color:var(--text-dim);margin-bottom:6px;">' + esc(leagueInfo.name) + ' ' + curSeason + ' Season Leaders</div>';
+  html += '<div style="font-size:.7rem;color:var(--text-dim);margin-bottom:8px;font-weight:600;">' + esc(leagueInfo.name) + ' ' + curSeason + ' Season Leaders</div>';
   categories.slice(0, 10).forEach(function(cat) {
     var catName = cat.displayName || cat.name || cat.abbreviation || 'Leaders';
-    var leaders = _spExtractLeaders(cat);
+    var leaders = _spExtractLeaders(cat, league);
     if (!leaders.length) return;
     html += '<div style="margin-bottom:10px;">';
-    html += '<div style="font-weight:700;font-size:.68rem;color:var(--accent);margin-bottom:4px;text-transform:uppercase;">'+esc(catName)+'</div>';
+    html += '<div style="font-weight:700;font-size:.78rem;color:var(--accent);margin-bottom:4px;text-transform:uppercase;">'+esc(catName)+'</div>';
     leaders.slice(0, 5).forEach(function(entry, i) {
       var a = _spExtractAthlete(entry);
-      html += '<div class="sp-card" style="cursor:pointer;padding:3px 6px;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(a.id)+'\',\''+esc(a.name)+'\')">';
-      html += '<div style="display:flex;align-items:center;gap:6px;">';
-      html += '<span style="font-size:.6rem;color:var(--text-dim);width:14px;">'+String(i+1)+'.</span>';
-      if (a.headshot) html += '<img src="'+esc(a.headshot)+'" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
-      html += '<span style="font-size:.65rem;font-weight:600;">'+esc(a.name)+'</span>';
-      if (a.position) html += '<span style="font-size:.5rem;color:var(--text-dim);opacity:.7;">'+esc(a.position)+'</span>';
-      if (a.team) html += '<span style="font-size:.55rem;color:var(--text-dim);">'+esc(a.team)+'</span>';
-      html += '<span style="margin-left:auto;font-size:.7rem;font-weight:700;color:var(--accent);">'+esc(a.value)+'</span>';
+      html += '<div class="sp-card" style="cursor:pointer;padding:5px 8px;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(a.id)+'\',\''+esc(a.name)+'\')">';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span style="font-size:.72rem;color:var(--text-dim);width:16px;">'+String(i+1)+'.</span>';
+      if (a.headshot) html += '<img src="'+esc(a.headshot)+'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
+      html += '<span style="font-size:.75rem;font-weight:600;">'+esc(a.name)+'</span>';
+      if (a.position) html += '<span style="font-size:.62rem;color:var(--text-dim);opacity:.7;">'+esc(a.position)+'</span>';
+      if (a.team) html += '<span style="font-size:.65rem;color:var(--text-dim);">'+esc(a.team)+'</span>';
+      html += '<span style="margin-left:auto;font-size:.82rem;font-weight:700;color:var(--accent);">'+esc(a.value)+'</span>';
       html += '</div></div>';
     });
     html += '</div>';
@@ -12826,14 +13013,18 @@ function spFetchLeadersTable() {
   var l = SP_LEAGUE_MAP[league];
   if (!l) return;
   var seasonYear = _spSeasonYear()(league);
+  var prevYear = seasonYear - 1;
   var leaderUrls = [
-    // 1. Site API with season (current season stats)
+    // 1. Site API with season — regular season only
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2',
-    // 2. Core API season-specific (current season stats)
+    // 2. Core API season-specific
     PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/seasons/' + seasonYear + '/types/2/leaders',
     // 3. Site API without params
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders',
-    // 4. Core API all-time (last resort — will be filtered to active players)
+    // 4. Previous season fallback
+    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + prevYear + '&seasontype=2',
+    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/seasons/' + prevYear + '/types/2/leaders',
+    // 5. Core API all-time (last resort)
     PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/leaders'
   ];
   // Try each URL until one works
@@ -12854,7 +13045,7 @@ function spFetchLeadersTable() {
         categories.slice(0, 8).forEach(function(cat) {
           var catName = cat.abbreviation || cat.name || cat.displayName || 'Stat';
           statCols.push(catName);
-          var leaders = _spExtractLeaders(cat);
+          var leaders = _spExtractLeaders(cat, league);
           leaders.slice(0, 25).forEach(function(entry, rank) {
             var a = _spExtractAthlete(entry);
             var key = a.id || a.name;
@@ -12874,7 +13065,11 @@ function spFetchLeadersTable() {
       });
     })
     .catch(function(err) {
-      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Table view failed: '+esc(err.message)+'</div>';
+      if (_spIsOffseason(league)) {
+        el.innerHTML = '<div class="sp-empty" style="padding:20px;text-align:center;"><div style="font-size:.85rem;color:var(--text-dim);margin-bottom:8px;">' + esc(l.name) + ' is currently in the off-season</div><div style="font-size:.7rem;color:var(--text-dim);opacity:.7;">Leaders data will be available when the season begins.</div></div>';
+      } else {
+        el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Table view failed: '+esc(err.message)+'</div>';
+      }
     });
 }
 
@@ -12907,39 +13102,41 @@ function _spRenderLeadersTable(sortCol, sortDir, posFilter) {
   }
   var curSeason = d.seasonYear + '-' + String(d.seasonYear + 1).slice(-2);
   var positions = SP_POSITIONS[league] || ['All'];
+  // Consolidate stat columns: limit to 6 most meaningful
+  var displayCols = d.statCols.slice(0, 6);
   // Build position filter bar
-  var html = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">';
-  html += '<span style="font-size:.48rem;color:var(--text-dim);">' + esc(d.leagueInfo.name) + ' ' + curSeason + ' Leaders Table</span>';
-  html += '<select id="spTablePosFilter" style="font-size:.58rem;padding:1px 4px;" onchange="_spTableSort(\'' + esc(sortCol) + '\',\'' + esc(sortDir) + '\',this.value)">';
+  var html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">';
+  html += '<span style="font-size:.7rem;color:var(--text-dim);font-weight:600;">' + esc(d.leagueInfo.name) + ' ' + curSeason + ' Leaders</span>';
+  html += '<select id="spTablePosFilter" style="font-size:.7rem;padding:2px 6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;" onchange="_spTableSort(\'' + esc(sortCol) + '\',\'' + esc(sortDir) + '\',this.value)">';
   positions.forEach(function(pos) {
     html += '<option value="'+esc(pos)+'"'+(pos === posFilter ? ' selected' : '')+'>'+esc(pos === 'All' ? 'All Positions' : pos)+'</option>';
   });
   html += '</select>';
-  html += '<span style="font-size:.45rem;color:var(--text-dim);">'+players.length+' players</span>';
+  html += '<span style="font-size:.65rem;color:var(--text-dim);">'+players.length+' players</span>';
   html += '</div>';
   // Build sortable header helper
   function thSort(label, col) {
     var arrow = sortCol === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     var nextDir = (sortCol === col && sortDir === 'desc') ? 'asc' : 'desc';
-    return '<th style="padding:3px 4px;cursor:pointer;white-space:nowrap;user-select:none;" onclick="_spTableSort(\''+esc(col)+'\',\''+esc(nextDir)+'\',document.getElementById(\'spTablePosFilter\').value)">' + esc(label) + arrow + '</th>';
+    return '<th style="padding:4px 6px;cursor:pointer;white-space:nowrap;user-select:none;font-size:.7rem;" onclick="_spTableSort(\''+esc(col)+'\',\''+esc(nextDir)+'\',document.getElementById(\'spTablePosFilter\').value)">' + esc(label) + arrow + '</th>';
   }
-  html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.58rem;border-collapse:collapse;min-width:400px;">';
+  html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.7rem;border-collapse:collapse;min-width:360px;">';
   html += '<tr style="color:var(--text-dim);position:sticky;top:0;background:var(--bg);z-index:1;">';
   html += thSort('Player', 'name');
   html += thSort('Pos', 'position');
   html += thSort('Team', 'team');
-  d.statCols.forEach(function(col) { html += thSort(col, col); });
+  displayCols.forEach(function(col) { html += thSort(col, col); });
   html += '</tr>';
   players.slice(0, 50).forEach(function(p) {
-    html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(p.id)+'\',\''+esc(p.name)+'\')">';
-    html += '<td style="padding:3px 4px;display:flex;align-items:center;gap:4px;">';
-    if (p.headshot) html += '<img src="'+esc(p.headshot)+'" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
-    html += '<span style="font-weight:600;">'+esc(p.name)+'</span></td>';
-    html += '<td style="text-align:center;padding:3px 4px;color:var(--text-dim);font-size:.52rem;">'+esc(p.position || '-')+'</td>';
-    html += '<td style="text-align:center;padding:3px 4px;color:var(--text-dim);">'+esc(p.team || '-')+'</td>';
-    d.statCols.forEach(function(col) {
+    html += '<tr style="border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(p.id)+'\',\''+esc(p.name)+'\')">';
+    html += '<td style="padding:4px 6px;display:flex;align-items:center;gap:5px;">';
+    if (p.headshot) html += '<img src="'+esc(p.headshot)+'" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
+    html += '<span style="font-weight:600;font-size:.72rem;">'+esc(p.name)+'</span></td>';
+    html += '<td style="text-align:center;padding:4px 6px;color:var(--text-dim);font-size:.65rem;">'+esc(p.position || '-')+'</td>';
+    html += '<td style="text-align:center;padding:4px 6px;color:var(--text-dim);font-size:.68rem;">'+esc(p.team || '-')+'</td>';
+    displayCols.forEach(function(col) {
       var val = p.stats[col] || '-';
-      html += '<td style="text-align:center;padding:3px 4px;">'+esc(val)+'</td>';
+      html += '<td style="text-align:center;padding:4px 6px;font-size:.72rem;">'+esc(val)+'</td>';
     });
     html += '</tr>';
   });
@@ -12972,17 +13169,100 @@ function spFetchTeamRoster() {
       }
       if (!teams.length) { el.innerHTML = '<div class="sp-empty">No teams found.</div>'; return; }
       teams.sort(function(a, b) { return (a.displayName || '').localeCompare(b.displayName || ''); });
-      var html = '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:6px;">Select a team to view roster stats:</div>';
-      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+      // Store teams for filtering
+      window._spTeamsCache = { league: league, teams: teams };
+
+      // For NCAA sports: extract conference groups and fetch rankings
+      var isNcaa = (league === 'ncaab' || league === 'ncaaf');
+      var conferences = {};
+      if (isNcaa && data.sports && data.sports[0] && data.sports[0].leagues) {
+        data.sports[0].leagues.forEach(function(lg) {
+          (lg.teams || []).forEach(function(t) {
+            var tm = t.team || t;
+            // ESPN groups teams by group (conference)
+            var confName = '';
+            if (tm.groups && tm.groups.id) confName = tm.groups.name || tm.groups.abbreviation || '';
+            if (!confName && lg.conferences) {
+              // Find which conference this team belongs to
+              (lg.conferences || []).forEach(function(conf) {
+                (conf.teams || []).forEach(function(ct) {
+                  if ((ct.team || ct).id === tm.id) confName = conf.name || conf.abbreviation || '';
+                });
+              });
+            }
+            if (confName) {
+              tm._conference = confName;
+              conferences[confName] = (conferences[confName] || 0) + 1;
+            }
+          });
+        });
+      }
+      var confList = Object.keys(conferences).sort();
+
+      var html = '<div style="font-size:.75rem;color:var(--text-dim);margin-bottom:8px;font-weight:600;">Select a team to view roster:</div>';
+
+      // NCAA: Conference + AP Top 25 filter bar
+      if (isNcaa) {
+        html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;align-items:center;">';
+        html += '<button class="sp-card" style="cursor:pointer;padding:4px 10px;font-size:.68rem;font-weight:700;color:var(--accent);border:1px solid var(--accent);" onclick="window._spFilterTeams(\'all\')">All</button>';
+        html += '<button class="sp-card" style="cursor:pointer;padding:4px 10px;font-size:.68rem;font-weight:700;color:#f59e0b;border:1px solid #f59e0b;" onclick="window._spFilterTeams(\'top25\')">AP Top 25</button>';
+        if (confList.length) {
+          html += '<select id="spConfFilter" style="font-size:.68rem;padding:3px 6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;" onchange="window._spFilterTeams(this.value)">';
+          html += '<option value="all">All Conferences</option>';
+          confList.forEach(function(c) {
+            html += '<option value="conf:'+esc(c)+'">'+esc(c)+'</option>';
+          });
+          html += '</select>';
+        }
+        html += '</div>';
+      }
+
+      html += '<div id="spTeamGrid" style="display:flex;flex-wrap:wrap;gap:6px;">';
       teams.forEach(function(team) {
         var logo = team.logos && team.logos[0] ? team.logos[0].href : '';
         var abbr = team.abbreviation || team.shortDisplayName || '';
-        html += '<div class="sp-card" style="cursor:pointer;padding:3px 6px;display:inline-flex;align-items:center;gap:3px;font-size:.6rem;" onclick="spFetchTeamRosterDetail(\''+esc(league)+'\',\''+esc(team.id)+'\',\''+esc(team.displayName || '')+'\')">';
-        if (logo) html += '<img src="'+esc(logo)+'" style="width:16px;height:16px;" onerror="this.style.display=\'none\'" />';
+        var rank = team.rank || (team.curatedRank ? team.curatedRank.current : 0) || 0;
+        var dataAttrs = ' data-teamid="'+esc(team.id)+'"';
+        if (team._conference) dataAttrs += ' data-conf="'+esc(team._conference)+'"';
+        if (rank && rank <= 25) dataAttrs += ' data-rank="'+rank+'"';
+        html += '<div class="sp-card sp-team-tile" style="cursor:pointer;padding:6px 10px;display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:600;"'+dataAttrs+' onclick="spFetchTeamRosterDetail(\''+esc(league)+'\',\''+esc(team.id)+'\',\''+esc(team.displayName || '')+'\')">';
+        if (rank && rank <= 25) html += '<span style="font-size:.58rem;color:#f59e0b;font-weight:700;">#'+rank+'</span>';
+        if (logo) html += '<img src="'+esc(logo)+'" style="width:28px;height:28px;" onerror="this.style.display=\'none\'" />';
         html += esc(abbr) + '</div>';
       });
       html += '</div>';
       el.innerHTML = html;
+
+      // Fetch AP rankings for NCAA if available
+      if (isNcaa) {
+        var rankUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/rankings';
+        fetch(rankUrl, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(rankData) {
+            if (!rankData || !rankData.rankings) return;
+            // Find AP poll
+            var apPoll = rankData.rankings.find(function(r) { return (r.name || '').toLowerCase().indexOf('ap ') >= 0 || (r.shortName || '').indexOf('AP') >= 0; });
+            if (!apPoll) apPoll = rankData.rankings[0]; // fallback to first poll
+            if (!apPoll || !apPoll.ranks) return;
+            // Tag teams with their ranking
+            apPoll.ranks.forEach(function(r) {
+              var teamId = r.team ? r.team.id : '';
+              if (!teamId) return;
+              var tile = document.querySelector('.sp-team-tile[data-teamid="'+teamId+'"]');
+              if (tile) {
+                tile.setAttribute('data-rank', r.current || r.previous || 99);
+                // Add rank badge if not already there
+                if (!tile.querySelector('.sp-rank-badge')) {
+                  var badge = document.createElement('span');
+                  badge.className = 'sp-rank-badge';
+                  badge.style.cssText = 'font-size:.58rem;color:#f59e0b;font-weight:700;';
+                  badge.textContent = '#' + (r.current || r.previous);
+                  tile.insertBefore(badge, tile.firstChild);
+                }
+              }
+            });
+          }).catch(function() { /* rankings optional */ });
+      }
     })
     .catch(function(err) {
       el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load teams: '+esc(err.message)+'</div>';
@@ -12999,8 +13279,8 @@ window.spFetchTeamRosterDetail = function(league, teamId, teamName) {
     .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(data) {
       console.log('[Sports] Roster data keys:', Object.keys(data));
-      var html = '<div style="margin-bottom:6px;"><button onclick="spFetchTeamRoster()" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back to Teams</button>';
-      html += ' <span style="font-weight:700;font-size:.72rem;">' + esc(teamName) + '</span></div>';
+      var html = '<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;"><button onclick="spFetchTeamRoster()" style="font-size:.7rem;background:none;border:1px solid var(--border);border-radius:3px;padding:3px 10px;cursor:pointer;color:var(--text-dim);">&larr; Back</button>';
+      html += '<span style="font-weight:700;font-size:.9rem;">' + esc(teamName) + '</span></div>';
 
       // Helper: normalize a player object from any ESPN format
       function _normPlayer(p, fallbackPos) {
@@ -13055,19 +13335,19 @@ window.spFetchTeamRosterDetail = function(league, teamId, teamName) {
       }
 
       console.log('[Sports] Roster: found ' + allPlayers.length + ' players');
-      html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.58rem;border-collapse:collapse;">';
-      html += '<tr style="color:var(--text-dim);"><th style="text-align:left;padding:3px 4px;">#</th><th style="text-align:left;padding:3px 4px;">Name</th><th style="padding:3px 4px;">Pos</th><th style="padding:3px 4px;">Age</th><th style="padding:3px 4px;">Ht</th><th style="padding:3px 4px;">Wt</th><th style="padding:3px 4px;">Exp</th></tr>';
+      html += '<div style="overflow-x:auto;"><table style="width:100%;font-size:.7rem;border-collapse:collapse;">';
+      html += '<tr style="color:var(--text-dim);font-size:.72rem;"><th style="text-align:left;padding:4px 6px;">#</th><th style="text-align:left;padding:4px 6px;">Name</th><th style="padding:4px 6px;">Pos</th><th style="padding:4px 6px;">Age</th><th style="padding:4px 6px;">Ht</th><th style="padding:4px 6px;">Wt</th><th style="padding:4px 6px;">Exp</th></tr>';
       allPlayers.forEach(function(p) {
-        html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(p.id)+'\',\''+esc(p.name)+'\')">';
-        html += '<td style="padding:3px 4px;color:var(--text-dim);">'+esc(p.jersey)+'</td>';
-        html += '<td style="padding:3px 4px;display:flex;align-items:center;gap:4px;">';
-        if (p.headshot) html += '<img src="'+esc(p.headshot)+'" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
-        html += '<span style="font-weight:600;">'+esc(p.name)+'</span></td>';
-        html += '<td style="text-align:center;padding:3px 4px;">'+esc(p.pos)+'</td>';
-        html += '<td style="text-align:center;padding:3px 4px;">'+esc(String(p.age))+'</td>';
-        html += '<td style="text-align:center;padding:3px 4px;">'+esc(p.height)+'</td>';
-        html += '<td style="text-align:center;padding:3px 4px;">'+esc(p.weight)+'</td>';
-        html += '<td style="text-align:center;padding:3px 4px;">'+esc(p.exp)+'</td>';
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(p.id)+'\',\''+esc(p.name)+'\')">';
+        html += '<td style="padding:4px 6px;color:var(--text-dim);">'+esc(p.jersey)+'</td>';
+        html += '<td style="padding:4px 6px;display:flex;align-items:center;gap:5px;">';
+        if (p.headshot) html += '<img src="'+esc(p.headshot)+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\'" />';
+        html += '<span style="font-weight:600;font-size:.75rem;">'+esc(p.name)+'</span></td>';
+        html += '<td style="text-align:center;padding:4px 6px;">'+esc(p.pos)+'</td>';
+        html += '<td style="text-align:center;padding:4px 6px;">'+esc(String(p.age))+'</td>';
+        html += '<td style="text-align:center;padding:4px 6px;">'+esc(p.height)+'</td>';
+        html += '<td style="text-align:center;padding:4px 6px;">'+esc(p.weight)+'</td>';
+        html += '<td style="text-align:center;padding:4px 6px;">'+esc(p.exp)+'</td>';
         html += '</tr>';
       });
       html += '</table></div>';
@@ -13076,6 +13356,25 @@ window.spFetchTeamRosterDetail = function(league, teamId, teamName) {
     .catch(function(err) {
       el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Roster failed: '+esc(err.message)+'</div>';
     });
+};
+
+// NCAA team filter: all, top25, or conf:ConferenceName
+window._spFilterTeams = function(filter) {
+  var tiles = document.querySelectorAll('.sp-team-tile');
+  tiles.forEach(function(tile) {
+    if (filter === 'all') {
+      tile.style.display = '';
+    } else if (filter === 'top25') {
+      var rank = parseInt(tile.getAttribute('data-rank'));
+      tile.style.display = (rank && rank <= 25) ? '' : 'none';
+    } else if (filter.indexOf('conf:') === 0) {
+      var conf = filter.substring(5);
+      tile.style.display = (tile.getAttribute('data-conf') === conf) ? '' : 'none';
+    }
+  });
+  // Update conference select to match
+  var confSel = document.getElementById('spConfFilter');
+  if (confSel && filter.indexOf('conf:') !== 0) confSel.value = 'all';
 };
 
 
