@@ -1920,7 +1920,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   .page-tab { font-size: .46rem !important; padding: 2px 6px !important; }
   .page-tab-add { font-size: .52rem !important; }
 
-  /* ═══ MOBILE SIMPLIFIED MODE ═══ */
+  /* ═══ MOBILE SIMPLIFIED MODE — mirrors desktop simplified ═══ */
   .workspace.simplified-mode {
     display: flex !important;
     flex-direction: column !important;
@@ -1928,30 +1928,67 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     grid-template-rows: unset !important;
     gap: 0 !important;
     overflow: hidden !important;
+    background: var(--bg) !important;
   }
   .workspace.simplified-mode .pane:not(#q-claude) { display: none !important; }
+  .workspace.simplified-mode .mob-control-bar { display: none !important; }
+  .workspace.simplified-mode .mob-split-handle { display: none !important; }
+  .workspace.simplified-mode #simplifiedOutput { display: none !important; }
+
+  /* Header: show scheme slider + dark/light + exit on mobile simplified */
+  .workspace.simplified-mode ~ .bogus-never-match,
+  .simplified-header.header .header-toggles {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    align-items: center !important;
+  }
+  /* But hide things that aren't relevant on mobile simplified */
+  .simplified-header .fun-btn-wrap,
+  .simplified-header #funPlayBtn,
+  .simplified-header #funEditBtn,
+  .simplified-header #wsToggle,
+  .simplified-header #wsPanel,
+  .simplified-header #wsSettingsBtn,
+  .simplified-header #helpBtn,
+  .simplified-header #fsBtn { display: none !important; }
+  /* Keep: schemeSlider, toggleDark, userExitBtn/logoutBtn, userNameDisplay, idleTimerDisplay */
+
+  /* q-claude: robot + input top section */
   .workspace.simplified-mode #q-claude {
     display: flex !important;
     flex-direction: column !important;
     flex: 0 0 auto !important;
-    max-height: 20% !important;
     grid-column: unset !important; grid-row: unset !important;
     grid-template-columns: unset !important; grid-template-rows: unset !important;
     min-height: unset !important;
+    max-height: none !important;
+    border: none !important; border-radius: 0 !important; box-shadow: none !important;
   }
   .workspace.simplified-mode #q-claude > .p-head { display: none !important; }
   .workspace.simplified-mode #q-claude > .ai-actions-bar { display: none !important; }
-  .workspace.simplified-mode #simpBotArea { display: none !important; }
+
+  /* Robot: show it, horizontal layout with input */
+  .workspace.simplified-mode #simpBotArea {
+    display: flex !important;
+    width: 100% !important; height: 22vh !important;
+    flex-shrink: 0 !important;
+  }
+  .workspace.simplified-mode #simpBotArea .robot-scene-wrapper {
+    width: 100% !important; height: 100% !important;
+  }
+
+  /* p-body: holds the input */
   .workspace.simplified-mode #q-claude > .p-body {
     grid-column: unset !important; grid-row: unset !important;
     border-left: none !important; padding: 6px 8px !important;
-    overflow: visible !important;
+    overflow: visible !important; flex: 0 0 auto !important;
   }
   .workspace.simplified-mode #q-claude .ai-input-row {
-    max-height: 40vh !important; border-radius: 12px !important;
+    max-height: 30vh !important; border-radius: 12px !important;
   }
   .workspace.simplified-mode #q-claude #aiInput {
-    padding: 10px 12px 36px 12px !important; min-height: 60px !important;
+    padding: 10px 12px 36px 12px !important; min-height: 50px !important;
     font-size: .76rem !important;
   }
   .workspace.simplified-mode #q-claude .ai-input-row #aiSend,
@@ -1959,12 +1996,16 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     bottom: -12px !important; font-size: .6rem !important; padding: 5px 14px !important;
   }
   .workspace.simplified-mode #q-claude .ai-input-row #aiNudge { right: 80px !important; }
+
+  /* Toolbar: mid bar */
   .workspace.simplified-mode > #simpToolbar {
     display: flex !important;
     flex: 0 0 auto !important;
     grid-column: unset !important; grid-row: unset !important;
-    padding: 10px 8px 4px !important;
+    padding: 8px 8px 4px !important;
   }
+
+  /* Output: fills remaining space at bottom */
   .workspace.simplified-mode > #simpOutput {
     display: flex !important;
     flex: 1 !important;
@@ -1977,9 +2018,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     display: flex !important; flex-direction: column !important;
     flex: 1 !important; min-height: 0 !important;
   }
-  .workspace.simplified-mode #simplifiedOutput { display: none !important; }
-  .workspace.simplified-mode .mob-control-bar { display: none !important; }
-  .workspace.simplified-mode .mob-split-handle { display: none !important; }
 
   /* ═══ AUTH GATE MOBILE ═══ */
   #authGate { padding: 8px; align-items: flex-start; padding-top: 40px; }
