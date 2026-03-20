@@ -632,6 +632,18 @@ body.light .fun-btn { background: var(--accent); }
   transition: all .12s ease;
 }
 .p-btn:hover { color: var(--text); background: rgba(255,255,255,.08); }
+.moneybag-icon {
+  display: inline-block; width: 14px; height: 14px; position: relative; vertical-align: middle;
+}
+.moneybag-icon::before {
+  content: ''; display: block; width: 10px; height: 8px; position: absolute; bottom: 0; left: 2px;
+  border: 1.2px solid currentColor; border-radius: 0 0 5px 5px; border-top: none;
+  background: linear-gradient(to bottom, transparent 0%, currentColor 100%); opacity: .15;
+}
+.moneybag-icon::after {
+  content: '$'; display: block; font-size: 8px; font-weight: 800; text-align: center;
+  line-height: 14px; color: currentColor; position: absolute; inset: 0;
+}
 .p-body { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; background: var(--panel); }
 
 /* ═══ TOOLBAR (shared) ═══ */
@@ -2533,8 +2545,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <input type="checkbox" id="aiDeepToggle" style="width:12px;height:12px;cursor:pointer;">
         <span>Deep</span>
       </label>
-      <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
-      <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">$</button>
+      <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;"><span class="moneybag-icon"></span></button>
+      <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;"><span class="moneybag-icon"></span></button>
       <button id="aiAuditBtn" class="p-btn" title="Full inquiry audit log — all users (admin)" style="font-size:.55rem;">Audit</button>
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
       <button id="aiAccessReqBtn" class="p-btn" title="User access requests (admin)" style="font-size:.55rem;">Requests</button>
@@ -4373,6 +4385,7 @@ const _ic = (function() {
     idea:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="6" cy="5" r="3.5" stroke="${c}" stroke-width="1.1"/><line x1="4.5" y1="10" x2="7.5" y2="10" stroke="${c}" stroke-width="1" stroke-linecap="round"/><path d="M4.5 8.5c0-1 .5-1.5 1.5-2.5s1.5-1.5 1.5-2.5" stroke="${c}" stroke-width=".8" opacity=".4"/></svg>`,
     dice:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5" stroke="${c}" stroke-width="1.1"/><circle cx="4" cy="4" r=".8" fill="${c}"/><circle cx="8" cy="4" r=".8" fill="${c}"/><circle cx="4" cy="8" r=".8" fill="${c}"/><circle cx="8" cy="8" r=".8" fill="${c}"/></svg>`,
     runner:    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="7" cy="2.5" r="1.5" fill="${c}" opacity=".5"/><path d="M4 11l2-3.5 1.5 1L9 6l-1.5-1.5L6 6 4 5l-1.5 2" stroke="${c}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    moneybag:  `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M4.5 1.5L6 3.5l1.5-2" stroke="${c}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 4c-1 1.5-1.5 3-1.5 4.5C1.5 10.5 3.5 11.5 6 11.5s4.5-1 4.5-3C10.5 7 10 5.5 9 4z" stroke="${c}" stroke-width="1.1" stroke-linejoin="round"/><path d="M5.2 7c0-.5.3-.8.8-.8s.8.3.8.8-.3.7-.8 1-.8.5-.8 1 .3.8.8.8.8-.3.8-.8" stroke="${c}" stroke-width=".8" stroke-linecap="round" fill="none"/></svg>`,
     bomb:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="5.5" cy="7" r="4" stroke="${c}" stroke-width="1.1"/><line x1="8" y1="4" x2="10" y2="2" stroke="${c}" stroke-width="1.1" stroke-linecap="round"/><circle cx="10.5" cy="1.5" r=".8" fill="${c}" opacity=".5"/></svg>`,
     live:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="6" cy="6" r="3" fill="${c}" opacity=".5"/><circle cx="6" cy="6" r="5" stroke="${c}" stroke-width="1" opacity=".3"/></svg>`,
   };
@@ -19568,165 +19581,152 @@ $('#aiInfoBtn').onclick = () => {
   const listStyle = 'margin:2px 0 2px 12px;padding:0;';
   const liStyle = 'margin:2px 0;';
 
-  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
-    '<span style="font-weight:700;font-size:.8rem;">Claude Agent — Capabilities & Settings</span>' +
+  // Color constants for the persona skill matrix
+  var _pc = { gen: '#6366f1', sec: '#10b981', fin: '#3b82f6', gam: '#f59e0b', con: '#ec4899', geo: '#8b5cf6', mm: '#ef4444' };
+  var _dot = function(c) { return '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+c+';margin:0 1px;"></span>'; };
+  var _bar = function(c, w) { return '<div style="height:4px;width:'+w+'%;background:'+c+';border-radius:2px;"></div>'; };
+
+  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
+    '<span style="font-weight:700;font-size:.78rem;">Workspace Overview</span>' +
     '<button onclick="this.closest(\'#aiInfoPanel\').remove()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;">&times;</button></div>' +
 
-    // ── KEY USE CASES ──
-    '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Key Use Cases</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">' +
-    '<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">' +
-      '<div style="font-weight:700;font-size:.6rem;color:#6366f1;margin-bottom:3px;">Investment Research</div>' +
-      '<div style="font-size:.52rem;color:var(--text-dim);">Thesis building, scenario modeling, sentiment analysis, multi-source news aggregation</div></div>' +
-    '<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">' +
-      '<div style="font-weight:700;font-size:.6rem;color:#10b981;margin-bottom:3px;">Data & Visualization</div>' +
-      '<div style="font-size:.52rem;color:var(--text-dim);">Spreadsheet tables, comparison charts, whiteboard diagrams, concept maps</div></div>' +
-    '<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">' +
-      '<div style="font-weight:700;font-size:.6rem;color:#f59e0b;margin-bottom:3px;">Content & Notes</div>' +
-      '<div style="font-size:.52rem;color:var(--text-dim);">Professional note-taking with structured headings, bullet points, research consolidation</div></div>' +
-    '<div style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel-inset);">' +
-      '<div style="font-weight:700;font-size:.6rem;color:#8b5cf6;margin-bottom:3px;">Workspace Cleanup</div>' +
-      '<div style="font-size:.52rem;color:var(--text-dim);">AI-powered layout optimization, typography fixing, design quality enforcement with undo</div></div>' +
-    '</div></div>' +
-
-    // ── CAPABILITIES ──
-    '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Capabilities</div>' +
-
-    '<div style="' + subHeadStyle + '">Reading & Analysis</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Read spreadsheet data, notes, graph expressions, concept maps, whiteboard layer state</li>' +
-    '<li style="' + liStyle + '">Fetch live stock prices (Yahoo Finance) and Robinhood authenticated data (positions, orders, fundamentals)</li>' +
-    '<li style="' + liStyle + '">Multi-source news pipeline — Google RSS, Yahoo RSS, GNews API, NewsAPI with link validation &amp; scoring</li>' +
-    '<li style="' + liStyle + '">Deep research mode — aggregates multiple sources with automatic Tier 3 escalation</li>' +
-    '</ul>' +
-
-    '<div style="' + subHeadStyle + '">Writing & Creation</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Write cells, formulas, and formatted tables to spreadsheet (auto-creates tabs)</li>' +
-    '<li style="' + liStyle + '">Write rich, professionally formatted notes with auto-tab creation</li>' +
-    '<li style="' + liStyle + '">Add draggable/resizable text, images, and charts to the whiteboard as layers</li>' +
-    '<li style="' + liStyle + '">Build concept map nodes and connections</li>' +
-    '<li style="' + liStyle + '">Plot math expressions, manage stock watchlist &amp; comparison charts</li>' +
-    '<li style="' + liStyle + '">Generate memes via imgflip API (12+ templates)</li>' +
-    '</ul>' +
-
-    '<div style="' + subHeadStyle + '">Analysis Tools</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Bull/base/bear scenario projections for any stock</li>' +
-    '<li style="' + liStyle + '">Investment thesis synthesis (price + fundamentals + news)</li>' +
-    '<li style="' + liStyle + '">Sentiment scoring with multi-source headline analysis</li>' +
-    '<li style="' + liStyle + '">Template scaffolds: stock comparison, earnings, portfolio, macro dashboard, scenario model</li>' +
-    '<li style="' + liStyle + '">Pricing/business model analysis with unit economics</li>' +
-    '</ul></div>' +
-
-    // ── CLEANUP BOT ──
-    '<div style="' + sectionStyle + ';padding:8px 10px;border:1px solid #8b5cf630;border-radius:8px;background:#8b5cf608;">' +
-    '<div style="' + headStyle + '">Cleanup Bot</div>' +
-    '<p style="font-size:.58rem;color:var(--text-dim);margin:0 0 6px;">The cleanup button (broom icon) runs an AI-powered design quality pass on the active tab. It analyzes layout, typography, and visual hierarchy, then applies fixes with full undo support.</p>' +
-    '<div style="' + subHeadStyle + '">What It Fixes</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '"><b>Whiteboard:</b> Repositions overlapping layers, resizes text boxes to prevent overflow, grid-aligns elements, enforces consistent sizing, applies soft color palettes</li>' +
-    '<li style="' + liStyle + '"><b>Concept Map:</b> Distributes nodes with breathing room, resolves overlaps, enforces hierarchy flow (root top, children below)</li>' +
-    '<li style="' + liStyle + '"><b>Notepad:</b> Converts messy text into professional format with &lt;h2&gt; section headings, &lt;h4&gt; sub-labels, bullet lists, blockquote callouts, and &lt;hr&gt; dividers. Removes inline style overrides.</li>' +
-    '<li style="' + liStyle + '"><b>Scratch Sheet:</b> Flags broken references, normalizes cell formatting</li>' +
-    '</ul>' +
-    '<div style="' + subHeadStyle + '">Design Preferences</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Text must never extend outside its container — the #1 defect it targets</li>' +
-    '<li style="' + liStyle + '">Fonts: 11-14px body, 16-20px titles, system sans-serif stack</li>' +
-    '<li style="' + liStyle + '">Colors: muted, sophisticated palette (indigo, violet, cyan, emerald, amber) — never harsh primaries</li>' +
-    '<li style="' + liStyle + '">Minimum 16px spacing between elements, 20px grid gutters on whiteboard</li>' +
-    '<li style="' + liStyle + '">Fully undoable — snapshot taken before every cleanup pass</li>' +
-    '</ul></div>' +
-
-    // ── PERSONAS ──
-    '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Persona Modes</div>' +
-    '<p style="font-size:.58rem;color:var(--text-dim);margin:0 0 6px;">Each persona applies a tailored system prompt that shapes tone, focus, and output style. Switch via the dropdown or say "switch to [persona]".</p>' +
-    '<table style="width:100%;font-size:.56rem;border-collapse:collapse;">' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;width:90px;color:#6366f1;">Default</td><td style="padding:3px 0;' + dimStyle + '">Balanced general-purpose assistant. Good for multi-step tasks, workspace management, and conversational Q&A.</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;color:#10b981;">Analyst</td><td style="padding:3px 0;' + dimStyle + '">Data-driven financial analyst. Focuses on metrics, comparisons, evidence-based conclusions. Outputs structured tables and theses.</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;color:#f59e0b;">Creative Writer</td><td style="padding:3px 0;' + dimStyle + '">Narrative-focused writer. Great for research summaries, presentation copy, and storytelling with flair. Uses vivid language.</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;color:#06b6d4;">Tutor</td><td style="padding:3px 0;' + dimStyle + '">Patient explainer. Breaks down complex topics step-by-step. Good for learning financial concepts, formulas, and market mechanics.</td></tr>' +
-    '<tr><td style="padding:3px 0;font-weight:700;color:#ef4444;">Devil\\\'s Advocate</td><td style="padding:3px 0;' + dimStyle + '">Challenges assumptions and stress-tests ideas. Great for risk assessment, counter-arguments, and hardening investment theses.</td></tr>' +
-    '</table>' +
-    '<p style="font-size:.5rem;color:var(--text-dim);margin:6px 0 0;font-style:italic;">Admin users can edit persona system prompts and create custom personas via the Personas panel.</p>' +
+    // ═══ WHAT THIS IS ═══
+    '<div style="'+sectionStyle+'font-size:.58rem;color:var(--text-dim);line-height:1.6;">' +
+    'An AI-powered workspace combining <b style="color:var(--text);">research, modeling, visualization, and analysis</b> across financial markets, sports analytics, and geopolitics. ' +
+    'Seven specialized personas share a common toolset but apply different reasoning frameworks and output styles. They hand off context to each other for multi-angle analysis.' +
     '</div>' +
 
-    // ── WHAT YOU CAN ASK ──
-    '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Example Prompts</div>' +
-    '<div style="' + subHeadStyle + '">Works Great</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">"Analyze AAPL and build me an investment thesis" <span style="' + dimStyle + '">(auto Tier 3 — reads prices, fundamentals, news, writes thesis to notepad + sheet)</span></li>' +
-    '<li style="' + liStyle + '">"Compare MSFT, GOOG, AMZN in a table with key metrics" <span style="' + dimStyle + '">(builds formatted comparison table)</span></li>' +
-    '<li style="' + liStyle + '">"Run bull/base/bear scenarios for TSLA" <span style="' + dimStyle + '">(generates projections, charts, summary)</span></li>' +
-    '<li style="' + liStyle + '">"Research the latest on AI chip stocks" <span style="' + dimStyle + '">(multi-source news + sentiment scoring)</span></li>' +
-    '<li style="' + liStyle + '">"Create a portfolio tracker template" <span style="' + dimStyle + '">(scaffolds structured sheet)</span></li>' +
-    '<li style="' + liStyle + '">"Draw a summary card on the whiteboard for my NVDA thesis" <span style="' + dimStyle + '">(whiteboard layers)</span></li>' +
-    '<li style="' + liStyle + '">"What sector is AAPL in?" <span style="' + dimStyle + '">(auto Tier 1 / Haiku — fast, cheap)</span></li>' +
-    '</ul>' +
-    '<div style="' + subHeadStyle + '">May Need Guidance</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '"><b>Multi-step visual layouts</b> — Complex whiteboard compositions may need 2-3 prompts to refine placement. Use cleanup bot after.</li>' +
-    '<li style="' + liStyle + '"><b>Very large data sets</b> — Sheet writes over ~200 rows may truncate. Break into multiple writes or use templates.</li>' +
-    '<li style="' + liStyle + '"><b>Real-time data freshness</b> — Stock prices cache for 5 minutes. Say "refresh" to force a new fetch.</li>' +
-    '<li style="' + liStyle + '"><b>Cross-tab coordination</b> — Asking to "put the chart on the whiteboard and the data in the sheet" works but may need a nudge if it stalls on one.</li>' +
-    '<li style="' + liStyle + '"><b>News availability</b> — Some RSS sources may be temporarily unavailable. The pipeline auto-falls back through tiers.</li>' +
-    '<li style="' + liStyle + '"><b>Concept map layouts</b> — Auto-placed nodes may cluster. Use cleanup bot or manually drag to arrange.</li>' +
-    '</ul></div>' +
+    // ═══ PERSONA SYSTEM — VISUAL MATRIX ═══
+    '<div style="'+sectionStyle+'">' +
+    '<div style="'+headStyle+'">Persona System</div>' +
+    '<p style="font-size:.52rem;color:var(--text-dim);margin:0 0 6px;">Switch via dropdown. Each shapes reasoning, output style, and data scope. Personas with overlapping domains hand off to each other.</p>' +
 
-    // ── TIERED EXECUTION ──
-    '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Tiered Agent Execution</div>' +
-    '<table style="width:100%;font-size:.56rem;border-collapse:collapse;">' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;width:70px;color:#10b981;">Tier 1</td><td style="padding:3px 0;font-weight:600;width:60px;">Fast</td><td style="padding:3px 0;' + dimStyle + '">Haiku — simple Q&A, definitions, quick lookups. Lowest cost, sub-second.</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:700;color:#6366f1;">Tier 2</td><td style="padding:3px 0;font-weight:600;">Standard</td><td style="padding:3px 0;' + dimStyle + '">Selected model — tool-using tasks, writes, analysis. Balanced cost/quality.</td></tr>' +
-    '<tr><td style="padding:3px 0;font-weight:700;color:#f59e0b;">Tier 3</td><td style="padding:3px 0;font-weight:600;">Deep</td><td style="padding:3px 0;' + dimStyle + '">Auto-escalated for thesis, deep research, multi-source. Higher iteration limit + extended prompts.</td></tr>' +
-    '</table>' +
-    '<p style="font-size:.5rem;color:var(--text-dim);margin:4px 0 0;font-style:italic;">Tasks auto-classify. Override with the Deep toggle for forced Tier 3. Nudge button retries stalled tasks.</p>' +
+    // Persona cards - compact grid
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;">' +
+    // General
+    '<div style="padding:5px 7px;border:1px solid var(--border);border-radius:5px;border-left:3px solid '+_pc.gen+';">' +
+      '<div style="font-weight:700;font-size:.56rem;color:'+_pc.gen+';">General Assistant</div>' +
+      '<div style="font-size:.46rem;color:var(--text-dim);">Multi-step tasks, workspace Q&A, conversational</div></div>' +
+    // Securities Analyst
+    '<div style="padding:5px 7px;border:1px solid var(--border);border-radius:5px;border-left:3px solid '+_pc.sec+';">' +
+      '<div style="font-weight:700;font-size:.56rem;color:'+_pc.sec+';">Securities Analyst</div>' +
+      '<div style="font-size:.46rem;color:var(--text-dim);">Equity research, thesis, positions, live sheet models</div></div>' +
+    // Financial Modeler
+    '<div style="padding:5px 7px;border:1px solid var(--border);border-radius:5px;border-left:3px solid '+_pc.fin+';">' +
+      '<div style="font-weight:700;font-size:.56rem;color:'+_pc.fin+';">Financial Modeler</div>' +
+      '<div style="font-size:.46rem;color:var(--text-dim);">Scalable sheet models, =STOCK() formulas, DCF/templates</div></div>' +
+    // Gambling Edge
+    '<div style="padding:5px 7px;border:1px solid var(--border);border-radius:5px;border-left:3px solid '+_pc.gam+';">' +
+      '<div style="font-weight:700;font-size:.56rem;color:'+_pc.gam+';">Gambling Edge</div>' +
+      '<div style="font-size:.46rem;color:var(--text-dim);">Live odds, line shopping, player props, Kelly sizing</div></div>' +
+    // Contrarian Statistician
+    '<div style="padding:5px 7px;border:1px solid var(--border);border-radius:5px;border-left:3px solid '+_pc.con+';">' +
+      '<div style="font-weight:700;font-size:.56rem;color:'+_pc.con+';">Contrarian Statistician</div>' +
+      '<div style="font-size:.46rem;color:var(--text-dim);">Probability gaps, EV analysis, RLM signals, crowding</div></div>' +
+    // Geopolitical
+    '<div style="padding:5px 7px;border:1px solid var(--border);border-radius:5px;border-left:3px solid '+_pc.geo+';">' +
+      '<div style="font-weight:700;font-size:.56rem;color:'+_pc.geo+';">Geopolitical Strategist</div>' +
+      '<div style="font-size:.46rem;color:var(--text-dim);">Power structures, sector exposure, alliance mapping</div></div>' +
     '</div>' +
 
-    // ── CONTEXT & CUSTOMIZATION ──
-    '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Context & Customization</div>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '"><b>Context slots</b> — Persistent instructions injected into every request. Global slots apply everywhere; per-persona slots apply only when that persona is active.</li>' +
-    '<li style="' + liStyle + '"><b>Model selection</b> — Haiku (speed), Sonnet (balance), Opus (depth) via the model dropdown</li>' +
-    '<li style="' + liStyle + '"><b>Custom tools</b> — Extend AGENT_TOOLS with domain-specific actions (CRM lookups, internal APIs)</li>' +
-    '<li style="' + liStyle + '"><b>Template scaffolds</b> — Add new template types for industry-specific workflows</li>' +
-    '<li style="' + liStyle + '"><b>Character style</b> — Toggle between Office and Genie appearance. Customize ties and background scenes.</li>' +
-    '</ul></div>' +
+    // ── SKILL OVERLAP MATRIX ──
+    '<div style="'+subHeadStyle+'">Skill Coverage Matrix</div>' +
+    '<table style="width:100%;font-size:.48rem;border-collapse:collapse;margin-bottom:6px;">' +
+    '<tr style="border-bottom:1px solid var(--border);">' +
+      '<td style="padding:2px 0;width:35%;font-weight:600;">Capability</td>' +
+      '<td style="padding:2px;text-align:center;width:9%;color:'+_pc.gen+';" title="General">GEN</td>' +
+      '<td style="padding:2px;text-align:center;width:9%;color:'+_pc.sec+';" title="Securities">SEC</td>' +
+      '<td style="padding:2px;text-align:center;width:9%;color:'+_pc.fin+';" title="Fin Model">FIN</td>' +
+      '<td style="padding:2px;text-align:center;width:9%;color:'+_pc.gam+';" title="Gambling">GAM</td>' +
+      '<td style="padding:2px;text-align:center;width:9%;color:'+_pc.con+';" title="Contrarian">CON</td>' +
+      '<td style="padding:2px;text-align:center;width:9%;color:'+_pc.geo+';" title="Geopolitical">GEO</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;">Live stock data</td>' +
+      '<td style="text-align:center;">'+_dot(_pc.gen)+'</td><td style="text-align:center;">'+_dot(_pc.sec)+'</td><td style="text-align:center;">'+_dot(_pc.fin)+'</td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;">'+_dot(_pc.con)+'</td><td style="text-align:center;"></td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;">Live sports/odds</td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td>' +
+      '<td style="text-align:center;">'+_dot(_pc.gam)+'</td><td style="text-align:center;">'+_dot(_pc.con)+'</td><td style="text-align:center;"></td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;">Sheet model building</td>' +
+      '<td style="text-align:center;">'+_dot(_pc.gen)+'</td><td style="text-align:center;">'+_dot(_pc.sec)+'</td><td style="text-align:center;">'+_dot(_pc.fin)+'</td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;">Valuation / DCF</td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;">'+_dot(_pc.sec)+'</td><td style="text-align:center;">'+_dot(_pc.fin)+'</td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;">Thesis / research</td>' +
+      '<td style="text-align:center;">'+_dot(_pc.gen)+'</td><td style="text-align:center;">'+_dot(_pc.sec)+'</td><td style="text-align:center;"></td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;">'+_dot(_pc.geo)+'</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;">Probabilistic reasoning</td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;">'+_dot(_pc.sec)+'</td><td style="text-align:center;"></td>' +
+      '<td style="text-align:center;">'+_dot(_pc.gam)+'</td><td style="text-align:center;">'+_dot(_pc.con)+'</td><td style="text-align:center;"></td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;">Macro / geopolitics</td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;">'+_dot(_pc.con)+'</td><td style="text-align:center;">'+_dot(_pc.geo)+'</td></tr>' +
+    '<tr><td style="padding:2px 0;">Player analytics</td>' +
+      '<td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td>' +
+      '<td style="text-align:center;">'+_dot(_pc.gam)+'</td><td style="text-align:center;">'+_dot(_pc.con)+'</td><td style="text-align:center;"></td></tr>' +
+    '</table>' +
 
-    // ── MANAGING YOUR AGENT ──
-    '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Controls Reference</div>' +
-    '<table style="width:100%;font-size:.56rem;border-collapse:collapse;">' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;width:90px;">Clear Chat</td><td style="padding:3px 0;' + dimStyle + '">Resets conversation context (model forgets current session)</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Save Log</td><td style="padding:3px 0;' + dimStyle + '">Saves session to log, or export all logs to notepad tabs</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Actions</td><td style="padding:3px 0;' + dimStyle + '">View and replay past tool outputs (sheet writes, notes, graphs)</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Personas</td><td style="padding:3px 0;' + dimStyle + '">Switch personas or edit their system prompts (admin)</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Context</td><td style="padding:3px 0;' + dimStyle + '">Manage persistent instruction slots (global or per-persona)</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Cleanup</td><td style="padding:3px 0;' + dimStyle + '">AI design-quality pass on active tab (Whiteboard, Concept Map, Notepad, Sheet). Full undo.</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">$ Cost</td><td style="padding:3px 0;' + dimStyle + '">Track API token usage and cost with tier-aware estimates</td></tr>' +
-    '<tr style="border-bottom:1px solid var(--border);"><td style="padding:3px 0;font-weight:600;">Users</td><td style="padding:3px 0;' + dimStyle + '">Admin dashboard — per-user usage stats</td></tr>' +
-    '<tr><td style="padding:3px 0;font-weight:600;">Full Reset</td><td style="padding:3px 0;' + dimStyle + '">Clear all localStorage to reset agent data, logs, and preferences</td></tr>' +
+    // ── HANDOFF WORKFLOWS ──
+    '<div style="'+subHeadStyle+'">Handoff Workflows</div>' +
+    '<div style="font-size:.48rem;color:var(--text-dim);line-height:1.7;padding:4px 0;">' +
+    '<div>'+_dot(_pc.geo)+' Geopolitical <span style="color:var(--text-dim);">&#8594;</span> '+_dot(_pc.sec)+' Securities &mdash; thesis + exposed sectors &#8594; specific positions</div>' +
+    '<div>'+_dot(_pc.con)+' Contrarian <span style="color:var(--text-dim);">&#8594;</span> '+_dot(_pc.sec)+' Securities &mdash; statistical mispricing &#8594; fundamental validation</div>' +
+    '<div>'+_dot(_pc.sec)+' Securities <span style="color:var(--text-dim);">&#8594;</span> '+_dot(_pc.fin)+' Modeler &mdash; research assumptions &#8594; scalable sheet model</div>' +
+    '<div>'+_dot(_pc.con)+' Contrarian <span style="color:var(--text-dim);">&#8594;</span> '+_dot(_pc.gam)+' Gambling &mdash; RLM signals &#8594; actionable picks with lines</div>' +
+    '</div>' +
+    '</div>' +
+
+    // ═══ PRODUCTIVITY MAP ═══
+    '<div style="'+sectionStyle+'">' +
+    '<div style="'+headStyle+'">Personal Productivity Map</div>' +
+    '<p style="font-size:.5rem;color:var(--text-dim);margin:0 0 6px;">How workspace tools map to common work activities</p>' +
+    '<table style="width:100%;font-size:.5rem;border-collapse:collapse;">' +
+    '<tr style="border-bottom:1px solid var(--border);font-weight:600;">' +
+      '<td style="padding:3px 0;width:32%;">Activity</td><td style="padding:3px 0;width:33%;">Primary Tool</td><td style="padding:3px 0;">Best Persona</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;color:var(--text);">Stock screening</td><td style="padding:2px 0;'+dimStyle+'">Sheet + =STOCK()</td><td style="padding:2px 0;">'+_dot(_pc.fin)+' Modeler</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;color:var(--text);">Investment thesis</td><td style="padding:2px 0;'+dimStyle+'">Notes + Sheet</td><td style="padding:2px 0;">'+_dot(_pc.sec)+' Securities</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;color:var(--text);">Financial modeling</td><td style="padding:2px 0;'+dimStyle+'">Sheet (templates)</td><td style="padding:2px 0;">'+_dot(_pc.fin)+' Modeler</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;color:var(--text);">Comp analysis</td><td style="padding:2px 0;'+dimStyle+'">Sheet + create_table</td><td style="padding:2px 0;">'+_dot(_pc.sec)+' Securities / '+_dot(_pc.fin)+' Modeler</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;color:var(--text);">News research</td><td style="padding:2px 0;'+dimStyle+'">Deep research + Notes</td><td style="padding:2px 0;">'+_dot(_pc.gen)+' General</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;color:var(--text);">Game day picks</td><td style="padding:2px 0;'+dimStyle+'">Sports tools + Chat</td><td style="padding:2px 0;">'+_dot(_pc.gam)+' Gambling</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;color:var(--text);">Edge detection</td><td style="padding:2px 0;'+dimStyle+'">Odds + Standings</td><td style="padding:2px 0;">'+_dot(_pc.con)+' Contrarian</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;color:var(--text);">Macro strategy</td><td style="padding:2px 0;'+dimStyle+'">Notes + Tension map</td><td style="padding:2px 0;">'+_dot(_pc.geo)+' Geopolitical</td></tr>' +
+    '<tr style="border-bottom:1px solid rgba(128,128,128,.06);"><td style="padding:2px 0;color:var(--text);">Visual diagrams</td><td style="padding:2px 0;'+dimStyle+'">Whiteboard + Concept Map</td><td style="padding:2px 0;">'+_dot(_pc.gen)+' General</td></tr>' +
+    '<tr><td style="padding:2px 0;color:var(--text);">Layout cleanup</td><td style="padding:2px 0;'+dimStyle+'">Cleanup Bot</td><td style="padding:2px 0;">'+_dot(_pc.gen)+' Any</td></tr>' +
     '</table></div>' +
 
-    // ── STORED DATA ──
-    '<div style="' + sectionStyle + '">' +
-    '<div style="' + headStyle + '">Stored Data</div>' +
-    '<p style="' + dimStyle + 'margin:0 0 4px;font-size:.55rem;">All data stays in your browser. API credentials are managed server-side via the secure proxy — never stored client-side.</p>' +
-    '<ul style="' + listStyle + '">' +
-    '<li style="' + liStyle + '">Chat logs, session history, saved tool actions</li>' +
-    '<li style="' + liStyle + '">Sheet data, notepad content, graph expressions, concept maps</li>' +
-    '<li style="' + liStyle + '">Whiteboard pages with multi-layer state (images, text, charts, tables)</li>' +
-    '<li style="' + liStyle + '">Persona configs, context slots, task attempt history</li>' +
-    '<li style="' + liStyle + '">Robot style, scene, theme, and layout preferences</li>' +
-    '</ul>' +
-    '<div style="margin-top:8px;"><button onclick="if(confirm(\'Clear ALL stored data? This cannot be undone.\')){ localStorage.clear(); location.reload(); }" style="font-size:.58rem;padding:3px 10px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:4px;cursor:pointer;">Reset All Data</button></div>' +
+    // ═══ TOOLS ═══
+    '<div style="'+sectionStyle+'">' +
+    '<div style="'+headStyle+'">Core Tools</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:.48rem;">' +
+    '<div><b style="color:var(--accent);">Read:</b> <span style="'+dimStyle+'">sheet, notes, stocks, news, portfolio, scores, odds, standings, players</span></div>' +
+    '<div><b style="color:var(--accent);">Write:</b> <span style="'+dimStyle+'">cells, tables, notes, whiteboard, concept map, graph</span></div>' +
+    '<div><b style="color:var(--accent);">Analyze:</b> <span style="'+dimStyle+'">scenarios, thesis, sentiment, pricing, deep research</span></div>' +
+    '<div><b style="color:var(--accent);">Format:</b> <span style="'+dimStyle+'">bold, colors, backgrounds on cells; HTML in notes</span></div>' +
+    '<div><b style="color:var(--accent);">Sports:</b> <span style="'+dimStyle+'">scores, odds, standings, player stats, gamelogs, bracket</span></div>' +
+    '<div><b style="color:var(--accent);">Track:</b> <span style="'+dimStyle+'">contrarian signals, geo threads, tension map, watchlist</span></div>' +
+    '</div></div>' +
+
+    // ═══ EXECUTION & CONTROLS ═══
+    '<div style="'+sectionStyle+'">' +
+    '<div style="'+headStyle+'">Execution & Controls</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:.48rem;margin-bottom:6px;">' +
+    '<div><b style="color:#10b981;">Tier 1</b> <span style="'+dimStyle+'">Haiku &mdash; fast Q&A, lookups</span></div>' +
+    '<div><b style="color:#6366f1;">Tier 2</b> <span style="'+dimStyle+'">Selected model &mdash; analysis, writes</span></div>' +
+    '<div><b style="color:#f59e0b;">Tier 3</b> <span style="'+dimStyle+'">Deep &mdash; multi-source, thesis</span></div>' +
+    '<div><b style="color:var(--text-dim);">Auto</b> <span style="'+dimStyle+'">Tasks auto-classify by complexity</span></div>' +
+    '</div>' +
+    '<div style="font-size:.48rem;'+dimStyle+'">' +
+    '<b>Controls:</b> Clear (reset chat) &bull; History (session logs) &bull; Actions (replay) &bull; Sources (API health) &bull; ' +
+    'Context (persistent slots) &bull; Cleanup (design pass) &bull; Deep toggle (force Tier 3) &bull; Nudge (retry)</div>' +
+    '</div>' +
+
+    // ═══ DATA ═══
+    '<div style="'+sectionStyle+'">' +
+    '<div style="'+headStyle+'">Data & Storage</div>' +
+    '<div style="font-size:.48rem;'+dimStyle+'margin-bottom:6px;">All data browser-local. API keys server-side via proxy. ' +
+    'Stored: chat logs, sheet/notes content, whiteboard layers, persona configs, context slots, robot style.</div>' +
+    '<button onclick="if(confirm(\'Clear ALL stored data? Cannot be undone.\')){ localStorage.clear(); location.reload(); }" style="font-size:.52rem;padding:2px 8px;border:1px solid var(--danger);color:var(--danger);background:none;border-radius:4px;cursor:pointer;">Reset All Data</button>' +
     '</div>';
 
   document.querySelector('#q-claude .p-body').appendChild(panel);
