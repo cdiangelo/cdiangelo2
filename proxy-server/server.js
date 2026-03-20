@@ -24,6 +24,8 @@ const hasStaticToken = !!process.env.RH_AUTH_TOKEN;
 const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
 const oddsApiKey = process.env.ODDS_API_KEY || '';
 const hasOddsApiKey = !!oddsApiKey;
+const fmpApiKey = process.env.FMP_API || '';
+const hasFmpApiKey = !!fmpApiKey;
 
 // Browser-like headers for Robinhood API (matches old proxy)
 const RH_BROWSER_HEADERS = {
@@ -223,6 +225,7 @@ if (!hasRhCredentials && !hasStaticToken) {
 }
 if (!hasAnthropicKey) console.warn('[STARTUP] ANTHROPIC_API_KEY not set — /proxy/anthropic route disabled');
 if (!hasOddsApiKey) console.warn('[STARTUP] ODDS_API_KEY not set — /proxy/odds route disabled (get free key at the-odds-api.com)');
+if (!hasFmpApiKey) console.warn('[STARTUP] FMP_API not set — /proxy/fmp route disabled (get free key at financialmodelingprep.com)');
 
 // ── CORS — allow configured origins (comma-separated) or all ──
 // ALLOWED_ORIGIN can be a single origin or comma-separated list
@@ -677,6 +680,55 @@ app.get('/proxy/odds/:sport', async (req, res) => {
   } catch (e) {
     console.error('[Odds API] Fetch error:', e.message);
     res.status(502).json({ error: true, message: 'Odds API request failed' });
+  }
+});
+
+// ── Financial Modeling Prep Proxy (FMP_API env var) ──
+app.get('/proxy/fmp/status', (_req, res) => {
+  res.json({ available: hasFmpApiKey });
+});
+
+app.get('/proxy/fmp/quote/:symbol', async (req, res) => {
+  if (!hasFmpApiKey) {
+    return res.status(503).json({ error: true, message: 'FMP_API not configured on server' });
+  }
+  const symbol = req.params.symbol;
+  if (!symbol || !/^[A-Za-z0-9.\-^=]{1,10}$/.test(symbol)) {
+    return res.status(400).json({ error: true, message: 'Invalid symbol' });
+  }
+  try {
+    const url = `https://financialmodelingprep.com/api/v3/quote/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) {
+      return res.status(r.status).json({ error: true, message: 'FMP HTTP ' + r.status });
+    }
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    console.error('[FMP] Quote error:', e.message);
+    res.status(502).json({ error: true, message: 'FMP request failed: ' + e.message });
+  }
+});
+
+app.get('/proxy/fmp/ratios/:symbol', async (req, res) => {
+  if (!hasFmpApiKey) {
+    return res.status(503).json({ error: true, message: 'FMP_API not configured on server' });
+  }
+  const symbol = req.params.symbol;
+  if (!symbol || !/^[A-Za-z0-9.\-^=]{1,10}$/.test(symbol)) {
+    return res.status(400).json({ error: true, message: 'Invalid symbol' });
+  }
+  try {
+    const url = `https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) {
+      return res.status(r.status).json({ error: true, message: 'FMP HTTP ' + r.status });
+    }
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    console.error('[FMP] Ratios error:', e.message);
+    res.status(502).json({ error: true, message: 'FMP request failed: ' + e.message });
   }
 });
 

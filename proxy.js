@@ -54,6 +54,10 @@ app.use((req, res, next) => {
 const oddsApiKey = process.env.ODDS_API_KEY || '';
 if (!oddsApiKey) console.log('[Sports] ODDS_API_KEY not set — odds proxy disabled (get free key at the-odds-api.com)');
 
+// ── Financial Modeling Prep API key (server-side only) ──
+const fmpApiKey = process.env.FMP_API || '';
+if (!fmpApiKey) console.log('[FMP] FMP_API not set — Financial Modeling Prep disabled (get free key at financialmodelingprep.com)');
+
 // GET /health — service health check (required by workspace.html for proxy detection)
 app.get('/health', (_req, res) => {
   res.json({
@@ -61,7 +65,8 @@ app.get('/health', (_req, res) => {
     services: {
       robinhood: !!rhToken,
       anthropic: !!storedApiKey,
-      odds: !!oddsApiKey
+      odds: !!oddsApiKey,
+      fmp: !!fmpApiKey
     }
   });
 });
@@ -311,6 +316,75 @@ app.get('/proxy/odds/:sport', async (req, res) => {
   } catch (e) {
     console.error('[Odds] Error:', e.message);
     res.status(502).json({ error: true, message: 'Odds API request failed' });
+  }
+});
+
+// ── Financial Modeling Prep Proxy (FMP_API env var) ──
+app.get('/proxy/fmp/status', async (_req, res) => {
+  if (!fmpApiKey) return res.json({ available: false });
+  try {
+    const r = await fetch(`https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=${fmpApiKey}`, { signal: AbortSignal.timeout(8000) });
+    res.json({ available: r.ok, status: r.status });
+  } catch(e) {
+    res.json({ available: false, error: e.message });
+  }
+});
+
+// FMP quote — returns PE, EPS, market cap, price, shares, etc. in one call
+app.get('/proxy/fmp/quote/:symbol', async (req, res) => {
+  if (!fmpApiKey) {
+    return res.status(503).json({ error: true, message: 'FMP_API not configured' });
+  }
+  const symbol = req.params.symbol;
+  if (!symbol || !/^[A-Za-z0-9.\-^=]{1,10}$/.test(symbol)) {
+    return res.status(400).json({ error: true, message: 'Invalid symbol' });
+  }
+  const cacheKey = 'fmp-quote:' + symbol.toUpperCase();
+  const cached = getCached(cacheKey);
+  if (cached) { res.setHeader('Content-Type', 'application/json'); return res.send(cached.data); }
+
+  try {
+    const url = `https://financialmodelingprep.com/api/v3/quote/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) {
+      return res.status(r.status).json({ error: true, message: 'FMP HTTP ' + r.status });
+    }
+    const text = await r.text();
+    setCache(cacheKey, text, 'application/json');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(text);
+  } catch (e) {
+    console.error('[FMP] Quote error:', e.message);
+    res.status(502).json({ error: true, message: 'FMP request failed: ' + e.message });
+  }
+});
+
+// FMP ratios TTM — PE, PB, dividend yield, etc.
+app.get('/proxy/fmp/ratios/:symbol', async (req, res) => {
+  if (!fmpApiKey) {
+    return res.status(503).json({ error: true, message: 'FMP_API not configured' });
+  }
+  const symbol = req.params.symbol;
+  if (!symbol || !/^[A-Za-z0-9.\-^=]{1,10}$/.test(symbol)) {
+    return res.status(400).json({ error: true, message: 'Invalid symbol' });
+  }
+  const cacheKey = 'fmp-ratios:' + symbol.toUpperCase();
+  const cached = getCached(cacheKey);
+  if (cached) { res.setHeader('Content-Type', 'application/json'); return res.send(cached.data); }
+
+  try {
+    const url = `https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) {
+      return res.status(r.status).json({ error: true, message: 'FMP HTTP ' + r.status });
+    }
+    const text = await r.text();
+    setCache(cacheKey, text, 'application/json');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(text);
+  } catch (e) {
+    console.error('[FMP] Ratios error:', e.message);
+    res.status(502).json({ error: true, message: 'FMP request failed: ' + e.message });
   }
 });
 
@@ -1303,6 +1377,7 @@ app.listen(PORT, () => {
   console.log('  ESPN Player: http://localhost:' + PORT + '/proxy/espn-player/search?q=...');
   console.log('  ESPN Debug: http://localhost:' + PORT + '/proxy/espn-debug');
   console.log('  Odds:       http://localhost:' + PORT + '/proxy/odds/<sport> ' + (oddsApiKey ? '(key set)' : '(NO KEY)'));
+  console.log('  FMP:        http://localhost:' + PORT + '/proxy/fmp/quote/<symbol> ' + (fmpApiKey ? '(key set)' : '(NO KEY)'));
   console.log('  YouTube:    http://localhost:' + PORT + '/proxy/youtube/search?q=...');
   if (storedApiKey) console.log('  API key pre-loaded from ANTHROPIC_API_KEY env var');
 });

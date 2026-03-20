@@ -16256,7 +16256,59 @@ async function getCompanyMetricsReal(ticker) {
     }
   } catch(e) {}
 
-  // Tier 2: Finnhub basic financials — free, no API key required (2 req/min), reliable
+  // Tier 2: Financial Modeling Prep (FMP) — most complete single-call source
+  // Requires FMP_API env var on proxy server. Returns all 13 metrics in one call.
+  try {
+    const fmpResp = await fetch(PROXY_BASE + '/proxy/fmp/quote/' + encodeURIComponent(ticker), { signal: AbortSignal.timeout(8000) });
+    if (fmpResp && fmpResp.ok) {
+      const fmpArr = await fmpResp.json();
+      const fq = Array.isArray(fmpArr) ? fmpArr[0] : fmpArr;
+      if (fq && fq.price) {
+        const companyEntry = COMPANY_DB.find(c => c.ticker === ticker);
+        const mc = fq.marketCap || null;
+        const fmpResult = {
+          price: fq.price || null,
+          mktCap: mc,
+          sizeGroup: companyEntry?.isETF ? 'ETF' : (mc ? (mc > 200e9 ? 'Mega Cap' : mc > 10e9 ? 'Large Cap' : mc > 2e9 ? 'Mid Cap' : 'Small Cap') : null),
+          pe: fq.pe || null,
+          eps: fq.eps || null,
+          revenue: null, // not in /v3/quote, could fetch from ratios if needed
+          sharesOutstanding: fq.sharesOutstanding || null,
+          forwardPE: null, // will supplement from ratios
+          priceToBook: null,
+          high_52: fq.yearHigh || null,
+          low_52: fq.yearLow || null,
+          dividend_yield: fq.dividendYielTTM || null, // FMP field name
+          bid: null, ask: null,
+          source: 'fmp'
+        };
+        // Try to get additional ratios (forward PE, PB, dividend yield, revenue) in parallel
+        try {
+          const ratResp = await fetch(PROXY_BASE + '/proxy/fmp/ratios/' + encodeURIComponent(ticker), { signal: AbortSignal.timeout(5000) });
+          if (ratResp && ratResp.ok) {
+            const ratArr = await ratResp.json();
+            const rat = Array.isArray(ratArr) ? ratArr[0] : ratArr;
+            if (rat) {
+              if (fmpResult.pe == null && rat.peRatioTTM) fmpResult.pe = rat.peRatioTTM;
+              if (rat.priceToBookRatioTTM) fmpResult.priceToBook = rat.priceToBookRatioTTM;
+              if (rat.dividendYielTTM || rat.dividendYieldTTM) fmpResult.dividend_yield = rat.dividendYielTTM || rat.dividendYieldTTM;
+            }
+          }
+        } catch(_) {}
+        // Merge with RH for real-time bid/ask
+        if (rhResult) {
+          if (rhResult.bid != null) fmpResult.bid = rhResult.bid;
+          if (rhResult.ask != null) fmpResult.ask = rhResult.ask;
+          // Prefer RH real-time price if available
+          if (rhResult.price != null) fmpResult.price = rhResult.price;
+          fmpResult.source = 'fmp+robinhood';
+        }
+        return fmpResult;
+      }
+    }
+  } catch(e) {}
+
+  // Tier 3: Finnhub basic financials — free, no API key required (2 req/min), reliable
   // Returns PE, EPS, market cap, price-to-book, revenue, shares, etc.
   try {
     const fhUrl = 'https://finnhub.io/api/v1/stock/metric?symbol=' + encodeURIComponent(ticker) + '&metric=all';
@@ -16334,7 +16386,7 @@ async function getCompanyMetricsReal(ticker) {
     }
   } catch(e) {}
 
-  // Tier 3: Yahoo Finance — try v6 then v10 (may fail due to auth requirements)
+  // Tier 4: Yahoo Finance — try v6 then v10 (may fail due to auth requirements)
   try {
     const url = 'https://query1.finance.yahoo.com/v6/finance/quote?symbols=' +
       encodeURIComponent(ticker);
@@ -16436,7 +16488,7 @@ async function getCompanyMetricsReal(ticker) {
   } catch (e) {
     // If Yahoo failed but we have partial Robinhood data, return that
     if (rhResult) return rhResult;
-    // Tier 4: Pull from stockDataCache if charts already fetched price data
+    // Tier 5: Pull from stockDataCache if charts already fetched price data
     const chartEntry = stockDataCache[ticker + '_1M'] || stockDataCache[ticker + '_1D'] ||
       stockDataCache[ticker + '_5D'] || stockDataCache[ticker + '_6M'] || stockDataCache[ticker + '_1Y'];
     if (chartEntry && chartEntry.data && chartEntry.data.length >= 1) {
@@ -19151,6 +19203,7 @@ $('#aiDataSourcesBtn').onclick = () => {
     { id: 'espn', name: 'ESPN Sports API', desc: 'Scores, standings, news, players', check: function() { return fetch(PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard', { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.events), detail: (d.events||[]).length + ' events found' }; }); } },
     { id: 'odds', name: 'The Odds API', desc: 'Betting odds (spread, ML, total)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { var detail = ''; if (d.status === 401) detail = 'API key expired/invalid — using ESPN fallback'; else if (d.available) detail = 'Key active, remaining: ' + (d.remaining || '?'); else detail = 'Key missing — using ESPN fallback'; return { ok: d.available && d.status !== 401, detail: detail, partial: !d.available || d.status === 401 }; }); } },
     { id: 'odds_live', name: 'Odds API — Live Data', desc: 'Actual odds fetch (NBA test)', check: function() { return fetch(PROXY_BASE + '/proxy/odds/basketball_nba?markets=h2h,spreads,totals&regions=us,us2&oddsFormat=american', { signal: AbortSignal.timeout(10000) }).then(function(r) { if (r.status === 401) return { ok: false, partial: true, detail: 'API key expired — ESPN fallback active' }; if (!r.ok) return { ok: false, partial: true, detail: 'HTTP ' + r.status + ' — ESPN fallback active' }; var remaining = r.headers.get('x-requests-remaining'); return r.json().then(function(games) { if (!Array.isArray(games)) return { ok: false, partial: true, detail: 'Invalid response — ESPN fallback active' }; var books = new Set(); games.forEach(function(g) { (g.bookmakers||[]).forEach(function(bk) { books.add(bk.title || bk.key); }); }); return { ok: true, detail: games.length + ' games, ' + books.size + ' books: ' + Array.from(books).join(', '), partial: books.size < 3, books: Array.from(books), remaining: remaining }; }); }); } },
+    { id: 'fmp', name: 'Financial Modeling Prep', desc: 'Stock fundamentals (PE, EPS, mktCap)', check: function() { return fetch(PROXY_BASE + '/proxy/fmp/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: d.available, detail: d.available ? 'FMP_API key configured' : 'FMP_API env var not set', partial: !d.available }; }).catch(function() { return { ok: false, partial: true, detail: 'Proxy unreachable' }; }); } },
     { id: 'yahoo', name: 'Yahoo Finance', desc: 'Stock price charts', check: function() { var yUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d&interval=5m&includePrePost=false'; return fetch(PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(yUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: !!(d.chart && d.chart.result), detail: d.chart && d.chart.result ? 'AAPL data OK' : 'Parse error' }; }); } },
     { id: 'news', name: 'Google News RSS', desc: 'News feed proxy', check: function() { var nUrl = 'https://news.google.com/rss/search?q=stocks&hl=en-US&gl=US&ceid=US:en'; return fetch(PROXY_BASE + '/proxy/news?url=' + encodeURIComponent(nUrl), { signal: AbortSignal.timeout(8000) }).then(function(r) { return r.text(); }).then(function(t) { var items = (t.match(/<item>/g) || []).length; return { ok: items > 0, detail: items + ' articles found' }; }); } },
     { id: 'robinhood', name: 'Robinhood API', desc: 'Trading & portfolio (optional)', check: function() { return fetch(PROXY_BASE + '/proxy/robinhood/status', { signal: AbortSignal.timeout(5000) }).then(function(r) { return r.json(); }).then(function(d) { return { ok: true, detail: d.loggedIn ? 'Authenticated' : 'Not logged in (optional)', partial: !d.loggedIn }; }); } },
