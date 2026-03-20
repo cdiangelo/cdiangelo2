@@ -134,22 +134,50 @@ app.get('/proxy/espn-player/search', async (req, res) => {
   const cached = getCached(cacheKey);
   if (cached) return res.json(JSON.parse(cached.data));
 
-  // Try site.web.api first (richer data), fall back to site.api
+  // Try multiple ESPN search endpoints — cascade through fallbacks
   const urls = [
+    // 1. Common v3 athletes query (richest data)
     'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes?query=' + encodeURIComponent(query) + '&limit=10&region=us&lang=en&contentorigin=espn',
+    // 2. ESPN global search (most reliable, returns athletes among other results)
+    'https://site.web.api.espn.com/apis/search/v2?query=' + encodeURIComponent(query) + '&sport=' + sport + '&limit=10&type=player&region=us&lang=en',
+    // 3. Site API v2 athletes
     'https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/athletes?search=' + encodeURIComponent(query)
   ];
   for (const url of urls) {
     try {
+      console.log('[ESPN Player Search] Trying: ' + url.substring(0, 120));
       const r = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
-      if (!r.ok) continue;
+      if (!r.ok) { console.log('[ESPN Player Search] ' + r.status + ' from ' + url.substring(0, 80)); continue; }
       const text = await r.text();
+      // Validate we got useful athlete data
+      const parsed = JSON.parse(text);
+      const hasAthletes = parsed.athletes || parsed.items || (parsed.results && parsed.results.length);
+      if (!hasAthletes) { console.log('[ESPN Player Search] No athletes in response from ' + url.substring(0, 80)); continue; }
+      // Normalize search v2 format to match athletes format
+      if (parsed.results && !parsed.athletes) {
+        // Extract athletes from search results
+        const playerResults = parsed.results.filter(r => r.type === 'player' || r.type === 'athlete');
+        if (playerResults.length && playerResults[0].contents) {
+          parsed.athletes = playerResults[0].contents.map(c => ({
+            id: c.uid ? c.uid.split(':').pop() : '',
+            displayName: c.title || c.name || '',
+            fullName: c.title || '',
+            position: { abbreviation: c.description || '' },
+            team: { displayName: c.description || '' },
+            headshot: c.image ? { href: c.image } : null
+          }));
+        }
+        const normalized = JSON.stringify(parsed);
+        setCache(cacheKey, normalized, 'application/json');
+        res.setHeader('Content-Type', 'application/json');
+        return res.send(normalized);
+      }
       setCache(cacheKey, text, 'application/json');
       res.setHeader('Content-Type', 'application/json');
       return res.send(text);
-    } catch (e) { continue; }
+    } catch (e) { console.log('[ESPN Player Search] Error: ' + e.message); continue; }
   }
-  res.status(502).json({ error: true, message: 'Player search failed — all endpoints returned errors' });
+  res.status(502).json({ error: true, message: 'Player search failed — all ' + urls.length + ' endpoints returned errors' });
 });
 
 // ── ESPN Player Stats Proxy ──
@@ -1208,17 +1236,36 @@ app.use((req, res, next) => {
 // ── ESPN Debug/Diagnostic Endpoint ──
 app.get('/proxy/espn-debug', async (req, res) => {
   const tests = [
-    { name: 'NBA Scoreboard', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard' },
-    { name: 'NBA Standings', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/standings' },
-    { name: 'NBA Leaders', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/leaders' },
-    { name: 'Player Search (LeBron)', url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes?query=LeBron&limit=3&region=us&lang=en&contentorigin=espn' }
+    { name: 'site.api Scoreboard', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard' },
+    { name: 'site.api Standings', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/standings' },
+    { name: 'site.api Standings (season)', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/standings?season=2025&sort=winpercent:desc' },
+    { name: 'site.api Leaders', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/leaders' },
+    { name: 'site.api Leaders (season)', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/leaders?season=2025&seasontype=2' },
+    { name: 'core.api Leaders', url: 'https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/leaders' },
+    { name: 'core.api Standings', url: 'https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/standings' },
+    { name: 'web.api Athletes Query', url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes?query=LeBron&limit=3&region=us&lang=en&contentorigin=espn' },
+    { name: 'web.api Search', url: 'https://site.web.api.espn.com/apis/search/v2?query=LeBron&sport=basketball&limit=3&type=player&region=us&lang=en' },
+    { name: 'site.api Athletes Search', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/athletes?search=LeBron' },
+    { name: 'web.api Player Stats (LeBron)', url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/1966/stats?region=us&lang=en&contentorigin=espn' },
+    { name: 'web.api Player Gamelog', url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/1966/gamelog?region=us&lang=en&contentorigin=espn' },
+    { name: 'web.api Player Overview', url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/1966/overview?region=us&lang=en&contentorigin=espn' }
   ];
   const results = [];
   for (const test of tests) {
     try {
       const r = await fetch(test.url, { signal: AbortSignal.timeout(8000), headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
-      const text = r.ok ? await r.text() : '';
-      results.push({ name: test.name, status: r.status, ok: r.ok, dataKeys: r.ok ? Object.keys(JSON.parse(text)) : [], url: test.url });
+      const text = r.ok ? await r.text() : (await r.text().catch(() => ''));
+      let dataKeys = [], sample = '';
+      if (r.ok && text) {
+        try {
+          const parsed = JSON.parse(text);
+          dataKeys = Object.keys(parsed);
+          sample = text.substring(0, 300);
+        } catch(e) {}
+      } else if (text) {
+        sample = text.substring(0, 200);
+      }
+      results.push({ name: test.name, status: r.status, ok: r.ok, dataKeys, size: text.length, sample, url: test.url });
     } catch (e) {
       results.push({ name: test.name, status: 'error', ok: false, error: e.message, url: test.url });
     }

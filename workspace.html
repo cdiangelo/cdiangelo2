@@ -11023,19 +11023,46 @@ function spCheckConnections() {
   spConnState = { espn: null, odds: null };
   spUpdateConnBadge();
 
-  // Check ESPN via proxy — auto-populate standings & leaders when live
-  fetch(PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard', { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
-    .then(spSafeJson)
-    .then(() => {
-      spConnState.espn = true; spUpdateConnBadge();
-      // Auto-populate standings and player leaders on first successful connection
-      if (!spConnState._espnPopulated) {
-        spConnState._espnPopulated = true;
-        spFetchStandings();
-        spFetchLeaders();
-      }
-    })
-    .catch(() => { spConnState.espn = false; spUpdateConnBadge(); });
+  // Check ESPN via proxy — try multiple endpoints to establish connection
+  var espnTestUrls = [
+    PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard',
+    PROXY_BASE + '/proxy/espn/football/nfl/scoreboard',
+    PROXY_BASE + '/proxy/espn/baseball/mlb/scoreboard'
+  ];
+  (function tryEspn(i) {
+    if (i >= espnTestUrls.length) {
+      spConnState.espn = false; spUpdateConnBadge();
+      console.error('[Sports] ESPN connection failed on all test endpoints');
+      return;
+    }
+    fetch(espnTestUrls[i], { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+      .then(spSafeJson)
+      .then(function() {
+        spConnState.espn = true; spUpdateConnBadge();
+        console.log('[Sports] ESPN connected via attempt ' + (i+1));
+        // Auto-populate standings and player leaders on first successful connection
+        if (!spConnState._espnPopulated) {
+          spConnState._espnPopulated = true;
+          // Slight delay to let proxy warm up (Render cold starts)
+          setTimeout(function() { spFetchStandings(); }, 500);
+          setTimeout(function() { spFetchLeaders(); }, 1000);
+          // Retry once more after 8s if data didn't load
+          setTimeout(function() {
+            var standingsEl = document.getElementById('spStandingsList');
+            if (standingsEl && (standingsEl.innerHTML.includes('Failed') || standingsEl.innerHTML.includes('Loading'))) {
+              console.log('[Sports] Auto-retrying standings...');
+              spFetchStandings();
+            }
+            var playersEl = document.getElementById('spPlayersList');
+            if (playersEl && (playersEl.innerHTML.includes('Failed') || playersEl.innerHTML.includes('Loading'))) {
+              console.log('[Sports] Auto-retrying leaders...');
+              spFetchLeaders();
+            }
+          }, 8000);
+        }
+      })
+      .catch(function() { tryEspn(i + 1); });
+  })(0);
 
   // Check Odds API via proxy
   fetch(PROXY_BASE + '/proxy/odds/status', { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined })
@@ -11044,8 +11071,56 @@ function spCheckConnections() {
     .catch(() => { spConnState.odds = false; spUpdateConnBadge(); });
 }
 
-// Click on status to re-check
-if ($('#spConnStatus')) $('#spConnStatus').onclick = spCheckConnections;
+// ESPN Diagnostics — run from console: spRunDiagnostics()
+window.spRunDiagnostics = function() {
+  console.log('%c[ESPN Diagnostics] Starting comprehensive endpoint test...', 'color:#3b82f6;font-weight:bold');
+  var tests = [
+    { name: 'Proxy Health', url: PROXY_BASE + '/health' },
+    { name: 'NBA Scoreboard', url: PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard' },
+    { name: 'NBA Standings', url: PROXY_BASE + '/proxy/espn/basketball/nba/standings' },
+    { name: 'NBA Standings (season)', url: PROXY_BASE + '/proxy/espn/basketball/nba/standings?season=2025&sort=winpercent:desc' },
+    { name: 'NBA Leaders', url: PROXY_BASE + '/proxy/espn/basketball/nba/leaders' },
+    { name: 'NBA Leaders (season)', url: PROXY_BASE + '/proxy/espn/basketball/nba/leaders?season=2025&seasontype=2' },
+    { name: 'NBA Core Leaders', url: PROXY_BASE + '/proxy/espn-core/basketball/leagues/nba/leaders' },
+    { name: 'Player Search', url: PROXY_BASE + '/proxy/espn-player/search?q=LeBron&sport=basketball&league=nba' },
+    { name: 'ESPN Debug', url: PROXY_BASE + '/proxy/espn-debug' },
+    { name: 'Odds Status', url: PROXY_BASE + '/proxy/odds/status' }
+  ];
+  var results = [];
+  Promise.all(tests.map(function(t) {
+    var start = Date.now();
+    return fetch(t.url, { signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined })
+      .then(function(r) {
+        var ms = Date.now() - start;
+        return r.text().then(function(text) {
+          var keys = [];
+          try { keys = Object.keys(JSON.parse(text)); } catch(e) {}
+          var result = { name: t.name, status: r.status, ok: r.ok, ms: ms, keys: keys.slice(0, 8), size: text.length };
+          results.push(result);
+          console.log('%c' + (r.ok ? 'PASS' : 'FAIL') + '%c ' + t.name + ' — HTTP ' + r.status + ' (' + ms + 'ms, ' + text.length + ' bytes) keys: [' + keys.slice(0,5).join(', ') + ']',
+            r.ok ? 'color:#16a34a;font-weight:bold' : 'color:#ef4444;font-weight:bold', '');
+          return result;
+        });
+      })
+      .catch(function(e) {
+        var result = { name: t.name, status: 'ERR', ok: false, ms: Date.now() - start, error: e.message };
+        results.push(result);
+        console.log('%cFAIL%c ' + t.name + ' — ' + e.message, 'color:#ef4444;font-weight:bold', '');
+        return result;
+      });
+  })).then(function() {
+    var pass = results.filter(function(r) { return r.ok; }).length;
+    console.log('%c[ESPN Diagnostics] ' + pass + '/' + results.length + ' endpoints passed', pass === results.length ? 'color:#16a34a;font-weight:bold' : 'color:#f59e0b;font-weight:bold');
+    console.table(results.map(function(r) { return { Endpoint: r.name, Status: r.status, OK: r.ok ? 'Yes' : 'No', 'Time(ms)': r.ms, 'Size(b)': r.size || 0, Keys: (r.keys || []).join(',') }; }));
+    window._lastEspnDiag = results;
+  });
+};
+
+// Click on status to re-check (double-click runs full diagnostics)
+if ($('#spConnStatus')) {
+  $('#spConnStatus').onclick = spCheckConnections;
+  $('#spConnStatus').ondblclick = function() { window.spRunDiagnostics(); };
+}
 
 // Run on load
 spCheckConnections();
@@ -12370,15 +12445,35 @@ function spFetchLeaders() {
         html += '<div style="font-weight:700;font-size:.68rem;color:var(--accent);margin-bottom:4px;text-transform:uppercase;">'+esc(catName)+'</div>';
         leaders.slice(0, 5).forEach(function(entry, i) {
           var athlete = entry.athlete || entry.team || {};
+          // Handle $ref-only athlete objects — extract ID from $ref URL
+          var athleteId = athlete.id || '';
+          if (!athleteId && athlete.$ref) {
+            var refMatch = athlete.$ref.match(/athletes\/(\d+)/);
+            if (refMatch) athleteId = refMatch[1];
+          }
+          // Extract name — try all known field locations
           var name = athlete.displayName || athlete.shortName || athlete.fullName || athlete.name || '';
-          // If name is empty, try extracting from links or nested objects
           if (!name && athlete.links && athlete.links[0]) name = athlete.links[0].text || '';
           if (!name && entry.displayName) name = entry.displayName;
-          var headshot = athlete.headshot ? (typeof athlete.headshot === 'string' ? athlete.headshot : athlete.headshot.href || '') : '';
+          if (!name && entry.athlete && entry.athlete.shortName) name = entry.athlete.shortName;
+          if (!name && entry.athlete && entry.athlete.displayName) name = entry.athlete.displayName;
+          // Last resort: if we have athleteId but no name, show a placeholder
+          if (!name && athleteId) name = 'Player #' + athleteId;
+          var headshot = '';
+          if (athlete.headshot) headshot = typeof athlete.headshot === 'string' ? athlete.headshot : (athlete.headshot.href || '');
+          if (!headshot && entry.athlete && entry.athlete.headshot) headshot = typeof entry.athlete.headshot === 'string' ? entry.athlete.headshot : (entry.athlete.headshot.href || '');
           var team = '';
-          if (athlete.team) team = athlete.team.abbreviation || athlete.team.displayName || athlete.team.name || '';
+          if (athlete.team) {
+            if (typeof athlete.team === 'object' && !athlete.team.$ref) {
+              team = athlete.team.abbreviation || athlete.team.displayName || athlete.team.name || '';
+            }
+          }
+          if (!team && entry.team) {
+            if (typeof entry.team === 'object' && !entry.team.$ref) {
+              team = entry.team.abbreviation || entry.team.displayName || '';
+            }
+          }
           var value = entry.displayValue || entry.value || entry.stat || '';
-          var athleteId = athlete.id || '';
           html += '<div class="sp-card" style="cursor:pointer;padding:3px 6px;" onclick="spFetchPlayerStats(\''+esc(league)+'\',\''+esc(athleteId)+'\',\''+esc(name)+'\')">';
           html += '<div style="display:flex;align-items:center;gap:6px;">';
           html += '<span style="font-size:.6rem;color:var(--text-dim);width:14px;">'+String(i+1)+'.</span>';
@@ -19078,6 +19173,7 @@ const AGENT_TOOLS_INLINE = [
   { name: 'get_sports_standings', description: 'Fetch current league standings from ESPN. Returns team records, win%, division standings, streak, last 10 games record.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League to fetch standings for' } }, required: ['league'] } },
   { name: 'get_player_stats', description: 'Search for a player by name and get their season stats, bio (age, position, team, height, weight, experience), and career splits. Use this for player-level analysis, prop betting research, and matchup context.', input_schema: { type: 'object', properties: { name: { type: 'string', description: 'Player name to search (e.g. "LeBron James", "Patrick Mahomes")' }, league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], description: 'League to search in' } }, required: ['name', 'league'] } },
   { name: 'get_player_gamelog', description: 'Get a player\'s recent game-by-game stats (gamelog) for trend analysis. Shows performance in each game this season — use for identifying hot/cold streaks, minutes trends, matchup performance, and over/under patterns.', input_schema: { type: 'object', properties: { name: { type: 'string', description: 'Player name' }, league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], description: 'League' } }, required: ['name', 'league'] } },
+  { name: 'espn_diagnostics', description: 'Run comprehensive ESPN API connectivity diagnostics. Tests proxy health, scoreboard, standings, leaders, and player search endpoints. Returns status of each endpoint. Use when sports data seems broken or to verify connectivity.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_concept_map', description: 'Get concept map nodes and edges.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_portfolio', description: 'Get Robinhood portfolio positions, account balance, and buying power. Requires Robinhood login.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_orders', description: 'Get recent Robinhood order history. Requires Robinhood login.', input_schema: { type: 'object', properties: { limit: { type: 'number', description: 'Max orders to return (default 20)' } } } },
@@ -19813,6 +19909,33 @@ async function executeAgentTool(name, input) {
         } catch(e) {
           return JSON.stringify({ error: 'Failed to fetch standings: ' + e.message, league: _gstKey });
         }
+      }
+
+      // ── ESPN Diagnostics tool ──
+      case 'espn_diagnostics': {
+        var _diagTests = [
+          { name: 'Proxy Health', url: PROXY_BASE + '/health' },
+          { name: 'NBA Scoreboard', url: PROXY_BASE + '/proxy/espn/basketball/nba/scoreboard' },
+          { name: 'NBA Standings', url: PROXY_BASE + '/proxy/espn/basketball/nba/standings' },
+          { name: 'NBA Leaders', url: PROXY_BASE + '/proxy/espn/basketball/nba/leaders' },
+          { name: 'Player Search (LeBron)', url: PROXY_BASE + '/proxy/espn-player/search?q=LeBron&sport=basketball&league=nba' },
+          { name: 'Player Stats (LeBron)', url: PROXY_BASE + '/proxy/espn-player/basketball/nba/athletes/1966/stats' },
+          { name: 'Odds Status', url: PROXY_BASE + '/proxy/odds/status' }
+        ];
+        var _diagResults = await Promise.all(_diagTests.map(async function(t) {
+          try {
+            var start = Date.now();
+            var r = await fetch(t.url, { signal: AbortSignal.timeout(10000) });
+            var text = await r.text();
+            var keys = [];
+            try { keys = Object.keys(JSON.parse(text)); } catch(e) {}
+            return { name: t.name, status: r.status, ok: r.ok, ms: Date.now() - start, keys: keys.slice(0, 8), size: text.length };
+          } catch(e) {
+            return { name: t.name, status: 'ERR', ok: false, error: e.message };
+          }
+        }));
+        var _diagPass = _diagResults.filter(function(r) { return r.ok; }).length;
+        return JSON.stringify({ passed: _diagPass, total: _diagResults.length, proxy: PROXY_BASE, results: _diagResults });
       }
 
       // ── Player analytics tools ──
