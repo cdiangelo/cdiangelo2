@@ -8091,6 +8091,7 @@ function ssRender() {
   }
 
   // ── Data validation dropdown for list-type cells ──
+  let ssDropdownOpen = false;
   function ssShowDropdown(r, c) {
     ssCloseDropdown();
     const key = r + ',' + c;
@@ -8111,24 +8112,30 @@ function ssRender() {
       const item = document.createElement('div');
       item.className = 'ss-dd-item' + (v === currentVal ? ' selected' : '');
       item.textContent = v;
-      item.addEventListener('mousedown', e => {
+      item.addEventListener('click', e => {
         e.preventDefault(); e.stopPropagation();
         ssPushUndo();
         ssD[r][c] = v;
-        LS('sheet', ssD); ssSaveCurrentPage(); ssRender();
+        LS('sheet', ssD); ssSaveCurrentPage();
         ssCloseDropdown();
+        ssRender();
       });
       dd.appendChild(item);
     });
     document.body.appendChild(dd);
-    // Close on outside click
-    setTimeout(() => document.addEventListener('mousedown', ssDropdownOutsideClick, { once: true }), 0);
-  }
-  function ssDropdownOutsideClick(e) {
-    const dd = document.getElementById('ssActiveDropdown');
-    if (dd && !dd.contains(e.target)) ssCloseDropdown();
+    ssDropdownOpen = true;
+    // Close on outside click (use click not mousedown to avoid race)
+    setTimeout(() => {
+      document.addEventListener('click', function _outsideClick(e) {
+        const activeDd = document.getElementById('ssActiveDropdown');
+        if (activeDd && activeDd.contains(e.target)) return; // click inside dropdown, let item handler deal with it
+        ssCloseDropdown();
+        document.removeEventListener('click', _outsideClick);
+      });
+    }, 0);
   }
   function ssCloseDropdown() {
+    ssDropdownOpen = false;
     const dd = document.getElementById('ssActiveDropdown');
     if (dd) dd.remove();
   }
@@ -8153,8 +8160,11 @@ function ssRender() {
   t.addEventListener('mousedown', e => {
     ssDragged = false;
     ssMouseDownCell = null;
-    // Don't interfere with fill handle
+    // Don't interfere with fill handle or dropdown arrow
     if (e.target.classList.contains('ss-fill-handle')) return;
+    if (e.target.closest('.ss-dd-arrow')) return;
+    // Close any open dropdown
+    if (ssDropdownOpen) ssCloseDropdown();
     const td = e.target.closest('td[data-r]');
     if (!td) {
       const rh = e.target.closest('th.row-h');
