@@ -12490,6 +12490,76 @@ $('#spPlayerSearchBtn').onclick = () => {
 };
 $('#spPlayerSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { const q = e.target.value.trim(); if (q) spSearchPlayer(q); } });
 
+// Helper: re-rank athlete search results to prefer athletes in the requested league
+// ESPN search can return players across leagues (e.g. college profile when searching NBA)
+function _spRankAthletesByLeague(athletes, leagueKey) {
+  if (!athletes || athletes.length <= 1) return athletes;
+  var targetLeague = (SP_LEAGUE_MAP[leagueKey] || {}).league || leagueKey;
+  // Known pro team abbreviations by league for heuristic matching
+  var _proTeamsByLeague = {
+    nba: ['ATL','BOS','BKN','CHA','CHI','CLE','DAL','DEN','DET','GSW','HOU','IND','LAC','LAL','MEM','MIA','MIL','MIN','NOP','NYK','OKC','ORL','PHI','PHX','POR','SAC','SAS','TOR','UTA','WAS'],
+    nfl: ['ARI','ATL','BAL','BUF','CAR','CHI','CIN','CLE','DAL','DEN','DET','GB','HOU','IND','JAX','KC','LV','LAC','LAR','MIA','MIN','NE','NO','NYG','NYJ','PHI','PIT','SF','SEA','TB','TEN','WAS'],
+    mlb: ['ARI','ATL','BAL','BOS','CHC','CWS','CIN','CLE','COL','DET','HOU','KC','LAA','LAD','MIA','MIL','MIN','NYM','NYY','OAK','PHI','PIT','SD','SF','SEA','STL','TB','TEX','TOR','WSH'],
+    nhl: ['ANA','ARI','BOS','BUF','CGY','CAR','CHI','COL','CBJ','DAL','DET','EDM','FLA','LAK','MIN','MTL','NSH','NJD','NYI','NYR','OTT','PHI','PIT','SJS','SEA','STL','TBL','TOR','VAN','VGK','WPG','WSH']
+  };
+  var proAbbrs = _proTeamsByLeague[leagueKey] || [];
+  var isProLeague = ['nba', 'nfl', 'mlb', 'nhl'].indexOf(leagueKey) >= 0;
+  var isCollegeLeague = leagueKey === 'ncaab' || leagueKey === 'ncaaf';
+
+  return athletes.slice().sort(function(a, b) {
+    return _scoreAthlete(b) - _scoreAthlete(a);
+  });
+
+  function _scoreAthlete(ath) {
+    var score = 0;
+    // Proxy-tagged source league (most reliable — from league-specific endpoint)
+    if (ath._sourceLeague) {
+      if (ath._sourceLeague === targetLeague || ath._sourceLeague === leagueKey) score += 120;
+    }
+    // Proxy-detected league from global search link parsing
+    if (ath._detectedLeague) {
+      if (ath._detectedLeague === targetLeague || ath._detectedLeague === leagueKey) score += 100;
+      else score -= 70;
+    }
+    // Global search results without league detection get a slight penalty
+    if (ath._globalSearch && !ath._detectedLeague) score -= 10;
+    // Check links for league URL
+    if (ath.links && ath.links.length) {
+      var linkStr = JSON.stringify(ath.links).toLowerCase();
+      if (linkStr.indexOf('/' + targetLeague + '/') >= 0) score += 100;
+      // Penalize if links clearly point to a different league
+      if (isProLeague && (linkStr.indexOf('/mens-college-basketball/') >= 0 || linkStr.indexOf('/college-football/') >= 0)) score -= 80;
+      if (isCollegeLeague && (linkStr.indexOf('/nba/') >= 0 || linkStr.indexOf('/nfl/') >= 0)) score -= 80;
+    }
+    // Check $ref for league
+    if (ath.$ref) {
+      if (ath.$ref.toLowerCase().indexOf('/' + targetLeague + '/') >= 0) score += 90;
+      if (isProLeague && (ath.$ref.indexOf('/mens-college-basketball/') >= 0 || ath.$ref.indexOf('/college-football/') >= 0)) score -= 70;
+    }
+    // Check team info
+    if (ath.team && typeof ath.team === 'object') {
+      var teamAbbr = (ath.team.abbreviation || '').toUpperCase();
+      var teamName = (ath.team.displayName || ath.team.name || '').toLowerCase();
+      // If team abbreviation matches known pro teams
+      if (proAbbrs.length && proAbbrs.indexOf(teamAbbr) >= 0) score += (isProLeague ? 50 : -50);
+      // College indicators in team name
+      if (teamName.match(/university|college|state\s|tech\b|a&m|bulldogs|wildcats|zags|gonzaga|creighton|duke|kentucky|villanova|purdue/i)) {
+        score += (isCollegeLeague ? 50 : -50);
+      }
+      // League property on team
+      if (ath.team.league) {
+        var tl = ath.team.league.toLowerCase();
+        if (tl === leagueKey || tl === targetLeague) score += 80;
+        else score -= 60;
+      }
+    }
+    // Active status: prefer active players for pro leagues
+    if (isProLeague && ath.active === true) score += 20;
+    if (isProLeague && ath.active === false) score -= 30;
+    return score;
+  }
+}
+
 // ESPN athlete search
 function spSearchPlayer(query) {
   const league = $('#spPlayersLeague').value;
@@ -12502,11 +12572,13 @@ function spSearchPlayer(query) {
   fetch(url)
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(data => {
-      const athletes = data.athletes || data.items || [];
-      if (!athletes.length) {
+      var rawAthletes = data.athletes || data.items || [];
+      if (!rawAthletes.length) {
         el.innerHTML = '<div class="sp-empty">No players found for "'+esc(query)+'".</div>';
         return;
       }
+      // Re-rank to prefer athletes actually in the requested league
+      const athletes = _spRankAthletesByLeague(rawAthletes, league);
       // For each athlete found, show summary and link to fetch full stats
       let html = '';
       athletes.slice(0, 10).forEach(a => {
@@ -21848,8 +21920,10 @@ async function executeAgentTool(name, input) {
           // Step 1: Search for the player
           var _psSearchUrl = PROXY_BASE + '/proxy/espn-player/search?q=' + encodeURIComponent(_psName) + '&sport=' + _psInfo.sport + '&league=' + _psInfo.league;
           var _psSearchResp = await fetch(_psSearchUrl).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
-          var _psAthletes = _psSearchResp ? (_psSearchResp.athletes || _psSearchResp.items || []) : [];
-          if (!_psAthletes.length) return JSON.stringify({ error: 'No player found for "' + _psName + '". Try a different spelling or check the league.', searched: _psName, league: _psLeague });
+          var _psAthletesRaw = _psSearchResp ? (_psSearchResp.athletes || _psSearchResp.items || []) : [];
+          if (!_psAthletesRaw.length) return JSON.stringify({ error: 'No player found for "' + _psName + '". Try a different spelling or check the league.', searched: _psName, league: _psLeague });
+          // Re-rank to prefer athletes in the requested league (avoids college contamination)
+          var _psAthletes = _spRankAthletesByLeague(_psAthletesRaw, _psLeague);
           // Take best match
           var _psAth = _psAthletes[0];
           var _psId = _psAth.id || (_psAth.$ref && _psAth.$ref.match(/athletes\/(\d+)/) ? _psAth.$ref.match(/athletes\/(\d+)/)[1] : null);
@@ -21928,8 +22002,10 @@ async function executeAgentTool(name, input) {
           // Search for player first
           var _glSearchUrl = PROXY_BASE + '/proxy/espn-player/search?q=' + encodeURIComponent(_glName) + '&sport=' + _glInfo.sport + '&league=' + _glInfo.league;
           var _glSearchResp = await fetch(_glSearchUrl).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
-          var _glAthletes = _glSearchResp ? (_glSearchResp.athletes || _glSearchResp.items || []) : [];
-          if (!_glAthletes.length) return JSON.stringify({ error: 'No player found for "' + _glName + '"', searched: _glName, league: _glLeague });
+          var _glAthletesRaw = _glSearchResp ? (_glSearchResp.athletes || _glSearchResp.items || []) : [];
+          if (!_glAthletesRaw.length) return JSON.stringify({ error: 'No player found for "' + _glName + '"', searched: _glName, league: _glLeague });
+          // Re-rank to prefer athletes in the requested league
+          var _glAthletes = _spRankAthletesByLeague(_glAthletesRaw, _glLeague);
           var _glAth = _glAthletes[0];
           var _glId = _glAth.id || (_glAth.$ref && _glAth.$ref.match(/athletes\/(\d+)/) ? _glAth.$ref.match(/athletes\/(\d+)/)[1] : null);
           var _glFullName = _glAth.displayName || _glAth.fullName || _glName;

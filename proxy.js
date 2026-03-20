@@ -158,23 +158,40 @@ app.get('/proxy/espn-player/search', async (req, res) => {
         // Extract athletes from search results
         const playerResults = parsed.results.filter(r => r.type === 'player' || r.type === 'athlete');
         if (playerResults.length && playerResults[0].contents) {
-          parsed.athletes = playerResults[0].contents.map(c => ({
-            id: c.uid ? c.uid.split(':').pop() : '',
-            displayName: c.title || c.name || '',
-            fullName: c.title || '',
-            position: { abbreviation: c.description || '' },
-            team: { displayName: c.description || '' },
-            headshot: c.image ? { href: c.image } : null
-          }));
+          parsed.athletes = playerResults[0].contents.map(c => {
+            const ath = {
+              id: c.uid ? c.uid.split(':').pop() : '',
+              displayName: c.title || c.name || '',
+              fullName: c.title || '',
+              position: { abbreviation: c.description || '' },
+              team: { displayName: c.description || '' },
+              headshot: c.image ? { href: c.image } : null,
+              _globalSearch: true // flag that this came from global search, not league-specific
+            };
+            // Extract league from link if available (e.g. /nba/player/... or /mens-college-basketball/...)
+            if (c.link) {
+              ath.links = [{ href: c.link }];
+              const leagueMatch = c.link.match(/\/(?:sports\/\w+\/|)(nba|nfl|mlb|nhl|mens-college-basketball|college-football|wnba)\//i);
+              if (leagueMatch) ath._detectedLeague = leagueMatch[1].toLowerCase();
+            }
+            return ath;
+          });
         }
+        parsed._searchSource = 'global';
         const normalized = JSON.stringify(parsed);
         setCache(cacheKey, normalized, 'application/json');
         res.setHeader('Content-Type', 'application/json');
         return res.send(normalized);
       }
-      setCache(cacheKey, text, 'application/json');
+      // Tag league-specific results with their source league for client-side ranking
+      if (parsed.athletes && Array.isArray(parsed.athletes)) {
+        parsed.athletes.forEach(a => { a._sourceLeague = league; });
+        parsed._searchSource = 'league-specific';
+      }
+      const enriched = JSON.stringify(parsed);
+      setCache(cacheKey, enriched, 'application/json');
       res.setHeader('Content-Type', 'application/json');
-      return res.send(text);
+      return res.send(enriched);
     } catch (e) { console.log('[ESPN Player Search] Error: ' + e.message); continue; }
   }
   res.status(502).json({ error: true, message: 'Player search failed — all ' + urls.length + ' endpoints returned errors' });

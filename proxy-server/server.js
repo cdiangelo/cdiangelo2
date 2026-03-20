@@ -524,7 +524,13 @@ app.get('/proxy/espn-player/search', async (req, res) => {
       if (!r2.ok) return res.status(r2.status).json({ error: true, message: 'ESPN player search failed' });
       return res.json(await r2.json());
     }
-    res.json(await r.json());
+    const data = await r.json();
+    // Tag athletes with source league for client-side re-ranking
+    if (data.athletes && Array.isArray(data.athletes)) {
+      data.athletes.forEach(a => { a._sourceLeague = league; });
+      data._searchSource = 'league-specific';
+    }
+    res.json(data);
   } catch (e) {
     console.error('[ESPN Player Search] Error:', e.message);
     res.status(502).json({ error: true, message: 'Player search failed' });
