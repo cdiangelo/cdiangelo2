@@ -237,6 +237,7 @@ body.light .fun-btn { background: var(--accent); }
   grid-template-columns: 1fr 1fr !important;
   grid-template-rows: auto auto 1fr !important;
   gap: 0 !important;
+  overflow: hidden;
 }
 .workspace.simplified-mode .divider-h,
 .workspace.simplified-mode .divider-v { display: none !important; }
@@ -250,9 +251,9 @@ body.light .fun-btn { background: var(--accent); }
   grid-row: 1 !important;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr;
-  overflow: hidden;
+  overflow: visible;
   min-height: 160px;
-  max-height: 25vh;
+  max-height: 28vh;
 }
 .workspace.simplified-mode #q-claude > .p-head { display: none !important; }
 .workspace.simplified-mode #q-claude > .ai-actions-bar { display: none !important; }
@@ -275,37 +276,84 @@ body.light .fun-btn { background: var(--accent); }
   border-top: 1px solid rgba(128,128,128,.1); padding: 3px 6px; flex-shrink: 0;
 }
 
-/* Chat input area (right column of top row) — just input, no messages */
+/* Chat input area (right column of top row) — soft rounded shape */
 .workspace.simplified-mode #q-claude > .p-body {
   grid-column: 2 !important; grid-row: 1 !important;
   display: flex !important; flex-direction: column !important;
-  overflow: hidden; justify-content: flex-end;
-  border-left: 1px solid rgba(128,128,128,.08);
-  background: var(--panel);
+  overflow: visible; justify-content: stretch;
+  border-left: none;
+  background: transparent;
+  padding: 10px 14px 10px 8px;
+  position: relative;
 }
-/* Hide messages inside p-body — they'll be shown in output section */
+/* Hide all chrome inside p-body except the input row */
 .workspace.simplified-mode .claude-content-row { display: none !important; }
 .workspace.simplified-mode .claude-midbar { display: none !important; }
-/* Hide extra toolbars from input area */
 .workspace.simplified-mode #q-claude #aiOutputOpts { display: none !important; }
 .workspace.simplified-mode #q-claude #contextDrawer { display: none !important; }
 .workspace.simplified-mode #q-claude #personaIndicator { display: none !important; }
-.workspace.simplified-mode #q-claude .ai-input-row {
-  border: none !important; background: transparent; padding: 8px 12px;
-}
-.workspace.simplified-mode #q-claude #aiInput {
-  font-size: .82rem; color: var(--text) !important;
-  border-radius: 8px; border: 1px solid rgba(128,128,128,.15);
-  background: var(--panel-inset); padding: 10px 12px;
-}
 .workspace.simplified-mode #q-claude #aiInputResizeHandle { display: none !important; }
-/* Hide text zoom bar, context bar, cost/audit overlays in simplified input */
 .workspace.simplified-mode #q-claude > .p-body > div:has(#aiMsgsZoomOut) { display: none !important; }
 .workspace.simplified-mode #q-claude #aiCostPanel { display: none !important; }
 .workspace.simplified-mode #q-claude #aiPricingCalc { display: none !important; }
 .workspace.simplified-mode #q-claude #aiAuditPanel { display: none !important; }
 .workspace.simplified-mode #q-claude #aiUsageDash { display: none !important; }
 .workspace.simplified-mode #q-claude #contextBadge { display: none !important; }
+/* The input row becomes the soft rounded container */
+.workspace.simplified-mode #q-claude .ai-input-row {
+  flex: 1; display: flex !important; flex-direction: column !important;
+  border: 1px solid rgba(128,128,128,.1) !important;
+  border-radius: 16px !important;
+  background: rgba(255,255,255,.025) !important;
+  padding: 0 !important;
+  position: relative;
+  overflow: hidden;
+  max-height: 50vh;
+  gap: 0 !important;
+}
+/* The textarea fills the shape */
+.workspace.simplified-mode #q-claude #aiInput {
+  flex: 1 !important; resize: none !important;
+  font-size: .82rem; color: var(--text) !important;
+  border: none !important; border-radius: 0 !important;
+  background: transparent !important;
+  padding: 14px 16px 40px 16px !important;
+  min-height: 80px;
+  max-height: calc(50vh - 12px);
+  overflow-y: auto !important;
+  line-height: 1.5;
+}
+.workspace.simplified-mode #q-claude #aiInput::placeholder {
+  color: var(--text-dim); opacity: .5;
+}
+/* Nudge + Send buttons float on bottom edge of the shape */
+.workspace.simplified-mode #q-claude .ai-input-row #aiSend,
+.workspace.simplified-mode #q-claude .ai-input-row #aiNudge {
+  position: absolute !important; bottom: -14px; z-index: 5;
+  border-radius: 20px !important; font-size: .68rem !important;
+  padding: 6px 18px !important; font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  transition: transform .15s, box-shadow .15s;
+}
+.workspace.simplified-mode #q-claude .ai-input-row #aiSend {
+  right: 20px;
+  background: var(--accent) !important; color: #fff !important;
+  border: none !important;
+}
+.workspace.simplified-mode #q-claude .ai-input-row #aiSend:hover {
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,.4);
+}
+.workspace.simplified-mode #q-claude .ai-input-row #aiNudge {
+  right: 100px;
+  background: rgba(255,152,0,.85) !important; color: #fff !important;
+  border: none !important;
+}
+.workspace.simplified-mode #q-claude .ai-input-row #aiNudge:hover {
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,152,0,.4);
+}
+/* Hide stop button and cost badge from inline — they'll be elsewhere */
+.workspace.simplified-mode #q-claude .ai-input-row #aiStop { display: none !important; }
+.workspace.simplified-mode #q-claude .ai-input-row #aiCostBadge { display: none !important; }
 
 /* Robot wrapper: hide from content-row, only shown in simpBotArea */
 .workspace.simplified-mode .robot-scene-wrapper {
@@ -318,9 +366,11 @@ body.light .fun-btn { background: var(--accent); }
   grid-column: 1 / -1 !important;
   grid-row: 2 !important;
 }
+.simp-toolbar, .simp-output-container {
+  display: none; /* shown via simplified-mode rule */
+}
 .simp-toolbar {
-  display: none; /* shown via simplified-mode rule above */
-  align-items: center; gap: 8px; padding: 4px 14px;
+  align-items: center; gap: 8px; padding: 14px 14px 4px;
   background: linear-gradient(180deg, rgba(30,32,42,.95), rgba(22,24,32,.98));
   border-top: 1px solid rgba(128,128,128,.08);
   border-bottom: 1px solid rgba(128,128,128,.08);
@@ -1857,8 +1907,21 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   .workspace.simplified-mode #simpBotArea { display: none !important; }
   .workspace.simplified-mode #q-claude > .p-body {
     grid-column: unset !important; grid-row: unset !important;
-    border-left: none !important;
+    border-left: none !important; padding: 6px 8px !important;
+    overflow: visible !important;
   }
+  .workspace.simplified-mode #q-claude .ai-input-row {
+    max-height: 40vh !important; border-radius: 12px !important;
+  }
+  .workspace.simplified-mode #q-claude #aiInput {
+    padding: 10px 12px 36px 12px !important; min-height: 60px !important;
+    font-size: .76rem !important;
+  }
+  .workspace.simplified-mode #q-claude .ai-input-row #aiSend,
+  .workspace.simplified-mode #q-claude .ai-input-row #aiNudge {
+    bottom: -12px !important; font-size: .6rem !important; padding: 5px 14px !important;
+  }
+  .workspace.simplified-mode #q-claude .ai-input-row #aiNudge { right: 80px !important; }
   .workspace.simplified-mode #simpToolbar {
     flex: 0 0 auto !important;
     grid-column: unset !important; grid-row: unset !important;
@@ -2140,21 +2203,21 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 <!-- ═══ AUTH GATE ═══ -->
 <div id="authGate" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:inherit;padding:12px;">
   <div id="authBox" style="background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:460px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);box-sizing:border-box;max-height:100%;overflow-y:auto;">
-    <div style="font-size:2rem;margin-bottom:8px;">&#129302;</div>
+    <div style="margin-bottom:8px;"><svg width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="var(--accent2)" stroke-width="1.5" opacity=".3"/><circle cx="16" cy="16" r="5" fill="var(--accent2)" opacity=".6"/><line x1="16" y1="2" x2="16" y2="8" stroke="var(--accent2)" stroke-width="1.2" opacity=".25"/><line x1="16" y1="24" x2="16" y2="30" stroke="var(--accent2)" stroke-width="1.2" opacity=".25"/><line x1="2" y1="16" x2="8" y2="16" stroke="var(--accent2)" stroke-width="1.2" opacity=".25"/><line x1="24" y1="16" x2="30" y2="16" stroke="var(--accent2)" stroke-width="1.2" opacity=".25"/></svg></div>
     <h2 id="authTitle" style="color:var(--text);margin:0 0 6px;font-size:1.2rem;">QuantBot</h2>
     <p id="authSubtitle" style="color:var(--text-dim);font-size:.78rem;margin:0 0 24px;">Select your account to continue</p>
 
-    <!-- Mode selector: Suite vs Simplified -->
+    <!-- Mode selector: Simplified (default) vs Suite -->
     <div id="authModeSelector" style="display:flex;gap:8px;justify-content:center;margin-bottom:18px;">
-      <button id="authModeSuite" onclick="selectWorkspaceMode('suite')" style="flex:1;max-width:180px;padding:12px 10px;border:2px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.12);color:var(--text);cursor:pointer;transition:all .15s;text-align:center;">
-        <div style="font-size:1.2rem;margin-bottom:4px;">&#9638;&#9638;&#9638;</div>
-        <div style="font-size:.78rem;font-weight:700;">Suite</div>
-        <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Full workspace &mdash; 6 panes, all tools</div>
-      </button>
-      <button id="authModeSimplified" onclick="selectWorkspaceMode('simplified')" style="flex:1;max-width:180px;padding:12px 10px;border:2px solid var(--border);border-radius:10px;background:none;color:var(--text);cursor:pointer;transition:all .15s;text-align:center;">
-        <div style="font-size:1.2rem;margin-bottom:4px;">&#129302;</div>
+      <button id="authModeSimplified" onclick="selectWorkspaceMode('simplified')" style="flex:1;max-width:180px;padding:12px 10px;border:2px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.12);color:var(--text);cursor:pointer;transition:all .15s;text-align:center;">
+        <div style="margin-bottom:4px;"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="var(--accent2)" stroke-width="1.2" opacity=".5"/><circle cx="11" cy="11" r="3" fill="var(--accent2)" opacity=".5"/></svg></div>
         <div style="font-size:.78rem;font-weight:700;">Simplified</div>
         <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Chat-focused &mdash; bot + outputs</div>
+      </button>
+      <button id="authModeSuite" onclick="selectWorkspaceMode('suite')" style="flex:1;max-width:180px;padding:12px 10px;border:2px solid var(--border);border-radius:10px;background:none;color:var(--text);cursor:pointer;transition:all .15s;text-align:center;">
+        <div style="margin-bottom:4px;"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.5" stroke="var(--text-dim)" stroke-width="1.2"/><rect x="12" y="1" width="9" height="9" rx="1.5" stroke="var(--text-dim)" stroke-width="1.2"/><rect x="1" y="12" width="9" height="9" rx="1.5" stroke="var(--text-dim)" stroke-width="1.2"/><rect x="12" y="12" width="9" height="9" rx="1.5" stroke="var(--text-dim)" stroke-width="1.2"/></svg></div>
+        <div style="font-size:.78rem;font-weight:700;">Suite</div>
+        <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">Full workspace &mdash; 6 panes, all tools</div>
       </button>
     </div>
 
@@ -2163,7 +2226,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div id="authUserListItems" style="max-height:220px;overflow-y:auto;margin-bottom:12px;"></div>
       <div style="display:flex;gap:10px;justify-content:center;">
         <button id="authNewUserBtn" style="padding:10px 24px;border:1px solid var(--success, #10b981);border-radius:10px;background:rgba(16,185,129,.1);color:var(--success, #10b981);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;">+ New User</button>
-        <button id="authAdminBtn" style="padding:10px 24px;border:1px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.1);color:var(--accent2);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;">&#128272; Admin</button>
+        <button id="authAdminBtn" style="padding:10px 24px;border:1px solid var(--accent);border-radius:10px;background:rgba(59,130,246,.1);color:var(--accent2);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="vertical-align:middle;margin-right:4px;"><rect x="3" y="1" width="6" height="4" rx="3" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="1.5" y="5" width="9" height="6" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Admin</button>
       </div>
     </div>
 
@@ -2172,18 +2235,18 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <input type="text" id="authUserName" placeholder="Enter your name" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:8px;box-sizing:border-box;" />
       <div id="authNameError" style="color:var(--danger);font-size:.65rem;margin-bottom:6px;display:none;"></div>
       <button id="authUserEnter" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--success, #10b981);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Enter Workspace</button>
-      <button id="authBackToList" style="width:100%;padding:8px;border:none;border-radius:8px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;margin-top:6px;">&#8592; Back to user list</button>
+      <button id="authBackToList" style="width:100%;padding:8px;border:none;border-radius:8px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;margin-top:6px;">&larr; Back to user list</button>
     </div>
 
     <!-- Admin form -->
     <div id="authAdminForm" style="display:none;margin-top:12px;">
       <div style="position:relative;">
         <input type="password" id="authPassword" placeholder="Admin password" style="width:100%;padding:10px 14px;padding-right:40px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.82rem;margin-bottom:10px;box-sizing:border-box;" />
-        <button id="authTogglePw" type="button" style="position:absolute;right:8px;top:8px;background:none;border:none;cursor:pointer;font-size:1rem;color:var(--text-dim);padding:0;line-height:1;" title="Show/hide password">&#128065;</button>
+        <button id="authTogglePw" type="button" style="position:absolute;right:8px;top:8px;background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text-dim);padding:2px 4px;line-height:1;" title="Show/hide password">Show</button>
       </div>
       <button id="authLoginBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;">Sign In</button>
       <div id="authError" style="color:var(--danger);font-size:.7rem;margin-top:6px;display:none;">Invalid password</div>
-      <button id="authBackFromAdmin" style="width:100%;padding:8px;border:none;border-radius:8px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;margin-top:6px;">&#8592; Back to user list</button>
+      <button id="authBackFromAdmin" style="width:100%;padding:8px;border:none;border-radius:8px;background:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;margin-top:6px;">&larr; Back to user list</button>
     </div>
   </div>
 </div>
@@ -2209,8 +2272,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
     </div>
       <div style="display:flex;gap:4px;margin-left:8px;align-items:center;">
-        <button id="resetGridBtn" class="fs-btn" title="Reset grid layout to show all panes" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">&#8634; Grid</button>
-        <button id="gridSettingsBtn" class="fs-btn" title="Rearrange pane positions" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">&#9881; Layout</button>
+        <button id="resetGridBtn" class="fs-btn" title="Reset grid layout to show all panes" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">Grid</button>
+        <button id="gridSettingsBtn" class="fs-btn" title="Rearrange pane positions" style="font-size:.6rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);background:none;cursor:pointer;">Layout</button>
       </div>
   </div>
   <div class="header-spacer"></div>
@@ -2225,10 +2288,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </label>
     <div style="display:flex;gap:2px;">
       <button class="fun-btn" id="funPlayBtn" title="Play next video (right-click to stop)" style="padding:5px 10px;border-radius:6px 0 0 6px;">&#9654; Media</button>
-      <button class="fun-btn" id="funEditBtn" title="Media settings" style="padding:5px 8px;border-radius:0 6px 6px 0;border-left:1px solid rgba(255,255,255,.2);">&#9881;</button>
+      <button class="fun-btn" id="funEditBtn" title="Media settings" style="padding:5px 8px;border-radius:0 6px 6px 0;border-left:1px solid rgba(255,255,255,.2);">Settings</button>
     </div>
     <div class="fun-btn-wrap">
-      <button class="fun-btn" id="wsToggle">&#128190; Workspaces</button>
+      <button class="fun-btn" id="wsToggle">Workspaces</button>
       <div class="fun-panel" id="wsPanel" style="min-width:340px;">
         <h3 style="margin-bottom:4px;">Workspaces</h3>
         <div style="font-size:.55rem;color:var(--text-dim);margin-bottom:8px;line-height:1.4;">Optional &mdash; for version control &amp; merging. All inquiries and exhibits are saved automatically regardless of workspace.</div>
@@ -2261,11 +2324,11 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
     <span id="userNameDisplay" style="display:none;font-size:.65rem;color:var(--text-dim);padding:0 4px;"></span>
     <span id="idleTimerDisplay" style="display:none;font-size:.55rem;color:var(--text-dim);padding:0 2px;font-variant-numeric:tabular-nums;"></span>
-    <button class="fs-btn" id="wsSettingsBtn" title="Session & device settings" style="font-size:.7rem;color:var(--text-dim);border:1px solid var(--border);border-radius:4px;padding:2px 8px;display:none;">&#9881; Settings</button>
+    <button class="fs-btn" id="wsSettingsBtn" title="Session & device settings" style="font-size:.7rem;color:var(--text-dim);border:1px solid var(--border);border-radius:4px;padding:2px 8px;display:none;">Settings</button>
     <button class="fs-btn" id="userExitBtn" title="Exit to login screen" style="font-size:.65rem;color:var(--accent2);display:none;border:1px solid var(--accent2);border-radius:4px;padding:2px 8px;">&#8592; Exit</button>
-    <button class="fs-btn" id="logoutBtn" title="Exit admin mode — return to guest/user view" style="font-size:.65rem;color:var(--danger);display:none;border:1px solid var(--danger);border-radius:4px;padding:2px 8px;">&#128274; Logout</button>
+    <button class="fs-btn" id="logoutBtn" title="Exit admin mode — return to guest/user view" style="font-size:.65rem;color:var(--danger);display:none;border:1px solid var(--danger);border-radius:4px;padding:2px 8px;">Logout</button>
     <button class="fs-btn" id="helpBtn" title="Help" style="font-size:1rem;">?</button>
-    <button class="fs-btn" id="fsBtn" title="Fullscreen">&#x26F6;</button>
+    <button class="fs-btn" id="fsBtn" title="Fullscreen">Fullscreen</button>
   </div>
 </div>
 
@@ -2332,10 +2395,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <div class="sep"></div>
         <button onclick="document.execCommand('removeFormat')" title="Remove formatting from selection">Fmt</button>
         <button onclick="if(confirm('Clear all content?')){document.getElementById('npArea').innerHTML='';if(typeof npSaveCurrentPage==='function')npSaveCurrentPage();}" title="Clear all content">Clear</button>
-        <button id="npTimestamp" title="Insert timestamp">&#128339;</button>
+        <button id="npTimestamp" title="Insert timestamp">Time</button>
         <div class="sep"></div>
         <button onclick="exportNotepadPdf()" title="Export as PDF">PDF</button>
-        <button id="npPolishBtn" title="AI Polish — reformat notes into hyper-polished professional deliverable" style="color:var(--accent2);font-weight:600;">&#10024; Polish</button>
+        <button id="npPolishBtn" title="AI Polish — reformat notes into hyper-polished professional deliverable" style="color:var(--accent2);font-weight:600;">Polish</button>
       </div>
       <div class="np-area" id="npArea" contenteditable="true" spellcheck="true"></div>
       <div class="np-status">
@@ -2368,17 +2431,17 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <span>Deep</span>
       </label>
       <button id="aiCostBtn" class="p-btn" title="API cost estimator" style="font-weight:700;">$</button>
-      <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">&#128176;</button>
+      <button id="aiPricingBtn" class="p-btn" title="Pricing calculator" style="font-weight:700;">$</button>
       <button id="aiAuditBtn" class="p-btn" title="Full inquiry audit log — all users (admin)" style="font-size:.55rem;">Audit</button>
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
       <button id="aiAccessReqBtn" class="p-btn" title="User access requests (admin)" style="font-size:.55rem;">Requests</button>
       <button id="aiSettingsBtn" class="p-btn" title="Rate limits & session settings (admin)" style="font-size:.55rem;">Settings</button>
       <button id="aiDataSourcesBtn" class="p-btn" title="Data source health check — all APIs (admin)" style="font-size:.55rem;">Sources</button>
       <button id="aiSavedActionsBtn" class="p-btn" title="Saved tool actions" style="font-size:.55rem;">Actions</button>
-      <button id="aiCleanupBtn" class="p-btn" title="Cleanup available in Whiteboard, Concept Map, Notepad, Scratch Sheet" style="font-size:.55rem;">&#x1F9F9; Cleanup</button>
+      <button id="aiCleanupBtn" class="p-btn" title="Cleanup available in Whiteboard, Concept Map, Notepad, Scratch Sheet" style="font-size:.55rem;">Cleanup</button>
       <button id="aiInfoBtn" class="p-btn" title="Capabilities &amp; settings" style="font-size:.6rem;">Info</button>
       <button id="aiLogBtn" class="p-btn" title="Chat session history" style="font-size:.55rem;">History</button>
-      <button id="aiClear" class="p-btn" title="Clear chat">&#128465;</button>
+      <button id="aiClear" class="p-btn" title="Clear chat">Clear</button>
     </div>
     <div class="p-body" style="display:flex;flex-direction:column;position:relative;">
       <!-- Cost estimator panel -->
@@ -2388,7 +2451,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
       <!-- Pricing calculator panel -->
       <div id="aiPricingPanel" style="display:none;position:absolute;top:0;left:4px;right:4px;z-index:80;background:var(--panel-inset);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:12px 14px;font-size:.65rem;overflow-y:auto;max-height:90%;">
-        <div style="font-weight:700;color:var(--accent2);margin-bottom:8px;">&#128176; Pricing Calculator</div>
+        <div style="font-weight:700;color:var(--accent2);margin-bottom:8px;">Pricing Calculator</div>
         <div style="display:flex;flex-direction:column;gap:8px;" id="pricingCalcBody">
           <div style="display:flex;gap:8px;">
             <div style="flex:1;">
@@ -2463,7 +2526,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
       <div style="display:flex;align-items:center;gap:6px;padding:0 8px;">
         <span id="personaIndicator" style="font-size:.52rem;color:var(--text-dim);white-space:nowrap;"></span>
-        <button id="contextBadge" style="font-size:.5rem;color:var(--text-dim);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;white-space:nowrap;">&#128206; Context</button>
+        <button id="contextBadge" style="font-size:.5rem;color:var(--text-dim);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;white-space:nowrap;">Context</button>
       </div>
       <div id="contextDrawer" style="display:none;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--panel-inset);max-height:200px;overflow-y:auto;font-size:.55rem;"></div>
       <div style="display:flex;align-items:center;gap:4px;padding:1px 8px;flex-shrink:0;border-bottom:1px solid var(--border);background:var(--panel-inset);">
@@ -2554,7 +2617,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <div id="aiApiKeySection" style="display:none;padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
         <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
           <input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
-          <button id="aiKeyToggle" style="padding:3px 6px;border:none;border-radius:4px;background:var(--panel-inset);color:var(--text-dim);cursor:pointer;font-size:.6rem;" title="Show/hide key">&#128065;</button>
+          <button id="aiKeyToggle" style="padding:3px 6px;border:none;border-radius:4px;background:var(--panel-inset);color:var(--text-dim);cursor:pointer;font-size:.6rem;" title="Show/hide key">Show</button>
           <button id="aiKeySave" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Save</button>
         </div>
         <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">API key is managed server-side via the secure proxy.</div>
@@ -2605,13 +2668,13 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         </select>
         <button id="wbUndo">Undo</button>
         <button id="wbRedo">Redo</button>
-        <button id="wbHistoryBtn" title="Undo history">&#128340;</button>
+        <button id="wbHistoryBtn" title="Undo history">History</button>
         <button id="wbClear">Clear</button>
         <button id="wbSave">PNG</button>
         <div class="sep"></div>
-        <button id="wbImgSearch" title="Search and import images">&#128247; Image</button>
-        <button id="wbPasteChart" title="Copy chart from Analytics">&#128200; Chart</button>
-        <button id="wbPasteTable" title="Copy table from Sheet">&#128202; Table</button>
+        <button id="wbImgSearch" title="Search and import images">Image</button>
+        <button id="wbPasteChart" title="Copy chart from Analytics">Chart</button>
+        <button id="wbPasteTable" title="Copy table from Sheet">Table</button>
         <button id="wbLayers" title="Toggle layer panel">Layers</button>
       </div>
       <div class="wb-wrap" id="wbWrap" style="position:relative;">
@@ -2670,7 +2733,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="ssItalic" title="Toggle italic (Ctrl+I)" style="font-style:italic;min-width:22px;">I</button>
         <input type="color" id="ssTextColor" value="#ffffff" title="Text color" style="width:22px;height:20px;padding:0;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg);" />
         <input type="color" id="ssBgColor" value="#1a1a2e" title="Cell background color" style="width:22px;height:20px;padding:0;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg);" />
-        <button id="ssClearFmt" title="Clear formatting" style="font-size:.55rem;">&#10060;Fmt</button>
+        <button id="ssClearFmt" title="Clear formatting" style="font-size:.55rem;">Clear Fmt</button>
         <div class="sep"></div>
         <button id="ssDecDec" title="Decrease decimals" style="font-size:.6rem;">.0</button>
         <button id="ssIncDec" title="Increase decimals" style="font-size:.6rem;">.00</button>
@@ -2685,7 +2748,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="ssSortD">&#8595;</button>
         <button id="ssHeat" title="Heat map">Heat</button>
         <button id="ssFormulas" title="Show formulas">fx</button>
-        <button id="ssCalcAll" title="Force recalculate all formulas" style="color:var(--accent2);font-weight:600;">&#9889; Calc</button>
+        <button id="ssCalcAll" title="Force recalculate all formulas" style="color:var(--accent2);font-weight:600;">Calc</button>
         <button id="ssUndo" title="Undo last change">Undo</button>
         <button id="ssHelp" title="Formula reference">? Help</button>
         <button id="ssExport">Excel</button>
@@ -2726,7 +2789,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           </div>
           <button id="stockAdd">+Add</button>
           <button id="stockClearSearch" title="Clear search" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">&#x2715;</button>
-          <button id="stockBrowse" title="Browse all companies" style="font-size:.68rem;">&#128203; List</button>
+          <button id="stockBrowse" title="Browse all companies" style="font-size:.68rem;">List</button>
           <div class="sep"></div>
           <span id="stockChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
           <div class="p-spacer" style="flex:1;"></div>
@@ -2918,7 +2981,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="soccer">Soccer</option>
               <option value="global">Global Events</option>
             </select>
-            <button id="spRefreshScores" style="font-size:.68rem;">&#8635; Refresh</button>
+            <button id="spRefreshScores" style="font-size:.68rem;">Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
             <span id="spScoresTime" style="font-size:.55rem;color:var(--text-dim);"></span>
           </div>
@@ -2939,7 +3002,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="soccer">Soccer</option>
               <option value="global">Global Events</option>
             </select>
-            <button id="spRefreshStandings" style="font-size:.68rem;">&#8635; Refresh</button>
+            <button id="spRefreshStandings" style="font-size:.68rem;">Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
           </div>
           <div id="spStandingsList" style="flex:1;overflow-y:auto;padding:8px;">
@@ -2959,7 +3022,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="soccer">Soccer</option>
               <option value="global">Global Events</option>
             </select>
-            <button id="spRefreshOdds" style="font-size:.68rem;">&#8635; Refresh</button>
+            <button id="spRefreshOdds" style="font-size:.68rem;">Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
             <span id="spOddsTime" style="font-size:.55rem;color:var(--text-dim);"></span>
           </div>
@@ -2980,7 +3043,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
               <option value="soccer">Soccer</option>
               <option value="global">Global Events</option>
             </select>
-            <button id="spRefreshNews" style="font-size:.68rem;">&#8635; Refresh</button>
+            <button id="spRefreshNews" style="font-size:.68rem;">Refresh</button>
             <div class="p-spacer" style="flex:1;"></div>
           </div>
           <div id="spNewsList" style="flex:1;overflow-y:auto;padding:8px;">
@@ -3011,7 +3074,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
           <div class="toolbar" style="flex-wrap:wrap;gap:4px;">
             <span style="font-size:.62rem;font-weight:700;color:var(--text);">NCAA Bracket</span>
             <button id="spBracketFetch" style="font-size:.58rem;background:rgba(59,130,246,.7);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;" title="Fetch live tournament data from ESPN">Load Bracket</button>
-            <button id="spBracketRefresh" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Refresh scores">&#8635; Refresh</button>
+            <button id="spBracketRefresh" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Refresh scores">Refresh</button>
             <button id="spBracketReset" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Reset user picks">Reset Picks</button>
             <button id="spBracketSave" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Save a copy of this bracket">Save</button>
             <button id="spBracketLoad" style="font-size:.58rem;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;color:var(--text-dim);display:none;" title="Load a saved bracket version">Load</button>
@@ -3064,8 +3127,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <input type="text" id="newsSearch" placeholder="Search news by keyword or ticker..." style="flex:1;min-width:120px;" />
         <button id="newsSearchBtn">Search</button>
         <button id="newsClearBtn" title="Clear search" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">&#x2715;</button>
-        <button id="newsRefreshBtn" title="Refresh news feed" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text);cursor:pointer;font-size:.6rem;">&#8635; Refresh</button>
-        <button id="newsDeepResearch" title="Deep Research — Claude scans multiple sources and generates a PDF report" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.62rem;font-weight:600;">&#128269; Deep Research</button>
+        <button id="newsRefreshBtn" title="Refresh news feed" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text);cursor:pointer;font-size:.6rem;">Refresh</button>
+        <button id="newsDeepResearch" title="Deep Research — Claude scans multiple sources and generates a PDF report" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.62rem;font-weight:600;">Deep Research</button>
         <div class="sep"></div>
         <span id="newsTickerChips" style="display:flex;gap:4px;flex-wrap:wrap;"></span>
       </div>
@@ -3095,14 +3158,14 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-body" style="position:relative;background:#0a0a0a;display:flex;align-items:center;justify-content:center;overflow:hidden;">
       <div id="mediaPanePlayer" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>
       <div id="mediaPaneEmpty" style="text-align:center;color:var(--text-dim);font-size:.7rem;position:absolute;">
-        <div style="font-size:2rem;margin-bottom:8px;">&#9654;</div>
+        <div style="font-size:1.2rem;margin-bottom:8px;color:var(--text-dim);">No video playing</div>
         No video playing.<br>Click <b>Media</b> in the header or add a video above.
       </div>
     </div>
   </div>
 
   <!-- ═══ SIMPLIFIED MODE: TOOLBAR (between top and bottom) ═══ -->
-  <div id="simpToolbar" class="simp-toolbar" style="display:none;">
+  <div id="simpToolbar" class="simp-toolbar">
     <div class="simp-tb-group" id="simpTbControls">
       <span class="simp-tb-label">Model</span>
       <!-- Model + persona selects cloned here by JS -->
@@ -3124,7 +3187,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   </div>
 
   <!-- ═══ SIMPLIFIED MODE: OUTPUT (full-width bottom section) ═══ -->
-  <div id="simpOutput" style="display:none;">
+  <div id="simpOutput" class="simp-output-container">
     <div class="simp-output-wrap" id="simpOutputWrap">
       <div class="simp-out-panel active" id="simpOutChat"></div>
       <div class="simp-out-panel" id="simpOutSheet"></div>
@@ -3155,12 +3218,12 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
 
 <!-- Context menu -->
 <div class="ctx-menu" id="ctxMenu">
-  <div class="ctx-item" data-action="cut">&#9986; Cut</div>
-  <div class="ctx-item" data-action="copy">&#128203; Copy</div>
-  <div class="ctx-item" data-action="paste">&#128196; Paste All</div>
-  <div class="ctx-item" data-action="pasteValues">&#128196; Paste Values Only</div>
-  <div class="ctx-item" data-action="pasteFormulas">&#128196; Paste Formulas Only</div>
-  <div class="ctx-item" data-action="pasteFormat">&#128196; Paste Format Only</div>
+  <div class="ctx-item" data-action="cut">Cut</div>
+  <div class="ctx-item" data-action="copy">Copy</div>
+  <div class="ctx-item" data-action="paste">Paste All</div>
+  <div class="ctx-item" data-action="pasteValues">Paste Values Only</div>
+  <div class="ctx-item" data-action="pasteFormulas">Paste Formulas Only</div>
+  <div class="ctx-item" data-action="pasteFormat">Paste Format Only</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="insertRow">Insert Row Below</div>
   <div class="ctx-item" data-action="insertCol">Insert Column Right</div>
@@ -3185,7 +3248,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <p style="margin-bottom:6px;"><b>Notepad</b> (top-left) &mdash; Rich text editor with formatting, colors, and auto-save.</p>
     <p style="margin-bottom:6px;"><b>Whiteboard</b> (top-right) &mdash; Draw with pen, shapes, text. Use <i>Size</i> and <i>Opacity</i> sliders to adjust.</p>
     <p style="margin-bottom:6px;"><b>Scratch Sheet</b> (bottom-left) &mdash; Click any cell to edit. Supports formulas: <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SUM(A1:A5)</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=AVG</code> <code style="background:var(--bg);padding:1px 4px;border-radius:3px;">=SPARK</code></p>
-    <p style="margin-bottom:6px;"><b>Analytics</b> (bottom-center) &mdash; Stock charts with comparison view (click &#x27A4; to compare, &#128240; for news), Concept Map, or Graph Calculator with shading &amp; export.</p>
+    <p style="margin-bottom:6px;"><b>Analytics</b> (bottom-center) &mdash; Stock charts with comparison view (click &#x27A4; to compare, News for news), Concept Map, or Graph Calculator with shading &amp; export.</p>
     <p style="margin-bottom:6px;"><b>News &amp; Markets</b> (bottom-right) &mdash; Search news by keyword or push tickers from Stocks for simulated market coverage.</p>
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
     <p style="font-size:.8rem;color:var(--text-dim);">Use the <b>pane tabs</b> in the header (All / Notes / Draw / Sheet / Map) to focus on one pane. Click the <b>expand arrow</b> in any pane header to maximize it. The <b>Media</b> button stores URLs and plays audio.</p>
@@ -3689,12 +3752,12 @@ const wsHardwareId = getHardwareFingerprint();
     const pw = document.getElementById('authPassword');
     const isHidden = pw.type === 'password';
     pw.type = isHidden ? 'text' : 'password';
-    document.getElementById('authTogglePw').innerHTML = isHidden ? '&#128064;' : '&#128065;';
+    document.getElementById('authTogglePw').textContent = isHidden ? 'Hide' : 'Show';
   };
 })();
 
 // ── Workspace Mode: Suite vs Simplified ──
-let wsMode = localStorage.getItem('ws_mode') || 'suite';
+let wsMode = localStorage.getItem('ws_mode') || 'simplified';
 
 function selectWorkspaceMode(mode) {
   wsMode = mode;
@@ -4077,6 +4140,62 @@ async function getAllUserUsage() {
    ═══════════════════════════════════════════ */
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
+
+// ── Tasteful single-color inline SVG icon system ──
+// Returns a small SVG string for use in innerHTML. All icons are 12x12 by default.
+const _ic = (function() {
+  const s = 12; // default size
+  const c = 'currentColor';
+  const icons = {
+    check:     `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><polyline points="2,6 5,9 10,3" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    x:         `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><line x1="3" y1="3" x2="9" y2="9" stroke="${c}" stroke-width="1.3" stroke-linecap="round"/><line x1="9" y1="3" x2="3" y2="9" stroke="${c}" stroke-width="1.3" stroke-linecap="round"/></svg>`,
+    warn:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M6 1L11 10H1Z" stroke="${c}" stroke-width="1.2" stroke-linejoin="round"/><line x1="6" y1="4.5" x2="6" y2="7" stroke="${c}" stroke-width="1.2" stroke-linecap="round"/><circle cx="6" cy="8.5" r=".6" fill="${c}"/></svg>`,
+    stop:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="6" cy="6" r="5" stroke="${c}" stroke-width="1.2"/><line x1="3" y1="6" x2="9" y2="6" stroke="${c}" stroke-width="1.2" stroke-linecap="round"/></svg>`,
+    wrench:    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M7.5 2.5a3 3 0 00-4 4L2 8l2 2 1.5-1.5a3 3 0 004-4L8 6 6 4z" stroke="${c}" stroke-width="1.1" stroke-linejoin="round"/></svg>`,
+    search:    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="5" cy="5" r="3.5" stroke="${c}" stroke-width="1.2"/><line x1="7.5" y1="7.5" x2="10.5" y2="10.5" stroke="${c}" stroke-width="1.2" stroke-linecap="round"/></svg>`,
+    chart:     `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="1" y="6" width="2.5" height="5" rx=".5" fill="${c}" opacity=".5"/><rect x="4.75" y="3" width="2.5" height="8" rx=".5" fill="${c}" opacity=".7"/><rect x="8.5" y="1" width="2.5" height="10" rx=".5" fill="${c}" opacity=".5"/></svg>`,
+    doc:       `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="2" y="1" width="8" height="10" rx="1" stroke="${c}" stroke-width="1.1"/><line x1="4" y1="4" x2="8" y2="4" stroke="${c}" stroke-width=".8" opacity=".5"/><line x1="4" y1="6" x2="8" y2="6" stroke="${c}" stroke-width=".8" opacity=".5"/><line x1="4" y1="8" x2="6.5" y2="8" stroke="${c}" stroke-width=".8" opacity=".5"/></svg>`,
+    note:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="2" y="1" width="8" height="10" rx="1" stroke="${c}" stroke-width="1.1"/><line x1="4" y1="4" x2="8" y2="4" stroke="${c}" stroke-width=".8" opacity=".5"/><line x1="4" y1="6" x2="7" y2="6" stroke="${c}" stroke-width=".8" opacity=".5"/></svg>`,
+    palette:   `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="6" cy="6" r="5" stroke="${c}" stroke-width="1.1"/><circle cx="4" cy="4" r=".8" fill="${c}"/><circle cx="7" cy="3.5" r=".8" fill="${c}"/><circle cx="4" cy="7" r=".8" fill="${c}"/></svg>`,
+    sheet:     `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="1" y="1" width="10" height="10" rx="1" stroke="${c}" stroke-width="1.1"/><line x1="1" y1="4" x2="11" y2="4" stroke="${c}" stroke-width=".8" opacity=".4"/><line x1="1" y1="7.5" x2="11" y2="7.5" stroke="${c}" stroke-width=".8" opacity=".4"/><line x1="5" y1="1" x2="5" y2="11" stroke="${c}" stroke-width=".8" opacity=".4"/></svg>`,
+    gear:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="6" cy="6" r="2" stroke="${c}" stroke-width="1.1"/><path d="M6 1v1.5M6 9.5V11M1 6h1.5M9.5 6H11M2.5 2.5l1 1M8.5 8.5l1 1M9.5 2.5l-1 1M3.5 8.5l-1 1" stroke="${c}" stroke-width=".9" stroke-linecap="round"/></svg>`,
+    dollar:    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><line x1="6" y1="1" x2="6" y2="11" stroke="${c}" stroke-width="1" stroke-linecap="round"/><path d="M4 4c0-1 .8-1.5 2-1.5s2 .5 2 1.5-.8 1.5-2 2-2 .5-2 1.5.8 1.5 2 1.5 2-.5 2-1.5" stroke="${c}" stroke-width="1.1" stroke-linecap="round" fill="none"/></svg>`,
+    clock:     `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="6" cy="6" r="5" stroke="${c}" stroke-width="1.1"/><polyline points="6,3 6,6 8,7.5" stroke="${c}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    play:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><polygon points="3,1.5 10.5,6 3,10.5" fill="${c}" opacity=".7"/></svg>`,
+    refresh:   `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M10 6a4 4 0 01-7.5 1.5M2 6a4 4 0 017.5-1.5" stroke="${c}" stroke-width="1.2" stroke-linecap="round"/><polyline points="10,3 10,6 7,6" stroke="${c}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    news:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="1" y="2" width="10" height="8" rx="1" stroke="${c}" stroke-width="1.1"/><line x1="3" y1="4.5" x2="9" y2="4.5" stroke="${c}" stroke-width=".8" opacity=".4"/><line x1="3" y1="6.5" x2="7" y2="6.5" stroke="${c}" stroke-width=".8" opacity=".4"/><line x1="3" y1="8" x2="5.5" y2="8" stroke="${c}" stroke-width=".8" opacity=".4"/></svg>`,
+    link:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M5 7l2-2m-1.5 4.5L7 8a2 2 0 000-3L6 4M3.5 7.5L5 6a2 2 0 013 0l1 1" stroke="${c}" stroke-width="1.1" stroke-linecap="round"/></svg>`,
+    pin:       `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="6" cy="4.5" r="2.5" stroke="${c}" stroke-width="1.1"/><line x1="6" y1="7" x2="6" y2="11" stroke="${c}" stroke-width="1.1" stroke-linecap="round"/></svg>`,
+    spark:     `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M6 1l1 3.5L10.5 6 7 7l-1 4-1-4L1.5 6 5 4.5z" fill="${c}" opacity=".6"/></svg>`,
+    sweep:     `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><line x1="3" y1="2" x2="3" y2="10" stroke="${c}" stroke-width="1.2" stroke-linecap="round"/><path d="M3 10c2-1 5-2 7-5" stroke="${c}" stroke-width="1.2" stroke-linecap="round"/><line x1="5" y1="3" x2="3" y2="5" stroke="${c}" stroke-width="1" stroke-linecap="round"/></svg>`,
+    expand:    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><polyline points="8,1 11,1 11,4" stroke="${c}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="4,11 1,11 1,8" stroke="${c}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><line x1="7" y1="5" x2="11" y2="1" stroke="${c}" stroke-width="1" stroke-linecap="round"/><line x1="5" y1="7" x2="1" y2="11" stroke="${c}" stroke-width="1" stroke-linecap="round"/></svg>`,
+    camera:    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="1" y="3" width="10" height="7" rx="1" stroke="${c}" stroke-width="1.1"/><circle cx="6" cy="6.5" r="2" stroke="${c}" stroke-width="1"/><path d="M4 3l.5-1.5h3L8 3" stroke="${c}" stroke-width=".8"/></svg>`,
+    lock:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="2.5" y="5.5" width="7" height="5.5" rx="1" stroke="${c}" stroke-width="1.1"/><path d="M4 5.5V4a2 2 0 014 0v1.5" stroke="${c}" stroke-width="1.1" stroke-linecap="round"/></svg>`,
+    clip:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M8 3v5a2 2 0 01-4 0V3.5a1.25 1.25 0 012.5 0V8" stroke="${c}" stroke-width="1.1" stroke-linecap="round"/></svg>`,
+    fire:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M6 1c0 2.5-3 4-3 6.5a3.5 3.5 0 007 0c0-1.5-1-2.5-1-4S6 1 6 1z" stroke="${c}" stroke-width="1.1" stroke-linejoin="round"/></svg>`,
+    bolt:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><polygon points="7,1 3,7 6,7 5,11 9,5 6,5" fill="${c}" opacity=".6"/></svg>`,
+    up:        `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><polyline points="2,8 6,3 10,8" stroke="${c}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    down:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><polyline points="2,4 6,9 10,4" stroke="${c}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    arrow:     `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><line x1="1" y1="6" x2="10" y2="6" stroke="${c}" stroke-width="1.2" stroke-linecap="round"/><polyline points="7,3 10,6 7,9" stroke="${c}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    send:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M1 1l10 5-10 5V7l6-1-6-1z" fill="${c}" opacity=".6"/></svg>`,
+    speaker:   `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><polygon points="1,4 3.5,4 6,1.5 6,10.5 3.5,8 1,8" fill="${c}" opacity=".5"/><path d="M8 4a2.5 2.5 0 010 4" stroke="${c}" stroke-width="1" stroke-linecap="round"/></svg>`,
+    mute:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><polygon points="1,4 3.5,4 6,1.5 6,10.5 3.5,8 1,8" fill="${c}" opacity=".5"/><line x1="8" y1="4" x2="11" y2="8" stroke="${c}" stroke-width="1" stroke-linecap="round"/><line x1="11" y1="4" x2="8" y2="8" stroke="${c}" stroke-width="1" stroke-linecap="round"/></svg>`,
+    list:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><line x1="4" y1="3" x2="10" y2="3" stroke="${c}" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="6" x2="10" y2="6" stroke="${c}" stroke-width="1.1" stroke-linecap="round"/><line x1="4" y1="9" x2="10" y2="9" stroke="${c}" stroke-width="1.1" stroke-linecap="round"/><circle cx="2" cy="3" r=".7" fill="${c}"/><circle cx="2" cy="6" r=".7" fill="${c}"/><circle cx="2" cy="9" r=".7" fill="${c}"/></svg>`,
+    cut:       `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="3.5" cy="3" r="1.8" stroke="${c}" stroke-width="1"/><circle cx="3.5" cy="9" r="1.8" stroke="${c}" stroke-width="1"/><line x1="5" y1="4" x2="10" y2="10" stroke="${c}" stroke-width="1" stroke-linecap="round"/><line x1="5" y1="8" x2="10" y2="2" stroke="${c}" stroke-width="1" stroke-linecap="round"/></svg>`,
+    copy:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="3.5" y="3.5" width="7" height="7.5" rx="1" stroke="${c}" stroke-width="1"/><path d="M8.5 3.5V2a1 1 0 00-1-1H2a1 1 0 00-1 1v5.5a1 1 0 001 1h1.5" stroke="${c}" stroke-width="1"/></svg>`,
+    paste:     `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="2" y="2.5" width="8" height="8.5" rx="1" stroke="${c}" stroke-width="1"/><rect x="4" y="1" width="4" height="2" rx=".5" stroke="${c}" stroke-width=".8"/></svg>`,
+    menu:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><line x1="1" y1="3" x2="11" y2="3" stroke="${c}" stroke-width="1.3" stroke-linecap="round"/><line x1="1" y1="6" x2="11" y2="6" stroke="${c}" stroke-width="1.3" stroke-linecap="round"/><line x1="1" y1="9" x2="11" y2="9" stroke="${c}" stroke-width="1.3" stroke-linecap="round"/></svg>`,
+    pencil:    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M1.5 10.5L1 11l.5-.5L8.5 3l2 2-7 7z" stroke="${c}" stroke-width="1" stroke-linejoin="round"/><line x1="7.5" y1="4" x2="9.5" y2="6" stroke="${c}" stroke-width="1"/></svg>`,
+    save:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="1" y="1" width="10" height="10" rx="1" stroke="${c}" stroke-width="1.1"/><rect x="3" y="1" width="6" height="3.5" stroke="${c}" stroke-width=".8" opacity=".4"/><rect x="3" y="7" width="6" height="4" rx=".5" stroke="${c}" stroke-width=".8" opacity=".4"/></svg>`,
+    rocket:    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><path d="M6 1c-2 2.5-2 5-2 7l2 2 2-2c0-2 0-4.5-2-7z" stroke="${c}" stroke-width="1.1" stroke-linejoin="round"/><circle cx="6" cy="5" r="1" fill="${c}" opacity=".4"/></svg>`,
+    idea:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="6" cy="5" r="3.5" stroke="${c}" stroke-width="1.1"/><line x1="4.5" y1="10" x2="7.5" y2="10" stroke="${c}" stroke-width="1" stroke-linecap="round"/><path d="M4.5 8.5c0-1 .5-1.5 1.5-2.5s1.5-1.5 1.5-2.5" stroke="${c}" stroke-width=".8" opacity=".4"/></svg>`,
+    dice:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5" stroke="${c}" stroke-width="1.1"/><circle cx="4" cy="4" r=".8" fill="${c}"/><circle cx="8" cy="4" r=".8" fill="${c}"/><circle cx="4" cy="8" r=".8" fill="${c}"/><circle cx="8" cy="8" r=".8" fill="${c}"/></svg>`,
+    runner:    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="7" cy="2.5" r="1.5" fill="${c}" opacity=".5"/><path d="M4 11l2-3.5 1.5 1L9 6l-1.5-1.5L6 6 4 5l-1.5 2" stroke="${c}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    bomb:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="5.5" cy="7" r="4" stroke="${c}" stroke-width="1.1"/><line x1="8" y1="4" x2="10" y2="2" stroke="${c}" stroke-width="1.1" stroke-linecap="round"/><circle cx="10.5" cy="1.5" r=".8" fill="${c}" opacity=".5"/></svg>`,
+    live:      `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" fill="none" style="vertical-align:middle;"><circle cx="6" cy="6" r="3" fill="${c}" opacity=".5"/><circle cx="6" cy="6" r="5" stroke="${c}" stroke-width="1" opacity=".3"/></svg>`,
+  };
+  return function(name) { return icons[name] || ''; };
+})();
 // Hosted proxy on Render — override via ?proxy=host:port for local dev
 const _proxyParam = new URLSearchParams(window.location.search).get('proxy');
 const PROXY_BASE = (() => {
@@ -4483,12 +4602,12 @@ $('#gridApplyBtn').onclick = () => {
 // ── Mobile two-pane navigation ──
 (function initMobileNav() {
   const MOBILE_PANES = [
-    { id: 'q-claude', label: 'Claude', icon: '\uD83E\uDD16' },
-    { id: 'q-map', label: 'Analytics', icon: '\uD83D\uDCC8' },
-    { id: 'q-news', label: 'News', icon: '\uD83D\uDCF0' },
-    { id: 'q-notepad', label: 'Notes', icon: '\uD83D\uDCDD' },
-    { id: 'q-whiteboard', label: 'Draw', icon: '\uD83C\uDFA8' },
-    { id: 'q-sheet', label: 'Sheet', icon: '\uD83D\uDCCA' },
+    { id: 'q-claude', label: 'Claude', icon: 'AI' },
+    { id: 'q-map', label: 'Analytics', icon: _ic('chart') },
+    { id: 'q-news', label: 'News', icon: _ic('news') },
+    { id: 'q-notepad', label: 'Notes', icon: _ic('note') },
+    { id: 'q-whiteboard', label: 'Draw', icon: _ic('palette') },
+    { id: 'q-sheet', label: 'Sheet', icon: _ic('sheet') },
     { id: 'q-media', label: 'Media', icon: '\u25B6\uFE0F' }
   ];
 
@@ -4549,7 +4668,7 @@ $('#gridApplyBtn').onclick = () => {
     MOBILE_PANES.forEach((p, i) => {
       const btn = document.createElement('button');
       btn.className = 'mob-pane-btn';
-      btn.textContent = p.icon + ' ' + p.label;
+      btn.innerHTML = p.icon + ' ' + p.label;
       if (i === topIdx) btn.classList.add('mob-active-top');
       if (i === bottomIdx) btn.classList.add('mob-active-bottom');
       btn.onclick = () => {
@@ -4579,7 +4698,7 @@ $('#gridApplyBtn').onclick = () => {
     // Settings gear button
     const gear = document.createElement('button');
     gear.className = 'mob-settings-btn';
-    gear.innerHTML = '\u2699';
+    gear.innerHTML = _ic('gear');
     gear.onclick = () => openSettingsDrawer();
     controlBar.appendChild(gear);
   }
@@ -4635,7 +4754,7 @@ $('#gridApplyBtn').onclick = () => {
     MOBILE_PANES.forEach((p, i) => {
       const btn = document.createElement('button');
       btn.className = 'msd-btn';
-      btn.textContent = p.icon + ' ' + p.label;
+      btn.innerHTML = p.icon + ' ' + p.label;
       if (i === topIdx) btn.style.borderColor = 'var(--accent)';
       btn.onclick = () => {
         if (i === bottomIdx) bottomIdx = topIdx; // swap
@@ -4657,7 +4776,7 @@ $('#gridApplyBtn').onclick = () => {
     MOBILE_PANES.forEach((p, i) => {
       const btn = document.createElement('button');
       btn.className = 'msd-btn';
-      btn.textContent = p.icon + ' ' + p.label;
+      btn.innerHTML = p.icon + ' ' + p.label;
       if (i === bottomIdx) btn.style.borderColor = 'var(--accent2)';
       btn.onclick = () => {
         if (i === topIdx) topIdx = bottomIdx; // swap
@@ -4680,16 +4799,16 @@ $('#gridApplyBtn').onclick = () => {
       secAdmin.appendChild(lblAdmin);
 
       const adminActions = [
-        { label: '\uD83D\uDCCA Audit Log', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiAuditBtn'); if (b) b.click(); }},
-        { label: '\uD83D\uDC65 User Dashboard', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiUsageDashBtn'); if (b) b.click(); }},
-        { label: '\uD83D\uDCE9 Access Requests', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiAccessReqBtn'); if (b) b.click(); }},
-        { label: '\u2699 Settings', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiSettingsBtn'); if (b) b.click(); }},
-        { label: '\uD83D\uDCB0 Pricing', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiPricingBtn'); if (b) b.click(); }},
+        { label: _ic('chart') + ' Audit Log', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiAuditBtn'); if (b) b.click(); }},
+        { label: 'Users Dashboard', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiUsageDashBtn'); if (b) b.click(); }},
+        { label: 'Requests', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiAccessReqBtn'); if (b) b.click(); }},
+        { label: _ic('gear') + ' Settings', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiSettingsBtn'); if (b) b.click(); }},
+        { label: _ic('dollar') + ' Pricing', action: () => { closeSettingsDrawer(); const b = document.getElementById('aiPricingBtn'); if (b) b.click(); }},
       ];
       adminActions.forEach(a => {
         const btn = document.createElement('button');
         btn.className = 'msd-btn';
-        btn.textContent = a.label;
+        btn.innerHTML = a.label;
         btn.onclick = a.action;
         secAdmin.appendChild(btn);
       });
@@ -4924,7 +5043,7 @@ function renderEditor() {
   const volSection = document.createElement('div');
   volSection.style.cssText = 'margin-top:8px;padding:8px;border-radius:4px;background:' + (dk ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)') + ';display:flex;align-items:center;gap:8px';
   const muteBtn = document.createElement('button');
-  function updateMuteIcon() { muteBtn.innerHTML = savedMuted ? '&#128263;' : '&#128266;'; muteBtn.title = savedMuted ? 'Unmute' : 'Mute'; }
+  function updateMuteIcon() { muteBtn.innerHTML = savedMuted ? 'Muted' : 'Sound'; muteBtn.title = savedMuted ? 'Unmute' : 'Mute'; }
   updateMuteIcon();
   muteBtn.style.cssText = 'background:none;border:none;font-size:1rem;cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1';
   muteBtn.addEventListener('click', () => {
@@ -5052,7 +5171,7 @@ function showVideo(idx) {
   controls.appendChild(slider);
 
   const fsBtn = document.createElement('button');
-  fsBtn.innerHTML = '&#x26F6;';
+  fsBtn.innerHTML = 'Fullscreen';
   fsBtn.title = 'Toggle fullscreen';
   fsBtn.style.cssText = 'background:rgba(0,0,0,.4);color:#fff;border:none;width:22px;height:22px;border-radius:4px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center';
   fsBtn.addEventListener('click', toggleFullscreen);
@@ -6014,7 +6133,7 @@ function generatePlaceholderSVG(label) {
   const escaped = (label || 'Image unavailable').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120" viewBox="0 0 200 120">' +
     '<rect width="200" height="120" fill="#2a2a2a" rx="6"/>' +
-    '<text x="100" y="50" text-anchor="middle" fill="#888" font-size="18">&#9888;</text>' +
+    '<text x="100" y="50" text-anchor="middle" fill="#888" font-size="18">Warning:</text>' +
     '<text x="100" y="78" text-anchor="middle" fill="#777" font-size="11" font-family="system-ui">' + escaped + '</text></svg>';
   return 'data:image/svg+xml;base64,' + btoa(svg);
 }
@@ -6169,8 +6288,8 @@ function wbRenderLayerList() {
   [...wbLayers].reverse().forEach(layer => {
     const div = document.createElement('div');
     div.style.cssText = 'display:flex;align-items:center;gap:4px;padding:3px 6px;border-bottom:1px solid var(--border);cursor:pointer;' + (wbSelectedLayer === layer.id ? 'background:rgba(59,130,246,.15);' : '');
-    const catIcons = { image: '&#128247;', chart: '&#128200;', table: '&#128202;', shape: '&#9632;', text: '&#84;', card: '&#128196;', annotation: '&#128172;' };
-    const icon = catIcons[layer.category] || catIcons[layer.type] || '&#128200;';
+    const catIcons = { image: 'IMG', chart: 'CHT', table: 'TBL', shape: '&#9632;', text: '&#84;', card: 'DOC', annotation: 'TXT' };
+    const icon = catIcons[layer.category] || catIcons[layer.type] || 'CHT';
     const srcBadge = layer.source === 'bot' ? '<span style="font-size:.45rem;background:var(--accent);color:#fff;padding:0 3px;border-radius:2px;margin-left:2px;">BOT</span>' : '';
     const groupBadge = layer.group ? '<span style="font-size:.45rem;background:var(--warning, #f59e0b);color:#000;padding:0 3px;border-radius:2px;margin-left:2px;">' + layer.group + '</span>' : '';
     div.innerHTML =
@@ -9890,7 +10009,7 @@ async function renderStockDash() {
       card.innerHTML =
         '<div class="sc-header"><div class="sc-label">' + ticker + '</div>' +
         '<span class="sc-compare-btn' + (inCompare ? ' active' : '') + '" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart">&#x27A4;</span>' +
-        '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">&#128240;</span></div>' +
+        '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">News</span></div>' +
         '<div class="sc-value" style="color:var(--text-dim);" title="Live data unavailable. Refresh to retry.">&mdash;</div>' +
         '<div class="sc-change" style="color:var(--text-dim);font-size:.5rem;">Live data unavailable</div>';
       dash.appendChild(card);
@@ -9904,7 +10023,7 @@ async function renderStockDash() {
       card.innerHTML =
         '<div class="sc-header"><div class="sc-label">' + ticker + '</div>' +
         '<span class="sc-compare-btn' + (inCompare ? ' active' : '') + '" title="' + (inCompare ? 'Remove from' : 'Add to') + ' comparison chart">&#x27A4;</span>' +
-        '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">&#128240;</span></div>' +
+        '<span class="sc-compare-btn sc-news-btn" title="View news for ' + ticker + '" style="border-color:var(--warning);color:var(--warning);background:rgba(200,150,0,.12);">News</span></div>' +
         '<div class="sc-value">$' + current.toFixed(2) + '</div>' +
         '<div class="sc-change ' + (isUp ? 'sc-up' : 'sc-down') + '">' + (isUp ? '&#9650; +' : '&#9660; ') + change.toFixed(2) + '% (' + range + ')' + sourceTag + '</div>' +
         '<canvas></canvas>';
@@ -11513,7 +11632,7 @@ function spRenderOddsCard(game) {
     html += '<div style="background:rgba(234,88,12,.1);border:1px solid rgba(234,88,12,.25);border-radius:4px;padding:4px 7px;margin-bottom:6px;font-size:.54rem;">';
     var openEntry = spOpeningOdds[oddsKey];
     var baseLabel = (openEntry && openEntry.capturedLive) ? 'LINE MOVEMENT (since first check)' : 'LINE MOVEMENT vs OPENING';
-    html += '<span style="font-weight:700;color:#ea580c;">\u26A0 ' + baseLabel + '</span>';
+    html += '<span style="font-weight:700;color:#ea580c;">' + _ic('warn') + ' ' + baseLabel + '</span>';
     swings.filter(function(s) { return s.isMajor; }).forEach(function(s) {
       var openFmt = spOddsFmt(s.open, s.key.includes('ML') ? 0 : 1);
       var curFmt = spOddsFmt(s.current, s.key.includes('ML') ? 0 : 1);
@@ -11786,8 +11905,8 @@ function spFetchOdds(forceRefresh) {
         var summary = '';
         if (liveCount > 0 || swingCount > 0) {
           summary = '<div style="display:flex;gap:10px;padding:4px 8px;margin-bottom:4px;font-size:.55rem;">';
-          if (liveCount > 0) summary += '<span style="color:var(--accent2);font-weight:700;">\uD83D\uDFE2 ' + liveCount + ' live game' + (liveCount !== 1 ? 's' : '') + ' with odds</span>';
-          if (swingCount > 0) summary += '<span style="color:#ea580c;font-weight:700;">\u26A0 ' + swingCount + ' game' + (swingCount !== 1 ? 's' : '') + ' with major line movement</span>';
+          if (liveCount > 0) summary += '<span style="color:var(--accent2);font-weight:700;">LIVE: ' + liveCount + ' live game' + (liveCount !== 1 ? 's' : '') + ' with odds</span>';
+          if (swingCount > 0) summary += '<span style="color:#ea580c;font-weight:700;">' + _ic('warn') + ' ' + swingCount + ' game' + (swingCount !== 1 ? 's' : '') + ' with major line movement</span>';
           summary += '</div>';
         }
 
@@ -11885,8 +12004,8 @@ function spFetchOddsEspn(league) {
       var summary = '';
       if (liveCount > 0 || swingCount > 0) {
         summary = '<div style="display:flex;gap:10px;padding:4px 8px;margin-bottom:4px;font-size:.55rem;">';
-        if (liveCount > 0) summary += '<span style="color:var(--accent2);font-weight:700;">\uD83D\uDFE2 ' + liveCount + ' live game' + (liveCount !== 1 ? 's' : '') + ' with odds</span>';
-        if (swingCount > 0) summary += '<span style="color:#ea580c;font-weight:700;">\u26A0 ' + swingCount + ' game' + (swingCount !== 1 ? 's' : '') + ' with major line movement</span>';
+        if (liveCount > 0) summary += '<span style="color:var(--accent2);font-weight:700;">LIVE: ' + liveCount + ' live game' + (liveCount !== 1 ? 's' : '') + ' with odds</span>';
+        if (swingCount > 0) summary += '<span style="color:#ea580c;font-weight:700;">' + _ic('warn') + ' ' + swingCount + ' game' + (swingCount !== 1 ? 's' : '') + ' with major line movement</span>';
         summary += '</div>';
       }
 
@@ -12229,12 +12348,12 @@ let spBracketData = null;
 let spBracketAnnotations = {};
 let spBracketRoundFilter = 'all';
 const BRACKET_TAG_COLORS = {
-  lock:           { bg: '#16a34a', label: 'Lock',       icon: '\uD83D\uDD12' },
-  upset:          { bg: '#f59e0b', label: 'Upset',      icon: '\u26A0\uFE0F' },
-  run_candidate:  { bg: '#0ea5e9', label: 'Deep Run',   icon: '\uD83C\uDFC3' },
-  vegas_fade:     { bg: '#ef4444', label: 'Fade',       icon: '\uD83C\uDFB2' },
-  value:          { bg: '#a855f7', label: 'Value',      icon: '\uD83D\uDCA1' },
-  contrarian:     { bg: '#ec4899', label: 'Contrarian', icon: '\uD83D\uDD04' }
+  lock:           { bg: '#16a34a', label: 'Lock',       icon: _ic('lock') },
+  upset:          { bg: '#f59e0b', label: 'Upset',      icon: _ic('warn') },
+  run_candidate:  { bg: '#0ea5e9', label: 'Deep Run',   icon: _ic('runner') },
+  vegas_fade:     { bg: '#ef4444', label: 'Fade',       icon: _ic('dice') },
+  value:          { bg: '#a855f7', label: 'Value',      icon: _ic('idea') },
+  contrarian:     { bg: '#ec4899', label: 'Contrarian', icon: _ic('refresh') }
 };
 const BRACKET_ROUND_NAMES = { 0: 'First Four', 1: 'Round of 64', 2: 'Round of 32', 3: 'Sweet 16', 4: 'Elite 8', 5: 'Final Four', 6: 'Championship' };
 const BRACKET_REGION_COLORS = { South: '#ef4444', East: '#3b82f6', West: '#f59e0b', Midwest: '#16a34a', Other: '#6b7280' };
@@ -14809,7 +14928,7 @@ async function runDeepResearch() {
   if (!aiKey) { toast('Set your API key to use Deep Research'); return; }
 
   const feed = $('#newsFeed');
-  feed.innerHTML = '<div style="text-align:center;padding:30px;color:var(--accent2);font-size:.75rem;">&#128269; Deep Research in progress...<br><span style="font-size:.62rem;color:var(--text-dim);">Claude is analyzing multiple sources for: <b>' + query + '</b></span><div id="researchProgress" style="margin-top:10px;font-size:.6rem;color:var(--text-dim);"></div></div>';
+  feed.innerHTML = '<div style="text-align:center;padding:30px;color:var(--accent2);font-size:.75rem;">Deep Research in progress...<br><span style="font-size:.62rem;color:var(--text-dim);">Claude is analyzing multiple sources for: <b>' + query + '</b></span><div id="researchProgress" style="margin-top:10px;font-size:.6rem;color:var(--text-dim);"></div></div>';
 
   const progressEl = $('#researchProgress');
 
@@ -14883,11 +15002,11 @@ Keep it tight. No padding. Cite sources by name but don't analyze each one indiv
     feed.innerHTML = '';
     const header = document.createElement('div');
     header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px;';
-    header.innerHTML = '<span style="font-size:.72rem;font-weight:700;color:var(--accent2);">&#128269; Deep Research Report: ' + query + '</span>' +
+    header.innerHTML = '<span style="font-size:.72rem;font-weight:700;color:var(--accent2);">Deep Research Report: ' + query + '</span>' +
       '<div style="display:flex;gap:4px;">' +
-      '<button id="researchPdf" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.6rem;font-weight:600;">&#128196; Download PDF</button>' +
-      '<button id="researchCopyLink" style="padding:3px 8px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);cursor:pointer;font-size:.6rem;font-weight:600;">\uD83D\uDD17 Copy Link</button>' +
-      '<button id="researchToNote" style="padding:3px 8px;border:1px solid var(--accent2);border-radius:4px;background:none;color:var(--accent2);cursor:pointer;font-size:.6rem;">&#128221; To Notepad</button>' +
+      '<button id="researchPdf" style="padding:3px 8px;border:1px solid var(--accent);border-radius:4px;background:none;color:var(--accent);cursor:pointer;font-size:.6rem;font-weight:600;">Download PDF</button>' +
+      '<button id="researchCopyLink" style="padding:3px 8px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);cursor:pointer;font-size:.6rem;font-weight:600;">Copy Link</button>' +
+      '<button id="researchToNote" style="padding:3px 8px;border:1px solid var(--accent2);border-radius:4px;background:none;color:var(--accent2);cursor:pointer;font-size:.6rem;">To Notepad</button>' +
       '<button id="researchBack" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer;font-size:.6rem;">Back</button>' +
       '</div>';
     feed.appendChild(header);
@@ -15280,19 +15399,19 @@ const MODEL_RATES = {
 
 // ── Persona mode system ──
 const PERSONA_MODES = {
-  'general': { label: 'General Assistant', icon: '\uD83E\uDD16', description: 'Balanced, helpful, concise',
+  'general': { label: 'General Assistant', icon: 'AI', description: 'Balanced, helpful, concise',
     systemPrompt: 'You are a helpful, precise assistant integrated into a financial planning workspace. Be concise and direct.' },
-  'stock_analyst': { label: 'Deep Stock Analyst', icon: '\uD83D\uDCC8', description: 'Fundamentals, technicals, thesis-driven',
-    systemPrompt: 'You are a senior equity research analyst. For every stock discussion, structure your response as: (1) Business Overview, (2) Financial Health (revenue growth, margins, FCF), (3) Valuation (P/E, EV/EBITDA vs peers), (4) Technical Setup (key levels, trend), (5) Catalysts & Risks, (6) Analyst Thesis. Be specific with numbers. Flag when data may be outdated. Always recommend the user verify current prices and filings. DATA CITATION: When referencing any stock metric, append a data quality indicator inline: "\uD83D\uDFE2" for live data (fetched <15min ago via Robinhood), "\uD83D\uDFE1" for cached data (include age, e.g. "cached 22m ago"), "\uD83D\uDD34" for unavailable/stale data. Example: "MSFT is trading at $415.20 \uD83D\uDFE2" or "P/E ratio unavailable \uD83D\uDD34". Always cite: "As of [time], [ticker] was at..."' },
-  'financial_modeler': { label: 'Financial Modeler', icon: '\uD83D\uDCCA', description: 'Structured models, assumptions-first',
+  'stock_analyst': { label: 'Deep Stock Analyst', icon: _ic('chart'), description: 'Fundamentals, technicals, thesis-driven',
+    systemPrompt: 'You are a senior equity research analyst. For every stock discussion, structure your response as: (1) Business Overview, (2) Financial Health (revenue growth, margins, FCF), (3) Valuation (P/E, EV/EBITDA vs peers), (4) Technical Setup (key levels, trend), (5) Catalysts & Risks, (6) Analyst Thesis. Be specific with numbers. Flag when data may be outdated. Always recommend the user verify current prices and filings. DATA CITATION: When referencing any stock metric, append a data quality indicator inline: "[LIVE]" for live data (fetched <15min ago via Robinhood), "[CACHED]" for cached data (include age, e.g. "cached 22m ago"), "[STALE]" for unavailable/stale data. Example: "MSFT is trading at $415.20 [LIVE]" or "P/E ratio unavailable [STALE]". Always cite: "As of [time], [ticker] was at..."' },
+  'financial_modeler': { label: 'Financial Modeler', icon: _ic('sheet'), description: 'Structured models, assumptions-first',
     systemPrompt: 'You are an expert financial modeler. When building any model: always start by stating explicit assumptions (growth rates, margins, discount rates, terminal value assumptions). Structure outputs as: Assumptions \u2192 Revenue Model \u2192 Cost Structure \u2192 EBITDA/FCF \u2192 Valuation. Present numbers in clean tables. Flag circular references or model limitations. Default to 5-year projection periods unless specified.' },
-  'presentation_builder': { label: 'Presentation Builder', icon: '\uD83C\uDFA8', description: 'Slide-ready content, executive framing',
+  'presentation_builder': { label: 'Presentation Builder', icon: _ic('palette'), description: 'Slide-ready content, executive framing',
     systemPrompt: 'You are an expert at creating executive-ready presentation content. Structure all output as slide-ready material: use short punchy headers, supporting bullets (max 3-4 per point), and always include a "So What" / key takeaway per section. Prefer visual descriptions (suggest charts/diagrams where appropriate). Write at C-suite level: clear, confident, no jargon. Always offer to refine tone or format.' },
-  'spec_investor': { label: 'Speculative Investor', icon: '\uD83D\uDE80', description: 'High-conviction plays, position sizing, catalysts',
+  'spec_investor': { label: 'Speculative Investor', icon: _ic('rocket'), description: 'High-conviction plays, position sizing, catalysts',
     systemPrompt: 'You are an aggressive speculative stock strategist. Your focus is identifying asymmetric risk/reward setups, momentum plays, catalyst-driven trades, and high-conviction positions. For every opportunity: (1) Setup & Thesis — why this trade exists, what the market is missing, (2) Entry Strategy — optimal entry points, limit vs market, scaling in, (3) Position Sizing — risk-adjusted sizing based on conviction level (1-5 scale), Kelly criterion considerations, max portfolio allocation, (4) Catalysts & Timeline — specific near-term events that could move the stock, earnings dates, FDA dates, macro triggers, (5) Exit Strategy — profit targets (scale out levels), stop-loss placement, trailing stop approach, (6) Risk Assessment — what kills the trade, max drawdown tolerance, correlation to existing positions. When given investment preferences (risk tolerance, capital, time horizon, sectors), tailor all recommendations accordingly. Be direct about probability estimates. Flag speculative vs. fundamental plays clearly. Always note: "This is strategic analysis, not financial advice."' },
-  'gambling_edge': { label: 'Gambling Edge Analyst', icon: '\uD83C\uDFB0', description: 'Betting edges, line analysis, player props',
+  'gambling_edge': { label: 'Gambling Edge Analyst', icon: '$', description: 'Betting edges, line analysis, player props',
     systemPrompt: 'You are a sharp sports betting analyst focused on identifying edges and +EV opportunities. Your methodology: (1) Line Analysis — compare lines across books, identify stale lines, steam moves, and reverse line movement, (2) Team & Matchup Analysis — pace, efficiency ratings, home/away splits, rest advantage, travel, back-to-back situations, injury impact quantification, (3) Player Prop Analysis — usage rates, matchup-specific stats, recent trends vs season averages, minutes projections, pace-adjusted projections, (4) Situational Factors — referee tendencies, weather (outdoor sports), revenge games, letdown spots, schedule spots, divisional rivalry dynamics, (5) Edge Identification — where the market is mispricing, why the edge exists, expected value calculation, confidence level (1-5), (6) Bet Sizing — Kelly criterion or fractional Kelly recommendation, unit sizing. When reviewing active lines, cross-reference player data and team data to identify where books may be slow to adjust. Factor in any user-requested considerations (weather, player news, system plays). Present opportunities ranked by confidence and expected value.\n\nACTION-FIRST RULE: When the user asks for a bet or edge, IMMEDIATELY use your tools (get_sports_scores, get_sports_odds, get_sports_standings) to pull live data and deliver a pick. Do NOT ask a barrage of clarifying questions first. Make reasonable assumptions (today\'s games, most popular league in season, best available edges). You may ask ONE targeted follow-up alongside your pick if needed, but never ask multiple questions without giving an actionable recommendation. Never ask the user to navigate to a pane or load data — use your tools directly.\n\nAlways note: "This is analytical entertainment, not gambling advice. Gamble responsibly."' },
-  'march_madness': { label: 'March Madness', icon: '\uD83C\uDFC0', description: 'Aggressive picks, specific bets, bracket locks',
+  'march_madness': { label: 'March Madness', icon: 'MM', description: 'Aggressive picks, specific bets, bracket locks',
     activeMonths: [2, 3, 4],
     get systemPrompt() {
       var now = new Date();
@@ -15305,14 +15424,14 @@ const PERSONA_MODES = {
       'You are an aggressive March Madness betting specialist. Your PRIMARY job is to give SPECIFIC PICKS and SPECIFIC BETS — team names, sides, spreads, totals, moneylines, and player props. Lead with the pick, then explain why. Never hedge with "it depends" or "both teams are good" — commit to a side.\n\n' +
       'PICK-FIRST APPROACH:\n' +
       'When asked about ANY matchup, IMMEDIATELY give your pick. Format:\n' +
-      '\uD83D\uDD25 PICK: [Team] [Spread/ML/Total] — [1-sentence why]\n' +
+      'PICK: [Team] [Spread/ML/Total] — [1-sentence why]\n' +
       'Then provide supporting analysis AFTER the pick, not before. The user wants actionable plays, not essays.\n\n' +
       'FOR EVERY GAME, NARROW TO THE BEST BET TYPE:\n' +
       'Don\'t give spread AND total AND ML — identify which bet type has the most edge for THIS specific game and commit:\n' +
       '- SPREAD: When you see a clear mismatch the line hasn\'t caught up to (e.g. "Take Duke -4.5 — their interior D neutralizes the only thing keeping this close")\n' +
       '- TOTAL: When tempo/style matchup screams one direction (e.g. "Under 142.5 — two half-court teams, both top-20 in defensive efficiency, pace will crawl")\n' +
       '- MONEYLINE: When an underdog has genuine upset value or a favorite is mispriced (e.g. "Vermont ML +280 — live dog, they shoot 40% from 3 and Purdue has no perimeter D")\n' +
-      'Tag conviction: \uD83D\uDD25 (1-5 scale). Mark top plays \uD83D\uDD25\uD83D\uDD25\uD83D\uDD25+. Mark upset alerts \u26A0\uFE0F.\n\n' +
+      'Tag conviction: FIRE (1-5 scale). Mark top plays FIRE+. Mark upset alerts WARNING.\n\n' +
       'TOURNAMENT RUN IDENTIFICATION:\n' +
       'Proactively identify teams with the profile to go on deep runs. Flag specific teams that show:\n' +
       '- Elite defense + adequate offense (defense travels in March)\n' +
@@ -15321,12 +15440,12 @@ const PERSONA_MODES = {
       '- Coaching pedigree in the tournament (some coaches consistently outperform seeds)\n' +
       '- Favorable bracket path (soft region, avoid elite matchups until late rounds)\n' +
       '- "Getting hot at the right time" — teams on 8+ game win streaks or dominant conf tourney runs\n' +
-      'Name these teams explicitly: "\uD83C\uDFC3 RUN CANDIDATE: [Team] — [why they can make a run to the [round]]"\n\n' +
+      'Name these teams explicitly: "RUN CANDIDATE: [Team] — [why they can make a run to the [round]]"\n\n' +
       'BRACKET PICKS & SIMULATION:\n' +
       'When asked about bracket construction, give SPECIFIC team picks for every round — not "consider" or "could go either way". Name the team. For each round, designate:\n' +
-      '- \uD83D\uDD12 LOCKS: Teams you\'re most confident in advancing\n' +
-      '- \uD83D\uDCA3 UPSET PICKS: Specific upsets with the underdog named and the round\n' +
-      '- \uD83C\uDFC6 FINAL FOUR + CHAMPION: Commit to specific teams\n' +
+      '- LOCKS: Teams you\'re most confident in advancing\n' +
+      '- UPSET PICKS: Specific upsets with the underdog named and the round\n' +
+      '- FINAL FOUR + CHAMPION: Commit to specific teams\n' +
       'If the user mentions their pool format (standard, confidence, survivor), tailor aggressiveness accordingly. Otherwise assume standard.\n\n' +
       'BRACKET SYSTEM — HOW IT WORKS:\n' +
       'The bracket contains REAL tournament data from ESPN (teams, seeds, scores, completed games). To access it, call get_bracket_state — this fetches the latest bracket data directly. You do NOT need the user to navigate anywhere or click anything. You do NOT need to provide team names/seeds — they are already in the bracket data.\n' +
@@ -15468,7 +15587,7 @@ function updateContextUI() {
   const badge = document.getElementById('contextBadge');
   const active = getActiveContextSlots();
   if (badge) {
-    badge.textContent = active.length ? '\uD83D\uDCCE ' + active.length + ' context slot' + (active.length > 1 ? 's' : '') + ' active' : '\uD83D\uDCCE Context';
+    badge.textContent = active.length ? active.length + ' context slot' + (active.length > 1 ? 's' : '') + ' active' : 'Context';
     badge.style.color = active.length ? 'var(--accent)' : 'var(--text-dim)';
   }
   // Render drawer contents if open
@@ -15501,7 +15620,7 @@ function renderContextDrawerContents(drawer) {
         '<div style="display:flex;gap:3px;align-items:center;">' +
         '<span style="font-size:.45rem;color:var(--text-dim);">' + s.content.length + ' chars</span>' +
         '<span style="font-size:.45rem;padding:1px 4px;border-radius:2px;background:rgba(255,255,255,.06);color:var(--text-dim);">' + s.scope + '</span>' +
-        '<button onclick="toggleContextSlotPin(' + s.id + ')" style="border:none;background:none;cursor:pointer;font-size:.5rem;color:' + (s.pinned ? 'var(--accent)' : 'var(--text-dim)') + ';" title="' + (s.pinned ? 'Unpin' : 'Pin') + '">' + (s.pinned ? '\uD83D\uDCCC' : '\u25CB') + '</button>' +
+        '<button onclick="toggleContextSlotPin(' + s.id + ')" style="border:none;background:none;cursor:pointer;font-size:.5rem;color:' + (s.pinned ? 'var(--accent)' : 'var(--text-dim)') + ';" title="' + (s.pinned ? 'Unpin' : 'Pin') + '">' + (s.pinned ? 'Pinned' : '\u25CB') + '</button>' +
         '<button onclick="removeContextSlot(' + s.id + ')" style="border:none;background:none;cursor:pointer;font-size:.5rem;color:var(--danger);" title="Remove">&times;</button>' +
         '</div></div></div>';
     });
@@ -15776,7 +15895,7 @@ function renderResearchBrief(profile, onProceed) {
   const div = document.createElement('div');
   div.className = 'ai-msg system';
   div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--panel-inset);font-size:.62rem;';
-  let html = '<div style="font-weight:700;font-size:.68rem;margin-bottom:6px;">\uD83D\uDD0D Research Brief: ' + profile.name + ' (' + profile.ticker + ')</div>';
+  let html = '<div style="font-weight:700;font-size:.68rem;margin-bottom:6px;">Research Brief: ' + profile.name + ' (' + profile.ticker + ')</div>';
   html += '<div style="color:var(--text-dim);margin-bottom:6px;">' + (profile.sector ? profile.sector : '') + (profile.industry ? ' \u00B7 ' + profile.industry : '') + (profile.exchange ? ' \u00B7 ' + profile.exchange : '') + (profile.employees ? ' \u00B7 ~' + profile.employees.toLocaleString() + ' employees' : '') + '</div>';
   if (profile.segments.length) {
     html += '<div style="margin-bottom:6px;"><b>Business Segments:</b></div>';
@@ -15785,7 +15904,7 @@ function renderResearchBrief(profile, onProceed) {
       html += '<div style="padding:0 0 2px 20px;color:var(--text-dim);">' + s.description + '</div>';
     });
   } else {
-    html += '<div style="color:#f59e0b;margin-bottom:6px;">\u26A0 Segment data unavailable \u2014 verify manually</div>';
+    html += '<div style="color:#f59e0b;margin-bottom:6px;">' + _ic('warn') + ' Segment data unavailable \u2014 verify manually</div>';
   }
   html += '<div style="color:var(--text-dim);margin-top:6px;">Data: ' + profile.sources.join(', ') + ' \u00B7 ' + new Date(profile.fetchedAt).toLocaleTimeString() + '</div>';
   html += '<div style="display:flex;gap:8px;margin-top:8px;">';
@@ -15798,7 +15917,7 @@ function renderResearchBrief(profile, onProceed) {
 
   return new Promise(resolve => {
     div.querySelector('#intelProceed').onclick = () => {
-      div.querySelector('#intelProceed').textContent = '\u2705 Confirmed';
+      div.querySelector('#intelProceed').innerHTML = _ic('check') + ' Confirmed';
       div.querySelector('#intelProceed').disabled = true;
       div.querySelector('#intelAddCtx').style.display = 'none';
       resolve(profile);
@@ -15815,7 +15934,7 @@ function renderResearchBrief(profile, onProceed) {
       div.querySelector('#intelAddCtx').style.display = 'none';
       saveBtn.onclick = () => {
         profile.additionalContext = input.value;
-        div.querySelector('#intelProceed').textContent = '\u2705 Confirmed';
+        div.querySelector('#intelProceed').innerHTML = _ic('check') + ' Confirmed';
         div.querySelector('#intelProceed').disabled = true;
         input.disabled = true;
         saveBtn.disabled = true;
@@ -15858,19 +15977,19 @@ function showOutputClarification(taskId) {
     div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--panel-inset);font-size:.62rem;';
     div.innerHTML = '<div style="font-weight:700;margin-bottom:8px;">How would you like this analysis delivered?</div>' +
       '<div style="display:flex;gap:8px;">' +
-      '<button id="outputPrefSheet" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;font-size:.62rem;display:flex;align-items:center;gap:4px;">\uD83D\uDCCA Spreadsheet Data</button>' +
-      '<button id="outputPrefWB" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;font-size:.62rem;display:flex;align-items:center;gap:4px;">\uD83D\uDDBC\uFE0F Whiteboard Visuals</button>' +
+      '<button id="outputPrefSheet" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;font-size:.62rem;display:flex;align-items:center;gap:4px;">Spreadsheet Data</button>' +
+      '<button id="outputPrefWB" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer;font-size:.62rem;display:flex;align-items:center;gap:4px;">Whiteboard Visuals</button>' +
       '</div>';
     $('#aiMsgs').appendChild(div);
     $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
     div.querySelector('#outputPrefSheet').onclick = () => {
       _lastOutputPref = { taskId, mode: 'spreadsheet' };
-      div.innerHTML = '<div style="color:var(--text-dim);">\uD83D\uDCCA Delivering as spreadsheet data</div>';
+      div.innerHTML = '<div style="color:var(--text-dim);">Delivering as spreadsheet data</div>';
       resolve('spreadsheet');
     };
     div.querySelector('#outputPrefWB').onclick = () => {
       _lastOutputPref = { taskId, mode: 'whiteboard' };
-      div.innerHTML = '<div style="color:var(--text-dim);">\uD83D\uDDBC\uFE0F Delivering as whiteboard visuals</div>';
+      div.innerHTML = '<div style="color:var(--text-dim);">Delivering as whiteboard visuals</div>';
       resolve('whiteboard');
     };
   });
@@ -16101,7 +16220,7 @@ function updatePricingCalc() {
   if (mTotal !== 100) warnings.push('Model mix totals ' + mTotal + '%');
 
   el.innerHTML =
-    (warnings.length ? '<div style="color:var(--danger);font-size:.65rem;margin-bottom:4px;">&#9888; ' + warnings.join('; ') + ' (should be 100%)</div>' : '') +
+    (warnings.length ? '<div style="color:var(--danger);font-size:.65rem;margin-bottom:4px;">Warning: ' + warnings.join('; ') + ' (should be 100%)</div>' : '') +
     '<div style="font-weight:700;color:var(--accent2);font-size:.78rem;margin-bottom:6px;">Monthly Cost Breakdown</div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.65rem;color:var(--text-dim);"><span>Blended input rate:</span><span>$' + blendedInput.toFixed(2) + ' / 1M tok</span></div>' +
     '<div style="display:flex;justify-content:space-between;margin:2px 0;font-size:.65rem;color:var(--text-dim);"><span>Blended output rate:</span><span>$' + blendedOutput.toFixed(2) + ' / 1M tok</span></div>' +
@@ -16697,7 +16816,7 @@ $('#wsSettingsBtn').onclick = () => {
     '</div>' +
     '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:6px;">Any activity (mouse, keyboard, touch) resets the countdown. Timer pauses while Claude is working.</div>' +
     '<div id="wsIdleSecurityNote" style="display:' + (curTimeout === 0 ? 'block' : 'none') + ';font-size:.55rem;color:#f59e0b;margin-bottom:10px;padding:6px 8px;background:rgba(245,158,11,.1);border-radius:6px;">' +
-      '&#9888; "Never" keeps the session open indefinitely. Only use on trusted devices.</div>' +
+      'Warning: "Never" keeps the session open indefinitely. Only use on trusted devices.</div>' +
 
     // Current timer status
     '<div style="background:var(--panel-inset);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:14px;">' +
@@ -17048,7 +17167,7 @@ function showCleanupSummary(tabLabel, summary, appliedChanges) {
   const reviewChanges = appliedChanges.filter(c => c.startsWith('Flagged for Review'));
 
   let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
-  html += '<span style="font-weight:700;font-size:.72rem;color:var(--accent2);">\uD83E\uDDF9 Cleanup Summary — ' + tabLabel + '</span>';
+  html += '<span style="font-weight:700;font-size:.72rem;color:var(--accent2);">' + _ic('sweep') + ' Cleanup Summary — ' + tabLabel + '</span>';
   html += '<span id="cleanupDismiss" style="cursor:pointer;font-size:.9rem;color:var(--text-dim);">&times;</span>';
   html += '</div>';
 
@@ -17099,7 +17218,7 @@ function updateCleanupButton() {
   if (tab) {
     btn.disabled = false;
     btn.style.opacity = '1';
-    btn.title = '\uD83E\uDDF9 Cleanup ' + tab.label;
+    btn.title = 'Cleanup ' + tab.label;
   } else {
     btn.disabled = true;
     btn.style.opacity = '0.4';
@@ -17304,7 +17423,7 @@ ${JSON.stringify(tabState, null, 2)}
 
 Perform a full cleanup pass. Return a JSON object with "patch" (array of changes) and "summary" (plain text).`;
 
-  addAiMsg('system', '\uD83E\uDDF9 Running cleanup pass on ' + tabInfo.label + '...');
+  addAiMsg('system', 'Running cleanup pass on ' + tabInfo.label + '...');
   aiStreaming = true;
   try {
     const resp = await aiApiFetch({
@@ -17337,9 +17456,9 @@ Perform a full cleanup pass. Return a JSON object with "patch" (array of changes
       if (result && result.patch) {
         const applied = applyCleanupResult(tabInfo, result.patch);
         showCleanupSummary(tabInfo.label, result.summary || '', applied);
-        addAiMsg('assistant', '\uD83E\uDDF9 Cleanup complete for ' + tabInfo.label + '. ' + applied.length + ' change(s) applied. See summary panel.');
+        addAiMsg('assistant', 'Cleanup complete for ' + tabInfo.label + '. ' + applied.length + ' change(s) applied. See summary panel.');
       } else {
-        addAiMsg('assistant', '\uD83E\uDDF9 Cleanup analysis:\n' + text);
+        addAiMsg('assistant', 'Cleanup analysis:\n' + text);
         showCleanupSummary(tabInfo.label, 'No structured changes returned — see chat for details.', []);
       }
     } else {
@@ -17654,7 +17773,7 @@ function renderHistoryPanel() {
   panel.id = 'aiHistoryPanel';
   panel.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:28;background:var(--bg);overflow-y:auto;padding:10px 12px;font-size:.6rem;';
 
-  const typeIcons = { sheet: '&#9638;', whiteboard: '&#9998;', note: '&#9776;', graph: '&#8767;', stocks: '&#8599;', research: '&#128269;', analysis: '&#9879;', concept: '&#9673;', tool: '&#9881;' };
+  const typeIcons = { sheet: '&#9638;', whiteboard: '&#9998;', note: '&#9776;', graph: '&#8767;', stocks: '&#8599;', research: 'R', analysis: '&#9879;', concept: '&#9673;', tool: 'T' };
   const typeColors = { sheet: '#10b981', whiteboard: '#e64a19', note: 'var(--accent)', graph: '#8b5cf6', stocks: '#f59e0b', research: '#3b82f6', analysis: '#ec4899', concept: '#6366f1', tool: 'var(--text-dim)' };
 
   const topBar = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:6px;">' +
@@ -17736,7 +17855,7 @@ function viewInquiryDetail(idx) {
   const panel = document.getElementById('aiHistoryPanel');
   if (!panel) return;
 
-  const typeIcons = { sheet: '&#9638;', whiteboard: '&#9998;', note: '&#9776;', graph: '&#8767;', stocks: '&#8599;', research: '&#128269;', analysis: '&#9879;', concept: '&#9673;', tool: '&#9881;' };
+  const typeIcons = { sheet: '&#9638;', whiteboard: '&#9998;', note: '&#9776;', graph: '&#8767;', stocks: '&#8599;', research: 'R', analysis: '&#9879;', concept: '&#9673;', tool: 'T' };
   const typeColors = { sheet: '#10b981', whiteboard: '#e64a19', note: 'var(--accent)', graph: '#8b5cf6', stocks: '#f59e0b', research: '#3b82f6', analysis: '#ec4899', concept: '#6366f1', tool: 'var(--text-dim)' };
   const d = new Date(entry.timestamp);
 
@@ -17769,7 +17888,7 @@ function viewInquiryDetail(idx) {
       '<div style="font-weight:700;font-size:.62rem;margin-bottom:6px;">Artifacts (' + entry.artifacts.length + ')</div>';
     entry.artifacts.forEach((art, ai) => {
       const color = typeColors[art.type] || 'var(--text-dim)';
-      const icon = typeIcons[art.type] || '&#9881;';
+      const icon = typeIcons[art.type] || 'T';
       const toolLabel = art.tool.replace(/_/g, ' ');
       let detail = '';
       if (art.tool === 'write_cells' && art.input.cells) detail = art.input.cells.length + ' cells' + (art.input.label ? ' → "' + art.input.label + '"' : '');
@@ -17896,7 +18015,7 @@ function renderAuditPanel() {
     let filteredCost = 0, filteredIn = 0, filteredOut = 0;
     filtered.forEach(e => { filteredCost += e.cost || 0; filteredIn += e.tokensIn || 0; filteredOut += e.tokensOut || 0; });
 
-    const typeIcons = { sheet: '&#9638;', whiteboard: '&#9998;', note: '&#9776;', graph: '&#8767;', stocks: '&#8599;', research: '&#128269;', analysis: '&#9879;', concept: '&#9673;', tool: '&#9881;' };
+    const typeIcons = { sheet: '&#9638;', whiteboard: '&#9998;', note: '&#9776;', graph: '&#8767;', stocks: '&#8599;', research: 'R', analysis: '&#9879;', concept: '&#9673;', tool: 'T' };
     const typeColors = { sheet: '#10b981', whiteboard: '#e64a19', note: 'var(--accent)', graph: '#8b5cf6', stocks: '#f59e0b', research: '#3b82f6', analysis: '#ec4899', concept: '#6366f1', tool: 'var(--text-dim)' };
 
     const filterSummary = (userFilter || searchVal) ? '<div style="font-size:.55rem;color:var(--text-dim);margin-bottom:6px;">Showing ' + filtered.length + ' of ' + aiAuditLog.length + ' — Filtered cost: <b style="color:var(--accent2);">$' + filteredCost.toFixed(4) + '</b> | ' + filteredIn.toLocaleString() + ' in / ' + filteredOut.toLocaleString() + ' out</div>' : '';
@@ -17927,7 +18046,7 @@ function renderAuditPanel() {
         '<div style="margin-top:2px;color:var(--text);font-size:.56rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + query.replace(/</g, '&lt;') + '</div>' +
         (badges ? '<div style="margin-top:2px;">' + badges +
           ((entry.artifacts || []).some(a => a.contentSnapshot || a.output) ?
-            '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:.45rem;background:#6366f1;color:#fff;margin:1px 2px;">&#128196; ' + (entry.artifacts || []).filter(a => a.contentSnapshot || a.output).length + ' exhibit(s)</span>' : '') +
+            '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:.45rem;background:#6366f1;color:#fff;margin:1px 2px;">' + (entry.artifacts || []).filter(a => a.contentSnapshot || a.output).length + ' exhibit(s)</span>' : '') +
           '</div>' : '') +
         '</div>';
     }).join('');
@@ -18121,7 +18240,7 @@ function renderSavedActionsPanel() {
   // Show PDF exports in saved actions
   let pdfSection = '';
   if (pdfExports.length) {
-    pdfSection = '<div style="margin-bottom:8px;"><div style="font-weight:600;font-size:.62rem;margin-bottom:4px;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'\':\'none\'">\uD83D\uDCC4 Research Exports (' + pdfExports.length + ') \u25B8</div><div style="display:none;">';
+    pdfSection = '<div style="margin-bottom:8px;"><div style="font-weight:600;font-size:.62rem;margin-bottom:4px;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'\':\'none\'">Research Exports (' + pdfExports.length + ') \u25B8</div><div style="display:none;">';
     pdfExports.slice().reverse().forEach(p => {
       const time = new Date(p.generatedAt).toLocaleString();
       pdfSection += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);">' +
@@ -18267,11 +18386,11 @@ function renderPdfAttachment(pdfResult, taskDescription, persona) {
   const localUrl = spGetPdfUrl(pdfResult.pdfId);
   const downloadName = 'research_' + pdfResult.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) + '_' + new Date().toISOString().slice(0, 10) + '.html';
 
-  div.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">\uD83D\uDCC4 ' + esc(pdfResult.title) + ' \u2014 ' + dateStr + '</div>' +
+  div.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">' + esc(pdfResult.title) + ' \u2014 ' + dateStr + '</div>' +
     '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">' +
     '<a href="' + esc(localUrl) + '" target="_blank" style="padding:3px 10px;border:1px solid var(--accent);border-radius:4px;color:var(--accent);text-decoration:none;font-size:.56rem;cursor:pointer;">Open</a>' +
     '<a href="' + esc(pdfResult.url) + '" download="' + esc(downloadName) + '" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);text-decoration:none;font-size:.56rem;cursor:pointer;">Download</a>' +
-    '<button class="sp-share-link-btn" style="padding:3px 10px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);font-size:.56rem;cursor:pointer;font-weight:600;">\uD83D\uDD17 Copy Shareable Link</button>' +
+    '<button class="sp-share-link-btn" style="padding:3px 10px;border:1px solid var(--success);border-radius:4px;background:none;color:var(--success);font-size:.56rem;cursor:pointer;font-weight:600;">Copy Shareable Link</button>' +
     '</div>' +
     '<div class="sp-share-url-display" style="margin-top:4px;font-size:.48rem;color:var(--text-dim);">Generating shareable link...</div>';
 
@@ -18610,19 +18729,19 @@ function addAiMsg(role, text) {
 function chatTimestamp(level, text) {
   const now = new Date();
   const ts = '[' + now.toTimeString().slice(0, 8) + ']';
-  const icons = { start: '\uD83D\uDD27', done: '\u2705', warn: '\u26A0\uFE0F', error: '\u274C' };
+  const icons = { start: _ic('wrench'), done: _ic('check'), warn: _ic('warn'), error: _ic('x') };
   const colors = { start: 'var(--accent)', done: '#22c55e', warn: '#f59e0b', error: '#ef4444' };
   const prefixes = { start: 'Starting: ', done: 'Done: ', warn: '', error: 'Failed: ' };
-  const icon = icons[level] || '\u2139\uFE0F';
+  const icon = icons[level] || _ic('idea');
   const color = colors[level] || 'var(--text-dim)';
   const prefix = prefixes[level] || '';
   const div = document.createElement('div');
   div.className = 'ai-msg system task-timestamp';
   div.style.cssText = 'font-size:.6rem;padding:3px 10px;color:' + color + ';opacity:0.9;';
-  div.textContent = ts + ' ' + icon + ' ' + prefix + text;
+  div.innerHTML = ts + ' ' + icon + ' ' + prefix + esc(text);
   const container = $('#aiMsgs');
   if (container) { container.appendChild(div); container.scrollTop = container.scrollHeight; }
-  console.log(ts, icon, prefix + text);
+  console.log(ts, prefix + text);
   return div;
 }
 
@@ -18683,7 +18802,7 @@ function addToolStatus(toolName, input) {
   const ts = '[' + new Date().toTimeString().slice(0, 8) + ']';
   const div = document.createElement('div');
   div.className = 'ai-msg tool-status';
-  div.textContent = ts + ' \u2699 ' + (labels[toolName] || toolName) + '...';
+  div.innerHTML = ts + ' ' + _ic('gear') + ' ' + esc(labels[toolName] || toolName) + '...';
   $('#aiMsgs').appendChild(div);
   $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
   return div;
@@ -19884,7 +20003,7 @@ function refundGeniePrompt(reason) {
     var sendBtn = document.getElementById('aiSend');
     if (sendBtn) sendBtn.disabled = false;
   }
-  addAiMsg('system', '\u2728 Wish refunded' + (reason ? ' (' + reason + ')' : '') + ' \u2014 ' + geniePromptsLeft + ' wish' + (geniePromptsLeft === 1 ? '' : 'es') + ' remaining');
+  addAiMsg('system', 'Wish refunded' + (reason ? ' (' + reason + ')' : '') + ' \u2014 ' + geniePromptsLeft + ' wish' + (geniePromptsLeft === 1 ? '' : 'es') + ' remaining');
   console.log('[Genie] Wish refunded:', reason, '| Remaining:', geniePromptsLeft);
 }
 
@@ -20510,7 +20629,7 @@ async function sendAgentMessage() {
     const ts = '[' + new Date().toTimeString().slice(0, 8) + ']';
     const div = document.createElement('div');
     div.className = 'ai-msg system stall-alert';
-    const icon = level === 'timeout' ? '\u26D4' : '\u26A0\uFE0F';
+    const icon = level === 'timeout' ? _ic('stop') : _ic('warn');
     div.innerHTML = '<span style="font-size:.56rem;color:var(--text-dim);margin-right:4px;">' + ts + '</span><span style="font-size:.72rem;">' + icon + '</span> <span>' + message + '</span>';
     div.style.cssText = 'color:' + (level === 'timeout' ? 'var(--danger)' : '#FF9800') + ';font-size:.62rem;padding:6px 10px;background:' + (level === 'timeout' ? 'rgba(239,68,68,.08)' : 'rgba(255,152,0,.08)') + ';border:1px solid ' + (level === 'timeout' ? 'rgba(239,68,68,.25)' : 'rgba(255,152,0,.25)') + ';border-radius:6px;margin:4px 0;';
     $('#aiMsgs').appendChild(div);
@@ -20875,7 +20994,7 @@ async function sendAgentMessage() {
       var vDiv = document.createElement('div');
       vDiv.className = 'ai-msg system';
       vDiv.style.cssText = 'font-size:.58rem;padding:5px 10px;color:var(--accent2);background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:6px;margin:4px 0;';
-      vDiv.innerHTML = '<span style="font-weight:700;">\u2705 Deliverables placed:</span><br/>' +
+      vDiv.innerHTML = '<span style="font-weight:700;">' + _ic('check') + ' Deliverables placed:</span><br/>' +
         deliverables.map(function(d) { return '\u2022 ' + d; }).join('<br/>');
       $('#aiMsgs').appendChild(vDiv);
       // In simplified mode, add exhibit file cards for each deliverable type
@@ -20890,9 +21009,9 @@ async function sendAgentMessage() {
           const exhibitRow = document.createElement('div');
           exhibitRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;';
           const exhibitMeta = {
-            sheet:      { icon: '\uD83D\uDCCA', label: 'Spreadsheet', tab: 'simpOutSheet' },
-            notepad:    { icon: '\uD83D\uDCDD', label: 'Notepad', tab: 'simpOutNotepad' },
-            whiteboard: { icon: '\uD83C\uDFA8', label: 'Whiteboard', tab: 'simpOutWhiteboard' }
+            sheet:      { icon: _ic('sheet'), label: 'Spreadsheet', tab: 'simpOutSheet' },
+            notepad:    { icon: _ic('note'), label: 'Notepad', tab: 'simpOutNotepad' },
+            whiteboard: { icon: _ic('palette'), label: 'Whiteboard', tab: 'simpOutWhiteboard' }
           };
           exhibitTypes.forEach(function(type) {
             const m = exhibitMeta[type];
@@ -20921,7 +21040,7 @@ async function sendAgentMessage() {
       var wDiv = document.createElement('div');
       wDiv.className = 'ai-msg system';
       wDiv.style.cssText = 'font-size:.56rem;padding:4px 10px;color:#f59e0b;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15);border-radius:6px;margin:4px 0;';
-      wDiv.textContent = '\u26A0 No workspace outputs written — results were only shown in chat. Ask Claude to write results to a specific pane if needed.';
+      wDiv.innerHTML = _ic('warn') + ' No workspace outputs written — results were only shown in chat. Ask Claude to write results to a specific pane if needed.';
       $('#aiMsgs').appendChild(wDiv);
       $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
     }
@@ -21091,7 +21210,7 @@ $('#aiInput').addEventListener('keydown', e => {
   // Show system message if context slots are active on load
   const active = getActiveContextSlots();
   if (active.length) {
-    addAiMsg('system', '\uD83D\uDCCE Context active: ' + active.map(s => s.label).join(', ') + '. The assistant will reference this context throughout the conversation.');
+    addAiMsg('system', 'Context active: ' + active.map(s => s.label).join(', ') + '. The assistant will reference this context throughout the conversation.');
   }
 })();
 
