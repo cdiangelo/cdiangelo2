@@ -235,9 +235,10 @@ body.light .fun-btn { background: var(--accent); }
 .workspace.simplified-mode {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
-  grid-template-rows: auto auto 1fr !important;
+  grid-template-rows: 28vh auto 1fr !important;
   gap: 0 !important;
-  overflow: hidden;
+  overflow: visible !important;
+  background: var(--bg) !important;
 }
 .workspace.simplified-mode .divider-h,
 .workspace.simplified-mode .divider-v { display: none !important; }
@@ -248,12 +249,14 @@ body.light .fun-btn { background: var(--accent); }
 .workspace.simplified-mode #q-claude {
   display: grid !important;
   grid-column: 1 / -1 !important;
-  grid-row: 1 !important;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr;
-  overflow: visible;
-  min-height: 160px;
-  max-height: 28vh;
+  grid-row: 1 / 2 !important;
+  grid-template-columns: 1fr 1fr !important;
+  grid-template-rows: 1fr !important;
+  overflow: visible !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  height: 100% !important;
+  border: none !important;
 }
 .workspace.simplified-mode #q-claude > .p-head { display: none !important; }
 .workspace.simplified-mode #q-claude > .ai-actions-bar { display: none !important; }
@@ -273,7 +276,17 @@ body.light .fun-btn { background: var(--accent); }
 }
 .workspace.simplified-mode #simpBotArea .robot-scene { height: 100% !important; }
 .workspace.simplified-mode #simpBotArea .robot-controls {
-  border-top: 1px solid rgba(128,128,128,.1); padding: 3px 6px; flex-shrink: 0;
+  border-top: 1px solid rgba(128,128,128,.1); padding: 4px 6px; flex-shrink: 0;
+  flex-direction: column !important; gap: 2px !important;
+  align-items: stretch !important; justify-content: flex-start !important;
+  position: absolute; right: 4px; top: 4px; bottom: auto;
+  background: rgba(0,0,0,.4); border-radius: 6px; border: none;
+  backdrop-filter: blur(6px); z-index: 5; width: auto; min-width: 60px;
+}
+.workspace.simplified-mode #simpBotArea .robot-controls select {
+  font-size: .52rem !important; padding: 2px 4px !important;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1);
+  color: var(--text-dim); border-radius: 4px;
 }
 
 /* Chat input area (right column of top row) — soft rounded shape */
@@ -329,7 +342,7 @@ body.light .fun-btn { background: var(--accent); }
 /* Nudge + Send buttons float on bottom edge of the shape */
 .workspace.simplified-mode #q-claude .ai-input-row #aiSend,
 .workspace.simplified-mode #q-claude .ai-input-row #aiNudge {
-  position: absolute !important; bottom: -14px; z-index: 5;
+  position: absolute !important; bottom: -14px; z-index: 9999;
   border-radius: 20px !important; font-size: .68rem !important;
   padding: 6px 18px !important; font-weight: 600;
   box-shadow: 0 2px 8px rgba(0,0,0,.25);
@@ -361,21 +374,23 @@ body.light .fun-btn { background: var(--accent); }
 }
 
 /* ── Toolbar (between top and bottom) ── */
-.workspace.simplified-mode #simpToolbar {
+.workspace.simplified-mode > #simpToolbar {
   display: flex !important;
   grid-column: 1 / -1 !important;
-  grid-row: 2 !important;
-}
-.simp-toolbar, .simp-output-container {
-  display: none; /* shown via simplified-mode rule */
-}
-.simp-toolbar {
+  grid-row: 2 / 3 !important;
   align-items: center; gap: 8px; padding: 14px 14px 4px;
   background: linear-gradient(180deg, rgba(30,32,42,.95), rgba(22,24,32,.98));
   border-top: 1px solid rgba(128,128,128,.08);
   border-bottom: 1px solid rgba(128,128,128,.08);
   flex-wrap: wrap; flex-shrink: 0;
   backdrop-filter: blur(8px);
+  min-height: 32px;
+}
+.simp-toolbar, .simp-output-container {
+  display: none; /* shown via simplified-mode rule */
+}
+.simp-toolbar {
+  /* additional toolbar styles inherited from above */
 }
 .simp-toolbar .simp-tb-group {
   display: flex; align-items: center; gap: 5px;
@@ -418,19 +433,20 @@ body.light .fun-btn { background: var(--accent); }
 .simp-toolbar .simp-tb-tab:hover { color: var(--text); }
 
 /* ── Bottom section: Chat output + exhibits full width ── */
-.workspace.simplified-mode #simpOutput {
+.workspace.simplified-mode > #simpOutput {
   display: flex !important;
   grid-column: 1 / -1 !important;
-  grid-row: 3 !important;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--panel);
+  grid-row: 3 / 4 !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  background: var(--panel) !important;
+  min-height: 0 !important;
 }
 .simp-output-wrap {
   flex: 1; overflow: hidden; position: relative; display: none;
 }
 .workspace.simplified-mode .simp-output-wrap {
-  display: flex !important; flex-direction: column;
+  display: flex !important; flex-direction: column !important;
 }
 .simp-output-wrap > .simp-out-panel {
   display: none; position: absolute; inset: 0; overflow: auto;
@@ -1891,6 +1907,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     grid-template-columns: unset !important;
     grid-template-rows: unset !important;
     gap: 0 !important;
+    overflow: hidden !important;
   }
   .workspace.simplified-mode .pane:not(#q-claude) { display: none !important; }
   .workspace.simplified-mode #q-claude {
@@ -1922,14 +1939,24 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     bottom: -12px !important; font-size: .6rem !important; padding: 5px 14px !important;
   }
   .workspace.simplified-mode #q-claude .ai-input-row #aiNudge { right: 80px !important; }
-  .workspace.simplified-mode #simpToolbar {
+  .workspace.simplified-mode > #simpToolbar {
+    display: flex !important;
     flex: 0 0 auto !important;
     grid-column: unset !important; grid-row: unset !important;
+    padding: 10px 8px 4px !important;
   }
   .workspace.simplified-mode #simpToolbar .simp-tb-tabs { display: none !important; }
-  .workspace.simplified-mode #simpOutput {
+  .workspace.simplified-mode > #simpOutput {
+    display: flex !important;
     flex: 1 !important;
+    flex-direction: column !important;
     grid-column: unset !important; grid-row: unset !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  .workspace.simplified-mode .simp-output-wrap {
+    display: flex !important; flex-direction: column !important;
+    flex: 1 !important; min-height: 0 !important;
   }
   .workspace.simplified-mode #simplifiedOutput { display: none !important; }
   .workspace.simplified-mode .mob-control-bar { display: none !important; }
