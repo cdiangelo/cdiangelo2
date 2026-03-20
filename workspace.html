@@ -11398,9 +11398,11 @@ function spFetchStandings() {
     PROXY_BASE + '/proxy/espn/' + leagueInfo.sport + '/' + leagueInfo.league + '/standings?season=' + seasonYr + '&sort=winpercent:desc',
     // 2. Standard site API v2 without query params
     PROXY_BASE + '/proxy/espn/' + leagueInfo.sport + '/' + leagueInfo.league + '/standings',
-    // 3. ESPN core API v2
+    // 3. ESPN core API v2 — season in path (most reliable format)
+    PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/seasons/' + seasonYr + '/types/2/standings',
+    // 4. ESPN core API v2 with query params
     PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/standings?season=' + seasonYr + '&seasontype=2',
-    // 4. ESPN core API v2 without season
+    // 5. ESPN core API v2 without season
     PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/standings'
   ];
 
@@ -11489,6 +11491,43 @@ function _spRenderStandingsData(data, league, el) {
   // Fallback: ESPN v2 site API may return { uid, id, name, season, standings: [...] } with standings as array of groups
   if (!html && Array.isArray(data.standings)) {
     data.standings.forEach(function(g) { walkGroups(g, 0); });
+  }
+
+  // Fallback: ESPN core API may return { items: [{$ref: "..."}, ...] } — resolve $ref links
+  if (!html && data.items && Array.isArray(data.items)) {
+    // Core API standings items are $ref links to conference/division groups
+    var refItems = data.items.filter(function(it) { return it.$ref; });
+    if (refItems.length) {
+      console.log('[Sports] Standings: resolving ' + refItems.length + ' core API $ref items...');
+      // Show loading state while resolving
+      el.innerHTML = '<div class="sp-empty" style="padding:20px;">Loading standings groups...</div>';
+      var refUrls = refItems.map(function(it) {
+        var path = it.$ref.replace(/^https?:\/\/sports\.core\.api\.espn\.com\/v2\/sports\//, '');
+        return PROXY_BASE + '/proxy/espn-core/' + path.split('?')[0];
+      });
+      Promise.all(refUrls.map(function(url) {
+        return fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .catch(function() { return null; });
+      })).then(function(groups) {
+        var innerHtml = '';
+        groups.forEach(function(g) {
+          if (!g) return;
+          // Each group might itself have children or standings
+          walkGroups(g, 0);
+        });
+        if (html) {
+          el.innerHTML = html;
+        } else {
+          console.log('[Sports] Standings: resolved items but no renderable data');
+          throw new Error('no standings entries in resolved items');
+        }
+      }).catch(function(err) {
+        console.warn('[Sports] Standings $ref resolution failed:', err.message);
+        throw err; // Re-throw to cascade
+      });
+      return; // Don't throw — async resolution in progress
+    }
   }
 
   // If still empty, throw so the cascade tries the next URL
@@ -12339,14 +12378,18 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
     }, Promise.resolve(null));
   }
 
-  // Try standard ESPN API first (already deployed), then player-specific routes
+  // Use cached $ref athlete data as initial profile if available
+  var cachedProfile = _spAthleteCache[athleteId] || null;
+
+  // Try standard ESPN API first, then player-specific routes, then core API
   var profileUrls = [
+    PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/overview',
     PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/athletes/' + athleteId,
-    PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/overview'
+    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/athletes/' + athleteId
   ];
   var statsUrls = [
-    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/statistics',
-    PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/stats'
+    PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/stats',
+    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/statistics'
   ];
   var gamelogUrls = [
     PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/gamelog'
@@ -12354,13 +12397,13 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
 
   // Fetch profile, stats, and gamelog in parallel (each tries multiple URLs)
   Promise.all([
-    _tryFetch(profileUrls),
+    cachedProfile ? Promise.resolve(cachedProfile) : _tryFetch(profileUrls),
     _tryFetch(statsUrls),
     _tryFetch(gamelogUrls)
   ]).then(([profileResp, statsData, gamelogData]) => {
     // overview endpoint wraps athlete data differently
     var profile = profileResp && profileResp.athlete ? profileResp.athlete : profileResp;
-    let html = '<div style="margin-bottom:8px;"><button onclick="$(\'#spPlayersList\').innerHTML=\'<div class=sp-empty>Search for a player or click Leaders.</div>\'" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>';
+    let html = '<div style="margin-bottom:8px;"><button onclick="var v=$('#spPlayersView').value; if(v==='leaders')spFetchLeaders(); else if(v==='table')spFetchLeadersTable(); else spFetchTeamRoster();" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>';
 
     // Profile header
     if (profile) {
@@ -12412,7 +12455,7 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
               });
               html += '</tr>';
             });
-          } else if (cat.statistics) {
+          } else if (cat.statistics && cat.statistics.names && cat.statistics.names.length) {
             // Alternate format
             html += '<tr style="color:var(--text-dim);">';
             cat.statistics.names.forEach(n => { html += '<th style="padding:2px 4px;">'+esc(n)+'</th>'; });
@@ -12534,7 +12577,7 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
     el.innerHTML = html;
   }).catch(function(err) {
     console.error('[Sports] Player stats error:', err);
-    el.innerHTML = '<div style="margin-bottom:8px;"><button onclick="$(\'#spPlayersList\').innerHTML=\'<div class=sp-empty>Search for a player or click Leaders.</div>\'" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>' +
+    el.innerHTML = '<div style="margin-bottom:8px;"><button onclick="var v=$('#spPlayersView').value; if(v==='leaders')spFetchLeaders(); else if(v==='table')spFetchLeadersTable(); else spFetchTeamRoster();" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>' +
       '<div class="sp-empty" style="color:var(--danger);">Failed to load stats for ' + esc(name) + ': ' + esc(err.message) + '</div>';
   });
 };
