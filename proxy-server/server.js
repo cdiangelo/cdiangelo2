@@ -507,6 +507,73 @@ app.get('/proxy/espn-core/*', async (req, res) => {
   }
 });
 
+// ── ESPN Player Search Proxy (uses site.web.api.espn.com) ──
+app.get('/proxy/espn-player/search', async (req, res) => {
+  const query = req.query.q;
+  const sport = req.query.sport || 'basketball';
+  const league = req.query.league || 'nba';
+  if (!query) return res.status(400).json({ error: true, message: 'Missing query parameter q' });
+  // ESPN's athlete search endpoint
+  const url = 'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes?query=' + encodeURIComponent(query) + '&limit=10&region=us&lang=en&contentorigin=espn';
+  try {
+    const r = await fetch(url, { timeout: 10000, headers: { 'Accept': 'application/json' } });
+    if (!r.ok) {
+      // Fallback: try site API athletes endpoint
+      const fallbackUrl = 'https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/athletes?search=' + encodeURIComponent(query);
+      const r2 = await fetch(fallbackUrl, { timeout: 10000, headers: { 'Accept': 'application/json' } });
+      if (!r2.ok) return res.status(r2.status).json({ error: true, message: 'ESPN player search failed' });
+      return res.json(await r2.json());
+    }
+    res.json(await r.json());
+  } catch (e) {
+    console.error('[ESPN Player Search] Error:', e.message);
+    res.status(502).json({ error: true, message: 'Player search failed' });
+  }
+});
+
+// ── ESPN Player Stats Proxy (uses site.web.api.espn.com for rich stats) ──
+app.get('/proxy/espn-player/:sport/:league/athletes/:id/stats', async (req, res) => {
+  const { sport, league, id } = req.params;
+  const url = 'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes/' + id + '/stats?region=us&lang=en&contentorigin=espn';
+  try {
+    const r = await fetch(url, { timeout: 10000, headers: { 'Accept': 'application/json' } });
+    if (!r.ok) return res.status(r.status).json({ error: true, message: 'ESPN player stats returned HTTP ' + r.status });
+    res.json(await r.json());
+  } catch (e) {
+    console.error('[ESPN Player Stats] Error:', e.message);
+    res.status(502).json({ error: true, message: 'Player stats request failed' });
+  }
+});
+
+// ── ESPN Player Gamelog Proxy ──
+app.get('/proxy/espn-player/:sport/:league/athletes/:id/gamelog', async (req, res) => {
+  const { sport, league, id } = req.params;
+  const season = req.query.season || new Date().getFullYear();
+  const url = 'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes/' + id + '/gamelog?region=us&lang=en&contentorigin=espn&season=' + season + '&seasontype=2';
+  try {
+    const r = await fetch(url, { timeout: 10000, headers: { 'Accept': 'application/json' } });
+    if (!r.ok) return res.status(r.status).json({ error: true, message: 'ESPN gamelog returned HTTP ' + r.status });
+    res.json(await r.json());
+  } catch (e) {
+    console.error('[ESPN Player Gamelog] Error:', e.message);
+    res.status(502).json({ error: true, message: 'Gamelog request failed' });
+  }
+});
+
+// ── ESPN Player Overview/Bio Proxy ──
+app.get('/proxy/espn-player/:sport/:league/athletes/:id/overview', async (req, res) => {
+  const { sport, league, id } = req.params;
+  const url = 'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes/' + id + '/overview?region=us&lang=en&contentorigin=espn';
+  try {
+    const r = await fetch(url, { timeout: 10000, headers: { 'Accept': 'application/json' } });
+    if (!r.ok) return res.status(r.status).json({ error: true, message: 'ESPN player overview returned HTTP ' + r.status });
+    res.json(await r.json());
+  } catch (e) {
+    console.error('[ESPN Player Overview] Error:', e.message);
+    res.status(502).json({ error: true, message: 'Player overview request failed' });
+  }
+});
+
 // ── YouTube Search Proxy (via Invidious, with fallback) ──
 const YT_INSTANCES = [
   'https://vid.puffyan.us',

@@ -12138,8 +12138,8 @@ function spSearchPlayer(query) {
   el.innerHTML = '<div class="sp-empty" style="padding:20px;">Searching...</div>';
   const l = SP_LEAGUE_MAP[league];
   if (!l) return;
-  // ESPN athlete search endpoint
-  const url = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/athletes?search=' + encodeURIComponent(query);
+  // ESPN athlete search via dedicated player proxy
+  const url = PROXY_BASE + '/proxy/espn-player/search?q=' + encodeURIComponent(query) + '&sport=' + l.sport + '&league=' + l.league;
   fetch(url)
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(data => {
@@ -12181,15 +12181,17 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
   const l = SP_LEAGUE_MAP[league];
   if (!l || !athleteId) return;
 
-  // ESPN athlete detail + stats
-  const baseUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/athletes/' + athleteId;
-  const statsUrl = baseUrl + '/statistics';
+  // ESPN athlete detail + stats via dedicated player proxy routes
+  const profileUrl = PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/overview';
+  const statsUrl = PROXY_BASE + '/proxy/espn-player/' + l.sport + '/' + l.league + '/athletes/' + athleteId + '/stats';
 
-  // Fetch both profile and stats in parallel
+  // Fetch both profile/overview and stats in parallel
   Promise.all([
-    fetch(baseUrl).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(profileUrl).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(statsUrl).then(r => r.ok ? r.json() : null).catch(() => null)
-  ]).then(([profile, statsData]) => {
+  ]).then(([profileResp, statsData]) => {
+    // overview endpoint wraps athlete data differently
+    var profile = profileResp && profileResp.athlete ? profileResp.athlete : profileResp;
     let html = '<div style="margin-bottom:8px;"><button onclick="$(\'#spPlayersList\').innerHTML=\'<div class=sp-empty>Search for a player or click Leaders.</div>\'" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>';
 
     // Profile header
@@ -15452,14 +15454,26 @@ const PERSONA_MODES = {
       'Step 1: IMMEDIATELY call get_sports_scores to see today\'s games.\n' +
       'Step 2: IMMEDIATELY call get_sports_odds (or get_event_odds for a specific game) to pull live lines from all sportsbooks.\n' +
       'Step 3: Call get_sports_standings to get records, streaks, home/away splits.\n' +
-      'Step 4: ONLY AFTER you have all this data, deliver your analysis and picks.\n' +
+      'Step 4: For player props or specific matchup analysis, call get_player_stats and get_player_gamelog to pull season stats and recent game-by-game trends.\n' +
+      'Step 5: ONLY AFTER you have all this data, deliver your analysis and picks.\n' +
       'You MUST call at least 2 tools before responding with text. NEVER respond with only text and no tool calls. NEVER ask the user for information you can retrieve with your tools. If you don\'t know the league, assume the most popular league currently in season.\n\n' +
+      'PLAYER ANALYTICS — USE THESE AGGRESSIVELY:\n' +
+      'You have get_player_stats (season stats, bio, splits) and get_player_gamelog (game-by-game log for trend analysis). USE THEM for:\n' +
+      '- Player prop research: Pull the player\'s gamelog, calculate recent averages (last 5/10), compare to season avg and prop line\n' +
+      '- Matchup context: Cross-reference player position, age, team role with opponent tendencies\n' +
+      '- Hot/cold streaks: Identify players trending up or down over recent games\n' +
+      '- Minutes/usage trends: Spot changes in playing time that affect stat output\n' +
+      '- Home/away splits: Compare performance by venue\n' +
+      '- Outperformance/underperformance: Flag players consistently beating or missing market expectations\n' +
+      'When a user asks about a specific game, proactively pull stats for key players on BOTH teams.\n\n' +
+      'NAME RESOLUTION: Players may be misspelled. The search is fuzzy — try it. If results include multiple matches, the tool returns also_matched alternatives. If no match found, try common alternate spellings. Only ask the user to clarify if you get zero results after 2 attempts, and when you do, offer your best guesses (e.g. "Did you mean Nikola Jokic or Luka Doncic?").\n\n' +
       'ANALYSIS METHODOLOGY (apply AFTER pulling data):\n' +
       '(1) Line Shopping — compare lines across ALL bookmakers returned. Flag spreads that differ by 1+ point, ML discrepancies of 15+, totals off by 1+. Tell the user which book has the best line.\n' +
       '(2) Team & Matchup Analysis — use standings data: home/away records, streaks, point differentials. Cross-reference with the game context.\n' +
-      '(3) Situational Factors — rest advantage (back-to-back), travel, revenge games, schedule spots, divisional dynamics.\n' +
-      '(4) Edge Identification — where the market is mispricing, why the edge exists, expected value, confidence (1-5).\n' +
-      '(5) Bet Sizing — Kelly criterion or fractional Kelly, unit sizing.\n\n' +
+      '(3) Player-Level Edge — use player gamelogs to identify stat categories where a player is trending above/below their line. Flag specific props with edge.\n' +
+      '(4) Situational Factors — rest advantage (back-to-back), travel, revenge games, schedule spots, divisional dynamics.\n' +
+      '(5) Edge Identification — where the market is mispricing, why the edge exists, expected value, confidence (1-5).\n' +
+      '(6) Bet Sizing — Kelly criterion or fractional Kelly, unit sizing.\n\n' +
       'OUTPUT FORMAT — ALWAYS:\n' +
       'PICK: [Team] [Bet Type] [Line @ Best Book] — [1-sentence edge]\n' +
       'Then supporting analysis. Lead with the pick, explain after.\n\n' +
@@ -15540,8 +15554,10 @@ const PERSONA_MODES = {
       'Step 1: Call get_bracket_state to see current bracket, completed games, upcoming matchups.\n' +
       'Step 2: Call get_sports_odds({league:"ncaab"}) or get_event_odds for specific games to pull live lines from all sportsbooks.\n' +
       'Step 3: Call get_sports_scores({league:"ncaab"}) for live/recent scores.\n' +
-      'Step 4: ONLY AFTER you have data, deliver picks with specific lines and book names.\n' +
+      'Step 4: For player-level analysis, call get_player_stats and get_player_gamelog for key players in matchups you\'re analyzing.\n' +
+      'Step 5: ONLY AFTER you have data, deliver picks with specific lines and book names.\n' +
       'You MUST call at least 2 tools before responding with text. NEVER respond with only text and no tool calls.\n\n' +
+      'PLAYER ANALYTICS: Use get_player_stats and get_player_gamelog to pull stats on key players. Identify hot shooters, players on cold streaks, freshmen vs experienced guards under pressure, and matchup-specific edges. For misspelled names, try the search anyway — it\'s fuzzy. If zero results after trying, offer your best guess.\n\n' +
       'WHAT NOT TO DO:\n' +
       '- NEVER ask clarifying questions before giving a pick — pull data, make assumptions, deliver picks, refine later\n' +
       '- NEVER ask the user for information you can get from your tools\n' +
@@ -19033,6 +19049,8 @@ const AGENT_TOOLS_INLINE = [
   { name: 'get_sports_odds', description: 'Fetch betting odds (spread, moneyline, total) for a given league. Returns lines from ALL major sportsbooks for line shopping. Includes opening vs current lines when available for line movement analysis.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League to fetch odds for' } }, required: ['league'] } },
   { name: 'get_event_odds', description: 'Fetch detailed odds for a specific game/event by team name. Returns all bookmaker lines side-by-side for spread, moneyline, and total — ideal for identifying best lines and line movement.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League' }, team: { type: 'string', description: 'Team name or partial match (e.g. "Lakers", "Duke")' } }, required: ['league', 'team'] } },
   { name: 'get_sports_standings', description: 'Fetch current league standings from ESPN. Returns team records, win%, division standings, streak, last 10 games record.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League to fetch standings for' } }, required: ['league'] } },
+  { name: 'get_player_stats', description: 'Search for a player by name and get their season stats, bio (age, position, team, height, weight, experience), and career splits. Use this for player-level analysis, prop betting research, and matchup context.', input_schema: { type: 'object', properties: { name: { type: 'string', description: 'Player name to search (e.g. "LeBron James", "Patrick Mahomes")' }, league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], description: 'League to search in' } }, required: ['name', 'league'] } },
+  { name: 'get_player_gamelog', description: 'Get a player\'s recent game-by-game stats (gamelog) for trend analysis. Shows performance in each game this season — use for identifying hot/cold streaks, minutes trends, matchup performance, and over/under patterns.', input_schema: { type: 'object', properties: { name: { type: 'string', description: 'Player name' }, league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl'], description: 'League' } }, required: ['name', 'league'] } },
   { name: 'get_concept_map', description: 'Get concept map nodes and edges.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_portfolio', description: 'Get Robinhood portfolio positions, account balance, and buying power. Requires Robinhood login.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_orders', description: 'Get recent Robinhood order history. Requires Robinhood login.', input_schema: { type: 'object', properties: { limit: { type: 'number', description: 'Max orders to return (default 20)' } } } },
@@ -19767,6 +19785,166 @@ async function executeAgentTool(name, input) {
           return JSON.stringify({ league: _gstKey, name: _gstInfo.name, groups: _gstGroups, count: _gstGroups.reduce(function(a, g) { return a + g.teams.length; }, 0) });
         } catch(e) {
           return JSON.stringify({ error: 'Failed to fetch standings: ' + e.message, league: _gstKey });
+        }
+      }
+
+      // ── Player analytics tools ──
+      case 'get_player_stats': {
+        var _psName = (input.name || '').trim();
+        var _psLeague = (input.league || 'nba').toLowerCase();
+        var _psInfo = SP_LEAGUE_MAP[_psLeague];
+        if (!_psInfo) return JSON.stringify({ error: 'Unknown league: ' + _psLeague });
+        if (!_psName) return JSON.stringify({ error: 'Player name is required' });
+        try {
+          // Step 1: Search for the player
+          var _psSearchUrl = PROXY_BASE + '/proxy/espn-player/search?q=' + encodeURIComponent(_psName) + '&sport=' + _psInfo.sport + '&league=' + _psInfo.league;
+          var _psSearchResp = await fetch(_psSearchUrl).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
+          var _psAthletes = _psSearchResp ? (_psSearchResp.athletes || _psSearchResp.items || []) : [];
+          if (!_psAthletes.length) return JSON.stringify({ error: 'No player found for "' + _psName + '". Try a different spelling or check the league.', searched: _psName, league: _psLeague });
+          // Take best match
+          var _psAth = _psAthletes[0];
+          var _psId = _psAth.id || (_psAth.$ref && _psAth.$ref.match(/athletes\/(\d+)/) ? _psAth.$ref.match(/athletes\/(\d+)/)[1] : null);
+          if (!_psId) return JSON.stringify({ error: 'Could not resolve player ID for "' + _psName + '"' });
+          var _psFullName = _psAth.displayName || _psAth.fullName || _psName;
+          // If multiple results and name doesn't closely match, return candidates
+          if (_psAthletes.length > 1 && _psFullName.toLowerCase() !== _psName.toLowerCase()) {
+            var _psCandidates = _psAthletes.slice(0, 5).map(function(a) {
+              return { name: a.displayName || a.fullName || '', team: a.team ? (a.team.displayName || '') : '', position: a.position ? (a.position.abbreviation || '') : '', id: a.id };
+            });
+            // Still proceed with best match but include alternatives
+          }
+          // Step 2: Fetch overview + stats in parallel
+          var _psOverUrl = PROXY_BASE + '/proxy/espn-player/' + _psInfo.sport + '/' + _psInfo.league + '/athletes/' + _psId + '/overview';
+          var _psStatsUrl = PROXY_BASE + '/proxy/espn-player/' + _psInfo.sport + '/' + _psInfo.league + '/athletes/' + _psId + '/stats';
+          var [_psOver, _psStats] = await Promise.all([
+            fetch(_psOverUrl).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; }),
+            fetch(_psStatsUrl).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; })
+          ]);
+          // Build result
+          var _psResult = { player: _psFullName, id: _psId, league: _psLeague };
+          // Bio from overview
+          var _psProfile = _psOver && _psOver.athlete ? _psOver.athlete : _psOver;
+          if (_psProfile) {
+            _psResult.bio = {
+              team: _psProfile.team ? (_psProfile.team.displayName || '') : '',
+              position: _psProfile.position ? (_psProfile.position.displayName || _psProfile.position.abbreviation || '') : '',
+              jersey: _psProfile.jersey || '',
+              age: _psProfile.age || '',
+              height: _psProfile.displayHeight || '',
+              weight: _psProfile.displayWeight || '',
+              experience: _psProfile.experience ? (_psProfile.experience.years + ' yrs') : '',
+              birthPlace: _psProfile.birthPlace ? (_psProfile.birthPlace.city + ', ' + (_psProfile.birthPlace.state || _psProfile.birthPlace.country || '')) : '',
+              draft: _psProfile.draft ? ('Round ' + _psProfile.draft.round + ' Pick ' + _psProfile.draft.selection + ' (' + (_psProfile.draft.year || '') + ')') : ''
+            };
+          }
+          // Stats
+          if (_psStats) {
+            var _psCats = _psStats.categories || (_psStats.splits ? _psStats.splits.categories : null) || [];
+            if (_psCats.length) {
+              _psResult.stats = {};
+              _psCats.forEach(function(cat) {
+                var catName = cat.displayName || cat.name || 'stats';
+                var statNames = (cat.stats || []).map(function(s) { return s.abbreviation || s.shortDisplayName || s.name || ''; });
+                var splits = (cat.splits || []).map(function(sp) {
+                  var vals = {};
+                  (sp.stats || []).forEach(function(v, i) {
+                    var key = statNames[i] || ('stat' + i);
+                    vals[key] = v.displayValue != null ? v.displayValue : (v.value != null ? String(v.value) : String(v));
+                  });
+                  return { season: sp.displayName || '', values: vals };
+                });
+                _psResult.stats[catName] = splits;
+              });
+            }
+          }
+          // Also include alternative matches for fuzzy name resolution
+          if (_psAthletes.length > 1) {
+            _psResult.also_matched = _psAthletes.slice(1, 4).map(function(a) {
+              return (a.displayName || a.fullName || '') + (a.team ? ' (' + (a.team.displayName || '') + ')' : '');
+            });
+          }
+          return JSON.stringify(_psResult);
+        } catch(e) {
+          return JSON.stringify({ error: 'Player stats failed: ' + e.message });
+        }
+      }
+
+      case 'get_player_gamelog': {
+        var _glName = (input.name || '').trim();
+        var _glLeague = (input.league || 'nba').toLowerCase();
+        var _glInfo = SP_LEAGUE_MAP[_glLeague];
+        if (!_glInfo) return JSON.stringify({ error: 'Unknown league: ' + _glLeague });
+        if (!_glName) return JSON.stringify({ error: 'Player name is required' });
+        try {
+          // Search for player first
+          var _glSearchUrl = PROXY_BASE + '/proxy/espn-player/search?q=' + encodeURIComponent(_glName) + '&sport=' + _glInfo.sport + '&league=' + _glInfo.league;
+          var _glSearchResp = await fetch(_glSearchUrl).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
+          var _glAthletes = _glSearchResp ? (_glSearchResp.athletes || _glSearchResp.items || []) : [];
+          if (!_glAthletes.length) return JSON.stringify({ error: 'No player found for "' + _glName + '"', searched: _glName, league: _glLeague });
+          var _glAth = _glAthletes[0];
+          var _glId = _glAth.id || (_glAth.$ref && _glAth.$ref.match(/athletes\/(\d+)/) ? _glAth.$ref.match(/athletes\/(\d+)/)[1] : null);
+          var _glFullName = _glAth.displayName || _glAth.fullName || _glName;
+          // Fetch gamelog
+          var _glUrl = PROXY_BASE + '/proxy/espn-player/' + _glInfo.sport + '/' + _glInfo.league + '/athletes/' + _glId + '/gamelog';
+          var _glResp = await fetch(_glUrl).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
+          if (!_glResp) return JSON.stringify({ error: 'Gamelog not available for ' + _glFullName, player: _glFullName, id: _glId });
+          // Parse gamelog — ESPN returns categories with labels and events
+          var _glResult = { player: _glFullName, id: _glId, league: _glLeague, games: [] };
+          var _glCats = _glResp.categories || [];
+          var _glEvents = _glResp.events || {};
+          var _glLabels = _glResp.labels || _glResp.names || [];
+          var _glSeasonTypes = _glResp.seasonTypes || [];
+          // Try to extract game-by-game data
+          if (_glSeasonTypes.length) {
+            _glSeasonTypes.forEach(function(st) {
+              var stCats = st.categories || [];
+              stCats.forEach(function(cat) {
+                var names = (cat.labels || cat.names || []);
+                var events = cat.events || [];
+                events.forEach(function(ev) {
+                  var game = { stats: {} };
+                  // Try to get game info from events map
+                  if (_glEvents[ev.eventId]) {
+                    var evInfo = _glEvents[ev.eventId];
+                    game.date = evInfo.gameDate || '';
+                    game.opponent = evInfo.opponent ? (evInfo.opponent.displayName || evInfo.opponent.abbreviation || '') : '';
+                    game.homeAway = evInfo.homeAway || '';
+                    game.result = evInfo.gameResult || '';
+                    game.score = evInfo.score || '';
+                  }
+                  (ev.stats || []).forEach(function(val, i) {
+                    var label = names[i] || ('stat' + i);
+                    game.stats[label] = val;
+                  });
+                  _glResult.games.push(game);
+                });
+              });
+            });
+          } else if (_glCats.length) {
+            // Flat format fallback
+            _glCats.forEach(function(cat) {
+              var names = cat.labels || cat.names || [];
+              (cat.events || []).forEach(function(ev) {
+                var game = { stats: {} };
+                if (_glEvents[ev.eventId]) {
+                  var evInfo = _glEvents[ev.eventId];
+                  game.date = evInfo.gameDate || '';
+                  game.opponent = evInfo.opponent ? (evInfo.opponent.displayName || '') : '';
+                  game.result = evInfo.gameResult || '';
+                }
+                (ev.stats || []).forEach(function(val, i) { game.stats[names[i] || ('s' + i)] = val; });
+                _glResult.games.push(game);
+              });
+            });
+          }
+          _glResult.game_count = _glResult.games.length;
+          // Include recent 10 for quick analysis
+          if (_glResult.games.length > 10) {
+            _glResult.note = 'Showing all ' + _glResult.games.length + ' games. Last 10 games are most recent for trend analysis.';
+          }
+          return JSON.stringify(_glResult);
+        } catch(e) {
+          return JSON.stringify({ error: 'Gamelog failed: ' + e.message });
         }
       }
 
