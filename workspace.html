@@ -12403,7 +12403,7 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
   ]).then(([profileResp, statsData, gamelogData]) => {
     // overview endpoint wraps athlete data differently
     var profile = profileResp && profileResp.athlete ? profileResp.athlete : profileResp;
-    let html = '<div style="margin-bottom:8px;"><button onclick="var v=$('#spPlayersView').value; if(v==='leaders')spFetchLeaders(); else if(v==='table')spFetchLeadersTable(); else spFetchTeamRoster();" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>';
+    let html = '<div style="margin-bottom:8px;"><button onclick="var v=document.getElementById(\'spPlayersView\').value;if(v===\'leaders\')spFetchLeaders();else if(v===\'table\')spFetchLeadersTable();else spFetchTeamRoster();" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>';
 
     // Profile header
     if (profile) {
@@ -12577,7 +12577,7 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
     el.innerHTML = html;
   }).catch(function(err) {
     console.error('[Sports] Player stats error:', err);
-    el.innerHTML = '<div style="margin-bottom:8px;"><button onclick="var v=$('#spPlayersView').value; if(v==='leaders')spFetchLeaders(); else if(v==='table')spFetchLeadersTable(); else spFetchTeamRoster();" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>' +
+    el.innerHTML = '<div style="margin-bottom:8px;"><button onclick="var v=document.getElementById(\'spPlayersView\').value;if(v===\'leaders\')spFetchLeaders();else if(v===\'table\')spFetchLeadersTable();else spFetchTeamRoster();" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:2px 8px;cursor:pointer;color:var(--text-dim);">&larr; Back</button></div>' +
       '<div class="sp-empty" style="color:var(--danger);">Failed to load stats for ' + esc(name) + ': ' + esc(err.message) + '</div>';
   });
 };
