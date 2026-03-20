@@ -409,11 +409,11 @@ body.light .fun-btn { background: var(--accent); }
   grid-column: 1 / -1 !important;
   grid-row: 2 / 3 !important;
   align-items: center; gap: 8px; padding: 14px 14px 4px;
-  background: linear-gradient(180deg, rgba(30,32,42,.95), rgba(22,24,32,.98));
-  border-top: 1px solid rgba(128,128,128,.08);
-  border-bottom: 1px solid rgba(128,128,128,.08);
+  background: var(--panel) !important;
+  color: var(--text) !important;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap; flex-shrink: 0;
-  backdrop-filter: blur(8px);
   min-height: 32px;
   z-index: 2;
   position: relative;
@@ -2551,7 +2551,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <button id="aiUsageDashBtn" class="p-btn" title="User usage dashboard (admin)" style="font-size:.6rem;">Users</button>
       <button id="aiAccessReqBtn" class="p-btn" title="User access requests (admin)" style="font-size:.55rem;">Requests</button>
       <button id="aiSettingsBtn" class="p-btn" title="Rate limits & session settings (admin)" style="font-size:.55rem;">Settings</button>
-      <button id="aiDataSourcesBtn" class="p-btn" title="Data source health check — all APIs (admin)" style="font-size:.55rem;">Sources</button>
+      <button id="aiDataSourcesBtn" class="p-btn" title="Data source health check — all APIs" style="font-size:.55rem;">Sources</button>
       <button id="aiSavedActionsBtn" class="p-btn" title="Saved tool actions" style="font-size:.55rem;">Actions</button>
       <button id="aiCleanupBtn" class="p-btn" title="Cleanup available in Whiteboard, Concept Map, Notepad, Scratch Sheet" style="font-size:.55rem;">Cleanup</button>
       <button id="aiInfoBtn" class="p-btn" title="Capabilities &amp; settings" style="font-size:.6rem;">Info</button>
@@ -3914,8 +3914,18 @@ function applyWorkspaceMode() {
     // --- Clear stale inline styles from suite mode (midbar resizer, pane system) ---
     const _aiMsgs = document.getElementById('aiMsgs');
     const _robotWrap = document.getElementById('robotSceneWrapper');
-    if (_aiMsgs) { _aiMsgs.style.flex = ''; _aiMsgs.style.width = ''; }
+    if (_aiMsgs) { _aiMsgs.style.flex = ''; _aiMsgs.style.width = ''; _aiMsgs.style.color = ''; _aiMsgs.style.opacity = ''; _aiMsgs.style.background = ''; }
     if (_robotWrap) { _robotWrap.style.width = ''; _robotWrap.style.flex = ''; _robotWrap.style.display = ''; _robotWrap.style.position = ''; }
+    // Clear stale styles on output and toolbar containers
+    var _simpOutput = document.getElementById('simpOutput');
+    var _simpToolbar = document.getElementById('simpToolbar');
+    var _simpOutChat = document.getElementById('simpOutChat');
+    if (_simpOutput) { _simpOutput.style.opacity = ''; _simpOutput.style.color = ''; _simpOutput.style.background = ''; }
+    if (_simpToolbar) { _simpToolbar.style.opacity = ''; _simpToolbar.style.color = ''; _simpToolbar.style.background = ''; }
+    if (_simpOutChat) { _simpOutChat.style.opacity = ''; _simpOutChat.style.color = ''; _simpOutChat.style.background = ''; }
+    // Force pane color reset — clear any inherited transparency from suite transitions
+    var _claudePane = document.getElementById('q-claude');
+    if (_claudePane) { _claudePane.style.opacity = ''; _claudePane.style.color = ''; }
 
     // --- Robot scene into simpBotArea (left of top row) ---
     let botArea = document.getElementById('simpBotArea');
@@ -18907,7 +18917,6 @@ $('#aiDataSourcesBtn').onclick = () => {
   closeAllAdminPanels('aiDataSourcesPanel');
   let panel = document.getElementById('aiDataSourcesPanel');
   if (panel) { panel.remove(); return; }
-  if (!wsIsAdmin) return;
 
   panel = document.createElement('div');
   panel.id = 'aiDataSourcesPanel';
