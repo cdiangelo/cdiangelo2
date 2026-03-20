@@ -95,7 +95,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Aptos Narrow', '
   background: var(--bg); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 16px; height: 44px;
   position: relative; z-index: 200; gap: 8px;
-  filter: brightness(0.9);
+  filter: brightness(0.92);
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
 }
 .header h1 { font-size: 15px; font-weight: 700; color: var(--accent); white-space: nowrap; letter-spacing: .5px; }
 body.neon .header h1 { color: var(--accent2); }
@@ -228,7 +229,8 @@ body.light .fun-btn { background: var(--accent); }
 /* ═══ WORKSPACE GRID ═══ */
 .workspace {
   display: grid; grid-template-columns: 1fr 4px 1fr 4px 1fr; grid-template-rows: 1fr 4px 1fr;
-  height: calc(100vh - 44px); background: var(--border);
+  height: calc(100vh - 44px); background: var(--bg);
+  gap: 2px;
 }
 
 /* ═══ SIMPLIFIED MODE (Desktop) ═══ */
@@ -553,11 +555,14 @@ body.light .fun-btn { background: var(--accent); }
 .pane {
   background: var(--panel); display: flex; flex-direction: column;
   overflow: hidden; position: relative; min-width: 0; min-height: 0;
+  border: 1px solid rgba(255,255,255,.04);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.02);
 }
-/* Top-row panes (row 1) — lighter, receded */
-.pane[style*="grid-row:1"] { opacity: 0.92; }
+/* Top-row panes (row 1) */
+.pane[style*="grid-row:1"] { opacity: 0.95; }
 /* Bottom-row panes (row 3) — grounded, solid; hidden panes must not render shadow */
-.pane[style*="grid-row:3"] { opacity: 1; box-shadow: 0 -2px 8px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.04); }
+.pane[style*="grid-row:3"] { opacity: 1; box-shadow: 0 -2px 8px rgba(0,0,0,.22), 0 1px 4px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.04); }
 .pane.pane-hidden { display: none !important; box-shadow: none !important; opacity: 0 !important; }
 /* Horizontal divider between rows — visible separator */
 .divider-v {
@@ -592,7 +597,8 @@ body.light .fun-btn { background: var(--accent); }
   display: flex; align-items: center; padding: 6px 10px; gap: 6px;
   background: var(--bg); border-bottom: 1px solid var(--border);
   min-height: 34px; flex-shrink: 0;
-  filter: brightness(0.85);
+  filter: brightness(0.9);
+  border-radius: 6px 6px 0 0;
 }
 .p-title { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text); }
 .p-title .p-icon {
@@ -624,9 +630,10 @@ body.light .fun-btn { background: var(--accent); }
 .p-spacer { flex: 1; }
 .p-btn {
   background: none; border: none; color: var(--text-dim); cursor: pointer;
-  font-size: 14px; padding: 2px 5px; border-radius: 3px;
+  font-size: 14px; padding: 2px 5px; border-radius: 4px;
+  transition: all .12s ease;
 }
-.p-btn:hover { color: var(--accent2); background: rgba(255,255,255,.05); }
+.p-btn:hover { color: var(--text); background: rgba(255,255,255,.08); }
 .p-body { flex: 1; overflow: auto; position: relative; display: flex; flex-direction: column; background: var(--panel); }
 
 /* ═══ TOOLBAR (shared) ═══ */
@@ -2667,22 +2674,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       </div>
       </div><!-- end robot-scene-wrapper -->
       </div><!-- end claude-content-row -->
-      <div id="aiApiKeySection" style="display:none;padding:4px 10px 6px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
-        <div id="aiKeyRow" style="display:flex;gap:4px;align-items:center;">
-          <input type="password" id="aiApiKey" placeholder="Anthropic API key (sk-ant-...)" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
-          <button id="aiKeyToggle" style="padding:3px 6px;border:none;border-radius:4px;background:var(--panel-inset);color:var(--text-dim);cursor:pointer;font-size:.6rem;" title="Show/hide key">Show</button>
-          <button id="aiKeySave" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Save</button>
-        </div>
-        <div style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">API key is managed server-side via the secure proxy.</div>
-      </div>
-      <div id="aiApiKeyLocked" style="display:none;padding:6px 10px;border-top:1px solid var(--border);background:var(--panel-inset);flex-shrink:0;">
-        <div style="font-size:.6rem;color:var(--text-dim);margin-bottom:4px;">API key access requires authorization:</div>
-        <div style="display:flex;gap:4px;align-items:center;">
-          <input type="password" id="aiKeyUnlockPw" placeholder="Enter admin password" style="flex:1;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:.65rem;" />
-          <button id="aiKeyUnlockBtn" style="padding:3px 8px;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-size:.65rem;">Unlock</button>
-        </div>
-        <div id="aiKeyUnlockError" style="color:var(--danger);font-size:.55rem;margin-top:2px;display:none;">Invalid password</div>
-      </div>
+      <!-- API key sections removed — handled server-side via secure proxy -->
+      <div id="aiApiKeySection" style="display:none !important;"></div>
+      <div id="aiApiKeyLocked" style="display:none !important;"></div>
     </div>
   </div>
 
@@ -4074,7 +4068,7 @@ function applyRolePermissions() {
 
   // Admin-only elements
   const adminElements = ['aiPricingBtn', 'aiPricingPanel', 'aiUsageDashBtn', 'aiAccessReqBtn', 'aiAuditBtn', 'aiSettingsBtn'];
-  const adminShowElements = ['aiApiKeySection'];
+  const adminShowElements = []; // API key handled server-side
 
   if (wsIsAdmin) {
     adminShowElements.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; });
@@ -21233,7 +21227,7 @@ $('#aiInput').addEventListener('keydown', e => {
     if (p.activeMonths && !p.activeMonths.includes(currentMonth)) return;
     const opt = document.createElement('option');
     opt.value = key;
-    opt.textContent = p.icon + ' ' + p.label;
+    opt.textContent = p.label;
     if (key === activePersonaKey) opt.selected = true;
     sel.appendChild(opt);
   });
