@@ -15719,7 +15719,7 @@ function setActivePersona(key) {
   activePersonaKey = key;
   localStorage.setItem('compplan_active_persona', key);
   const p = PERSONA_MODES[key];
-  addAiMsg('system', p.icon + ' Now using: ' + p.label);
+  addAiMsg('system', 'Now using: ' + p.label);
   updatePersonaUI();
   // Auto-show & check bracket output when March Madness persona is active
   var _brkLabel = document.getElementById('aiOutBracketLabel');
@@ -15738,7 +15738,7 @@ function updatePersonaUI() {
   const indicator = document.getElementById('personaIndicator');
   if (indicator) {
     const p = getActivePersona();
-    indicator.textContent = p.icon + ' ' + p.label;
+    indicator.textContent = p.label;
   }
 }
 
