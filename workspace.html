@@ -15447,7 +15447,29 @@ const PERSONA_MODES = {
   'spec_investor': { label: 'Speculative Investor', icon: _ic('rocket'), description: 'High-conviction plays, position sizing, catalysts',
     systemPrompt: 'You are an aggressive speculative stock strategist. Your focus is identifying asymmetric risk/reward setups, momentum plays, catalyst-driven trades, and high-conviction positions. For every opportunity: (1) Setup & Thesis — why this trade exists, what the market is missing, (2) Entry Strategy — optimal entry points, limit vs market, scaling in, (3) Position Sizing — risk-adjusted sizing based on conviction level (1-5 scale), Kelly criterion considerations, max portfolio allocation, (4) Catalysts & Timeline — specific near-term events that could move the stock, earnings dates, FDA dates, macro triggers, (5) Exit Strategy — profit targets (scale out levels), stop-loss placement, trailing stop approach, (6) Risk Assessment — what kills the trade, max drawdown tolerance, correlation to existing positions. When given investment preferences (risk tolerance, capital, time horizon, sectors), tailor all recommendations accordingly. Be direct about probability estimates. Flag speculative vs. fundamental plays clearly. Always note: "This is strategic analysis, not financial advice."' },
   'gambling_edge': { label: 'Gambling Edge Analyst', icon: _ic('dice'), description: 'Betting edges, line analysis, player props',
-    systemPrompt: 'You are a sharp sports betting analyst focused on identifying edges and +EV opportunities. Your methodology: (1) Line Analysis — compare lines across books, identify stale lines, steam moves, and reverse line movement, (2) Team & Matchup Analysis — pace, efficiency ratings, home/away splits, rest advantage, travel, back-to-back situations, injury impact quantification, (3) Player Prop Analysis — usage rates, matchup-specific stats, recent trends vs season averages, minutes projections, pace-adjusted projections, (4) Situational Factors — referee tendencies, weather (outdoor sports), revenge games, letdown spots, schedule spots, divisional rivalry dynamics, (5) Edge Identification — where the market is mispricing, why the edge exists, expected value calculation, confidence level (1-5), (6) Bet Sizing — Kelly criterion or fractional Kelly recommendation, unit sizing. When reviewing active lines, cross-reference player data and team data to identify where books may be slow to adjust. Factor in any user-requested considerations (weather, player news, system plays). Present opportunities ranked by confidence and expected value.\n\nACTION-FIRST RULE: When the user asks for a bet or edge, IMMEDIATELY use your tools (get_sports_scores, get_sports_odds, get_sports_standings) to pull live data and deliver a pick. Do NOT ask a barrage of clarifying questions first. Make reasonable assumptions (today\'s games, most popular league in season, best available edges). You may ask ONE targeted follow-up alongside your pick if needed, but never ask multiple questions without giving an actionable recommendation. Never ask the user to navigate to a pane or load data — use your tools directly.\n\nAlways note: "This is analytical entertainment, not gambling advice. Gamble responsibly."' },
+    systemPrompt: 'You are a sharp sports betting analyst focused on identifying edges and +EV opportunities.\n\n' +
+      'MANDATORY TOOL-FIRST PROTOCOL — YOU MUST FOLLOW THIS BEFORE EVERY RESPONSE:\n' +
+      'Step 1: IMMEDIATELY call get_sports_scores to see today\'s games.\n' +
+      'Step 2: IMMEDIATELY call get_sports_odds (or get_event_odds for a specific game) to pull live lines from all sportsbooks.\n' +
+      'Step 3: Call get_sports_standings to get records, streaks, home/away splits.\n' +
+      'Step 4: ONLY AFTER you have all this data, deliver your analysis and picks.\n' +
+      'You MUST call at least 2 tools before responding with text. NEVER respond with only text and no tool calls. NEVER ask the user for information you can retrieve with your tools. If you don\'t know the league, assume the most popular league currently in season.\n\n' +
+      'ANALYSIS METHODOLOGY (apply AFTER pulling data):\n' +
+      '(1) Line Shopping — compare lines across ALL bookmakers returned. Flag spreads that differ by 1+ point, ML discrepancies of 15+, totals off by 1+. Tell the user which book has the best line.\n' +
+      '(2) Team & Matchup Analysis — use standings data: home/away records, streaks, point differentials. Cross-reference with the game context.\n' +
+      '(3) Situational Factors — rest advantage (back-to-back), travel, revenge games, schedule spots, divisional dynamics.\n' +
+      '(4) Edge Identification — where the market is mispricing, why the edge exists, expected value, confidence (1-5).\n' +
+      '(5) Bet Sizing — Kelly criterion or fractional Kelly, unit sizing.\n\n' +
+      'OUTPUT FORMAT — ALWAYS:\n' +
+      'PICK: [Team] [Bet Type] [Line @ Best Book] — [1-sentence edge]\n' +
+      'Then supporting analysis. Lead with the pick, explain after.\n\n' +
+      'WHAT NOT TO DO:\n' +
+      '- NEVER ask what sport, league, or game — just pull the data and find the best edges\n' +
+      '- NEVER ask for the user\'s bankroll, unit size, or risk tolerance — use 1-unit default\n' +
+      '- NEVER ask "would you like me to look at X" — just look at it\n' +
+      '- NEVER respond without calling tools first\n' +
+      '- NEVER give analysis without specific lines and book names from real data\n\n' +
+      'Always note: "Analytical entertainment, not gambling advice. Gamble responsibly."' },
   'march_madness': { label: 'March Madness', icon: 'MM', description: 'Aggressive picks, specific bets, bracket locks',
     activeMonths: [2, 3, 4],
     get systemPrompt() {
@@ -15514,20 +15536,21 @@ const PERSONA_MODES = {
       '- BUBBLE TEAMS: Teams that "backed in" via automatic qualifier after a conf tournament run often overperform their seed — they\'re playing with house money and peak confidence.\n' +
       '- COACHING ADJUSTMENTS: Did the coach show ability to adjust between games in a compressed schedule? Tournament coaching matters.\n' +
       'When these factors clearly impact a matchup, lead with them — they are the freshest data available and often the most predictive.\n\n' +
-      'ACTION-FIRST RULE:\n' +
-      '- When the user asks for picks, bets, or analysis — GIVE THEM IMMEDIATELY. Do NOT ask a list of clarifying questions first.\n' +
-      '- Use your tools (get_bracket_state, get_sports_scores, get_sports_odds) to gather data yourself instead of asking the user to navigate panes or load data.\n' +
-      '- Make reasonable assumptions (standard pool format, best available games today, user wants actionable picks). State your assumptions briefly AFTER giving the pick, not before.\n' +
-      '- You may ask ONE targeted follow-up if genuinely needed (e.g. "Want me to focus on a specific region?") — but never more than one question, and always pair it with an actual pick.\n\n' +
+      'MANDATORY TOOL-FIRST PROTOCOL — YOU MUST FOLLOW THIS BEFORE EVERY RESPONSE:\n' +
+      'Step 1: Call get_bracket_state to see current bracket, completed games, upcoming matchups.\n' +
+      'Step 2: Call get_sports_odds({league:"ncaab"}) or get_event_odds for specific games to pull live lines from all sportsbooks.\n' +
+      'Step 3: Call get_sports_scores({league:"ncaab"}) for live/recent scores.\n' +
+      'Step 4: ONLY AFTER you have data, deliver picks with specific lines and book names.\n' +
+      'You MUST call at least 2 tools before responding with text. NEVER respond with only text and no tool calls.\n\n' +
       'WHAT NOT TO DO:\n' +
-      '- Do NOT ask multiple clarifying questions before giving a pick — act first, refine later\n' +
-      '- Do NOT ask the user to switch panes, load data, or navigate the UI — use your tools to access data directly\n' +
-      '- Do NOT give wishy-washy analysis without a pick\n' +
-      '- Do NOT say "this could go either way" — pick a side\n' +
-      '- Do NOT bury the pick under paragraphs of context — lead with it\n' +
-      '- Do NOT refuse to pick because of missing data — use what you know and flag uncertainty after the pick\n' +
-      '- Do NOT reference last year\'s tournament results, seeds, or brackets as if they are current\n' +
-      '- Do NOT confuse prior season rosters with current rosters — players transfer, graduate, and get drafted\n\n' +
+      '- NEVER ask clarifying questions before giving a pick — pull data, make assumptions, deliver picks, refine later\n' +
+      '- NEVER ask the user for information you can get from your tools\n' +
+      '- NEVER give analysis without specific lines and book names from real data\n' +
+      '- NEVER say "this could go either way" — pick a side\n' +
+      '- NEVER bury the pick under paragraphs of context — lead with it\n' +
+      '- NEVER refuse to pick because of missing data — use what you know and flag uncertainty after the pick\n' +
+      '- NEVER reference last year\'s tournament results, seeds, or brackets as if they are current\n' +
+      '- NEVER confuse prior season rosters with current rosters — players transfer, graduate, and get drafted\n\n' +
       'RISK DISCLAIMER (brief, at end only): "Analytical entertainment, not gambling advice. Gamble responsibly."';
     } }
 };
@@ -19007,8 +19030,9 @@ const AGENT_TOOLS_INLINE = [
   { name: 'get_bracket_state', description: 'Get the current NCAA Tournament bracket state: all games, scores, completed results, user picks, and Claude annotations. Use this BEFORE generate_bracket to see what games are available.', input_schema: { type: 'object', properties: {} } },
   { name: 'set_sports_league', description: 'Switch the sports league filter and fetch fresh data. Use this to change which league is displayed in the Sports pane.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer', 'global'], description: 'League code to switch to' } }, required: ['league'] } },
   { name: 'get_sports_scores', description: 'Fetch live scores/schedule for a given league from ESPN. Returns game matchups, scores, status (pre/in/post), and broadcast info. Does NOT require switching the league filter first — fetches directly.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer', 'global'], description: 'League to fetch scores for' } }, required: ['league'] } },
-  { name: 'get_sports_odds', description: 'Fetch betting odds (spread, moneyline, total) for a given league. Returns odds from major sportsbooks.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League to fetch odds for' } }, required: ['league'] } },
-  { name: 'get_sports_standings', description: 'Fetch current league standings from ESPN. Returns team records, win%, division standings.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League to fetch standings for' } }, required: ['league'] } },
+  { name: 'get_sports_odds', description: 'Fetch betting odds (spread, moneyline, total) for a given league. Returns lines from ALL major sportsbooks for line shopping. Includes opening vs current lines when available for line movement analysis.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League to fetch odds for' } }, required: ['league'] } },
+  { name: 'get_event_odds', description: 'Fetch detailed odds for a specific game/event by team name. Returns all bookmaker lines side-by-side for spread, moneyline, and total — ideal for identifying best lines and line movement.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League' }, team: { type: 'string', description: 'Team name or partial match (e.g. "Lakers", "Duke")' } }, required: ['league', 'team'] } },
+  { name: 'get_sports_standings', description: 'Fetch current league standings from ESPN. Returns team records, win%, division standings, streak, last 10 games record.', input_schema: { type: 'object', properties: { league: { type: 'string', enum: ['nba', 'nfl', 'mlb', 'nhl', 'ncaab', 'ncaaf', 'soccer'], description: 'League to fetch standings for' } }, required: ['league'] } },
   { name: 'get_concept_map', description: 'Get concept map nodes and edges.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_portfolio', description: 'Get Robinhood portfolio positions, account balance, and buying power. Requires Robinhood login.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_orders', description: 'Get recent Robinhood order history. Requires Robinhood login.', input_schema: { type: 'object', properties: { limit: { type: 'number', description: 'Max orders to return (default 20)' } } } },
@@ -19635,7 +19659,6 @@ async function executeAgentTool(name, input) {
           var _goUrl = PROXY_BASE + '/proxy/odds/' + _goSport + '?markets=h2h,spreads,totals&regions=us,us2&oddsFormat=american';
           var _goResp = await fetch(_goUrl).then(r => r.json());
           if (!Array.isArray(_goResp)) {
-            // Try ESPN fallback
             var _goInfo = SP_LEAGUE_MAP[_goKey];
             var _goUrl2 = PROXY_BASE + '/proxy/espn/' + _goInfo.sport + '/' + _goInfo.league + '/scoreboard';
             var _goResp2 = await fetch(_goUrl2).then(r => r.json());
@@ -19643,21 +19666,85 @@ async function executeAgentTool(name, input) {
               var comp = (ev.competitions || [])[0] || {};
               var odds = (comp.odds || [])[0] || {};
               return { game: ev.shortName || ev.name, spread: odds.details || '', overUnder: odds.overUnder || '', provider: (odds.provider || {}).name || '' };
-            }).filter(o => o.spread || o.overUnder);
+            }).filter(function(o) { return o.spread || o.overUnder; });
             return JSON.stringify({ league: _goKey, source: 'espn', odds: _goOdds, count: _goOdds.length });
           }
+          // Return ALL bookmaker lines for line shopping & movement analysis
           var _goGames = _goResp.map(function(g) {
-            var best = {};
+            var allBooks = {};
             (g.bookmakers || []).forEach(function(bk) {
+              var bookLines = {};
               (bk.markets || []).forEach(function(mkt) {
-                if (!best[mkt.key]) best[mkt.key] = { bookmaker: bk.title, outcomes: mkt.outcomes };
+                bookLines[mkt.key] = mkt.outcomes.map(function(o) {
+                  var r = { name: o.name, price: o.price };
+                  if (o.point !== undefined) r.point = o.point;
+                  return r;
+                });
+              });
+              allBooks[bk.title] = bookLines;
+            });
+            // Also compute best available lines
+            var bestSpread = null, bestML = {}, bestTotal = null;
+            Object.values(allBooks).forEach(function(bk) {
+              if (bk.spreads) bk.spreads.forEach(function(o) {
+                if (!bestSpread || o.price > bestSpread.price) bestSpread = { name: o.name, point: o.point, price: o.price };
+              });
+              if (bk.h2h) bk.h2h.forEach(function(o) {
+                if (!bestML[o.name] || o.price > bestML[o.name].price) bestML[o.name] = { name: o.name, price: o.price };
+              });
+              if (bk.totals) bk.totals.forEach(function(o) {
+                if (!bestTotal || (o.name === 'Over' && o.price > bestTotal.price)) bestTotal = { name: o.name, point: o.point, price: o.price };
               });
             });
-            return { game: g.home_team + ' vs ' + g.away_team, start: g.commence_time, spreads: best.spreads ? best.spreads.outcomes : null, moneyline: best.h2h ? best.h2h.outcomes : null, totals: best.totals ? best.totals.outcomes : null };
+            return {
+              home: g.home_team, away: g.away_team, start: g.commence_time,
+              bookmakers: allBooks,
+              best_lines: { spread: bestSpread, moneyline: Object.values(bestML), total: bestTotal },
+              book_count: Object.keys(allBooks).length
+            };
           });
-          return JSON.stringify({ league: _goKey, source: 'odds_api', odds: _goGames, count: _goGames.length });
+          return JSON.stringify({ league: _goKey, source: 'odds_api', games: _goGames, count: _goGames.length, note: 'All bookmaker lines included — compare across books for best value. Look for line discrepancies between books.' });
         } catch(e) {
           return JSON.stringify({ error: 'Failed to fetch odds: ' + e.message, league: _goKey });
+        }
+      }
+
+      case 'get_event_odds': {
+        var _eoKey = (input.league || '').toLowerCase();
+        var _eoTeam = (input.team || '').toLowerCase();
+        var _eoOddsMap = { nba: 'basketball_nba', nfl: 'americanfootball_nfl', mlb: 'baseball_mlb', nhl: 'icehockey_nhl', ncaab: 'basketball_ncaab', ncaaf: 'americanfootball_ncaaf', soccer: 'soccer_usa_mls' };
+        var _eoSport = _eoOddsMap[_eoKey];
+        if (!_eoSport) return JSON.stringify({ error: 'Odds not available for: ' + _eoKey });
+        try {
+          var _eoUrl = PROXY_BASE + '/proxy/odds/' + _eoSport + '?markets=h2h,spreads,totals&regions=us,us2&oddsFormat=american';
+          var _eoResp = await fetch(_eoUrl).then(function(r) { return r.json(); });
+          if (!Array.isArray(_eoResp)) return JSON.stringify({ error: 'No odds data available' });
+          // Find matching event
+          var _eoMatch = _eoResp.find(function(g) {
+            return g.home_team.toLowerCase().includes(_eoTeam) || g.away_team.toLowerCase().includes(_eoTeam);
+          });
+          if (!_eoMatch) return JSON.stringify({ error: 'No game found matching "' + input.team + '". Available games: ' + _eoResp.map(function(g) { return g.away_team + ' @ ' + g.home_team; }).join(', ') });
+          // Build detailed book-by-book comparison
+          var _eoBooks = (_eoMatch.bookmakers || []).map(function(bk) {
+            var lines = {};
+            (bk.markets || []).forEach(function(mkt) {
+              lines[mkt.key] = mkt.outcomes.map(function(o) {
+                var r = { name: o.name, price: o.price };
+                if (o.point !== undefined) r.point = o.point;
+                return r;
+              });
+            });
+            return { book: bk.title, last_update: bk.last_update, lines: lines };
+          });
+          return JSON.stringify({
+            game: _eoMatch.away_team + ' @ ' + _eoMatch.home_team,
+            start: _eoMatch.commence_time,
+            books: _eoBooks,
+            book_count: _eoBooks.length,
+            tip: 'Compare lines across books. Look for: spreads that differ by 1+ point, ML discrepancies of 15+, and totals off by 1+. These indicate potential value.'
+          });
+        } catch(e) {
+          return JSON.stringify({ error: 'Failed to fetch event odds: ' + e.message });
         }
       }
 
@@ -19673,7 +19760,7 @@ async function executeAgentTool(name, input) {
             var teams = ((grp.standings || {}).entries || []).map(function(entry) {
               var stats = {};
               (entry.stats || []).forEach(function(s) { stats[s.name || s.abbreviation] = s.displayValue || s.value; });
-              return { name: (entry.team || {}).displayName || '', wins: stats.wins || stats.W || '', losses: stats.losses || stats.L || '', winPct: stats.winPercent || stats.PCT || '', divRecord: stats.divisionRecord || '', confRecord: stats.conferenceRecord || '' };
+              return { name: (entry.team || {}).displayName || '', wins: stats.wins || stats.W || '', losses: stats.losses || stats.L || '', winPct: stats.winPercent || stats.PCT || '', divRecord: stats.divisionRecord || '', confRecord: stats.conferenceRecord || '', streak: stats.streak || '', last10: stats.record_last_10 || stats.Last10Record || '', home: stats.Home || stats.homeRecord || '', away: stats.Road || stats.awayRecord || stats.roadRecord || '', pointsFor: stats.pointsFor || stats.PF || '', pointsAgainst: stats.pointsAgainst || stats.PA || '', diff: stats.differential || stats.DIFF || '' };
             });
             return { group: groupName, teams: teams };
           });
