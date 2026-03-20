@@ -2888,7 +2888,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="ssSortD">&#8595;</button>
         <button id="ssHeat" title="Heat map">Heat</button>
         <button id="ssFormulas" title="Show formulas">fx</button>
-        <button id="ssCalcAll" title="Force recalculate all formulas" style="color:var(--accent2);font-weight:600;">Calc</button>
+        <button id="ssRefreshStock" title="Refresh all STOCK data (clear cache &amp; re-fetch)" style="color:var(--accent);font-weight:600;">&#8635;</button>
+        <button id="ssCalcAll" title="Force recalculate all formulas (replaces formulas with values)" style="color:var(--accent2);font-weight:600;">Calc</button>
         <button id="ssUndo" title="Undo last change">Undo</button>
         <button id="ssHelp" title="Formula reference">? Help</button>
         <button id="ssExport">Excel</button>
@@ -3368,6 +3369,7 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   <div class="ctx-item" data-action="indentRow">Indent Row &rarr;</div>
   <div class="ctx-item" data-action="outdentRow">Outdent Row &larr;</div>
   <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="refreshStock">&#8635; Refresh Stock Data</div>
   <div class="ctx-item" data-action="validate">Validate...</div>
 </div>
 
@@ -8767,6 +8769,48 @@ $('#ssSortD').onclick = () => { if (!ssSel) return; ssPushUndo(); const c = ssSe
 $('#ssHeat').onclick = function() { ssHeatMap = !ssHeatMap; this.classList.toggle('active', ssHeatMap); ssRender(); };
 $('#ssFormulas').onclick = function() { ssShowFormulas = !ssShowFormulas; this.classList.toggle('active', ssShowFormulas); ssRender(); };
 // Force recalculate all formula cells
+// Force refresh all STOCK data — clears cache so next render re-fetches
+// Force refresh all STOCK data — clears cache so next render re-fetches
+window.ssRefreshStockData = function() {
+  let stockCount = 0;
+  var tickers = new Set();
+  for (var r = 0; r < ssR; r++) {
+    for (var c = 0; c < ssC; c++) {
+      var raw = (ssD[r][c] || '').toUpperCase();
+      if (raw.startsWith('=') && raw.indexOf('STOCK(') >= 0) {
+        stockCount++;
+        // Extract ticker: try quoted string first, then cell ref, then bare text
+        var sm = raw.match(/STOCK\(\s*"([A-Z.^=\-]+)"/);
+        if (sm) { tickers.add(sm[1]); continue; }
+        // Cell reference: STOCK($?A-Z$?\d+) — resolve the cell value
+        var rm = raw.match(/STOCK\(\s*\$?([A-Z]+)\$?(\d+)/);
+        if (rm) {
+          var refCol = rm[1].split('').reduce(function(a,ch) { return a*26+ch.charCodeAt(0)-64; }, 0) - 1;
+          var refRow = parseInt(rm[2]) - 1;
+          if (refRow >= 0 && refRow < ssR && refCol >= 0 && refCol < ssC) {
+            var refVal = (ssD[refRow][refCol] || '').toUpperCase().trim();
+            if (refVal && /^[A-Z.^=\-]{1,10}$/.test(refVal)) tickers.add(refVal);
+          }
+          continue;
+        }
+        // Bare text: STOCK(AAPL,...) without quotes
+        var bm = raw.match(/STOCK\(\s*([A-Z.^=\-]{1,10})/);
+        if (bm) tickers.add(bm[1]);
+      }
+    }
+  }
+  if (stockCount === 0) { toast('No STOCK formulas found on this page'); return; }
+  // Clear cache for found tickers
+  if (tickers.size > 0 && tickers.size <= 50) {
+    tickers.forEach(function(t) { delete ssStockCache[t]; });
+  } else {
+    Object.keys(ssStockCache).forEach(function(k) { delete ssStockCache[k]; });
+  }
+  ssRender();
+  toast('Refreshing ' + tickers.size + ' ticker' + (tickers.size !== 1 ? 's' : '') + ' (' + stockCount + ' formula' + (stockCount !== 1 ? 's' : '') + ')');
+};
+$('#ssRefreshStock').onclick = function() { ssRefreshStockData(); };
+
 $('#ssCalcAll').onclick = () => {
   let count = 0;
   for (let r = 0; r < ssR; r++) {
@@ -9193,6 +9237,10 @@ $$('.ctx-item').forEach(item => {
         if (ssRowIndent[ri] === 0) delete ssRowIndent[ri];
       }
       ssSaveGroups(); ssRender(); toast('Outdented'); return;
+    }
+    else if (action === 'refreshStock') {
+      document.getElementById('ssRefreshStock').click();
+      return;
     }
     else if (action === 'validate') {
       const rule = prompt('Validation rule:\n  "list:a,b,c" — dropdown\n  "range:0,100" — number range\n  "formula:=A1>0" — custom');
@@ -21249,6 +21297,7 @@ const AGENT_TOOLS_INLINE = [
   { name: 'write_to_draw_pane', description: 'Add an image to the whiteboard/draw pane as a layer.', input_schema: { type: 'object', properties: { image_url: { type: 'string', description: 'URL of the image' }, label: { type: 'string' } }, required: ['image_url'] } },
   { name: 'add_text_overlay', description: 'Draw text on the whiteboard canvas.', input_schema: { type: 'object', properties: { text: { type: 'string' }, position: { type: 'string', enum: ['top', 'center', 'bottom'], description: 'Vertical position' }, size: { type: 'number', description: 'Font size in pixels (default 24)' } }, required: ['text'] } },
   { name: 'clear_draw_pane', description: 'Clear the whiteboard canvas and all layers.', input_schema: { type: 'object', properties: {} } },
+  { name: 'refresh_stock_data', description: 'Force refresh all STOCK() formula data in the spreadsheet. Clears cached prices and re-fetches live data from Yahoo Finance. Use when the user says "refresh", "update prices", or data looks stale.', input_schema: { type: 'object', properties: {} } },
   { name: 'show_toast', description: 'Show a brief notification toast to the user.', input_schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] } },
   { name: 'wb_undo_agent', description: 'Undo the last agent whiteboard action group. Use when a whiteboard change produces an undesired result.', input_schema: { type: 'object', properties: {} } },
   { name: 'wb_redo_agent', description: 'Redo the last undone agent whiteboard action group.', input_schema: { type: 'object', properties: {} } },
@@ -21633,6 +21682,10 @@ async function executeAgentTool(name, input) {
         // Grid is on separate overlay canvas, no redraw needed
         toast('Draw pane cleared');
         return JSON.stringify({ success: true });
+      }
+      case 'refresh_stock_data': {
+        if (typeof ssRefreshStockData === 'function') { ssRefreshStockData(); return JSON.stringify({ success: true, message: 'Stock data cache cleared and re-fetching' }); }
+        return JSON.stringify({ error: 'Sheet not initialized' });
       }
       case 'show_toast': { toast(input.message); return JSON.stringify({ success: true }); }
       case 'wb_undo_agent': { undoLastAgentAction(); return JSON.stringify({ success: true, message: 'Reverted last agent whiteboard action' }); }
