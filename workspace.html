@@ -2622,6 +2622,35 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="contextBadge" style="font-size:.5rem;color:var(--text-dim);background:none;border:1px solid var(--border);border-radius:4px;padding:1px 6px;cursor:pointer;white-space:nowrap;">Context</button>
       </div>
       <div id="contextDrawer" style="display:none;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--panel-inset);max-height:200px;overflow-y:auto;font-size:.55rem;"></div>
+      <!-- Contrarian Watchlist Panel -->
+      <div id="contrarianWatchlistPanel" style="display:none;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--panel-inset);max-height:180px;overflow-y:auto;font-size:.52rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-weight:700;color:var(--accent);font-size:.56rem;">Contrarian Watchlist</span>
+          <button id="contrarianWatchlistClose" style="font-size:.5rem;background:none;border:none;color:var(--text-dim);cursor:pointer;">x</button>
+        </div>
+        <div id="contrarianWatchlistItems" style="font-size:.5rem;"></div>
+      </div>
+      <!-- Geopolitical Tension Heatmap Panel -->
+      <div id="geoTensionPanel" style="display:none;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--panel-inset);max-height:220px;overflow-y:auto;font-size:.52rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-weight:700;color:var(--accent);font-size:.56rem;">Tension Heatmap</span>
+          <button id="geoTensionClose" style="font-size:.5rem;background:none;border:none;color:var(--text-dim);cursor:pointer;">x</button>
+        </div>
+        <div id="geoTensionMap" style="font-size:.5rem;"></div>
+      </div>
+      <!-- Geopolitical Thematic Threads Panel -->
+      <div id="geoThreadsPanel" style="display:none;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--panel-inset);max-height:180px;overflow-y:auto;font-size:.52rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-weight:700;color:var(--accent);font-size:.56rem;">Thesis Threads</span>
+          <button id="geoThreadsClose" style="font-size:.5rem;background:none;border:none;color:var(--text-dim);cursor:pointer;">x</button>
+        </div>
+        <div id="geoThreadsList" style="font-size:.5rem;"></div>
+        <button id="geoThreadAdd" style="margin-top:4px;font-size:.48rem;padding:2px 8px;border:1px solid var(--border);border-radius:3px;background:none;color:var(--text-dim);cursor:pointer;">+ New Thread</button>
+      </div>
+      <!-- Cross-persona context handoff button -->
+      <div id="crossPersonaHandoff" style="display:none;padding:3px 8px;border-bottom:1px solid var(--border);background:var(--panel-inset);">
+        <button id="handoffToAnalyst" style="font-size:.48rem;padding:2px 8px;border:1px solid var(--accent);border-radius:3px;background:rgba(59,130,246,.08);color:var(--accent);cursor:pointer;width:100%;text-align:center;">Send last analysis to Securities Analyst as context</button>
+      </div>
       <div style="display:flex;align-items:center;gap:4px;padding:1px 8px;flex-shrink:0;border-bottom:1px solid var(--border);background:var(--panel-inset);">
         <span style="font-size:.46rem;color:var(--text-dim);font-weight:600;">Text:</span>
         <button id="aiMsgsZoomOut" style="font-size:.52rem;padding:0 5px;border:1px solid var(--border);border-radius:3px;background:none;color:var(--text);cursor:pointer;line-height:1.4;" title="Decrease text size">−</button>
@@ -17294,7 +17323,199 @@ function updatePersonaUI() {
     const p = getActivePersona();
     indicator.textContent = p.label;
   }
+  // Show/hide persona-specific panels
+  var cwPanel = document.getElementById('contrarianWatchlistPanel');
+  var gtPanel = document.getElementById('geoTensionPanel');
+  var gthPanel = document.getElementById('geoThreadsPanel');
+  var handoff = document.getElementById('crossPersonaHandoff');
+  if (cwPanel) cwPanel.style.display = (activePersonaKey === 'contrarian_stat') ? 'block' : 'none';
+  if (gtPanel) gtPanel.style.display = (activePersonaKey === 'geopolitical') ? 'block' : 'none';
+  if (gthPanel) gthPanel.style.display = (activePersonaKey === 'geopolitical') ? 'block' : 'none';
+  if (handoff) handoff.style.display = (activePersonaKey === 'geopolitical' || activePersonaKey === 'contrarian_stat') ? 'block' : 'none';
+  // Render panel contents
+  if (activePersonaKey === 'contrarian_stat') _renderContrarianWatchlist();
+  if (activePersonaKey === 'geopolitical') { _renderGeoTensionMap(); _renderGeoThreads(); }
 }
+
+// ── Contrarian Statistician: Watchlist ──
+var _contrarianWatchlist = LS('contrarian_watchlist') || [];
+
+function _renderContrarianWatchlist() {
+  var el = document.getElementById('contrarianWatchlistItems');
+  if (!el) return;
+  if (!_contrarianWatchlist.length) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-style:italic;padding:4px 0;">No signals pinned. Ask the Contrarian Statistician to analyze a market or game, then pin signals here.</div>';
+    return;
+  }
+  var html = '';
+  _contrarianWatchlist.forEach(function(sig, i) {
+    var tierColor = sig.tier === 1 ? '#16a34a' : sig.tier === 2 ? '#f59e0b' : '#6b7280';
+    html += '<div style="display:flex;align-items:flex-start;gap:6px;padding:4px;border-bottom:1px solid var(--border);background:var(--card-bg);border-radius:3px;margin-bottom:2px;">';
+    html += '<span style="font-size:.42rem;padding:1px 4px;border-radius:2px;background:' + tierColor + ';color:#fff;font-weight:700;flex-shrink:0;">T' + sig.tier + '</span>';
+    html += '<div style="flex:1;min-width:0;">';
+    html += '<div style="font-weight:600;font-size:.52rem;">' + esc(sig.label) + '</div>';
+    html += '<div style="font-size:.44rem;color:var(--text-dim);">' + esc(sig.type || '') + ' | EV: ' + esc(sig.ev || '?') + ' | ' + esc(sig.date || '') + '</div>';
+    if (sig.notes) html += '<div style="font-size:.44rem;color:var(--text-dim);font-style:italic;margin-top:1px;">' + esc(sig.notes) + '</div>';
+    html += '</div>';
+    html += '<button onclick="_removeContrarianSignal(' + i + ')" style="font-size:.42rem;background:none;border:none;color:var(--text-dim);cursor:pointer;flex-shrink:0;">x</button>';
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+window._addContrarianSignal = function(label, type, tier, ev, notes) {
+  _contrarianWatchlist.push({ label: label, type: type || 'sports', tier: tier || 3, ev: ev || '', notes: notes || '', date: new Date().toLocaleDateString(), impliedProb: '', resolved: false });
+  LS('contrarian_watchlist', _contrarianWatchlist);
+  _renderContrarianWatchlist();
+};
+
+window._removeContrarianSignal = function(idx) {
+  _contrarianWatchlist.splice(idx, 1);
+  LS('contrarian_watchlist', _contrarianWatchlist);
+  _renderContrarianWatchlist();
+};
+
+// ── Geopolitical Strategist: Tension Heatmap ──
+var _geoTensionData = LS('geo_tension_data') || {
+  relationships: [
+    { pair: 'US-China', tension: 'elevated', trend: 'rising', note: 'Tech decoupling, Taiwan, trade' },
+    { pair: 'US-Russia', tension: 'high', trend: 'stable', note: 'Ukraine, sanctions, energy' },
+    { pair: 'China-Taiwan', tension: 'elevated', trend: 'stable', note: 'Military posturing, election cycle' },
+    { pair: 'India-China', tension: 'moderate', trend: 'stable', note: 'Border disputes, trade competition' },
+    { pair: 'NATO-Russia', tension: 'high', trend: 'stable', note: 'Ukraine conflict, Nordic expansion' },
+    { pair: 'Iran-Israel', tension: 'high', trend: 'rising', note: 'Proxy conflicts, nuclear program' },
+    { pair: 'US-Iran', tension: 'elevated', trend: 'stable', note: 'Nuclear deal, sanctions, proxies' },
+    { pair: 'China-ASEAN', tension: 'moderate', trend: 'rising', note: 'South China Sea, economic leverage' }
+  ]
+};
+
+function _renderGeoTensionMap() {
+  var el = document.getElementById('geoTensionMap');
+  if (!el) return;
+  var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">';
+  var tensionColors = { low: '#16a34a', moderate: '#f59e0b', elevated: '#f97316', high: '#ef4444', critical: '#dc2626' };
+  var trendIcons = { rising: '&#9650;', falling: '&#9660;', stable: '&#9644;' };
+  _geoTensionData.relationships.forEach(function(r) {
+    var tc = tensionColors[r.tension] || '#6b7280';
+    var ti = trendIcons[r.trend] || '';
+    html += '<div style="padding:3px 5px;border-radius:3px;border-left:3px solid ' + tc + ';background:var(--card-bg);cursor:pointer;" onclick="_geoQueryTension(\'' + esc(r.pair) + '\')">';
+    html += '<div style="font-weight:600;font-size:.5rem;display:flex;justify-content:space-between;align-items:center;">';
+    html += '<span>' + esc(r.pair) + '</span>';
+    html += '<span style="color:' + tc + ';font-size:.44rem;">' + esc(r.tension.toUpperCase()) + ' ' + ti + '</span>';
+    html += '</div>';
+    html += '<div style="font-size:.42rem;color:var(--text-dim);">' + esc(r.note) + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+window._geoQueryTension = function(pair) {
+  var input = document.getElementById('aiInput') || document.querySelector('#q-claude textarea');
+  if (input) {
+    input.value = 'Analyze the current ' + pair + ' relationship: diplomatic posture, escalation trajectory, and which sectors are most exposed. Include the Securities Analyst handoff block.';
+    input.focus();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+};
+
+// ── Geopolitical Strategist: Thematic Threads ──
+var _geoThreads = LS('geo_threads') || [];
+
+function _renderGeoThreads() {
+  var el = document.getElementById('geoThreadsList');
+  if (!el) return;
+  if (!_geoThreads.length) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-style:italic;padding:4px 0;">No thesis threads created. Create threads to track geopolitical investment theses over time.</div>';
+    return;
+  }
+  var html = '';
+  _geoThreads.forEach(function(thread, i) {
+    var tierColor = thread.tier === 1 ? '#16a34a' : thread.tier === 2 ? '#f59e0b' : '#6b7280';
+    html += '<div style="padding:4px;border-bottom:1px solid var(--border);background:var(--card-bg);border-radius:3px;margin-bottom:2px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+    html += '<span style="font-weight:600;font-size:.52rem;">' + esc(thread.name) + '</span>';
+    html += '<div style="display:flex;gap:4px;align-items:center;">';
+    html += '<span style="font-size:.42rem;padding:1px 4px;border-radius:2px;background:' + tierColor + ';color:#fff;font-weight:700;">T' + thread.tier + '</span>';
+    html += '<span style="font-size:.42rem;color:var(--text-dim);">' + esc(thread.timeframe || '') + '</span>';
+    html += '<button onclick="_sendGeoThreadToAnalyst(' + i + ')" style="font-size:.42rem;background:none;border:1px solid var(--accent);border-radius:2px;padding:0 4px;color:var(--accent);cursor:pointer;" title="Send to Securities Analyst">SA</button>';
+    html += '<button onclick="_removeGeoThread(' + i + ')" style="font-size:.42rem;background:none;border:none;color:var(--text-dim);cursor:pointer;">x</button>';
+    html += '</div></div>';
+    html += '<div style="font-size:.44rem;color:var(--text-dim);margin-top:2px;">' + esc(thread.thesis || '') + '</div>';
+    if (thread.sectors && thread.sectors.length) {
+      html += '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:2px;">';
+      thread.sectors.forEach(function(s) { html += '<span style="font-size:.4rem;padding:1px 4px;border-radius:2px;background:rgba(59,130,246,.1);color:var(--accent);">' + esc(s) + '</span>'; });
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+window._addGeoThread = function(name, thesis, sectors, timeframe, tier) {
+  _geoThreads.push({ name: name, thesis: thesis || '', sectors: sectors || [], timeframe: timeframe || 'Medium', tier: tier || 2, createdAt: new Date().toISOString(), updates: [] });
+  LS('geo_threads', _geoThreads);
+  _renderGeoThreads();
+};
+
+window._removeGeoThread = function(idx) {
+  _geoThreads.splice(idx, 1);
+  LS('geo_threads', _geoThreads);
+  _renderGeoThreads();
+};
+
+window._sendGeoThreadToAnalyst = function(idx) {
+  var thread = _geoThreads[idx];
+  if (!thread) return;
+  var content = '=== GEOPOLITICAL THESIS THREAD ===\n' +
+    'THESIS: ' + thread.name + '\n' +
+    thread.thesis + '\n' +
+    'EXPOSED SECTORS: ' + (thread.sectors || []).join(', ') + '\n' +
+    'TIMEFRAME: ' + (thread.timeframe || 'Medium') + '\n' +
+    'CONFIDENCE TIER: ' + (thread.tier || 2) + '\n' +
+    '=== END THREAD ===';
+  addContextSlot('Geo: ' + thread.name, content, 'persona:securities_analyst', true);
+  toast('Thread sent to Securities Analyst context');
+};
+
+// ── Cross-persona handoff button ──
+(function() {
+  var handoffBtn = document.getElementById('handoffToAnalyst');
+  if (handoffBtn) {
+    handoffBtn.onclick = function() {
+      // Find the last assistant message
+      var msgs = document.querySelectorAll('#q-claude .ai-msg.assistant');
+      var lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+      if (!lastMsg) { toast('No analysis to send'); return; }
+      var text = lastMsg.innerText || lastMsg.textContent || '';
+      // Extract handoff block if present
+      var handoffMatch = text.match(/===\s*SECURITIES ANALYST HANDOFF\s*===([\s\S]*?)===\s*END HANDOFF\s*===/);
+      var content = handoffMatch ? handoffMatch[0] : text.substring(0, 3000);
+      var label = activePersonaKey === 'geopolitical' ? 'Geo Analysis' : 'Contrarian Signal';
+      addContextSlot(label, content, 'persona:securities_analyst', true);
+      toast('Analysis sent to Securities Analyst context');
+    };
+  }
+})();
+
+// Wire close buttons and thread add
+(function() {
+  var cwClose = document.getElementById('contrarianWatchlistClose');
+  if (cwClose) cwClose.onclick = function() { document.getElementById('contrarianWatchlistPanel').style.display = 'none'; };
+  var gtClose = document.getElementById('geoTensionClose');
+  if (gtClose) gtClose.onclick = function() { document.getElementById('geoTensionPanel').style.display = 'none'; };
+  var gthClose = document.getElementById('geoThreadsClose');
+  if (gthClose) gthClose.onclick = function() { document.getElementById('geoThreadsPanel').style.display = 'none'; };
+  var gthAdd = document.getElementById('geoThreadAdd');
+  if (gthAdd) gthAdd.onclick = function() {
+    var name = prompt('Thread name (e.g. "European Defense Rearmament"):');
+    if (!name) return;
+    var thesis = prompt('Brief thesis statement:') || '';
+    var sectors = (prompt('Exposed sectors (comma-separated):') || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    var timeframe = prompt('Timeframe (Near/Medium/Long):') || 'Medium';
+    _addGeoThread(name, thesis, sectors, timeframe, 2);
+  };
+})();
 
 // ── Tiered agent execution ──
 const TASK_TIERS = {
@@ -20596,6 +20817,14 @@ const AGENT_TOOLS_INLINE = [
   { name: 'sentiment_summary', description: 'Analyze recent news articles for a keyword and produce a scored sentiment summary.', input_schema: { type: 'object', properties: { keyword: { type: 'string' } }, required: ['keyword'] } },
   { name: 'create_template', description: 'Scaffold a standard layout template into the sheet.', input_schema: { type: 'object', properties: { type: { type: 'string', enum: ['stock_comparison_table', 'earnings_tracker', 'portfolio_summary', 'scenario_model', 'news_sentiment_board', 'macro_dashboard'] }, anchor_cell: { type: 'string', description: 'Top-left cell to start template (default A1)' } }, required: ['type'] } },
 
+  // CONTRARIAN STATISTICIAN TOOLS
+  { name: 'pin_contrarian_signal', description: 'Pin a contrarian signal to the persistent watchlist. Use when you identify a meaningful probability gap worth tracking.', input_schema: { type: 'object', properties: { label: { type: 'string', description: 'Signal description (e.g. "Lakers +7.5 RLM signal" or "NVDA implied vol overpriced")' }, type: { type: 'string', enum: ['sports', 'equity', 'cross-domain'], description: 'Signal domain' }, tier: { type: 'number', description: 'Confidence tier (1=strong, 2=moderate, 3=weak/watchlist)' }, ev: { type: 'string', description: 'Expected value estimate (e.g. "+8.3% EV" or "+$2.40/unit")' }, notes: { type: 'string', description: 'Brief notes on the signal' } }, required: ['label', 'type', 'tier'] } },
+
+  // GEOPOLITICAL STRATEGIST TOOLS
+  { name: 'create_geo_thread', description: 'Create a new geopolitical thesis thread for persistent tracking. Threads can be sent to the Securities Analyst as upstream context.', input_schema: { type: 'object', properties: { name: { type: 'string', description: 'Thread name (e.g. "European Defense Rearmament")' }, thesis: { type: 'string', description: 'Brief thesis statement' }, sectors: { type: 'array', items: { type: 'string' }, description: 'Exposed sectors (e.g. ["Defense", "Cybersecurity", "Energy"])' }, timeframe: { type: 'string', enum: ['Near', 'Medium', 'Long'], description: 'Near (6-18mo), Medium (18mo-4yr), Long (4-10yr)' }, tier: { type: 'number', description: 'Confidence tier (1=strong, 2=moderate, 3=early)' } }, required: ['name', 'thesis', 'sectors'] } },
+  { name: 'update_tension_map', description: 'Update the geopolitical tension heatmap with current assessment of a bilateral relationship.', input_schema: { type: 'object', properties: { pair: { type: 'string', description: 'Bilateral pair (e.g. "US-China", "NATO-Russia")' }, tension: { type: 'string', enum: ['low', 'moderate', 'elevated', 'high', 'critical'], description: 'Current tension level' }, trend: { type: 'string', enum: ['rising', 'falling', 'stable'], description: 'Trend direction' }, note: { type: 'string', description: 'Brief note on key drivers' } }, required: ['pair', 'tension', 'trend'] } },
+  { name: 'send_to_securities_analyst', description: 'Send a geopolitical analysis or contrarian signal directly to the Securities Analyst persona as upstream context for position development.', input_schema: { type: 'object', properties: { label: { type: 'string', description: 'Context label' }, content: { type: 'string', description: 'Analysis content to inject (handoff block or signal summary)' } }, required: ['label', 'content'] } },
+
   // IMAGE/MEME TOOLS
   { name: 'search_image', description: 'Search for images by query. Returns URLs that can be added to draw pane.', input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
   { name: 'create_meme', description: 'Generate a finished meme image via imgflip API with text baked in. Returns the image URL and adds it to the draw pane. Keep text SHORT (under 8 words per line).', input_schema: { type: 'object', properties: { template_name: { type: 'string', description: 'Meme template: drake, stonks, this_is_fine, galaxy_brain, disaster_girl, expanding_brain, trade_offer, change_my_mind, always_has_been, distracted_boyfriend, gru_plan, hide_the_pain' }, top_text: { type: 'string', description: 'Top text (setup). Keep under 8 words.' }, bottom_text: { type: 'string', description: 'Bottom text (punchline). Keep under 8 words.' } }, required: ['template_name', 'top_text', 'bottom_text'] } },
@@ -20937,6 +21166,32 @@ async function executeAgentTool(name, input) {
       case 'show_toast': { toast(input.message); return JSON.stringify({ success: true }); }
       case 'wb_undo_agent': { undoLastAgentAction(); return JSON.stringify({ success: true, message: 'Reverted last agent whiteboard action' }); }
       case 'wb_redo_agent': { redoLastAgentAction(); return JSON.stringify({ success: true, message: 'Re-applied last agent whiteboard action' }); }
+
+      // Contrarian Statistician tools
+      case 'pin_contrarian_signal': {
+        window._addContrarianSignal(input.label, input.type, input.tier, input.ev || '', input.notes || '');
+        return JSON.stringify({ success: true, message: 'Signal pinned to watchlist: ' + input.label });
+      }
+
+      // Geopolitical Strategist tools
+      case 'create_geo_thread': {
+        window._addGeoThread(input.name, input.thesis, input.sectors || [], input.timeframe || 'Medium', input.tier || 2);
+        return JSON.stringify({ success: true, message: 'Thesis thread created: ' + input.name });
+      }
+      case 'update_tension_map': {
+        var found = false;
+        _geoTensionData.relationships.forEach(function(r) {
+          if (r.pair === input.pair) { r.tension = input.tension; r.trend = input.trend; r.note = input.note || r.note; found = true; }
+        });
+        if (!found) _geoTensionData.relationships.push({ pair: input.pair, tension: input.tension, trend: input.trend, note: input.note || '' });
+        LS('geo_tension_data', _geoTensionData);
+        _renderGeoTensionMap();
+        return JSON.stringify({ success: true, message: 'Tension map updated: ' + input.pair + ' = ' + input.tension });
+      }
+      case 'send_to_securities_analyst': {
+        addContextSlot(input.label, input.content, 'persona:securities_analyst', true);
+        return JSON.stringify({ success: true, message: 'Analysis sent to Securities Analyst context: ' + input.label });
+      }
 
       // ANALYSIS TOOLS
       case 'run_scenario': {
