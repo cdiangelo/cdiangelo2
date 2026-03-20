@@ -8357,7 +8357,9 @@ function ssRender() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); document.getElementById('ssBold').click(); return; }
       // Ctrl+I: toggle italic while editing
       if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); document.getElementById('ssItalic').click(); return; }
-      return; // let typing go to the input
+      // Ctrl+C/X/V: exit edit mode and fall through to copy/cut/paste handlers below
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x' || e.key === 'v')) { ssExitEdit(); /* fall through */ }
+      else return; // let typing go to the input
     }
 
     // Navigation without edit mode
