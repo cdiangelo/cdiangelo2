@@ -123,6 +123,108 @@ app.get('/proxy/espn-core/*corePath', async (req, res) => {
   }
 });
 
+// ── ESPN Player Search Proxy (site.web.api.espn.com — richer athlete data) ──
+app.get('/proxy/espn-player/search', async (req, res) => {
+  const query = req.query.q;
+  const sport = req.query.sport || 'basketball';
+  const league = req.query.league || 'nba';
+  if (!query) return res.status(400).json({ error: true, message: 'Missing query parameter q' });
+
+  const cacheKey = 'player-search:' + sport + ':' + league + ':' + query.toLowerCase();
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(JSON.parse(cached.data));
+
+  // Try site.web.api first (richer data), fall back to site.api
+  const urls = [
+    'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes?query=' + encodeURIComponent(query) + '&limit=10&region=us&lang=en&contentorigin=espn',
+    'https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/athletes?search=' + encodeURIComponent(query)
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) continue;
+      const text = await r.text();
+      setCache(cacheKey, text, 'application/json');
+      res.setHeader('Content-Type', 'application/json');
+      return res.send(text);
+    } catch (e) { continue; }
+  }
+  res.status(502).json({ error: true, message: 'Player search failed — all endpoints returned errors' });
+});
+
+// ── ESPN Player Stats Proxy ──
+app.get('/proxy/espn-player/:sport/:league/athletes/:id/stats', async (req, res) => {
+  const { sport, league, id } = req.params;
+  const cacheKey = 'player-stats:' + sport + ':' + league + ':' + id;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(JSON.parse(cached.data));
+
+  const urls = [
+    'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes/' + id + '/stats?region=us&lang=en&contentorigin=espn',
+    'https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/athletes/' + id + '/statistics'
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) continue;
+      const text = await r.text();
+      setCache(cacheKey, text, 'application/json');
+      res.setHeader('Content-Type', 'application/json');
+      return res.send(text);
+    } catch (e) { continue; }
+  }
+  res.status(502).json({ error: true, message: 'Player stats failed — all endpoints returned errors' });
+});
+
+// ── ESPN Player Gamelog Proxy ──
+app.get('/proxy/espn-player/:sport/:league/athletes/:id/gamelog', async (req, res) => {
+  const { sport, league, id } = req.params;
+  const season = req.query.season || new Date().getFullYear();
+  const cacheKey = 'player-gamelog:' + sport + ':' + league + ':' + id + ':' + season;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(JSON.parse(cached.data));
+
+  const urls = [
+    'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes/' + id + '/gamelog?region=us&lang=en&contentorigin=espn&season=' + season + '&seasontype=2',
+    'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes/' + id + '/gamelog?region=us&lang=en&contentorigin=espn&season=' + season
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) continue;
+      const text = await r.text();
+      setCache(cacheKey, text, 'application/json');
+      res.setHeader('Content-Type', 'application/json');
+      return res.send(text);
+    } catch (e) { continue; }
+  }
+  res.status(502).json({ error: true, message: 'Player gamelog failed — all endpoints returned errors' });
+});
+
+// ── ESPN Player Overview/Bio Proxy ──
+app.get('/proxy/espn-player/:sport/:league/athletes/:id/overview', async (req, res) => {
+  const { sport, league, id } = req.params;
+  const cacheKey = 'player-overview:' + sport + ':' + league + ':' + id;
+  const cached = getCached(cacheKey);
+  if (cached) return res.json(JSON.parse(cached.data));
+
+  const urls = [
+    'https://site.web.api.espn.com/apis/common/v3/sports/' + sport + '/' + league + '/athletes/' + id + '/overview?region=us&lang=en&contentorigin=espn',
+    'https://site.api.espn.com/apis/site/v2/sports/' + sport + '/' + league + '/athletes/' + id
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      if (!r.ok) continue;
+      const text = await r.text();
+      setCache(cacheKey, text, 'application/json');
+      res.setHeader('Content-Type', 'application/json');
+      return res.send(text);
+    } catch (e) { continue; }
+  }
+  res.status(502).json({ error: true, message: 'Player overview failed — all endpoints returned errors' });
+});
+
 // ── Odds API Proxy (the-odds-api.com) ──
 app.get('/proxy/odds/status', async (_req, res) => {
   if (!oddsApiKey) return res.json({ available: false });
@@ -1103,6 +1205,27 @@ app.use((req, res, next) => {
   });
 });
 
+// ── ESPN Debug/Diagnostic Endpoint ──
+app.get('/proxy/espn-debug', async (req, res) => {
+  const tests = [
+    { name: 'NBA Scoreboard', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard' },
+    { name: 'NBA Standings', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/standings' },
+    { name: 'NBA Leaders', url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/leaders' },
+    { name: 'Player Search (LeBron)', url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes?query=LeBron&limit=3&region=us&lang=en&contentorigin=espn' }
+  ];
+  const results = [];
+  for (const test of tests) {
+    try {
+      const r = await fetch(test.url, { signal: AbortSignal.timeout(8000), headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      const text = r.ok ? await r.text() : '';
+      results.push({ name: test.name, status: r.status, ok: r.ok, dataKeys: r.ok ? Object.keys(JSON.parse(text)) : [], url: test.url });
+    } catch (e) {
+      results.push({ name: test.name, status: 'error', ok: false, error: e.message, url: test.url });
+    }
+  }
+  res.json({ timestamp: new Date().toISOString(), results });
+});
+
 app.listen(PORT, () => {
   console.log('CORS proxy running on http://localhost:' + PORT);
   console.log('  Yahoo:      http://localhost:' + PORT + '/proxy/yahoo?url=...');
@@ -1113,6 +1236,8 @@ app.listen(PORT, () => {
   console.log('  RH Login:   http://localhost:' + PORT + '/proxy/robinhood/login (POST)');
   console.log('  RH Status:  http://localhost:' + PORT + '/proxy/robinhood/status');
   console.log('  ESPN:       http://localhost:' + PORT + '/proxy/espn/<sport>/<league>/<endpoint>');
+  console.log('  ESPN Player: http://localhost:' + PORT + '/proxy/espn-player/search?q=...');
+  console.log('  ESPN Debug: http://localhost:' + PORT + '/proxy/espn-debug');
   console.log('  Odds:       http://localhost:' + PORT + '/proxy/odds/<sport> ' + (oddsApiKey ? '(key set)' : '(NO KEY)'));
   console.log('  YouTube:    http://localhost:' + PORT + '/proxy/youtube/search?q=...');
   if (storedApiKey) console.log('  API key pre-loaded from ANTHROPIC_API_KEY env var');

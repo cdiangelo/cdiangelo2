@@ -11295,24 +11295,42 @@ function spFetchStandings() {
     el.innerHTML = '<div class="sp-empty">Standings are not available for Global Events. Select a specific league.</div>';
     return;
   }
-  // Try v2 first, then v3-style endpoint as fallback
-  var standingsUrl = spEspnUrl(league, 'standings');
+  // Try multiple ESPN endpoint patterns — cascade through fallbacks
   var leagueInfo = SP_LEAGUE_MAP[league] || SP_LEAGUE_MAP.nba;
-  fetch(standingsUrl)
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(function(data) { return _spRenderStandingsData(data, league, el); })
-    .catch(function(err1) {
-      console.warn('[Sports] Standings v2 failed (' + err1.message + '), trying v3 core endpoint...');
-      // Fallback: ESPN core API standings (v3-style)
-      var coreUrl = PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/standings';
-      fetch(coreUrl, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
-        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(function(data) { return _spRenderStandingsData(data, league, el); })
-        .catch(function(err2) {
-          el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load standings: ' + esc(err1.message) + '</div>';
-          console.error('[Sports] Standings fetch error (both endpoints):', err1, err2);
-        });
-    });
+  // Current season year (NBA/NHL/NFL start in fall)
+  var yr = new Date().getFullYear();
+  var mo = new Date().getMonth();
+  var seasonYr = (mo < 6 && ['nba','nhl','nfl'].includes(league)) ? yr : yr;
+
+  var standingsUrls = [
+    // 1. Standard site API v2
+    PROXY_BASE + '/proxy/espn/' + leagueInfo.sport + '/' + leagueInfo.league + '/standings?season=' + seasonYr + '&sort=winpercent:desc',
+    // 2. Standard site API v2 without query params
+    PROXY_BASE + '/proxy/espn/' + leagueInfo.sport + '/' + leagueInfo.league + '/standings',
+    // 3. ESPN core API v2
+    PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/standings?season=' + seasonYr + '&seasontype=2',
+    // 4. ESPN core API v2 without season
+    PROXY_BASE + '/proxy/espn-core/' + leagueInfo.sport + '/leagues/' + leagueInfo.league + '/standings'
+  ];
+
+  (function tryNext(i) {
+    if (i >= standingsUrls.length) {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load standings. ESPN endpoints may be temporarily unavailable.</div>';
+      console.error('[Sports] Standings failed — all ' + standingsUrls.length + ' endpoints returned errors');
+      return;
+    }
+    console.log('[Sports] Trying standings URL ' + (i+1) + '/' + standingsUrls.length + ':', standingsUrls[i]);
+    fetch(standingsUrls[i], { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data) {
+        console.log('[Sports] Standings succeeded on attempt ' + (i+1));
+        return _spRenderStandingsData(data, league, el);
+      })
+      .catch(function(err) {
+        console.warn('[Sports] Standings attempt ' + (i+1) + ' failed:', err.message);
+        tryNext(i + 1);
+      });
+  })(0);
 }
 
 function _spRenderStandingsData(data, league, el) {
@@ -12297,15 +12315,28 @@ function spFetchLeaders() {
   // NBA/NHL/NFL seasons start in fall, so if before July use previous year as season start
   var seasonYear = (mo < 6 && ['nba','nhl','nfl'].includes(league)) ? yr : yr;
 
-  // Site API returns inline athlete data with names (core API returns $ref links)
-  var siteUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2';
-  // Fallback without season param
-  var siteFallbackUrl = PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders';
-
-  fetch(siteUrl)
-    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .catch(function() { return fetch(siteFallbackUrl).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }); })
-    .then(function(data) {
+  // Try multiple ESPN endpoint patterns — cascade through fallbacks
+  var leaderUrls = [
+    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders?season=' + seasonYear + '&seasontype=2',
+    PROXY_BASE + '/proxy/espn/' + l.sport + '/' + l.league + '/leaders',
+    PROXY_BASE + '/proxy/espn-core/' + l.sport + '/leagues/' + l.league + '/seasons/' + seasonYear + '/types/2/leaders'
+  ];
+  function _tryLeaderUrl(idx) {
+    if (idx >= leaderUrls.length) {
+      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load leaders. ESPN endpoints may be temporarily unavailable.</div>';
+      return;
+    }
+    console.log('[Sports] Trying leaders URL ' + (idx+1) + '/' + leaderUrls.length);
+    fetch(leaderUrls[idx], { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data) { return _processLeadersData(data); })
+      .catch(function(err) {
+        console.warn('[Sports] Leaders attempt ' + (idx+1) + ' failed:', err.message);
+        _tryLeaderUrl(idx + 1);
+      });
+  }
+  _tryLeaderUrl(0);
+  function _processLeadersData(data) {
       // Site API returns { leaders: { categories: [...] } } or { categories: [...] }
       var categories = [];
       if (data.leaders && Array.isArray(data.leaders)) categories = data.leaders;
@@ -12360,11 +12391,7 @@ function spFetchLeaders() {
         html += '</div>';
       });
       el.innerHTML = html || '<div class="sp-empty">No leaders data available.</div>';
-    })
-    .catch(function(err) {
-      console.error('[Sports] Leaders fetch error:', err);
-      el.innerHTML = '<div class="sp-empty" style="color:var(--danger);">Failed to load leaders: '+esc(err.message)+'</div>';
-    });
+  }
 }
 
 
