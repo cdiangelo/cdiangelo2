@@ -3899,6 +3899,12 @@ function applyWorkspaceMode() {
     if (header) header.classList.add('simplified-header');
     if (label) label.textContent = 'Simplified';
 
+    // --- Clear stale inline styles from suite mode (midbar resizer, pane system) ---
+    const _aiMsgs = document.getElementById('aiMsgs');
+    const _robotWrap = document.getElementById('robotSceneWrapper');
+    if (_aiMsgs) { _aiMsgs.style.flex = ''; _aiMsgs.style.width = ''; }
+    if (_robotWrap) { _robotWrap.style.width = ''; _robotWrap.style.flex = ''; _robotWrap.style.display = ''; _robotWrap.style.position = ''; }
+
     // --- Robot scene into simpBotArea (left of top row) ---
     let botArea = document.getElementById('simpBotArea');
     if (!botArea) {
@@ -3961,12 +3967,23 @@ function applyWorkspaceMode() {
     if (header) header.classList.remove('simplified-header');
     if (label) label.textContent = 'Suite';
 
+    // --- Clear any simplified-mode inline overrides on the pane shell ---
+    const pBody = claude.querySelector('.p-body');
+    if (pBody) { pBody.style.gridColumn = ''; pBody.style.gridRow = ''; pBody.style.zIndex = ''; }
+
     // --- Move robot back ---
     const botArea = document.getElementById('simpBotArea');
     const contentRow = document.getElementById('claudeContentRow');
     if (botArea && contentRow) {
       const robotWrapper = document.getElementById('robotSceneWrapper');
-      if (robotWrapper) contentRow.appendChild(robotWrapper);
+      if (robotWrapper) {
+        // Clear simplified-mode inline overrides before returning to suite layout
+        robotWrapper.style.display = '';
+        robotWrapper.style.position = '';
+        robotWrapper.style.width = '';
+        robotWrapper.style.flex = '';
+        contentRow.appendChild(robotWrapper);
+      }
       botArea.remove();
     }
 
@@ -3974,12 +3991,31 @@ function applyWorkspaceMode() {
     const aiMsgs = document.getElementById('aiMsgs');
     const chatOut = document.getElementById('simpOutChat');
     if (aiMsgs && contentRow) {
+      // Clear simplified-mode inline overrides
+      aiMsgs.style.flex = '';
+      aiMsgs.style.width = '';
       contentRow.insertBefore(aiMsgs, contentRow.firstChild);
-      if (chatOut) delete chatOut.dataset.filled;
+    }
+    // Always clear the filled flag so simplified can re-adopt aiMsgs later
+    if (chatOut) {
+      delete chatOut.dataset.filled;
+      // Remove any leftover text/nodes (prevent ghost text artifacts)
+      while (chatOut.firstChild && chatOut.firstChild !== aiMsgs) {
+        chatOut.removeChild(chatOut.firstChild);
+      }
     }
 
     // --- Teardown toolbar clones ---
     _teardownSimpToolbar();
+
+    // Restore midbar saved ratio
+    const savedPct = +localStorage.getItem('ws_claudeMidbarPct');
+    if (savedPct > 0 && aiMsgs) {
+      const robotWr = document.getElementById('robotSceneWrapper');
+      aiMsgs.style.flex = 'none';
+      aiMsgs.style.width = savedPct + '%';
+      if (robotWr) robotWr.style.width = (100 - savedPct) + '%';
+    }
 
     setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); if (typeof resizeCM === 'function') resizeCM(); }, 50);
   }
