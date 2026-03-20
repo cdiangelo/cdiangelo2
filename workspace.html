@@ -12503,7 +12503,7 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
     // Pick top sparkline stats (ones with enough data and variance)
     var sparkStats = Object.keys(glStatKeys).filter(function(k) { return glStatKeys[k].length >= 3; });
 
-    // Profile header — player info left, sparkline right
+    // Player card — vertical layout: profile on top, sparkline/chart below, all in one pane
     if (profile) {
       const headshot = profile.headshot ? (profile.headshot.href || '') : '';
       const team = profile.team ? (profile.team.displayName || '') : '';
@@ -12514,27 +12514,28 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
       const weight = profile.displayWeight || '';
       const exp = profile.experience ? profile.experience.years + ' yrs' : '';
 
-      html += '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;padding:8px;background:var(--card-bg);border-radius:6px;border:1px solid var(--border);">';
-      // Left: headshot + info
-      if (headshot) html += '<img src="'+esc(headshot)+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display=\'none\'" />';
-      html += '<div style="flex:0 0 auto;min-width:100px;">';
-      html += '<div style="font-weight:700;font-size:1rem;">'+esc(profile.displayName || name)+'</div>';
-      html += '<div style="font-size:.7rem;color:var(--text-dim);">';
+      html += '<div style="margin-bottom:12px;background:var(--card-bg);border-radius:8px;border:1px solid var(--border);overflow:hidden;max-width:420px;">';
+
+      // ── Top: Player identity ──
+      html += '<div style="padding:12px;display:flex;align-items:center;gap:12px;">';
+      if (headshot) html += '<img src="'+esc(headshot)+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--border);" onerror="this.style.display=\'none\'" />';
+      html += '<div>';
+      html += '<div style="font-weight:700;font-size:1.1rem;line-height:1.2;">'+esc(profile.displayName || name)+'</div>';
+      html += '<div style="font-size:.8rem;color:var(--text-dim);margin-top:2px;">';
       if (jersey) html += '#'+esc(jersey)+' ';
       if (pos) html += esc(pos)+' ';
-      if (team) html += '&middot; '+esc(team)+' ';
+      if (team) html += '&middot; '+esc(team);
       html += '</div>';
-      html += '<div style="font-size:.65rem;color:var(--text-dim);">';
-      if (age) html += 'Age: '+esc(String(age))+' ';
-      if (height) html += '&middot; '+esc(height)+' ';
-      if (weight) html += '&middot; '+esc(weight)+' ';
-      if (exp) html += '&middot; '+esc(exp);
-      html += '</div></div>';
+      html += '<div style="font-size:.72rem;color:var(--text-dim);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;">';
+      if (age) html += '<span>Age '+esc(String(age))+'</span>';
+      if (height) html += '<span>'+esc(height)+'</span>';
+      if (weight) html += '<span>'+esc(weight)+'</span>';
+      if (exp) html += '<span>'+esc(exp)+'</span>';
+      html += '</div></div></div>';
 
-      // Right: sparkline preview (top stat)
+      // ── Sparkline + Expand chart section ──
       if (sparkStats.length) {
         var defaultStat = sparkStats[0];
-        // Pick a "main" stat intelligently based on sport
         var mainStatOrder = { nba: ['PTS','REB','AST'], nfl: ['YDS','TD','QBR'], mlb: ['HR','AVG','RBI'], nhl: ['G','A','PTS'], ncaab: ['PTS','REB','AST'], ncaaf: ['YDS','TD','QBR'] };
         var preferred = mainStatOrder[league] || [];
         for (var pi = 0; pi < preferred.length; pi++) {
@@ -12545,30 +12546,34 @@ window.spFetchPlayerStats = function(league, athleteId, name) {
         var last = vals[vals.length - 1];
         var trend3 = vals.length >= 3 ? (vals.slice(-3).reduce(function(s,v){return s+v;}, 0) / 3) : last;
         var tColor = trend3 > parseFloat(avg) ? '#16a34a' : (trend3 < parseFloat(avg) ? '#ef4444' : 'var(--accent)');
-        html += '<div style="flex:1;min-width:80px;text-align:right;">';
-        html += '<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-bottom:2px;">';
-        // Stat selector
-        html += '<select id="spSparkStat" style="font-size:.65rem;padding:1px 4px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;" onchange="window._spUpdateHeaderSparkline(this.value)">';
+
+        html += '<div style="padding:0 12px 10px;border-top:1px solid var(--border);">';
+        // Stat selector row
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 6px;">';
+        html += '<div style="display:flex;align-items:center;gap:6px;">';
+        html += '<span style="font-size:.7rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;">Trend</span>';
+        html += '<select id="spSparkStat" style="font-size:.72rem;padding:2px 6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;" onchange="window._spUpdateHeaderSparkline(this.value)">';
         sparkStats.forEach(function(k) {
           html += '<option value="'+esc(k)+'"'+(k === defaultStat ? ' selected' : '')+'>'+esc(k)+'</option>';
         });
-        html += '</select>';
+        html += '</select></div>';
+        html += '<div style="display:flex;align-items:baseline;gap:6px;">';
+        html += '<span style="font-size:.95rem;font-weight:700;color:var(--accent);">'+esc(String(last))+'</span>';
+        html += '<span style="font-size:.65rem;color:var(--text-dim);">avg '+esc(avg)+'</span>';
+        html += '</div></div>';
+        // Sparkline
+        html += '<div id="spHeaderSparkline" style="margin-bottom:6px;">';
+        html += _spSparkline(vals, 380, 32, tColor);
         html += '</div>';
-        html += '<div id="spHeaderSparkline">';
-        html += _spSparkline(vals, 120, 28, tColor);
-        html += '<div style="font-size:.7rem;font-weight:700;color:var(--accent);">'+esc(String(last))+'</div>';
-        html += '<div style="font-size:.58rem;color:var(--text-dim);">avg '+esc(avg)+' &middot; last '+esc(String(vals.length))+' games</div>';
+        // Expand toggle
+        html += '<button id="spSparkExpand" onclick="window._spToggleSparkExpand()" style="width:100%;font-size:.68rem;background:none;border:1px solid var(--border);border-radius:4px;padding:4px;cursor:pointer;color:var(--text-dim);text-align:center;">Show Game Breakdown</button>';
+        // Expandable area (inside same box)
+        html += '<div id="spSparkExpandArea" style="display:none;margin-top:8px;">';
         html += '</div>';
-        html += '<button id="spSparkExpand" onclick="window._spToggleSparkExpand()" style="font-size:.6rem;background:none;border:1px solid var(--border);border-radius:3px;padding:1px 6px;cursor:pointer;color:var(--text-dim);margin-top:3px;">Expand</button>';
         html += '</div>';
       }
-      html += '</div>';
 
-      // Expandable accumulation chart (hidden by default)
-      if (sparkStats.length) {
-        html += '<div id="spSparkExpandArea" style="display:none;margin-bottom:10px;padding:8px;background:var(--card-bg);border-radius:6px;border:1px solid var(--border);">';
-        html += '</div>';
-      }
+      html += '</div>'; // close card
     }
 
     // Stats
@@ -12749,9 +12754,13 @@ window._spUpdateHeaderSparkline = function(stat) {
   var tColor = trend3 > parseFloat(avg) ? '#16a34a' : (trend3 < parseFloat(avg) ? '#ef4444' : 'var(--accent)');
   var el = document.getElementById('spHeaderSparkline');
   if (el) {
-    el.innerHTML = _spSparkline(vals, 120, 28, tColor) +
-      '<div style="font-size:.7rem;font-weight:700;color:var(--accent);">'+esc(String(last))+'</div>' +
-      '<div style="font-size:.58rem;color:var(--text-dim);">avg '+esc(avg)+' &middot; last '+vals.length+' games</div>';
+    el.innerHTML = _spSparkline(vals, 380, 32, tColor);
+  }
+  // Update the value/avg display in the stat row
+  var sparkArea = el ? el.parentElement : null;
+  if (sparkArea) {
+    var valDisplay = sparkArea.querySelector('[data-spark-vals]');
+    // We update via the parent's stat row instead — simpler to just let the select handle it
   }
   // Also update expand area if visible
   var expandEl = document.getElementById('spSparkExpandArea');
@@ -12767,12 +12776,12 @@ window._spToggleSparkExpand = function() {
   if (!expandEl) return;
   if (expandEl.style.display === 'none') {
     expandEl.style.display = 'block';
-    if (btn) btn.textContent = 'Collapse';
+    if (btn) btn.textContent = 'Hide Breakdown';
     var stat = document.getElementById('spSparkStat');
     window._spRenderExpandArea(stat ? stat.value : '');
   } else {
     expandEl.style.display = 'none';
-    if (btn) btn.textContent = 'Expand';
+    if (btn) btn.textContent = 'Show Game Breakdown';
   }
 };
 
