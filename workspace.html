@@ -16250,31 +16250,105 @@ async function getCompanyMetricsReal(ticker) {
         ask: quote.ask_price ? parseFloat(quote.ask_price) : null,
         source: 'robinhood'
       };
-      // If fundamentals are complete (have PE + mktCap), return immediately
-      if (pe != null && mktCap != null) return rhResult;
-      // Otherwise fall through to try Yahoo for missing fundamentals
+      // If fundamentals are complete (have PE + mktCap + EPS), return immediately
+      if (pe != null && mktCap != null && rhResult.eps != null) return rhResult;
+      // Otherwise fall through to supplement missing fundamentals
     }
   } catch(e) {}
 
-  // Tier 2: Yahoo Finance — get full fundamentals (or supplement Robinhood)
-  // Try v6 quote first (lighter, more reliable), then v10 quoteSummary as fallback
+  // Tier 2: Finnhub basic financials — free, no API key required (2 req/min), reliable
+  // Returns PE, EPS, market cap, price-to-book, revenue, shares, etc.
+  try {
+    const fhUrl = 'https://finnhub.io/api/v1/stock/metric?symbol=' + encodeURIComponent(ticker) + '&metric=all';
+    let fhResp;
+    // Try direct first (Finnhub has CORS headers), then proxy, then allorigins
+    try { fhResp = await fetch(fhUrl, { signal: AbortSignal.timeout(8000) }); } catch(_) {}
+    if (!fhResp || !fhResp.ok) {
+      try { fhResp = await fetch(PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(fhUrl), { signal: AbortSignal.timeout(8000) }); } catch(_) {}
+    }
+    if (!fhResp || !fhResp.ok) {
+      fhResp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(fhUrl), { signal: AbortSignal.timeout(8000) });
+    }
+    if (fhResp && fhResp.ok) {
+      const fhJson = await fhResp.json();
+      const m = fhJson.metric || {};
+      const fhPe = m.peBasicExclExtraTTM || m.peTTM || m.peNormalizedAnnual || null;
+      const fhEps = m.epsBasicExclExtraItemsTTM || m.epsTTM || m.epsNormalizedAnnual || null;
+      const fhMktCap = m.marketCapitalization ? m.marketCapitalization * 1e6 : null; // Finnhub returns in millions
+      const fhShares = m.sharesOutstanding ? m.sharesOutstanding * 1e6 : null; // also in millions
+      const fhRevenue = m.revenuePerShareTTM && fhShares ? m.revenuePerShareTTM * fhShares : null;
+      const fhPB = m.pbQuarterly || m.pbAnnual || null;
+      const fhForwardPE = m.forwardPE || null;
+      const fhDivYield = m.dividendYieldIndicatedAnnual ? m.dividendYieldIndicatedAnnual / 100 : null;
+      const fh52h = m['52WeekHigh'] || null;
+      const fh52l = m['52WeekLow'] || null;
+      const companyEntry = COMPANY_DB.find(c => c.ticker === ticker);
+
+      // Also fetch current quote from Finnhub for real-time price if no RH price
+      let fhPrice = null;
+      if (!rhResult || rhResult.price == null) {
+        try {
+          const qUrl = 'https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(ticker);
+          let qResp;
+          try { qResp = await fetch(qUrl, { signal: AbortSignal.timeout(5000) }); } catch(_) {}
+          if (!qResp || !qResp.ok) qResp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(qUrl), { signal: AbortSignal.timeout(5000) });
+          if (qResp && qResp.ok) {
+            const qJson = await qResp.json();
+            if (qJson.c && qJson.c > 0) fhPrice = qJson.c;
+          }
+        } catch(_) {}
+      }
+
+      const finnhubResult = {
+        price: fhPrice,
+        mktCap: fhMktCap,
+        sizeGroup: companyEntry?.isETF ? 'ETF' : (fhMktCap ? (fhMktCap > 200e9 ? 'Mega Cap' : fhMktCap > 10e9 ? 'Large Cap' : fhMktCap > 2e9 ? 'Mid Cap' : 'Small Cap') : null),
+        pe: fhPe,
+        eps: fhEps,
+        revenue: fhRevenue,
+        sharesOutstanding: fhShares,
+        forwardPE: fhForwardPE,
+        priceToBook: fhPB,
+        high_52: fh52h,
+        low_52: fh52l,
+        dividend_yield: fhDivYield,
+        bid: null, ask: null,
+        source: 'finnhub'
+      };
+
+      // Merge with Robinhood data if available (RH has better real-time price/bid/ask)
+      if (rhResult) {
+        const merged = Object.assign({}, finnhubResult);
+        if (rhResult.price != null) merged.price = rhResult.price;
+        if (rhResult.bid != null) merged.bid = rhResult.bid;
+        if (rhResult.ask != null) merged.ask = rhResult.ask;
+        // Fill gaps from RH
+        for (const k of ['pe','eps','mktCap','sharesOutstanding','high_52','low_52','dividend_yield','sizeGroup']) {
+          if (merged[k] == null && rhResult[k] != null) merged[k] = rhResult[k];
+        }
+        merged.source = rhResult.price != null ? 'robinhood+finnhub' : 'finnhub';
+        return merged;
+      }
+      // Check if Finnhub had useful data (at least PE or mktCap)
+      if (fhPe != null || fhMktCap != null || fhEps != null) return finnhubResult;
+    }
+  } catch(e) {}
+
+  // Tier 3: Yahoo Finance — try v6 then v10 (may fail due to auth requirements)
   try {
     const url = 'https://query1.finance.yahoo.com/v6/finance/quote?symbols=' +
       encodeURIComponent(ticker);
 
     async function attemptYahooFetch(retries, fetchUrl) {
       fetchUrl = fetchUrl || url;
-      // If proxy is known-dead, skip it and go straight to allorigins
       const proxyUrl = PROXY_BASE + '/proxy/yahoo?url=' + encodeURIComponent(fetchUrl);
       const alloriginsUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(fetchUrl);
       let resp;
       if (_proxyAlive === false) {
-        // Proxy known-down: try allorigins directly, proxy as fallback
         try { resp = await fetch(alloriginsUrl, { signal: AbortSignal.timeout(10000) }); } catch (_) {
           resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
         }
       } else {
-        // Proxy alive or unknown: try proxy first, allorigins as fallback
         try { resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) }); } catch (_) {
           resp = await fetch(alloriginsUrl, { signal: AbortSignal.timeout(10000) });
         }
@@ -16289,7 +16363,6 @@ async function getCompanyMetricsReal(ticker) {
       return resp;
     }
 
-    // Try v6 first, fall back to v10 if v6 fails or returns no data
     let resp, json;
     const v10Url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' +
       encodeURIComponent(ticker) + '?modules=summaryDetail,defaultKeyStatistics,financialData';
@@ -16298,17 +16371,14 @@ async function getCompanyMetricsReal(ticker) {
       json = await resp.json();
     } catch(_) {}
     if (!json || json.error || (!json.quoteResponse?.result?.[0] && !json.quoteSummary?.result?.[0])) {
-      // v6 failed, try v10
       resp = await attemptYahooFetch(2, v10Url);
       json = await resp.json();
     }
-    if (json.error) throw new Error('Proxy error');
-    // Parse v6 quote format (flat fields) or v10 quoteSummary format (nested .raw)
+    if (json.error) throw new Error('Yahoo error');
     let yahooResult = null;
     const q6 = json.quoteResponse?.result?.[0];
     const summary = json.quoteSummary?.result?.[0];
     if (q6 && q6.regularMarketPrice) {
-      // v6 format: flat numeric fields
       const mc = q6.marketCap || null;
       yahooResult = {
         price: q6.regularMarketPrice || null,
@@ -16328,7 +16398,6 @@ async function getCompanyMetricsReal(ticker) {
         source: 'yahoo-v6'
       };
     } else if (summary) {
-      // v10 format: nested objects with .raw values
       const sd = summary.summaryDetail || {};
       const ks = summary.defaultKeyStatistics || {};
       const fd = summary.financialData || {};
@@ -16352,14 +16421,11 @@ async function getCompanyMetricsReal(ticker) {
       };
     }
     if (!yahooResult) throw new Error('No data in Yahoo response');
-    // If we have partial Robinhood data, merge: prefer RH for real-time fields, Yahoo for fundamentals
     if (rhResult) {
       const merged = Object.assign({}, yahooResult);
-      // RH has better real-time price/bid/ask
       if (rhResult.price != null) merged.price = rhResult.price;
       if (rhResult.bid != null) merged.bid = rhResult.bid;
       if (rhResult.ask != null) merged.ask = rhResult.ask;
-      // Fill in any RH fundamentals that Yahoo missed
       for (const k of ['pe','eps','mktCap','sharesOutstanding','high_52','low_52','dividend_yield','sizeGroup']) {
         if (merged[k] == null && rhResult[k] != null) merged[k] = rhResult[k];
       }
@@ -16370,13 +16436,13 @@ async function getCompanyMetricsReal(ticker) {
   } catch (e) {
     // If Yahoo failed but we have partial Robinhood data, return that
     if (rhResult) return rhResult;
-    // Tier 3: Pull from stockDataCache if charts already fetched price data
+    // Tier 4: Pull from stockDataCache if charts already fetched price data
     const chartEntry = stockDataCache[ticker + '_1M'] || stockDataCache[ticker + '_1D'] ||
       stockDataCache[ticker + '_5D'] || stockDataCache[ticker + '_6M'] || stockDataCache[ticker + '_1Y'];
     if (chartEntry && chartEntry.data && chartEntry.data.length >= 1) {
       const closes = chartEntry.data;
       const companyEntry = COMPANY_DB.find(c => c.ticker === ticker);
-      return {
+      const chartResult = {
         price: closes[closes.length - 1],
         mktCap: null, sizeGroup: companyEntry?.isETF ? 'ETF' : null,
         pe: null, eps: null, revenue: null, sharesOutstanding: null,
@@ -16384,9 +16450,9 @@ async function getCompanyMetricsReal(ticker) {
         high_52: chartEntry.high ? Math.max(...chartEntry.high.filter(v => v != null)) : null,
         low_52: chartEntry.low ? Math.min(...chartEntry.low.filter(v => v != null && v > 0)) : null,
         bid: null, ask: null, dividend_yield: null,
-        source: 'chart-cache',
-        message: 'Partial data from chart cache. Full metrics unavailable.'
+        source: 'chart-cache'
       };
+      return chartResult;
     }
 
     // No data at all
@@ -16396,8 +16462,7 @@ async function getCompanyMetricsReal(ticker) {
       pe: null, eps: null, revenue: null, sharesOutstanding: null,
       forwardPE: null, priceToBook: null,
       high_52: null, low_52: null, bid: null, ask: null, dividend_yield: null,
-      source: 'unavailable',
-      message: 'Live financial data unavailable. Refresh to retry.'
+      source: 'unavailable'
     };
   }
 }
