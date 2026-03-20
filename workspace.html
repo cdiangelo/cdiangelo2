@@ -12124,82 +12124,121 @@ function _bracketBuildPickFlow(games, picks) {
 
   // Group by round and region
   var byRoundRegion = {};
+  var byRound = {};
   games.forEach(function(g) {
     var key = g.round + '|' + (g.region || 'Other');
     if (!byRoundRegion[key]) byRoundRegion[key] = [];
     byRoundRegion[key].push(g);
+    if (!byRound[g.round]) byRound[g.round] = [];
+    byRound[g.round].push(g);
   });
 
-  // For each round starting from round 2, look for games needing teams
   // Build a map of gameId -> enriched teams array
   var enriched = {};
 
-  // Get winner of a game: actual winner or user pick
+  // Seed enriched map with games that already have 2 teams
+  games.forEach(function(g) {
+    if (g.teams.length >= 2) enriched[g.id] = g.teams;
+  });
+
+  // Get winner of a game: actual winner, user pick on original teams, or user pick on enriched teams
   function getWinner(game) {
     if (game.completed) {
       var w = game.teams.find(function(t) { return t.winner; });
       if (w) return w;
     }
+    // Check pick on enriched teams first (has projected teams from earlier rounds)
+    if (picks[game.id] !== undefined && enriched[game.id] && enriched[game.id].length >= 2) {
+      return enriched[game.id][picks[game.id]];
+    }
+    // Fall back to original teams
     if (picks[game.id] !== undefined && game.teams.length >= 2) {
       return game.teams[picks[game.id]];
     }
     return null;
   }
 
-  // For each round > 1, try to fill empty slots from feeder round winners
-  for (var round = 2; round <= 6; round++) {
+  // For each round starting from 1 (First Four → Round 1 flow), propagate picks
+  for (var round = 1; round <= 6; round++) {
     var feederRound = round - 1;
-    // For each region, get feeder games and current round games
-    var regions = new Set();
-    games.forEach(function(g) { if (g.round === round || g.round === feederRound) regions.add(g.region || 'Other'); });
+    // Special handling for cross-region rounds (Final Four round=5, Championship round=6)
+    var isCrossRegion = round >= 5;
 
-    regions.forEach(function(region) {
-      var fKey = feederRound + '|' + region;
-      var cKey = round + '|' + region;
-      var feeders = byRoundRegion[fKey] || [];
-      var current = byRoundRegion[cKey] || [];
-
-      // Sort both arrays consistently so gi*2 pairing is correct
+    if (isCrossRegion) {
+      // Final Four / Championship: feeders come from ALL regions in the previous round
+      var feeders = (byRound[feederRound] || []).slice();
+      var current = (byRound[round] || []).slice();
       feeders.sort(function(a, b) { return (a.startTime || '').localeCompare(b.startTime || '') || a.id.localeCompare(b.id); });
       current.sort(function(a, b) { return (a.startTime || '').localeCompare(b.startTime || '') || a.id.localeCompare(b.id); });
 
-      // For each current round game, if it has < 2 teams, try to fill from feeder pairs
       current.forEach(function(game, gi) {
         if (game.teams.length >= 2) {
           enriched[game.id] = game.teams;
           return;
         }
-        // The i-th current game is fed by feeders[2*i] and feeders[2*i+1]
         var f1 = feeders[gi * 2];
         var f2 = feeders[gi * 2 + 1];
-        var teams = game.teams.slice(); // copy existing
-
+        var teams = game.teams.slice();
         var w1 = f1 ? getWinner(f1) : null;
         var w2 = f2 ? getWinner(f2) : null;
-
-        // Check if enriched feeders have picks (recursive flow)
-        if (!w1 && f1 && enriched[f1.id] && enriched[f1.id].length >= 2) {
-          var ep = picks[f1.id];
-          if (ep !== undefined) w1 = enriched[f1.id][ep];
-        }
-        if (!w2 && f2 && enriched[f2.id] && enriched[f2.id].length >= 2) {
-          var ep2 = picks[f2.id];
-          if (ep2 !== undefined) w2 = enriched[f2.id][ep2];
-        }
-
-        if (w1 && teams.length === 0) teams.push(Object.assign({}, w1, { score: 0, winner: false, _projected: true }));
-        else if (w1 && teams.length === 1) {
-          // Check if w1 is different from existing team
-          if (!teams.some(function(t) { return t.name === w1.name; }))
-            teams.unshift(Object.assign({}, w1, { score: 0, winner: false, _projected: true }));
-        }
-        if (w2 && !teams.some(function(t) { return t.name === w2.name; })) {
+        if (w1 && !teams.some(function(t) { return t.name === w1.name; }))
+          teams.push(Object.assign({}, w1, { score: 0, winner: false, _projected: true }));
+        if (w2 && !teams.some(function(t) { return t.name === w2.name; }))
           teams.push(Object.assign({}, w2, { score: 0, winner: false, _projected: true }));
-        }
-
         enriched[game.id] = teams;
       });
-    });
+    } else {
+      // Region-based flow (rounds 2-4)
+      var regions = new Set();
+      games.forEach(function(g) { if (g.round === round || g.round === feederRound) regions.add(g.region || 'Other'); });
+
+      regions.forEach(function(region) {
+        var fKey = feederRound + '|' + region;
+        var cKey = round + '|' + region;
+        var feeders = (byRoundRegion[fKey] || []).slice();
+        var current = (byRoundRegion[cKey] || []).slice();
+
+        // Sort both arrays consistently so gi*2 pairing is correct
+        feeders.sort(function(a, b) { return (a.startTime || '').localeCompare(b.startTime || '') || a.id.localeCompare(b.id); });
+        current.sort(function(a, b) { return (a.startTime || '').localeCompare(b.startTime || '') || a.id.localeCompare(b.id); });
+
+        // For each current round game, if it has < 2 teams, try to fill from feeder pairs
+        current.forEach(function(game, gi) {
+          if (game.teams.length >= 2) {
+            enriched[game.id] = game.teams;
+            return;
+          }
+          // The i-th current game is fed by feeders[2*i] and feeders[2*i+1]
+          var f1 = feeders[gi * 2];
+          var f2 = feeders[gi * 2 + 1];
+          var teams = game.teams.slice(); // copy existing
+
+          var w1 = f1 ? getWinner(f1) : null;
+          var w2 = f2 ? getWinner(f2) : null;
+
+          // Check if enriched feeders have picks (recursive flow)
+          if (!w1 && f1 && enriched[f1.id] && enriched[f1.id].length >= 2) {
+            var ep = picks[f1.id];
+            if (ep !== undefined) w1 = enriched[f1.id][ep];
+          }
+          if (!w2 && f2 && enriched[f2.id] && enriched[f2.id].length >= 2) {
+            var ep2 = picks[f2.id];
+            if (ep2 !== undefined) w2 = enriched[f2.id][ep2];
+          }
+
+          if (w1 && teams.length === 0) teams.push(Object.assign({}, w1, { score: 0, winner: false, _projected: true }));
+          else if (w1 && teams.length === 1) {
+            if (!teams.some(function(t) { return t.name === w1.name; }))
+              teams.unshift(Object.assign({}, w1, { score: 0, winner: false, _projected: true }));
+          }
+          if (w2 && !teams.some(function(t) { return t.name === w2.name; })) {
+            teams.push(Object.assign({}, w2, { score: 0, winner: false, _projected: true }));
+          }
+
+          enriched[game.id] = teams;
+        });
+      });
+    }
   }
 
   return enriched;
