@@ -462,13 +462,14 @@ body.light .fun-btn { background: var(--accent); }
 }
 .workspace.simplified-mode .simp-output-wrap {
   display: flex !important; flex-direction: column !important;
+  flex: 1 !important; min-height: 0 !important;
 }
 .simp-output-wrap > .simp-out-panel {
   display: none; position: absolute; inset: 0; overflow: auto;
   flex-direction: column;
 }
 .simp-output-wrap > .simp-out-panel.active {
-  display: flex;
+  display: flex; flex: 1; position: relative; min-height: 0;
 }
 /* Chat output panel styling */
 .simp-output-wrap #simpOutChat {
@@ -1962,7 +1963,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     grid-column: unset !important; grid-row: unset !important;
     grid-template-columns: unset !important; grid-template-rows: unset !important;
     min-height: unset !important;
-    max-height: none !important;
+    max-height: 45vh !important;
+    overflow: hidden !important;
     border: none !important; border-radius: 0 !important; box-shadow: none !important;
   }
   .workspace.simplified-mode #q-claude > .p-head { display: none !important; }
@@ -2008,15 +2010,22 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
   /* Output: fills remaining space at bottom */
   .workspace.simplified-mode > #simpOutput {
     display: flex !important;
-    flex: 1 !important;
+    flex: 1 1 0px !important;
     flex-direction: column !important;
     grid-column: unset !important; grid-row: unset !important;
-    min-height: 0 !important;
+    min-height: 100px !important;
     overflow: hidden !important;
+    background: var(--panel) !important;
   }
   .workspace.simplified-mode .simp-output-wrap {
     display: flex !important; flex-direction: column !important;
-    flex: 1 !important; min-height: 0 !important;
+    flex: 1 1 0px !important; min-height: 0 !important;
+    position: relative !important;
+  }
+  .workspace.simplified-mode .simp-out-panel.active {
+    display: flex !important; flex: 1 !important;
+    position: relative !important; min-height: 0 !important;
+    overflow: auto !important;
   }
 
   /* ═══ AUTH GATE MOBILE ═══ */
