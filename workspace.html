@@ -6863,8 +6863,10 @@ function ssRenderSelection() {
           if (endR > srcSel.maxR) {
             for (let r = srcSel.maxR + 1; r <= Math.min(endR, ssR-1); r++) {
               for (let c = srcSel.minC; c <= srcSel.maxC; c++) {
-                const srcVal = srcData[(r - srcSel.minR) % srcRows][c - srcSel.minC];
-                ssD[r][c] = ssFillAdjust(srcVal, r - srcSel.minR, 0);
+                const srcRowIdx = (r - srcSel.minR) % srcRows;
+                const srcVal = srcData[srcRowIdx][c - srcSel.minC];
+                // Offset = target row - original source row for this cell
+                ssD[r][c] = ssFillAdjust(srcVal, r - (srcSel.minR + srcRowIdx), 0);
               }
             }
           }
@@ -6872,8 +6874,10 @@ function ssRenderSelection() {
           if (endC > srcSel.maxC) {
             for (let r = srcSel.minR; r <= srcSel.maxR; r++) {
               for (let c = srcSel.maxC + 1; c <= Math.min(endC, ssC-1); c++) {
-                const srcVal = srcData[r - srcSel.minR][(c - srcSel.minC) % srcCols];
-                ssD[r][c] = ssFillAdjust(srcVal, 0, c - srcSel.minC);
+                const srcColIdx = (c - srcSel.minC) % srcCols;
+                const srcVal = srcData[r - srcSel.minR][srcColIdx];
+                // Offset = target col - original source col for this cell
+                ssD[r][c] = ssFillAdjust(srcVal, 0, c - (srcSel.minC + srcColIdx));
               }
             }
           }
@@ -7294,7 +7298,13 @@ function ssGetStockMetric(data, metric) {
 function evalF(formula, visited) {
   try {
     // ADDED: Strip $ from cell references for evaluation ($ only affects drag-fill behavior)
-    const f = formula.substring(1).trim().toUpperCase().replace(/\$(?=[A-Z]|\d)/gi, '');
+    // Skip $ inside quoted strings to preserve literal dollar signs in string arguments
+    var _rawF = formula.substring(1).trim().toUpperCase();
+    var _fParts = _rawF.split('"'), f = '';
+    for (var _fi = 0; _fi < _fParts.length; _fi++) {
+      if (_fi % 2 === 0) f += _fParts[_fi].replace(/\$(?=[A-Z]|\d)/gi, '');
+      else f += '"' + _fParts[_fi] + '"';
+    }
 
     // SPARK — returns a marker for rendering
     if (f.match(/^SPARK\(/)) return '$$SPARK$$' + f;
