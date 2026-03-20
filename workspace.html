@@ -447,20 +447,7 @@ body.light .fun-btn { background: var(--accent); }
   font-size: .52rem; color: var(--accent2); font-weight: 600; margin-left: auto;
 }
 /* Toolbar tab buttons for output switching */
-.simp-toolbar .simp-tb-tabs {
-  display: flex; align-items: center; gap: 0; margin-left: 8px;
-}
-.simp-toolbar .simp-tb-tab {
-  padding: 3px 10px; font-size: .58rem; border: none; background: none;
-  color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent;
-  transition: all .15s; white-space: nowrap;
-}
-.simp-toolbar .simp-tb-tab.active {
-  color: var(--accent2); border-bottom-color: var(--accent); font-weight: 600;
-}
-.simp-toolbar .simp-tb-tab:hover { color: var(--text); }
-
-/* ── Bottom section: Chat output + exhibits full width ── */
+/* ── Bottom section: Chat output (full width) ── */
 .workspace.simplified-mode > #simpOutput {
   display: flex !important;
   grid-column: 1 / -1 !important;
@@ -1978,7 +1965,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     grid-column: unset !important; grid-row: unset !important;
     padding: 10px 8px 4px !important;
   }
-  .workspace.simplified-mode #simpToolbar .simp-tb-tabs { display: none !important; }
   .workspace.simplified-mode > #simpOutput {
     display: flex !important;
     flex: 1 !important;
@@ -3216,30 +3202,13 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
       <span class="simp-tb-label">Model</span>
       <!-- Model + persona selects cloned here by JS -->
     </div>
-    <div class="simp-tb-sep"></div>
-    <div class="simp-tb-group" id="simpTbOutput">
-      <span class="simp-tb-label">Output</span>
-      <!-- Output checkboxes cloned here by JS -->
-    </div>
-    <div class="simp-tb-sep"></div>
-    <div class="simp-tb-tabs" id="simpTbTabs">
-      <button class="simp-tb-tab active" data-simp-out="simpOutChat">Chat</button>
-      <button class="simp-tb-tab" data-simp-out="simpOutSheet">Sheet</button>
-      <button class="simp-tb-tab" data-simp-out="simpOutNotepad">Notepad</button>
-      <button class="simp-tb-tab" data-simp-out="simpOutWhiteboard">Whiteboard</button>
-      <button class="simp-tb-tab" data-simp-out="simpOutSports">Sports</button>
-    </div>
     <span class="simp-tb-cost" id="simpTbCost">$0.00</span>
   </div>
 
-  <!-- ═══ SIMPLIFIED MODE: OUTPUT (full-width bottom section) ═══ -->
+  <!-- ═══ SIMPLIFIED MODE: OUTPUT (full-width bottom section — chat only) ═══ -->
   <div id="simpOutput" class="simp-output-container">
     <div class="simp-output-wrap" id="simpOutputWrap">
       <div class="simp-out-panel active" id="simpOutChat"></div>
-      <div class="simp-out-panel" id="simpOutSheet"></div>
-      <div class="simp-out-panel" id="simpOutNotepad"></div>
-      <div class="simp-out-panel" id="simpOutWhiteboard"></div>
-      <div class="simp-out-panel" id="simpOutSports"></div>
     </div>
   </div>
 
@@ -3889,26 +3858,8 @@ function applyWorkspaceMode() {
       chatOut.appendChild(aiMsgs);
     }
 
-    // --- Move pane bodies into output panels ---
-    _mirrorPaneToSimp('q-sheet', 'simpOutSheet');
-    _mirrorPaneToSimp('q-notepad', 'simpOutNotepad');
-    _mirrorPaneToSimp('q-whiteboard', 'simpOutWhiteboard');
-    _mirrorPaneToSimp('q-news', 'simpOutSports');
-
-    // --- Populate toolbar controls (clone references, not DOM moves) ---
+    // --- Populate toolbar controls (clone model/persona selects) ---
     _setupSimpToolbar();
-
-    // --- Wire toolbar tab buttons ---
-    document.querySelectorAll('[data-simp-out]').forEach(btn => {
-      btn.onclick = () => {
-        document.querySelectorAll('[data-simp-out]').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.simp-out-panel').forEach(c => c.classList.remove('active'));
-        btn.classList.add('active');
-        const target = document.getElementById(btn.dataset.simpOut);
-        if (target) target.classList.add('active');
-        setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); if (typeof resizeCM === 'function') resizeCM(); }, 50);
-      };
-    });
 
     // Sync cost badge
     _syncSimpCost();
@@ -3934,12 +3885,6 @@ function applyWorkspaceMode() {
       if (chatOut) delete chatOut.dataset.filled;
     }
 
-    // --- Restore pane bodies ---
-    _restorePaneFromSimp('q-sheet', 'simpOutSheet');
-    _restorePaneFromSimp('q-notepad', 'simpOutNotepad');
-    _restorePaneFromSimp('q-whiteboard', 'simpOutWhiteboard');
-    _restorePaneFromSimp('q-news', 'simpOutSports');
-
     // --- Teardown toolbar clones ---
     _teardownSimpToolbar();
 
@@ -3949,8 +3894,7 @@ function applyWorkspaceMode() {
 
 function _setupSimpToolbar() {
   const ctrlGroup = document.getElementById('simpTbControls');
-  const outGroup = document.getElementById('simpTbOutput');
-  if (!ctrlGroup || !outGroup || ctrlGroup.dataset.filled) return;
+  if (!ctrlGroup || ctrlGroup.dataset.filled) return;
   ctrlGroup.dataset.filled = '1';
 
   // Clone model select
@@ -3982,38 +3926,13 @@ function _setupSimpToolbar() {
     lbl.appendChild(document.createTextNode('Deep'));
     ctrlGroup.appendChild(lbl);
   }
-
-  // Output checkboxes
-  const outIds = [
-    { id: 'aiOutChat', label: 'Chat' },
-    { id: 'aiOutSheet', label: 'Sheet' },
-    { id: 'aiOutNote', label: 'Note' },
-    { id: 'aiOutWb', label: 'WB' }
-  ];
-  outIds.forEach(o => {
-    const orig = document.getElementById(o.id);
-    if (!orig) return;
-    const lbl = document.createElement('label');
-    const cb = document.createElement('input');
-    cb.type = 'checkbox'; cb.checked = orig.checked;
-    cb.style.cssText = 'width:11px;height:11px;accent-color:var(--accent);';
-    cb.onchange = () => { orig.checked = cb.checked; orig.dispatchEvent(new Event('change')); };
-    lbl.appendChild(cb);
-    lbl.appendChild(document.createTextNode(o.label));
-    outGroup.appendChild(lbl);
-  });
 }
 
 function _teardownSimpToolbar() {
   const ctrlGroup = document.getElementById('simpTbControls');
-  const outGroup = document.getElementById('simpTbOutput');
   if (ctrlGroup) {
-    // Remove cloned elements (keep the label span)
     while (ctrlGroup.children.length > 1) ctrlGroup.removeChild(ctrlGroup.lastChild);
     delete ctrlGroup.dataset.filled;
-  }
-  if (outGroup) {
-    while (outGroup.children.length > 1) outGroup.removeChild(outGroup.lastChild);
   }
 }
 
@@ -21077,16 +20996,10 @@ async function sendAgentMessage() {
             if (!m) return;
             const card = document.createElement('button');
             card.className = 'simp-exhibit';
-            card.innerHTML = '<span class="simp-exhibit-icon">' + m.icon + '</span><span class="simp-exhibit-name">' + m.label + '</span><span class="simp-exhibit-dl">View</span>';
+            card.innerHTML = '<span class="simp-exhibit-icon">' + m.icon + '</span><span class="simp-exhibit-name">' + m.label + '</span><span class="simp-exhibit-dl">View in Suite</span>';
             card.onclick = function() {
-              // Switch to that output tab
-              document.querySelectorAll('[data-simp-out]').forEach(function(b) { b.classList.remove('active'); });
-              document.querySelectorAll('.simp-out-panel').forEach(function(c) { c.classList.remove('active'); });
-              var tabBtn = document.querySelector('[data-simp-out="' + m.tab + '"]');
-              var panel = document.getElementById(m.tab);
-              if (tabBtn) tabBtn.classList.add('active');
-              if (panel) panel.classList.add('active');
-              setTimeout(function() { if (typeof resizeWB === 'function') resizeWB(); }, 50);
+              // Switch to suite mode to view the pane
+              if (typeof selectWorkspaceMode === 'function') selectWorkspaceMode('suite');
             };
             exhibitRow.appendChild(card);
           });
