@@ -235,14 +235,15 @@ body.light .fun-btn { background: var(--accent); }
 .workspace.simplified-mode {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
-  grid-template-rows: 1fr 3fr !important;
+  grid-template-rows: auto auto 1fr !important;
   gap: 0 !important;
 }
 .workspace.simplified-mode .divider-h,
 .workspace.simplified-mode .divider-v { display: none !important; }
 /* Hide all non-claude panes */
 .workspace.simplified-mode .pane:not(#q-claude) { display: none !important; }
-/* Claude pane spans full top row as a 2-col sub-grid: bot left, chat right */
+
+/* ── Top row: Robot (left 1/4) + Chat Input (right 1/4) ── */
 .workspace.simplified-mode #q-claude {
   display: grid !important;
   grid-column: 1 / -1 !important;
@@ -250,79 +251,186 @@ body.light .fun-btn { background: var(--accent); }
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr;
   overflow: hidden;
+  min-height: 160px;
+  max-height: 25vh;
 }
-/* Hide pane header in simplified */
 .workspace.simplified-mode #q-claude > .p-head { display: none !important; }
-/* Hide full actions bar — we show a compact version via JS */
 .workspace.simplified-mode #q-claude > .ai-actions-bar { display: none !important; }
-/* The p-body becomes the chat column (right) */
-.workspace.simplified-mode #q-claude > .p-body {
-  grid-column: 2 !important; grid-row: 1 !important;
-  display: flex !important; flex-direction: column !important;
-  border-left: 1px solid rgba(128,128,128,.12);
-  overflow: hidden;
-}
-/* The claude-content-row becomes a single column: just messages */
-.workspace.simplified-mode .claude-content-row {
-  flex-direction: column !important; flex: 1; min-height: 0;
-}
-.workspace.simplified-mode .claude-midbar { display: none !important; }
-/* Robot wrapper becomes the bot column (left) — pulled out of content row via order */
-.workspace.simplified-mode .robot-scene-wrapper {
-  position: absolute !important; /* will be repositioned by the simp-bot-area div */
-  display: none !important; /* hidden from within content-row; shown via #simpBotArea */
-}
-/* Simplified bot area: occupies left column of claude sub-grid */
+
+/* Bot area (left column of top row) */
 .workspace.simplified-mode #simpBotArea {
   display: flex !important;
   grid-column: 1 !important; grid-row: 1 !important;
   flex-direction: column; overflow: hidden;
   background: var(--panel);
+  border-right: 1px solid rgba(128,128,128,.08);
 }
 .workspace.simplified-mode #simpBotArea .robot-scene-wrapper {
   position: relative !important; display: flex !important;
   flex: 1; width: 100% !important; border: none !important;
   max-height: none !important;
 }
-.workspace.simplified-mode #simpBotArea .robot-scene {
-  height: 100% !important;
-}
+.workspace.simplified-mode #simpBotArea .robot-scene { height: 100% !important; }
 .workspace.simplified-mode #simpBotArea .robot-controls {
   border-top: 1px solid rgba(128,128,128,.1); padding: 3px 6px; flex-shrink: 0;
 }
-/* Simplified output area — full width bottom 3/4 */
-.workspace.simplified-mode #simplifiedOutput {
+
+/* Chat input area (right column of top row) — just input, no messages */
+.workspace.simplified-mode #q-claude > .p-body {
+  grid-column: 2 !important; grid-row: 1 !important;
+  display: flex !important; flex-direction: column !important;
+  overflow: hidden; justify-content: flex-end;
+  border-left: 1px solid rgba(128,128,128,.08);
+  background: var(--panel);
+}
+/* Hide messages inside p-body — they'll be shown in output section */
+.workspace.simplified-mode .claude-content-row { display: none !important; }
+.workspace.simplified-mode .claude-midbar { display: none !important; }
+/* Hide extra toolbars from input area */
+.workspace.simplified-mode #q-claude #aiOutputOpts { display: none !important; }
+.workspace.simplified-mode #q-claude #contextDrawer { display: none !important; }
+.workspace.simplified-mode #q-claude #personaIndicator { display: none !important; }
+.workspace.simplified-mode #q-claude .ai-input-row {
+  border: none !important; background: transparent; padding: 8px 12px;
+}
+.workspace.simplified-mode #q-claude #aiInput {
+  font-size: .82rem; color: var(--text) !important;
+  border-radius: 8px; border: 1px solid rgba(128,128,128,.15);
+  background: var(--panel-inset); padding: 10px 12px;
+}
+.workspace.simplified-mode #q-claude #aiInputResizeHandle { display: none !important; }
+/* Hide text zoom bar, context bar, cost/audit overlays in simplified input */
+.workspace.simplified-mode #q-claude > .p-body > div:has(#aiMsgsZoomOut) { display: none !important; }
+.workspace.simplified-mode #q-claude #aiCostPanel { display: none !important; }
+.workspace.simplified-mode #q-claude #aiPricingCalc { display: none !important; }
+.workspace.simplified-mode #q-claude #aiAuditPanel { display: none !important; }
+.workspace.simplified-mode #q-claude #aiUsageDash { display: none !important; }
+.workspace.simplified-mode #q-claude #contextBadge { display: none !important; }
+
+/* Robot wrapper: hide from content-row, only shown in simpBotArea */
+.workspace.simplified-mode .robot-scene-wrapper {
+  position: absolute !important; display: none !important;
+}
+
+/* ── Toolbar (between top and bottom) ── */
+.workspace.simplified-mode #simpToolbar {
   display: flex !important;
   grid-column: 1 / -1 !important;
   grid-row: 2 !important;
-  background: var(--panel);
-  flex-direction: column;
-  overflow: hidden;
-  border-top: 1px solid rgba(128,128,128,.12);
 }
-.simplified-output-tabs {
-  display: flex; align-items: center; gap: 0; background: transparent;
-  border-bottom: 1px solid rgba(128,128,128,.1); flex-shrink: 0; padding: 0 4px;
+.simp-toolbar {
+  display: none; /* shown via simplified-mode rule above */
+  align-items: center; gap: 8px; padding: 4px 14px;
+  background: linear-gradient(180deg, rgba(30,32,42,.95), rgba(22,24,32,.98));
+  border-top: 1px solid rgba(128,128,128,.08);
+  border-bottom: 1px solid rgba(128,128,128,.08);
+  flex-wrap: wrap; flex-shrink: 0;
+  backdrop-filter: blur(8px);
 }
-.simplified-output-tabs button {
-  padding: 6px 14px; font-size: .7rem; border: none; background: none;
+.simp-toolbar .simp-tb-group {
+  display: flex; align-items: center; gap: 5px;
+}
+.simp-toolbar .simp-tb-sep {
+  width: 1px; height: 16px; background: rgba(128,128,128,.15); margin: 0 4px;
+}
+.simp-toolbar select {
+  font-size: .62rem; padding: 3px 6px; border-radius: 5px;
+  border: 1px solid rgba(128,128,128,.12); background: rgba(255,255,255,.04);
+  color: var(--text); cursor: pointer; transition: border-color .15s;
+}
+.simp-toolbar select:hover { border-color: var(--accent); }
+.simp-toolbar label {
+  font-size: .56rem; color: var(--text-dim); display: flex;
+  align-items: center; gap: 3px; cursor: pointer; white-space: nowrap;
+}
+.simp-toolbar label input[type="checkbox"] {
+  width: 11px; height: 11px; accent-color: var(--accent);
+}
+.simp-toolbar .simp-tb-label {
+  font-size: .5rem; color: var(--text-dim); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.simp-toolbar .simp-tb-cost {
+  font-size: .52rem; color: var(--accent2); font-weight: 600; margin-left: auto;
+}
+/* Toolbar tab buttons for output switching */
+.simp-toolbar .simp-tb-tabs {
+  display: flex; align-items: center; gap: 0; margin-left: 8px;
+}
+.simp-toolbar .simp-tb-tab {
+  padding: 3px 10px; font-size: .58rem; border: none; background: none;
   color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent;
-  transition: all .15s;
+  transition: all .15s; white-space: nowrap;
 }
-.simplified-output-tabs button.active {
+.simp-toolbar .simp-tb-tab.active {
   color: var(--accent2); border-bottom-color: var(--accent); font-weight: 600;
 }
-.simplified-output-tabs button:hover { color: var(--text); }
-.simplified-output-body {
-  flex: 1; overflow: hidden; position: relative;
+.simp-toolbar .simp-tb-tab:hover { color: var(--text); }
+
+/* ── Bottom section: Chat output + exhibits full width ── */
+.workspace.simplified-mode #simpOutput {
+  display: flex !important;
+  grid-column: 1 / -1 !important;
+  grid-row: 3 !important;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--panel);
 }
-.simplified-output-body > .simp-tab-content {
+.simp-output-wrap {
+  flex: 1; overflow: hidden; position: relative; display: none;
+}
+.workspace.simplified-mode .simp-output-wrap {
+  display: flex !important; flex-direction: column;
+}
+.simp-output-wrap > .simp-out-panel {
   display: none; position: absolute; inset: 0; overflow: auto;
+  flex-direction: column;
 }
-.simplified-output-body > .simp-tab-content.active {
-  display: flex; flex-direction: column;
+.simp-output-wrap > .simp-out-panel.active {
+  display: flex;
 }
-/* Simplified header: hide media/workspace/layout buttons, clean up */
+/* Chat output panel styling */
+.simp-output-wrap #simpOutChat {
+  padding: 0; gap: 0;
+}
+.simp-output-wrap #simpOutChat .ai-msgs {
+  flex: 1; overflow-y: auto; padding: 14px 20px; display: flex;
+  flex-direction: column; gap: 10px; min-height: 0;
+}
+.simp-output-wrap #simpOutChat .ai-msg {
+  font-size: .78rem !important; color: var(--text) !important;
+  max-width: 100%; line-height: 1.55;
+}
+.simp-output-wrap #simpOutChat .ai-msg.user {
+  font-weight: 500; color: var(--accent2) !important;
+  padding: 10px 14px; border-radius: 10px;
+  background: rgba(59,130,246,.06); border: 1px solid rgba(59,130,246,.08);
+  align-self: flex-end; max-width: 75%;
+}
+.simp-output-wrap #simpOutChat .ai-msg.assistant {
+  padding: 10px 0;
+}
+/* Exhibit file attachments in chat */
+.simp-exhibit {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  border: 1px solid rgba(128,128,128,.15); border-radius: 8px;
+  background: rgba(255,255,255,.03); cursor: pointer; margin: 4px 4px 4px 0;
+  transition: all .15s; font-size: .65rem; color: var(--text-dim);
+}
+.simp-exhibit:hover {
+  border-color: var(--accent); background: rgba(59,130,246,.06); color: var(--text);
+}
+.simp-exhibit .simp-exhibit-icon { font-size: .8rem; }
+.simp-exhibit .simp-exhibit-name { font-weight: 500; }
+.simp-exhibit .simp-exhibit-dl {
+  font-size: .5rem; color: var(--accent); text-transform: uppercase;
+  letter-spacing: .5px; font-weight: 600;
+}
+
+/* Hide old simplified output area */
+.workspace.simplified-mode #simplifiedOutput { display: none !important; }
+
+/* Simplified header */
 .header.simplified-header .fun-btn-wrap,
 .header.simplified-header #funPlayBtn,
 .header.simplified-header #funEditBtn,
@@ -333,22 +441,6 @@ body.light .fun-btn { background: var(--accent); }
 .header.simplified-header .header-spacer { display: none !important; }
 .header.simplified-header {
   border-bottom: none; box-shadow: 0 1px 4px rgba(0,0,0,.1);
-}
-/* Softer UI in simplified mode */
-.workspace.simplified-mode #q-claude .ai-input-row {
-  border-top: 1px solid rgba(128,128,128,.08); background: transparent;
-  border-bottom: none;
-}
-.workspace.simplified-mode #q-claude #aiOutputOpts {
-  border-bottom: none; background: transparent; padding: 2px 8px;
-}
-/* Stronger font contrast in simplified mode */
-.workspace.simplified-mode .ai-msg {
-  color: var(--text) !important; font-size: .72rem !important;
-}
-.workspace.simplified-mode .ai-msg.user { font-weight: 500; }
-.workspace.simplified-mode #aiInput {
-  color: var(--text) !important; font-size: .78rem;
 }
 /* Mode toggle in header */
 .mode-toggle-btn {
@@ -1755,24 +1847,28 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     display: flex !important;
     flex-direction: column !important;
     flex: 0 0 auto !important;
-    max-height: 35% !important;
+    max-height: 20% !important;
     grid-column: unset !important; grid-row: unset !important;
     grid-template-columns: unset !important; grid-template-rows: unset !important;
+    min-height: unset !important;
   }
   .workspace.simplified-mode #q-claude > .p-head { display: none !important; }
   .workspace.simplified-mode #q-claude > .ai-actions-bar { display: none !important; }
-  .workspace.simplified-mode #simpBotArea {
-    display: none !important; /* hide bot on mobile to save space */
-  }
+  .workspace.simplified-mode #simpBotArea { display: none !important; }
   .workspace.simplified-mode #q-claude > .p-body {
     grid-column: unset !important; grid-row: unset !important;
     border-left: none !important;
   }
-  .workspace.simplified-mode #simplifiedOutput {
-    display: flex !important;
+  .workspace.simplified-mode #simpToolbar {
+    flex: 0 0 auto !important;
+    grid-column: unset !important; grid-row: unset !important;
+  }
+  .workspace.simplified-mode #simpToolbar .simp-tb-tabs { display: none !important; }
+  .workspace.simplified-mode #simpOutput {
     flex: 1 !important;
     grid-column: unset !important; grid-row: unset !important;
   }
+  .workspace.simplified-mode #simplifiedOutput { display: none !important; }
   .workspace.simplified-mode .mob-control-bar { display: none !important; }
   .workspace.simplified-mode .mob-split-handle { display: none !important; }
 
@@ -3005,21 +3101,41 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
   </div>
 
-  <!-- ═══ SIMPLIFIED MODE OUTPUT AREA (bottom) ═══ -->
-  <div id="simplifiedOutput" style="display:none;">
-    <div class="simplified-output-tabs" id="simpTabs">
-      <button class="active" data-simp-tab="simp-sheet">Sheet</button>
-      <button data-simp-tab="simp-notepad">Notepad</button>
-      <button data-simp-tab="simp-whiteboard">Whiteboard</button>
-      <button data-simp-tab="simp-sports">Sports</button>
+  <!-- ═══ SIMPLIFIED MODE: TOOLBAR (between top and bottom) ═══ -->
+  <div id="simpToolbar" class="simp-toolbar" style="display:none;">
+    <div class="simp-tb-group" id="simpTbControls">
+      <span class="simp-tb-label">Model</span>
+      <!-- Model + persona selects cloned here by JS -->
     </div>
-    <div class="simplified-output-body" id="simpBody">
-      <div class="simp-tab-content active" id="simp-sheet"></div>
-      <div class="simp-tab-content" id="simp-notepad"></div>
-      <div class="simp-tab-content" id="simp-whiteboard"></div>
-      <div class="simp-tab-content" id="simp-sports"></div>
+    <div class="simp-tb-sep"></div>
+    <div class="simp-tb-group" id="simpTbOutput">
+      <span class="simp-tb-label">Output</span>
+      <!-- Output checkboxes cloned here by JS -->
+    </div>
+    <div class="simp-tb-sep"></div>
+    <div class="simp-tb-tabs" id="simpTbTabs">
+      <button class="simp-tb-tab active" data-simp-out="simpOutChat">Chat</button>
+      <button class="simp-tb-tab" data-simp-out="simpOutSheet">Sheet</button>
+      <button class="simp-tb-tab" data-simp-out="simpOutNotepad">Notepad</button>
+      <button class="simp-tb-tab" data-simp-out="simpOutWhiteboard">Whiteboard</button>
+      <button class="simp-tb-tab" data-simp-out="simpOutSports">Sports</button>
+    </div>
+    <span class="simp-tb-cost" id="simpTbCost">$0.00</span>
+  </div>
+
+  <!-- ═══ SIMPLIFIED MODE: OUTPUT (full-width bottom section) ═══ -->
+  <div id="simpOutput" style="display:none;">
+    <div class="simp-output-wrap" id="simpOutputWrap">
+      <div class="simp-out-panel active" id="simpOutChat"></div>
+      <div class="simp-out-panel" id="simpOutSheet"></div>
+      <div class="simp-out-panel" id="simpOutNotepad"></div>
+      <div class="simp-out-panel" id="simpOutWhiteboard"></div>
+      <div class="simp-out-panel" id="simpOutSports"></div>
     </div>
   </div>
+
+  <!-- Legacy simplified output (hidden, kept for compat) -->
+  <div id="simplifiedOutput" style="display:none;"></div>
 </div>
 
 <!-- Mobile split handle (inserted between panes by JS) -->
@@ -3612,40 +3728,53 @@ function applyWorkspaceMode() {
     if (header) header.classList.add('simplified-header');
     if (label) label.textContent = 'Simplified';
 
-    // Create simpBotArea inside q-claude if not exists — holds the robot scene
+    // --- Robot scene into simpBotArea (left of top row) ---
     let botArea = document.getElementById('simpBotArea');
     if (!botArea) {
       botArea = document.createElement('div');
       botArea.id = 'simpBotArea';
       claude.insertBefore(botArea, claude.firstChild);
-      // Move robot wrapper into bot area
       const robotWrapper = document.getElementById('robotSceneWrapper');
       if (robotWrapper) botArea.appendChild(robotWrapper);
     }
 
-    // Move pane bodies into output tabs
-    _mirrorPaneToSimp('q-sheet', 'simp-sheet');
-    _mirrorPaneToSimp('q-notepad', 'simp-notepad');
-    _mirrorPaneToSimp('q-whiteboard', 'simp-whiteboard');
-    _mirrorPaneToSimp('q-news', 'simp-sports');
+    // --- Move chat messages (aiMsgs) into the output chat panel ---
+    const aiMsgs = document.getElementById('aiMsgs');
+    const chatOut = document.getElementById('simpOutChat');
+    if (aiMsgs && chatOut && !chatOut.dataset.filled) {
+      chatOut.dataset.filled = '1';
+      chatOut.appendChild(aiMsgs);
+    }
 
-    // Wire simplified tab buttons
-    document.querySelectorAll('[data-simp-tab]').forEach(btn => {
+    // --- Move pane bodies into output panels ---
+    _mirrorPaneToSimp('q-sheet', 'simpOutSheet');
+    _mirrorPaneToSimp('q-notepad', 'simpOutNotepad');
+    _mirrorPaneToSimp('q-whiteboard', 'simpOutWhiteboard');
+    _mirrorPaneToSimp('q-news', 'simpOutSports');
+
+    // --- Populate toolbar controls (clone references, not DOM moves) ---
+    _setupSimpToolbar();
+
+    // --- Wire toolbar tab buttons ---
+    document.querySelectorAll('[data-simp-out]').forEach(btn => {
       btn.onclick = () => {
-        document.querySelectorAll('[data-simp-tab]').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.simp-tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('[data-simp-out]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.simp-out-panel').forEach(c => c.classList.remove('active'));
         btn.classList.add('active');
-        const target = document.getElementById(btn.dataset.simpTab);
+        const target = document.getElementById(btn.dataset.simpOut);
         if (target) target.classList.add('active');
         setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); if (typeof resizeCM === 'function') resizeCM(); }, 50);
       };
     });
+
+    // Sync cost badge
+    _syncSimpCost();
   } else {
     ws.classList.remove('simplified-mode');
     if (header) header.classList.remove('simplified-header');
     if (label) label.textContent = 'Suite';
 
-    // Move robot wrapper back into claude-content-row
+    // --- Move robot back ---
     const botArea = document.getElementById('simpBotArea');
     const contentRow = document.getElementById('claudeContentRow');
     if (botArea && contentRow) {
@@ -3654,14 +3783,101 @@ function applyWorkspaceMode() {
       botArea.remove();
     }
 
-    // Restore pane bodies
-    _restorePaneFromSimp('q-sheet', 'simp-sheet');
-    _restorePaneFromSimp('q-notepad', 'simp-notepad');
-    _restorePaneFromSimp('q-whiteboard', 'simp-whiteboard');
-    _restorePaneFromSimp('q-news', 'simp-sports');
+    // --- Move messages back into claude-content-row ---
+    const aiMsgs = document.getElementById('aiMsgs');
+    const chatOut = document.getElementById('simpOutChat');
+    if (aiMsgs && contentRow) {
+      contentRow.insertBefore(aiMsgs, contentRow.firstChild);
+      if (chatOut) delete chatOut.dataset.filled;
+    }
+
+    // --- Restore pane bodies ---
+    _restorePaneFromSimp('q-sheet', 'simpOutSheet');
+    _restorePaneFromSimp('q-notepad', 'simpOutNotepad');
+    _restorePaneFromSimp('q-whiteboard', 'simpOutWhiteboard');
+    _restorePaneFromSimp('q-news', 'simpOutSports');
+
+    // --- Teardown toolbar clones ---
+    _teardownSimpToolbar();
 
     setTimeout(() => { if (typeof resizeWB === 'function') resizeWB(); if (typeof resizeCM === 'function') resizeCM(); }, 50);
   }
+}
+
+function _setupSimpToolbar() {
+  const ctrlGroup = document.getElementById('simpTbControls');
+  const outGroup = document.getElementById('simpTbOutput');
+  if (!ctrlGroup || !outGroup || ctrlGroup.dataset.filled) return;
+  ctrlGroup.dataset.filled = '1';
+
+  // Clone model select
+  const aiModel = document.getElementById('aiModel');
+  if (aiModel) {
+    const clone = aiModel.cloneNode(true);
+    clone.id = 'simpAiModel';
+    clone.onchange = () => { aiModel.value = clone.value; aiModel.dispatchEvent(new Event('change')); };
+    ctrlGroup.appendChild(clone);
+  }
+  // Clone persona select
+  const persona = document.getElementById('personaSelect');
+  if (persona) {
+    const clone = persona.cloneNode(true);
+    clone.id = 'simpPersona';
+    clone.onchange = () => { persona.value = clone.value; persona.dispatchEvent(new Event('change')); };
+    ctrlGroup.appendChild(clone);
+  }
+  // Deep toggle
+  const deep = document.getElementById('aiDeepToggle');
+  if (deep) {
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:.56rem;color:var(--text-dim);display:flex;align-items:center;gap:3px;cursor:pointer;';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = deep.checked; cb.id = 'simpDeepToggle';
+    cb.style.cssText = 'width:11px;height:11px;accent-color:var(--accent);';
+    cb.onchange = () => { deep.checked = cb.checked; deep.dispatchEvent(new Event('change')); };
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode('Deep'));
+    ctrlGroup.appendChild(lbl);
+  }
+
+  // Output checkboxes
+  const outIds = [
+    { id: 'aiOutChat', label: 'Chat' },
+    { id: 'aiOutSheet', label: 'Sheet' },
+    { id: 'aiOutNote', label: 'Note' },
+    { id: 'aiOutWb', label: 'WB' }
+  ];
+  outIds.forEach(o => {
+    const orig = document.getElementById(o.id);
+    if (!orig) return;
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = orig.checked;
+    cb.style.cssText = 'width:11px;height:11px;accent-color:var(--accent);';
+    cb.onchange = () => { orig.checked = cb.checked; orig.dispatchEvent(new Event('change')); };
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(o.label));
+    outGroup.appendChild(lbl);
+  });
+}
+
+function _teardownSimpToolbar() {
+  const ctrlGroup = document.getElementById('simpTbControls');
+  const outGroup = document.getElementById('simpTbOutput');
+  if (ctrlGroup) {
+    // Remove cloned elements (keep the label span)
+    while (ctrlGroup.children.length > 1) ctrlGroup.removeChild(ctrlGroup.lastChild);
+    delete ctrlGroup.dataset.filled;
+  }
+  if (outGroup) {
+    while (outGroup.children.length > 1) outGroup.removeChild(outGroup.lastChild);
+  }
+}
+
+function _syncSimpCost() {
+  const src = document.getElementById('aiCostBadge');
+  const dst = document.getElementById('simpTbCost');
+  if (src && dst) dst.textContent = src.textContent;
 }
 
 function _mirrorPaneToSimp(paneId, simpId) {
@@ -15760,6 +15976,7 @@ function updateCostPanel() {
   // Item 18: Update persistent cost badge
   const badge = document.getElementById('aiCostBadge');
   if (badge) badge.textContent = '$' + cost.toFixed(2);
+  if (typeof _syncSimpCost === 'function') _syncSimpCost();
 }
 
 // Close all admin action panels (mutually exclusive)
@@ -20661,6 +20878,43 @@ async function sendAgentMessage() {
       vDiv.innerHTML = '<span style="font-weight:700;">\u2705 Deliverables placed:</span><br/>' +
         deliverables.map(function(d) { return '\u2022 ' + d; }).join('<br/>');
       $('#aiMsgs').appendChild(vDiv);
+      // In simplified mode, add exhibit file cards for each deliverable type
+      if (wsMode === 'simplified') {
+        const exhibitTypes = new Set();
+        inquiryActions.forEach(function(a) {
+          if (['write_cells','create_table','clear_range','create_template'].includes(a.tool)) exhibitTypes.add('sheet');
+          else if (['write_note'].includes(a.tool)) exhibitTypes.add('notepad');
+          else if (['write_to_draw_pane','add_text_overlay','draw_shape','draw_chart_on_whiteboard','draw_summary_card','draw_table','annotate_whiteboard'].includes(a.tool)) exhibitTypes.add('whiteboard');
+        });
+        if (exhibitTypes.size) {
+          const exhibitRow = document.createElement('div');
+          exhibitRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;';
+          const exhibitMeta = {
+            sheet:      { icon: '\uD83D\uDCCA', label: 'Spreadsheet', tab: 'simpOutSheet' },
+            notepad:    { icon: '\uD83D\uDCDD', label: 'Notepad', tab: 'simpOutNotepad' },
+            whiteboard: { icon: '\uD83C\uDFA8', label: 'Whiteboard', tab: 'simpOutWhiteboard' }
+          };
+          exhibitTypes.forEach(function(type) {
+            const m = exhibitMeta[type];
+            if (!m) return;
+            const card = document.createElement('button');
+            card.className = 'simp-exhibit';
+            card.innerHTML = '<span class="simp-exhibit-icon">' + m.icon + '</span><span class="simp-exhibit-name">' + m.label + '</span><span class="simp-exhibit-dl">View</span>';
+            card.onclick = function() {
+              // Switch to that output tab
+              document.querySelectorAll('[data-simp-out]').forEach(function(b) { b.classList.remove('active'); });
+              document.querySelectorAll('.simp-out-panel').forEach(function(c) { c.classList.remove('active'); });
+              var tabBtn = document.querySelector('[data-simp-out="' + m.tab + '"]');
+              var panel = document.getElementById(m.tab);
+              if (tabBtn) tabBtn.classList.add('active');
+              if (panel) panel.classList.add('active');
+              setTimeout(function() { if (typeof resizeWB === 'function') resizeWB(); }, 50);
+            };
+            exhibitRow.appendChild(card);
+          });
+          $('#aiMsgs').appendChild(exhibitRow);
+        }
+      }
       $('#aiMsgs').scrollTop = $('#aiMsgs').scrollHeight;
     } else if (readOnly.length && readOnly.length === inquiryActions.length) {
       // Only read tools were used — no output was written anywhere
