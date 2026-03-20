@@ -782,21 +782,24 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.ss-list-cell .ci { padding-right: 18px; }
 .ss-dd-arrow {
   position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
-  font-size: .55rem; color: var(--text-dim); cursor: pointer; z-index: 2;
+  font-size: .55rem; color: #999; cursor: pointer; z-index: 2;
   padding: 2px; line-height: 1; user-select: none;
 }
-.ss-dd-arrow:hover { color: var(--accent); }
+.ss-dd-arrow:hover { color: #4a9eff; }
 .ss-dropdown {
-  position: absolute; z-index: 100; min-width: 100%; max-height: 200px;
-  overflow-y: auto; background: var(--bg); border: 1px solid var(--border);
-  border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.3);
-  font-size: .72rem; font-family: monospace;
+  position: fixed; z-index: 9999; min-width: 80px; max-height: 200px;
+  overflow-y: auto; background: var(--panel, #1e1e2e); border: 1px solid var(--border, #444);
+  border-radius: 4px; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  font-size: .75rem; font-family: monospace;
 }
 .ss-dropdown .ss-dd-item {
-  padding: 4px 8px; cursor: pointer; color: var(--text); white-space: nowrap;
+  padding: 6px 10px; cursor: pointer; color: var(--text, #e0e0e0); white-space: nowrap;
 }
-.ss-dropdown .ss-dd-item:hover, .ss-dropdown .ss-dd-item.selected {
-  background: var(--accent); color: #fff;
+.ss-dropdown .ss-dd-item:hover {
+  background: #3b82f6; color: #fff;
+}
+.ss-dropdown .ss-dd-item.selected {
+  background: rgba(59,130,246,.25); color: var(--text, #e0e0e0); font-weight: 600;
 }
 .ss-table td:hover { background: var(--panel-inset); }
 .ss-table td .ci:focus { background: rgba(255,255,255,.05); }
@@ -8092,6 +8095,8 @@ function ssRender() {
 
   // ── Data validation dropdown for list-type cells ──
   let ssDropdownOpen = false;
+  let _ddCloseHandler = null;
+
   function ssShowDropdown(r, c) {
     ssCloseDropdown();
     const key = r + ',' + c;
@@ -8104,16 +8109,17 @@ function ssRender() {
     dd.className = 'ss-dropdown';
     dd.id = 'ssActiveDropdown';
     dd.style.left = rect.left + 'px';
-    dd.style.top = rect.bottom + 'px';
+    dd.style.top = (rect.bottom + 1) + 'px';
     dd.style.minWidth = rect.width + 'px';
-    dd.style.position = 'fixed';
     const currentVal = ssD[r][c] || '';
     rule.values.forEach(v => {
       const item = document.createElement('div');
       item.className = 'ss-dd-item' + (v === currentVal ? ' selected' : '');
       item.textContent = v;
-      item.addEventListener('click', e => {
-        e.preventDefault(); e.stopPropagation();
+      // Use mousedown+preventDefault: fires before blur/focus changes, avoids click race conditions
+      item.addEventListener('mousedown', e => {
+        e.preventDefault();
+        e.stopPropagation();
         ssPushUndo();
         ssD[r][c] = v;
         LS('sheet', ssD); ssSaveCurrentPage();
@@ -8124,33 +8130,41 @@ function ssRender() {
     });
     document.body.appendChild(dd);
     ssDropdownOpen = true;
-    // Close on outside click (use click not mousedown to avoid race)
-    setTimeout(() => {
-      document.addEventListener('click', function _outsideClick(e) {
-        const activeDd = document.getElementById('ssActiveDropdown');
-        if (activeDd && activeDd.contains(e.target)) return; // click inside dropdown, let item handler deal with it
-        ssCloseDropdown();
-        document.removeEventListener('click', _outsideClick);
-      });
-    }, 0);
+
+    // Close on any mousedown outside the dropdown (deferred to next tick)
+    _ddCloseHandler = function(e) {
+      const activeDd = document.getElementById('ssActiveDropdown');
+      if (activeDd && activeDd.contains(e.target)) return;
+      ssCloseDropdown();
+    };
+    requestAnimationFrame(() => {
+      document.addEventListener('mousedown', _ddCloseHandler, true); // capture phase
+    });
   }
+
   function ssCloseDropdown() {
     ssDropdownOpen = false;
+    if (_ddCloseHandler) {
+      document.removeEventListener('mousedown', _ddCloseHandler, true);
+      _ddCloseHandler = null;
+    }
     const dd = document.getElementById('ssActiveDropdown');
     if (dd) dd.remove();
   }
 
-  // Handle dropdown arrow clicks
-  t.addEventListener('click', e => {
+  // Handle dropdown arrow clicks (mousedown to fire before other handlers)
+  t.addEventListener('mousedown', e => {
     const arrow = e.target.closest('.ss-dd-arrow');
-    if (arrow) {
-      e.preventDefault(); e.stopPropagation();
-      const r = +arrow.dataset.r, c = +arrow.dataset.c;
-      ssSel = { r1: r, c1: c, r2: r, c2: c };
-      ssRenderSelection();
-      ssShowDropdown(r, c);
-    }
-  });
+    if (!arrow) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = +arrow.dataset.r, c = +arrow.dataset.c;
+    ssSel = { r1: r, c1: c, r2: r, c2: c };
+    ssRenderSelection();
+    // Toggle: if dropdown is already open for this cell, close it
+    if (ssDropdownOpen) { ssCloseDropdown(); return; }
+    ssShowDropdown(r, c);
+  }, true); // capture phase so it fires before the table's mousedown
 
   // ── Single-click to edit: mousedown records anchor, mouseup enters edit if no drag ──
   let ssDragged = false;
@@ -8160,10 +8174,9 @@ function ssRender() {
   t.addEventListener('mousedown', e => {
     ssDragged = false;
     ssMouseDownCell = null;
-    // Don't interfere with fill handle or dropdown arrow
+    // Don't interfere with fill handle
     if (e.target.classList.contains('ss-fill-handle')) return;
-    if (e.target.closest('.ss-dd-arrow')) return;
-    // Close any open dropdown
+    // Close any open dropdown when clicking in the table (not on dropdown arrow — handled in capture phase)
     if (ssDropdownOpen) ssCloseDropdown();
     const td = e.target.closest('td[data-r]');
     if (!td) {
