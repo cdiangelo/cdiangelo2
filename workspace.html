@@ -233,44 +233,62 @@ body.light .fun-btn { background: var(--accent); }
 
 /* ═══ SIMPLIFIED MODE (Desktop) ═══ */
 .workspace.simplified-mode {
+  display: grid !important;
   grid-template-columns: 1fr 1fr !important;
   grid-template-rows: 1fr 3fr !important;
-  gap: 2px !important;
+  gap: 0 !important;
 }
 .workspace.simplified-mode .divider-h,
 .workspace.simplified-mode .divider-v { display: none !important; }
-/* Hide all panes except claude and the simplified output area */
-.workspace.simplified-mode .pane { display: none !important; grid-column: unset !important; grid-row: unset !important; }
-/* Robot scene — top left quarter */
-.workspace.simplified-mode #simpBotPane {
-  display: flex !important;
-  grid-column: 1 !important;
+/* Hide all non-claude panes */
+.workspace.simplified-mode .pane:not(#q-claude) { display: none !important; }
+/* Claude pane spans full top row as a 2-col sub-grid: bot left, chat right */
+.workspace.simplified-mode #q-claude {
+  display: grid !important;
+  grid-column: 1 / -1 !important;
   grid-row: 1 !important;
-  background: var(--panel);
-  flex-direction: column;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
   overflow: hidden;
 }
-/* Chat input — top right quarter */
-.workspace.simplified-mode #simpChatPane {
-  display: flex !important;
-  grid-column: 2 !important;
-  grid-row: 1 !important;
-  background: var(--panel);
-  flex-direction: column;
+/* Hide pane header in simplified */
+.workspace.simplified-mode #q-claude > .p-head { display: none !important; }
+/* Hide full actions bar — we show a compact version via JS */
+.workspace.simplified-mode #q-claude > .ai-actions-bar { display: none !important; }
+/* The p-body becomes the chat column (right) */
+.workspace.simplified-mode #q-claude > .p-body {
+  grid-column: 2 !important; grid-row: 1 !important;
+  display: flex !important; flex-direction: column !important;
+  border-left: 1px solid rgba(128,128,128,.12);
   overflow: hidden;
 }
-.workspace.simplified-mode #simpChatPane .ai-msgs {
-  flex: 1; overflow-y: auto; padding: 8px 10px; display: flex;
-  flex-direction: column; gap: 6px; min-height: 0;
+/* The claude-content-row becomes a single column: just messages */
+.workspace.simplified-mode .claude-content-row {
+  flex-direction: column !important; flex: 1; min-height: 0;
 }
-.workspace.simplified-mode #simpChatPane .ai-input-row {
-  padding: 6px 10px; border-top: 1px solid var(--border);
-  display: flex; gap: 6px; background: var(--panel-inset); flex-shrink: 0;
+.workspace.simplified-mode .claude-midbar { display: none !important; }
+/* Robot wrapper becomes the bot column (left) — pulled out of content row via order */
+.workspace.simplified-mode .robot-scene-wrapper {
+  position: absolute !important; /* will be repositioned by the simp-bot-area div */
+  display: none !important; /* hidden from within content-row; shown via #simpBotArea */
 }
-.workspace.simplified-mode #simpChatPane .simp-actions-row {
-  display: flex; align-items: center; gap: 4px; padding: 3px 8px;
-  background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0;
-  flex-wrap: wrap;
+/* Simplified bot area: occupies left column of claude sub-grid */
+.workspace.simplified-mode #simpBotArea {
+  display: flex !important;
+  grid-column: 1 !important; grid-row: 1 !important;
+  flex-direction: column; overflow: hidden;
+  background: var(--panel);
+}
+.workspace.simplified-mode #simpBotArea .robot-scene-wrapper {
+  position: relative !important; display: flex !important;
+  flex: 1; width: 100% !important; border: none !important;
+  max-height: none !important;
+}
+.workspace.simplified-mode #simpBotArea .robot-scene {
+  height: 100% !important;
+}
+.workspace.simplified-mode #simpBotArea .robot-controls {
+  border-top: 1px solid rgba(128,128,128,.1); padding: 3px 6px; flex-shrink: 0;
 }
 /* Simplified output area — full width bottom 3/4 */
 .workspace.simplified-mode #simplifiedOutput {
@@ -280,10 +298,11 @@ body.light .fun-btn { background: var(--accent); }
   background: var(--panel);
   flex-direction: column;
   overflow: hidden;
+  border-top: 1px solid rgba(128,128,128,.12);
 }
 .simplified-output-tabs {
-  display: flex; align-items: center; gap: 0; background: var(--bg);
-  border-bottom: 1px solid var(--border); flex-shrink: 0; padding: 0 4px;
+  display: flex; align-items: center; gap: 0; background: transparent;
+  border-bottom: 1px solid rgba(128,128,128,.1); flex-shrink: 0; padding: 0 4px;
 }
 .simplified-output-tabs button {
   padding: 6px 14px; font-size: .7rem; border: none; background: none;
@@ -315,49 +334,19 @@ body.light .fun-btn { background: var(--accent); }
 .header.simplified-header {
   border-bottom: none; box-shadow: 0 1px 4px rgba(0,0,0,.1);
 }
-/* Simplified UI: softer, fewer borders, cleaner */
-.workspace.simplified-mode #simpBotPane {
-  border: none; border-right: 1px solid rgba(128,128,128,.12);
-}
-.workspace.simplified-mode #simpBotPane .robot-scene-wrapper {
-  border: none !important; width: 100% !important; flex: 1;
-}
-.workspace.simplified-mode #simpBotPane .robot-scene { height: 100% !important; }
-.workspace.simplified-mode #simpBotPane .robot-controls {
-  border-top: 1px solid rgba(128,128,128,.1); padding: 3px 6px;
-}
-.workspace.simplified-mode #simpChatPane {
-  border: none; border-left: 1px solid rgba(128,128,128,.12);
-}
-.workspace.simplified-mode #simpChatPane .simp-actions-row {
-  border-bottom: 1px solid rgba(128,128,128,.08); background: transparent;
-}
-.workspace.simplified-mode #simpChatPane .ai-input-row {
+/* Softer UI in simplified mode */
+.workspace.simplified-mode #q-claude .ai-input-row {
   border-top: 1px solid rgba(128,128,128,.08); background: transparent;
+  border-bottom: none;
 }
-.workspace.simplified-mode #simpChatPane #aiOutputOpts {
+.workspace.simplified-mode #q-claude #aiOutputOpts {
   border-bottom: none; background: transparent; padding: 2px 8px;
-}
-.workspace.simplified-mode #simplifiedOutput {
-  border-top: 1px solid rgba(128,128,128,.12);
-}
-.workspace.simplified-mode .simplified-output-tabs {
-  background: transparent; border-bottom: 1px solid rgba(128,128,128,.1);
 }
 /* Stronger font contrast in simplified mode */
 .workspace.simplified-mode .ai-msg {
   color: var(--text) !important; font-size: .72rem !important;
 }
-.workspace.simplified-mode .ai-msg.user {
-  color: var(--text) !important; font-weight: 500;
-}
-.workspace.simplified-mode .ai-msg.assistant {
-  color: var(--text) !important;
-}
-.workspace.simplified-mode .simp-actions-row select,
-.workspace.simplified-mode .simp-actions-row label {
-  color: var(--text) !important; font-size: .65rem;
-}
+.workspace.simplified-mode .ai-msg.user { font-weight: 500; }
 .workspace.simplified-mode #aiInput {
   color: var(--text) !important; font-size: .78rem;
 }
@@ -1761,25 +1750,23 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     grid-template-rows: unset !important;
     gap: 0 !important;
   }
-  .workspace.simplified-mode .divider-h,
-  .workspace.simplified-mode .divider-v { display: none !important; }
-  .workspace.simplified-mode .pane { display: none !important; grid-column: unset !important; grid-row: unset !important; }
-  .workspace.simplified-mode #simpBotPane {
+  .workspace.simplified-mode .pane:not(#q-claude) { display: none !important; }
+  .workspace.simplified-mode #q-claude {
     display: flex !important;
+    flex-direction: column !important;
     flex: 0 0 auto !important;
-    height: 80px !important;
+    max-height: 35% !important;
     grid-column: unset !important; grid-row: unset !important;
-    flex-direction: row !important;
+    grid-template-columns: unset !important; grid-template-rows: unset !important;
   }
-  .workspace.simplified-mode #simpBotPane .robot-scene-wrapper {
-    width: 35% !important; height: 100% !important;
+  .workspace.simplified-mode #q-claude > .p-head { display: none !important; }
+  .workspace.simplified-mode #q-claude > .ai-actions-bar { display: none !important; }
+  .workspace.simplified-mode #simpBotArea {
+    display: none !important; /* hide bot on mobile to save space */
   }
-  .workspace.simplified-mode #simpBotPane .robot-scene { height: 80px !important; }
-  .workspace.simplified-mode #simpChatPane {
-    display: flex !important;
-    flex: 0 0 auto !important;
-    max-height: 30% !important;
+  .workspace.simplified-mode #q-claude > .p-body {
     grid-column: unset !important; grid-row: unset !important;
+    border-left: none !important;
   }
   .workspace.simplified-mode #simplifiedOutput {
     display: flex !important;
@@ -3018,12 +3005,6 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
   </div>
 
-  <!-- ═══ SIMPLIFIED MODE: BOT PANE (top left) ═══ -->
-  <div id="simpBotPane" style="display:none;"></div>
-
-  <!-- ═══ SIMPLIFIED MODE: CHAT PANE (top right) ═══ -->
-  <div id="simpChatPane" style="display:none;"></div>
-
   <!-- ═══ SIMPLIFIED MODE OUTPUT AREA (bottom) ═══ -->
   <div id="simplifiedOutput" style="display:none;">
     <div class="simplified-output-tabs" id="simpTabs">
@@ -3623,49 +3604,26 @@ function applyWorkspaceMode() {
   const ws = document.getElementById('workspace');
   const label = document.getElementById('modeToggleLabel');
   const header = document.querySelector('.header');
-  if (!ws) return;
+  const claude = document.getElementById('q-claude');
+  if (!ws || !claude) return;
 
   if (wsMode === 'simplified') {
     ws.classList.add('simplified-mode');
     if (header) header.classList.add('simplified-header');
     if (label) label.textContent = 'Simplified';
 
-    // --- Move robot scene into simpBotPane ---
-    const botPane = document.getElementById('simpBotPane');
-    const robotWrapper = document.getElementById('robotSceneWrapper');
-    if (botPane && robotWrapper && !botPane.dataset.filled) {
-      botPane.dataset.filled = '1';
-      botPane.appendChild(robotWrapper);
+    // Create simpBotArea inside q-claude if not exists — holds the robot scene
+    let botArea = document.getElementById('simpBotArea');
+    if (!botArea) {
+      botArea = document.createElement('div');
+      botArea.id = 'simpBotArea';
+      claude.insertBefore(botArea, claude.firstChild);
+      // Move robot wrapper into bot area
+      const robotWrapper = document.getElementById('robotSceneWrapper');
+      if (robotWrapper) botArea.appendChild(robotWrapper);
     }
 
-    // --- Move chat elements into simpChatPane ---
-    const chatPane = document.getElementById('simpChatPane');
-    const aiMsgs = document.getElementById('aiMsgs');
-    const aiInputRow = document.querySelector('#q-claude .ai-input-row');
-    const aiOutputOpts = document.getElementById('aiOutputOpts');
-    const aiActionsBar = document.getElementById('aiActionsBar');
-    const aiCostBadge = document.getElementById('aiCostBadge');
-    if (chatPane && !chatPane.dataset.filled) {
-      chatPane.dataset.filled = '1';
-      // Compact actions row: just model + persona + cost
-      const actionsRow = document.createElement('div');
-      actionsRow.className = 'simp-actions-row';
-      actionsRow.id = 'simpActionsRow';
-      const aiModel = document.getElementById('aiModel');
-      const personaSelect = document.getElementById('personaSelect');
-      const costBtn = document.getElementById('aiCostBtn');
-      const deepToggle = document.getElementById('aiDeepToggleLabel');
-      if (aiModel) actionsRow.appendChild(aiModel);
-      if (personaSelect) actionsRow.appendChild(personaSelect);
-      if (deepToggle) actionsRow.appendChild(deepToggle);
-      if (costBtn) actionsRow.appendChild(costBtn);
-      chatPane.appendChild(actionsRow);
-      if (aiMsgs) chatPane.appendChild(aiMsgs);
-      if (aiInputRow) chatPane.appendChild(aiInputRow);
-      if (aiOutputOpts) chatPane.appendChild(aiOutputOpts);
-    }
-
-    // --- Move pane bodies into output tabs ---
+    // Move pane bodies into output tabs
     _mirrorPaneToSimp('q-sheet', 'simp-sheet');
     _mirrorPaneToSimp('q-notepad', 'simp-notepad');
     _mirrorPaneToSimp('q-whiteboard', 'simp-whiteboard');
@@ -3687,38 +3645,13 @@ function applyWorkspaceMode() {
     if (header) header.classList.remove('simplified-header');
     if (label) label.textContent = 'Suite';
 
-    // --- Restore robot scene back to claude pane ---
-    const botPane = document.getElementById('simpBotPane');
-    const claudeContentRow = document.getElementById('claudeContentRow');
-    const robotWrapper = document.getElementById('robotSceneWrapper');
-    if (botPane && botPane.dataset.filled && claudeContentRow) {
-      if (robotWrapper) claudeContentRow.appendChild(robotWrapper);
-      delete botPane.dataset.filled;
-    }
-
-    // --- Restore chat elements back to claude pane ---
-    const chatPane = document.getElementById('simpChatPane');
-    const claudeBody = document.querySelector('#q-claude .p-body');
+    // Move robot wrapper back into claude-content-row
+    const botArea = document.getElementById('simpBotArea');
     const contentRow = document.getElementById('claudeContentRow');
-    if (chatPane && chatPane.dataset.filled && claudeBody) {
-      // Move action bar controls back to original actions bar
-      const simpActionsRow = document.getElementById('simpActionsRow');
-      const aiActionsBar = document.getElementById('aiActionsBar');
-      if (simpActionsRow && aiActionsBar) {
-        while (simpActionsRow.firstChild) aiActionsBar.appendChild(simpActionsRow.firstChild);
-        simpActionsRow.remove();
-      }
-      // Move messages back into claude-content-row (before robot wrapper)
-      const aiMsgs = document.getElementById('aiMsgs');
-      if (aiMsgs && contentRow) contentRow.insertBefore(aiMsgs, contentRow.firstChild);
-      // Move input row and output opts back into p-body (before claude-content-row)
-      const aiInputRow = chatPane.querySelector('.ai-input-row');
-      const aiOutputOpts = document.getElementById('aiOutputOpts');
-      if (contentRow) {
-        if (aiOutputOpts) claudeBody.insertBefore(aiOutputOpts, contentRow);
-        if (aiInputRow) claudeBody.insertBefore(aiInputRow, aiOutputOpts || contentRow);
-      }
-      delete chatPane.dataset.filled;
+    if (botArea && contentRow) {
+      const robotWrapper = document.getElementById('robotSceneWrapper');
+      if (robotWrapper) contentRow.appendChild(robotWrapper);
+      botArea.remove();
     }
 
     // Restore pane bodies
