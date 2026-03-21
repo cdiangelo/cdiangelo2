@@ -3781,7 +3781,7 @@ const wsHardwareId = getHardwareFingerprint();
             } else if (artifact.type === 'sheet' && artifact.input && artifact.input.data) {
               userSsIdCounter++;
               const emptyData = [];
-              for (let r = 0; r < 20; r++) emptyData.push(new Array(10).fill(''));
+              for (let r = 0; r < (typeof SS_MIN_R !== 'undefined' ? SS_MIN_R : 75); r++) emptyData.push(new Array(typeof SS_MIN_C !== 'undefined' ? SS_MIN_C : 75).fill(''));
               const data = artifact.input.data;
               const startRow = artifact.input.startRow || 0;
               const startCol = artifact.input.startCol || 0;
@@ -3797,7 +3797,7 @@ const wsHardwareId = getHardwareFingerprint();
                 });
               }
               if (!userSsPages) {
-                userSsPages = [{ id: 1, title: 'Sheet 1', data: (function(){ const d=[]; for(let r=0;r<20;r++) d.push(new Array(10).fill('')); return d; })(), colNames: [], fmt: {} }];
+                userSsPages = [{ id: 1, title: 'Sheet 1', data: (function(){ const d=[]; for(let r=0;r<75;r++) d.push(new Array(75).fill('')); return d; })(), colNames: [], fmt: {} }];
               }
               userSsPages.push({
                 id: userSsIdCounter,
@@ -6973,7 +6973,7 @@ function ssRenderSelection() {
 }
 
 // ── Sheet multi-page system ──
-let ssPages = LS('ssPages') || [{ id: 1, title: 'Sheet 1', data: (function(){ const d=[]; for(let r=0;r<20;r++) d.push(new Array(10).fill('')); return d; })(), colNames: [], fmt: {} }];
+let ssPages = LS('ssPages') || [{ id: 1, title: 'Sheet 1', data: (function(){ const d=[]; for(let r=0;r<75;r++) d.push(new Array(75).fill('')); return d; })(), colNames: [], fmt: {} }];
 let ssActivePageId = LS('ssActivePageId') || 1;
 let ssPageIdCounter = LS('ssPageIdCounter') || 1;
 
@@ -7044,6 +7044,7 @@ function ssSwitchPage(id) {
     ssRowHeights = [];
     ssValidation = {};
   }
+  ssEnsureMinGrid();
   LS('sheet', ssD); LS('sheetColNames', ssColNames);
   ssRender();
   renderSsTabs();
@@ -7054,7 +7055,7 @@ function ssAddPage() {
   ssPageIdCounter++;
   // Initialize with empty data grid instead of null to prevent data loss on serialize
   const emptyData = [];
-  for (let r = 0; r < 20; r++) emptyData.push(new Array(10).fill(''));
+  for (let r = 0; r < SS_MIN_R; r++) emptyData.push(new Array(SS_MIN_C).fill(''));
   const page = { id: ssPageIdCounter, title: 'Sheet ' + ssPageIdCounter, data: emptyData, colNames: [], fmt: {}, rowGroups: [], colGroups: [], rowIndent: {} };
   ssPages.push(page);
   ssSwitchPage(page.id);
@@ -7092,6 +7093,19 @@ function renderSsTabs() {
   el.appendChild(addBtn);
 }
 
+// Ensure grid is at least MIN_R × MIN_C, expanding existing data if needed
+const SS_MIN_R = 75, SS_MIN_C = 75;
+function ssEnsureMinGrid() {
+  if (ssR < SS_MIN_R) {
+    for (let r = ssR; r < SS_MIN_R; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; }
+    ssR = SS_MIN_R;
+  }
+  if (ssC < SS_MIN_C) {
+    for (let r = 0; r < ssR; r++) { for (let c = ssD[r].length; c < SS_MIN_C; c++) ssD[r][c] = ''; }
+    ssC = SS_MIN_C;
+  }
+}
+
 function ssInit() {
   // Load from active page if available
   const initPage = ssPages.find(p => p.id === ssActivePageId) || ssPages[0];
@@ -7109,6 +7123,7 @@ function ssInit() {
     ssR = ssD.length; ssC = ssD[0].length;
     ssColNames = LS('sheetColNames') || [];
   }
+  ssEnsureMinGrid();
   ssRender();
   renderSsTabs();
 }
@@ -15579,12 +15594,13 @@ function deserializeState(s) {
     ssRowGroups = s.ssRowGroups ? JSON.parse(JSON.stringify(s.ssRowGroups)) : [];
     ssColGroups = s.ssColGroups ? JSON.parse(JSON.stringify(s.ssColGroups)) : [];
     ssRowIndent = s.ssRowIndent ? JSON.parse(JSON.stringify(s.ssRowIndent)) : {};
+    ssEnsureMinGrid();
     LS('sheet', ssD); LS('sheetColNames', ssColNames); LS('ssFmt', ssFmt); LS('ssColWidths', ssColWidths); LS('ssRowHeights', ssRowHeights);
     LS('ssRowGroups', ssRowGroups); LS('ssColGroups', ssColGroups); LS('ssRowIndent', ssRowIndent);
     ssRender(); renderSsTabs();
   } else {
-    if (s.sheet) { ssD = JSON.parse(JSON.stringify(s.sheet)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; LS('sheet', ssD); }
-    else if (s.ssR && s.ssC) { ssR = s.ssR; ssC = s.ssC; ssD = []; for (let r = 0; r < ssR; r++) ssD.push(new Array(ssC).fill('')); LS('sheet', ssD); }
+    if (s.sheet) { ssD = JSON.parse(JSON.stringify(s.sheet)); ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10; ssEnsureMinGrid(); LS('sheet', ssD); }
+    else if (s.ssR && s.ssC) { ssR = s.ssR; ssC = s.ssC; ssD = []; for (let r = 0; r < ssR; r++) ssD.push(new Array(ssC).fill('')); ssEnsureMinGrid(); LS('sheet', ssD); }
     if (s.sheetColNames) { ssColNames = s.sheetColNames.slice(); LS('sheetColNames', ssColNames); }
     if (s.ssFmt) { ssFmt = JSON.parse(JSON.stringify(s.ssFmt)); LS('ssFmt', ssFmt); }
     else { ssFmt = {}; LS('ssFmt', ssFmt); }
@@ -19765,6 +19781,7 @@ function restoreCleanupSnapshot(snap) {
   } else if (snap.tabId === 'q-sheet') {
     ssD = JSON.parse(JSON.stringify(snap.data));
     ssR = ssD.length; ssC = ssD[0] ? ssD[0].length : 10;
+    ssEnsureMinGrid();
     ssColNames = snap.colNames.slice();
     ssRender();
     ssSaveCurrentPage();
