@@ -684,19 +684,33 @@ body.light .fun-btn { background: var(--accent); }
   border: 1px solid var(--border); border-radius: 4px; color: var(--text);
   font-size: .72rem; font-family: monospace;
 }
-/* Formula bar: full-width own row in all-panes view */
+/* Formula bar: full-width own row */
 .ss-formula-row {
-  display: flex; gap: 3px; align-items: center;
-  flex: 0 0 100%; order: -1;
+  display: flex; gap: 3px; align-items: flex-start;
+  flex: 0 0 100%; order: -1; position: relative;
 }
 .ss-formula-row input[type=text] {
   flex: 1; min-width: 0; padding: 3px 7px; background: var(--bg);
   border: 1px solid var(--border); border-radius: 4px; color: var(--text);
-  font-size: .72rem; font-family: monospace;
+  font-size: .72rem; font-family: monospace; min-height: 24px;
+  resize: none; overflow: hidden;
 }
-/* When expanded, formula row flows inline with buttons instead */
+/* When expanded pane, formula bar spans full width above toolbar */
 .pane.expanded .ss-formula-row {
-  flex: 1 1 auto; order: 0;
+  flex: 0 0 100%; order: -1;
+}
+.pane.expanded .ss-formula-row input[type=text] {
+  font-size: .82rem; padding: 5px 10px;
+}
+/* Formula bar resize handle */
+.ss-fb-resize {
+  position: absolute; bottom: -3px; left: 20%; right: 20%; height: 6px;
+  cursor: ns-resize; z-index: 5; opacity: 0; transition: opacity .2s;
+}
+.ss-formula-row:hover .ss-fb-resize { opacity: 1; }
+.ss-fb-resize::after {
+  content: ''; display: block; width: 30px; height: 3px; margin: 2px auto 0;
+  background: var(--text-dim); border-radius: 2px; opacity: .5;
 }
 
 /* ═══ Q1: NOTEPAD ═══ */
@@ -758,10 +772,10 @@ body.light .fun-btn { background: var(--accent); }
   position: sticky; top: 0; z-index: 2; text-align: center; overflow: hidden;
   user-select: none;
 }
-.ss-table th.row-h { position: sticky; left: 0; z-index: 3; min-width: 32px; width: 32px; }
+.ss-table th.row-h { position: sticky; left: 0; z-index: 3; min-width: 32px; width: 32px; border-right: 1px solid var(--border); }
 .ss-table th.corner { position: sticky; left: 0; top: 0; z-index: 4; min-width: 32px; width: 32px; }
 .ss-table td {
-  padding: 0; border: 1px solid var(--border); height: 24px; overflow: hidden;
+  padding: 0; border: 1px solid var(--bg); height: 24px; overflow: hidden;
   background: var(--bg); position: relative;
 }
 .ss-table td.spill { overflow: visible; }
@@ -772,6 +786,10 @@ body.light .fun-btn { background: var(--accent); }
 .ss-table td.sel-bottom { border-bottom: 2px solid var(--accent); }
 .ss-table td.sel-left { border-left: 2px solid var(--accent); }
 .ss-table td.sel-right { border-right: 2px solid var(--accent); }
+.ss-table td.copy-top { border-top: 2px dashed rgba(59,130,246,.7); }
+.ss-table td.copy-bottom { border-bottom: 2px dashed rgba(59,130,246,.7); }
+.ss-table td.copy-left { border-left: 2px dashed rgba(59,130,246,.7); }
+.ss-table td.copy-right { border-right: 2px dashed rgba(59,130,246,.7); }
 .ss-table th.row-h.row-selected { background: rgba(59,130,246,.25); color: var(--text); }
 .ss-table th[data-c].col-selected { background: rgba(59,130,246,.25); color: var(--text); }
 .ss-table td .ci {
@@ -818,9 +836,9 @@ body.light .fun-btn { background: var(--accent); }
 /* Row/column grouping */
 .ss-table th.row-h { position: relative; }
 .ss-table th.row-h .grp-toggle {
-  display: inline-block; width: 14px; height: 14px; line-height: 13px; text-align: center;
-  font-size: .6rem; font-weight: 700; cursor: pointer; border-radius: 3px;
-  background: rgba(255,255,255,.08); border: 1px solid var(--border); color: var(--text-dim);
+  display: inline-block; width: 15px; height: 15px; line-height: 14px; text-align: center;
+  font-size: .65rem; font-weight: 700; cursor: pointer; border-radius: 3px;
+  background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.4); color: var(--text);
   margin-right: 2px; vertical-align: middle; user-select: none;
 }
 .ss-table th.row-h .grp-toggle:hover { background: rgba(59,130,246,.25); color: var(--text); }
@@ -832,9 +850,9 @@ body.light .fun-btn { background: var(--accent); }
   position: relative; font-size: .55rem; padding: 1px 2px; height: 16px; cursor: pointer;
 }
 .ss-table th.col-grp-header .grp-toggle {
-  display: inline-block; width: 14px; height: 14px; line-height: 13px; text-align: center;
-  font-size: .55rem; font-weight: 700; cursor: pointer; border-radius: 3px;
-  background: rgba(255,255,255,.08); border: 1px solid var(--border); color: var(--text-dim);
+  display: inline-block; width: 15px; height: 15px; line-height: 14px; text-align: center;
+  font-size: .6rem; font-weight: 700; cursor: pointer; border-radius: 3px;
+  background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.4); color: var(--text);
   user-select: none;
 }
 .ss-table th.col-grp-header .grp-toggle:hover { background: rgba(59,130,246,.25); color: var(--text); }
@@ -2887,9 +2905,10 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     <div class="p-body">
       <div class="page-tabs" id="ssPageTabs"></div>
       <div class="toolbar ss-toolbar">
-        <div class="ss-formula-row">
+        <div class="ss-formula-row" id="ssFormulaRow">
           <span class="cell-ref" id="ssCellRef">A1</span>
           <input type="text" id="ssFormula" placeholder="=SUM  =SUMIFS  =COUNTIFS  =AVERAGEIF  =MAXIFS  =MINIFS  =VLOOKUP  =IF  =STOCK" />
+          <div class="ss-fb-resize" id="ssFbResize"></div>
         </div>
         <div class="sep"></div>
         <button id="ssBold" title="Toggle bold (Ctrl+B)" style="font-weight:900;min-width:22px;">B</button>
@@ -2913,6 +2932,8 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
         <button id="ssFormulas" title="Show formulas">fx</button>
         <button id="ssRefreshStock" title="Refresh all STOCK data (clear cache &amp; re-fetch)" style="color:var(--accent);font-weight:600;">&#8635;</button>
         <button id="ssCalcAll" title="Force recalculate all formulas (replaces formulas with values)" style="color:var(--accent2);font-weight:600;">Calc</button>
+        <button id="ssGroupBtn" title="Group selected rows/columns (collapse/expand)">Group</button>
+        <button id="ssUngroupBtn" title="Ungroup selected rows/columns">Ungroup</button>
         <button id="ssUndo" title="Undo last change">Undo</button>
         <button id="ssHelp" title="Formula reference">? Help</button>
         <button id="ssExport">Excel</button>
@@ -6654,7 +6675,7 @@ $('#wbPasteTable').onclick = () => {
 /* ═══════════════════════════════════════════
    SPREADSHEET
    ═══════════════════════════════════════════ */
-let ssR = 20, ssC = 10, ssD = [], ssSel = null, ssShowFormulas = false, ssHeatMap = false;
+let ssR = 75, ssC = 75, ssD = [], ssSel = null, ssShowFormulas = false, ssHeatMap = false;
 let ssClipboard = null, ssClipboardSrc = null, ssColNames = [];
 let ssSelecting = false, ssEditing = false;
 let ssClipboardRange = null; // { data: 2D array, rows, cols }
@@ -6850,6 +6871,21 @@ function ssRenderSelection() {
       if (ch) ch.classList.add('col-selected');
     }
   }
+  // Render copy highlight (dashed border around copied range)
+  t.querySelectorAll('.copy-top,.copy-bottom,.copy-left,.copy-right').forEach(el => el.classList.remove('copy-top','copy-bottom','copy-left','copy-right'));
+  if (ssClipboardRange && ssClipboardRange.srcRow != null) {
+    const cr = ssClipboardRange;
+    for (let r = cr.srcRow; r < cr.srcRow + cr.rows; r++) {
+      for (let c = cr.srcCol; c < cr.srcCol + cr.cols; c++) {
+        const td = t.querySelector('td[data-r="'+r+'"][data-c="'+c+'"]');
+        if (!td) continue;
+        if (r === cr.srcRow) td.classList.add('copy-top');
+        if (r === cr.srcRow + cr.rows - 1) td.classList.add('copy-bottom');
+        if (c === cr.srcCol) td.classList.add('copy-left');
+        if (c === cr.srcCol + cr.cols - 1) td.classList.add('copy-right');
+      }
+    }
+  }
   // Update formula bar
   if (s.minR === s.maxR && s.minC === s.maxC && ssExtraSelections.length === 0) {
     $('#ssCellRef').textContent = colN(ssSel.c1) + (ssSel.r1 + 1);
@@ -7000,7 +7036,7 @@ function ssSwitchPage(id) {
     ssRowHeights = page.rowHeights ? page.rowHeights.slice() : [];
     ssValidation = page.validation ? JSON.parse(JSON.stringify(page.validation)) : {};
   } else {
-    ssD = []; ssR = 20; ssC = 10;
+    ssD = []; ssR = 75; ssC = 75;
     for (let r = 0; r < ssR; r++) { ssD[r] = []; for (let c = 0; c < ssC; c++) ssD[r][c] = ''; }
     ssColNames = [];
     ssFmt = {};
@@ -8027,10 +8063,18 @@ function ssRender() {
   });
   document.addEventListener('mouseup', () => {
     if (!resizing) return;
+    const finalW = ssColWidths[resizeCol] || 80;
+    // Apply same width to all selected columns if the resized column is in the selection
+    if (ssSel) {
+      const minC = Math.min(ssSel.c1, ssSel.c2), maxC = Math.max(ssSel.c1, ssSel.c2);
+      if (resizeCol >= minC && resizeCol <= maxC) {
+        for (let c = minC; c <= maxC; c++) ssColWidths[c] = finalW;
+      }
+    }
     resizing = false;
     document.body.style.cursor = '';
     table.querySelectorAll('.col-resize-handle.dragging').forEach(h => h.classList.remove('dragging'));
-    LS('ssColWidths', ssColWidths);
+    LS('ssColWidths', ssColWidths); ssRender();
   });
 })();
 
@@ -8060,10 +8104,18 @@ function ssRender() {
   });
   document.addEventListener('mouseup', () => {
     if (!resizing) return;
+    const finalH = ssRowHeights[resizeRow] || 24;
+    // Apply same height to all selected rows if the resized row is in the selection
+    if (ssSel) {
+      const minR = Math.min(ssSel.r1, ssSel.r2), maxR = Math.max(ssSel.r1, ssSel.r2);
+      if (resizeRow >= minR && resizeRow <= maxR) {
+        for (let r = minR; r <= maxR; r++) ssRowHeights[r] = finalH;
+      }
+    }
     resizing = false;
     document.body.style.cursor = '';
     table.querySelectorAll('.row-resize-handle.dragging').forEach(h => h.classList.remove('dragging'));
-    LS('ssRowHeights', ssRowHeights);
+    LS('ssRowHeights', ssRowHeights); ssRender();
   });
 })();
 
@@ -8362,12 +8414,33 @@ function ssRender() {
       if (!ssEditing) ssEnterEdit(r, c);
       return;
     }
-    // Column header rename on dblclick
+    // Column header double-click: auto-fit column width to content
     const ch = e.target.closest('th[data-c]');
     if (ch) {
       const c = +ch.dataset.c;
-      const name = prompt('Column name:', ssColNames[c] || colN(c));
-      if (name !== null) { ssColNames[c] = name; LS('sheetColNames', ssColNames); ssRender(); }
+      let maxW = 40; // minimum width
+      for (let r = 0; r < ssR; r++) {
+        const val = ssD[r][c] || '';
+        const display = (typeof val === 'string' && val.startsWith('=')) ? String(evalF(val)) : val;
+        const textW = String(display).length * 7.5 + 16; // estimate monospace width
+        if (textW > maxW) maxW = textW;
+      }
+      ssColWidths[c] = Math.min(Math.max(maxW, 40), 400);
+      LS('ssColWidths', ssColWidths); ssRender();
+    }
+    // Row header double-click: auto-fit row height to content
+    const rh = e.target.closest('th.row-h');
+    if (rh) {
+      const r = rh.dataset.row !== undefined ? +rh.dataset.row : -1;
+      if (r >= 0) {
+        let maxH = 24;
+        for (let c = 0; c < ssC; c++) {
+          const val = ssD[r][c] || '';
+          if (val.length > 0) { const lines = String(val).split('\n').length; maxH = Math.max(maxH, lines * 18 + 6); }
+        }
+        ssRowHeights[r] = Math.min(Math.max(maxH, 20), 200);
+        LS('ssRowHeights', ssRowHeights); ssRender();
+      }
     }
   });
 
@@ -8383,8 +8456,8 @@ function ssRender() {
     if (ssEditing) {
       const inp = t.querySelector('.ci[data-r="'+ssSel.r1+'"][data-c="'+ssSel.c1+'"]');
       if (e.key === 'Escape') { e.preventDefault(); ssEditing = false; ssFormulaRef = null; ssClearFormulaRefHighlight(); ssHideFormulaTooltip(); if (inp) { inp.value = ssD[ssSel.r1][ssSel.c1] || ''; inp.setAttribute('readonly', ''); } ssRenderSelection(); return; }
-      if (e.key === 'Enter') { e.preventDefault(); ssFormulaRef = null; ssClearFormulaRefHighlight(); ssExitEdit(); const nr = e.shiftKey ? Math.max(ssSel.r1 - 1, 0) : Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); ssEnterEdit(nr, ssSel.c1); return; }
-      if (e.key === 'Tab') { e.preventDefault(); ssFormulaRef = null; ssClearFormulaRefHighlight(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); ssEnterEdit(ssSel.r1, nc); return; }
+      if (e.key === 'Enter') { e.preventDefault(); ssFormulaRef = null; ssClearFormulaRefHighlight(); ssExitEdit(); const nr = e.shiftKey ? Math.max(ssSel.r1 - 1, 0) : Math.min(ssSel.r1 + 1, ssR-1); ssSel = { r1: nr, c1: ssSel.c1, r2: nr, c2: ssSel.c1 }; ssRenderSelection(); return; }
+      if (e.key === 'Tab') { e.preventDefault(); ssFormulaRef = null; ssClearFormulaRefHighlight(); ssExitEdit(); const nc = e.shiftKey ? Math.max(ssSel.c1-1,0) : Math.min(ssSel.c1+1,ssC-1); ssSel = { r1: ssSel.r1, c1: nc, r2: ssSel.r1, c2: nc }; ssRenderSelection(); return; }
       // Arrow keys in formula edit mode: select cell references
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         const val = inp ? inp.value : '';
@@ -8644,6 +8717,7 @@ function ssRender() {
       // Only fall back to system clipboard if no internal data exists
       if (ssClipboardRange && ssClipboardRange.data) {
         ssPasteData(ssClipboardRange.data, ssClipboardRange);
+        if (ssClipboardRange.isCut) ssClipboardRange = null; // clear after cut-paste
       } else {
         navigator.clipboard.readText().then(text => {
           const rows = text.split('\n').filter(r => r.length);
@@ -8694,6 +8768,29 @@ function renderSparkline(canvas, values) {
   });
   ctx.stroke();
 }
+
+// Formula bar resize handle (drag to expand height)
+(function initFbResize() {
+  const handle = document.getElementById('ssFbResize');
+  const fbInput = document.getElementById('ssFormula');
+  if (!handle || !fbInput) return;
+  let dragging = false, startY = 0, startH = 0;
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dragging = true; startY = e.clientY; startH = fbInput.offsetHeight;
+    document.body.style.cursor = 'ns-resize';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const newH = Math.max(24, Math.min(200, startH + (e.clientY - startY)));
+    fbInput.style.height = newH + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+  });
+})();
 
 // Formula bar
 $('#ssFormula').addEventListener('keydown', e => {
@@ -8973,6 +9070,45 @@ function ssPushUndo() {
   });
   if (ssUndoHist.length > 50) ssUndoHist.shift();
 }
+// Group / Ungroup toolbar buttons
+$('#ssGroupBtn').onclick = () => {
+  if (!ssSel) { toast('Select rows or columns first'); return; }
+  const sr = ssSelRange();
+  // Determine if selection spans full rows or full columns
+  const isFullRow = sr.minC === 0 && sr.maxC === ssC - 1;
+  const isFullCol = sr.minR === 0 && sr.maxR === ssR - 1;
+  if (isFullRow && sr.minR !== sr.maxR) {
+    const overlap = ssRowGroups.some(g => !(sr.maxR < g.start || sr.minR > g.end));
+    if (overlap) { toast('Rows already grouped'); return; }
+    ssRowGroups.push({ start: sr.minR, end: sr.maxR, collapsed: false });
+    ssSaveGroups(); ssRender(); toast('Grouped rows ' + (sr.minR+1) + '-' + (sr.maxR+1));
+  } else if (isFullCol && sr.minC !== sr.maxC) {
+    const overlap = ssColGroups.some(g => !(sr.maxC < g.start || sr.minC > g.end));
+    if (overlap) { toast('Columns already grouped'); return; }
+    ssColGroups.push({ start: sr.minC, end: sr.maxC, collapsed: false });
+    ssSaveGroups(); ssRender(); toast('Grouped columns ' + colN(sr.minC) + '-' + colN(sr.maxC));
+  } else if (sr.minR !== sr.maxR) {
+    const overlap = ssRowGroups.some(g => !(sr.maxR < g.start || sr.minR > g.end));
+    if (overlap) { toast('Rows already grouped'); return; }
+    ssRowGroups.push({ start: sr.minR, end: sr.maxR, collapsed: false });
+    ssSaveGroups(); ssRender(); toast('Grouped rows ' + (sr.minR+1) + '-' + (sr.maxR+1));
+  } else if (sr.minC !== sr.maxC) {
+    const overlap = ssColGroups.some(g => !(sr.maxC < g.start || sr.minC > g.end));
+    if (overlap) { toast('Columns already grouped'); return; }
+    ssColGroups.push({ start: sr.minC, end: sr.maxC, collapsed: false });
+    ssSaveGroups(); ssRender(); toast('Grouped columns ' + colN(sr.minC) + '-' + colN(sr.maxC));
+  } else { toast('Select multiple rows or columns to group'); }
+};
+$('#ssUngroupBtn').onclick = () => {
+  if (!ssSel) { toast('Select grouped rows or columns'); return; }
+  const sr = ssSelRange();
+  const rBefore = ssRowGroups.length, cBefore = ssColGroups.length;
+  ssRowGroups = ssRowGroups.filter(g => g.start < sr.minR || g.end > sr.maxR);
+  ssColGroups = ssColGroups.filter(g => g.start < sr.minC || g.end > sr.maxC);
+  if (ssRowGroups.length === rBefore && ssColGroups.length === cBefore) { toast('No group in selection'); return; }
+  ssSaveGroups(); ssRender(); toast('Ungrouped');
+};
+
 $('#ssUndo').onclick = () => {
   if (!ssUndoHist.length) { toast('Nothing to undo'); return; }
   const snap = ssUndoHist.pop();
