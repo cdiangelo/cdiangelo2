@@ -641,7 +641,7 @@ export const toolHandlers = {
   // PRICING ANALYSIS
   pricing_analysis: async (input) => {
     const model = $('#pricingModel')?.value || $('#aiModel').value;
-    const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
+    const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-5'];
     const users = input.target_users || +($('#pricingUsers')?.value || 100);
     const qpu = input.queries_per_user || +($('#pricingQpu')?.value || 20);
     const mixQA = +($('#pricingMixQA')?.value || 40);
