@@ -2586,9 +2586,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
     </div>
     <div class="ai-actions-bar" id="aiActionsBar" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 10px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;">
       <select id="aiModel" style="font-size:.65rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);">
-        <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+        <option value="claude-sonnet-5">Sonnet 5</option>
         <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
-        <option value="claude-opus-4-6">Opus 4.6</option>
+        <option value="claude-opus-5">Opus 5</option>
       </select>
       <select id="personaSelect" style="font-size:.6rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--panel-inset);color:var(--text);max-width:110px;" title="Select persona mode"></select>
       <label id="aiDeepToggleLabel" style="display:flex;align-items:center;gap:2px;font-size:.55rem;color:var(--text-dim);cursor:pointer;" title="Auto-include deep research with every query (adds ~$0.05-0.15 per query)">
@@ -2622,9 +2622,9 @@ body.ops-mode .comp-sensitive { color: transparent !important; user-select: none
             <div style="flex:1;">
               <label style="font-size:.58rem;color:var(--text-dim);">Model</label>
             <select id="pricingModel" style="width:100%;font-size:.62rem;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
-              <option value="claude-sonnet-4-6">Sonnet 4.6 ($3 / $15 per 1M)</option>
+              <option value="claude-sonnet-5">Sonnet 5 ($3 / $15 per 1M)</option>
               <option value="claude-haiku-4-5-20251001">Haiku 4.5 ($1 / $5 per 1M)</option>
-              <option value="claude-opus-4-6">Opus 4.6 ($15 / $75 per 1M)</option>
+              <option value="claude-opus-5">Opus 5 ($5 / $25 per 1M)</option>
             </select>
             </div>
             <div style="flex:0 0 auto;">
@@ -17611,9 +17611,9 @@ let aiSessionTokensOut = 0;
 let aiSessionRequests = 0;
 
 const MODEL_RATES = {
-  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
+  'claude-sonnet-5': { input: 3.00, output: 15.00 },
   'claude-haiku-4-5-20251001': { input: 1.00, output: 5.00 },
-  'claude-opus-4-6': { input: 15.00, output: 75.00 }
+  'claude-opus-5': { input: 5.00, output: 25.00 }
 };
 
 // ── Persona mode system ──
@@ -18514,9 +18514,9 @@ window._sendGeoThreadToAnalyst = function(idx) {
 const TASK_TIERS = {
   TIER_1: { model: 'claude-haiku-4-5-20251001', maxTokens: 1000, label: 'Fast',
     systemPrompt: 'You are a precise assistant. Complete the task directly and concisely.' },
-  TIER_2: { model: 'claude-sonnet-4-6', maxTokens: 4000, label: 'Standard',
+  TIER_2: { model: 'claude-sonnet-5', maxTokens: 4000, label: 'Standard',
     systemPrompt: 'Think step by step. First produce a brief plan (3-5 bullets), then execute each step. For financial models, decompose into: assumptions → revenue drivers → cost structure → output metrics.' },
-  TIER_3: { model: 'claude-sonnet-4-6', maxTokens: 4000, label: 'Deep Research',
+  TIER_3: { model: 'claude-sonnet-5', maxTokens: 4000, label: 'Deep Research',
     systemPrompt: 'You are a senior analyst. Be targeted and selective — prioritize high-signal findings over exhaustive coverage. For financial models: define key assumptions, build a focused model, note top sensitivities. For stock analysis: lead with thesis, cover 2-3 key catalysts, top risks, and a clear price framework. If a verified company profile is provided, use the segment breakdown to correctly attribute metrics to the right segment. Never conflate segments. Keep analysis tight — no filler, no restating the obvious.' }
 };
 
@@ -18810,13 +18810,13 @@ function extractTickers(prompt) {
 
 function getSessionCost() {
   const model = $('#aiModel').value;
-  const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
+  const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-5'];
   return (aiSessionTokensIn / 1e6 * rates.input) + (aiSessionTokensOut / 1e6 * rates.output);
 }
 
 function updateCostPanel() {
   const model = $('#aiModel').value;
-  const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
+  const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-5'];
   const cost = getSessionCost();
   const el = $('#aiCostDetails');
   if (!el) return;
@@ -18984,11 +18984,11 @@ function updatePricingCalc() {
 
   // Blended model rates (weighted average)
   const blendedInput = (MODEL_RATES['claude-haiku-4-5-20251001'].input * mHaiku +
-    MODEL_RATES['claude-sonnet-4-6'].input * mSonnet +
-    MODEL_RATES['claude-opus-4-6'].input * mOpus) * mNorm / 100;
+    MODEL_RATES['claude-sonnet-5'].input * mSonnet +
+    MODEL_RATES['claude-opus-5'].input * mOpus) * mNorm / 100;
   const blendedOutput = (MODEL_RATES['claude-haiku-4-5-20251001'].output * mHaiku +
-    MODEL_RATES['claude-sonnet-4-6'].output * mSonnet +
-    MODEL_RATES['claude-opus-4-6'].output * mOpus) * mNorm / 100;
+    MODEL_RATES['claude-sonnet-5'].output * mSonnet +
+    MODEL_RATES['claude-opus-5'].output * mOpus) * mNorm / 100;
   const rates = { input: blendedInput, output: blendedOutput };
 
   // Update labels
@@ -20293,7 +20293,7 @@ Return ONLY the polished HTML content (no <html>, <body>, or <style> tags). The 
   aiStreaming = true;
   try {
     const resp = await aiApiFetch({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       max_tokens: 6000,
       system: polishSystemPrompt + '\n\nReturn ONLY the polished HTML. No preamble, no explanation, no markdown fences.',
       messages: [{ role: 'user', content: userMsg }]
@@ -20306,10 +20306,10 @@ Return ONLY the polished HTML content (no <html>, <body>, or <style> tags). The 
       aiSessionTokensIn += _polishTokIn;
       aiSessionTokensOut += _polishTokOut;
       aiSessionRequests++;
-      if (typeof trackUserUsage === 'function') trackUserUsage(_polishTokIn, _polishTokOut, 'claude-sonnet-4-6');
+      if (typeof trackUserUsage === 'function') trackUserUsage(_polishTokIn, _polishTokOut, 'claude-sonnet-5');
       // Log polish to audit trail
-      _logApiCall('POLISH:Notepad', 'claude-sonnet-4-6', _polishTokIn, _polishTokOut);
-      _logBackgroundAudit('[POLISH] Notepad', 'claude-sonnet-4-6', _polishTokIn, _polishTokOut);
+      _logApiCall('POLISH:Notepad', 'claude-sonnet-5', _polishTokIn, _polishTokOut);
+      _logBackgroundAudit('[POLISH] Notepad', 'claude-sonnet-5', _polishTokIn, _polishTokOut);
       // Strip markdown code fences if present
       text = text.replace(/^```(?:html)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
       npEl.innerHTML = text;
@@ -22330,7 +22330,7 @@ async function executeAgentTool(name, input) {
 
       case 'pricing_analysis': {
         const model = $('#pricingModel')?.value || $('#aiModel').value;
-        const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-4-6'];
+        const rates = MODEL_RATES[model] || MODEL_RATES['claude-sonnet-5'];
         const users = input.target_users || +($('#pricingUsers')?.value || 100);
         const qpu = input.queries_per_user || +($('#pricingQpu')?.value || 20);
         const mixQA = +($('#pricingMixQA')?.value || 40);
